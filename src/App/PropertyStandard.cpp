@@ -94,9 +94,15 @@ PyObject *PropertyInteger::getPyObject(void)
 
 void PropertyInteger::setPyObject(PyObject *value)
 { 
+#if PY_MAJOR_VERSION < 3
+    if (PyInt_Check(value)) {
+        aboutToSetValue();
+        _lValue = PyInt_AsLong(value);
+#else    
     if (PyLong_Check(value)) {
         aboutToSetValue();
         _lValue = PyLong_AsLong(value);
+#endif
         hasSetValue();
     } 
     else {
@@ -423,9 +429,14 @@ PyObject * PropertyEnumeration::getPyObject(void)
 }
 
 void PropertyEnumeration::setPyObject(PyObject *value)
-{ 
+{
+#if PY_MAJOR_VERSION < 3
+    if (PyInt_Check(value)) {
+        long val = PyInt_AsLong(value);
+#else
     if (PyLong_Check(value)) {
         long val = PyLong_AsLong(value);
+#endif
         if (_enum.isValid()) {
             aboutToSetValue();
             _enum.setValue(val, true);
@@ -588,9 +599,14 @@ const PropertyIntegerConstraint::Constraints*  PropertyIntegerConstraint::getCon
 }
 
 void PropertyIntegerConstraint::setPyObject(PyObject *value)
-{ 
+{
+#if PY_MAJOR_VERSION < 3
+    if (PyInt_Check(value)) {
+        long temp = PyInt_AsLong(value);
+#else
     if (PyLong_Check(value)) {
         long temp = PyLong_AsLong(value);
+#endif
         if (_ConstStruct) {
             if (temp > _ConstStruct->UpperBound)
                 temp = _ConstStruct->UpperBound;
@@ -607,8 +623,13 @@ void PropertyIntegerConstraint::setPyObject(PyObject *value)
         for (int i=0; i<4; i++) {
             PyObject* item;
             item = PyTuple_GetItem(value,i);
+#if PY_MAJOR_VERSION < 3
+            if (PyInt_Check(item))
+                values[i] = PyInt_AsLong(item);
+#else
             if (PyLong_Check(item))
                 values[i] = PyLong_AsLong(item);
+#endif
             else
                 throw Base::TypeError("Type in tuple must be int");
         }
@@ -714,7 +735,11 @@ PyObject *PropertyIntegerList::getPyObject(void)
 {
     PyObject* list = PyList_New(getSize());
     for(int i = 0;i<getSize(); i++)
+#if PY_MAJOR_VERSION < 3
+        PyList_SetItem( list, i, PyInt_FromLong(_lValueList[i]));
+#else
         PyList_SetItem( list, i, PyLong_FromLong(_lValueList[i]));
+#endif
     return list;
 }
 
@@ -727,18 +752,32 @@ void PropertyIntegerList::setPyObject(PyObject *value)
 
         for (Py_ssize_t i=0; i<nSize;++i) {
             PyObject* item =  PySequence_GetItem(value, i);
+#if PY_MAJOR_VERSION < 3
+            if (!PyInt_Check(item)) {
+                std::string error = std::string("type in list must be int, not ");
+                error += item->ob_type->tp_name;
+                throw Base::TypeError(error);
+            }
+            values[i] = PyInt_AsLong(item);
+#else
             if (!PyLong_Check(item)) {
                 std::string error = std::string("type in list must be int, not ");
                 error += item->ob_type->tp_name;
                 throw Base::TypeError(error);
             }
             values[i] = PyLong_AsLong(item);
+#endif
         }
 
         setValues(values);
     }
+#if PY_MAJOR_VERSION < 3
+    else if (PyInt_Check(value)) {
+        setValue(PyInt_AsLong(value));
+#else
     else if (PyLong_Check(value)) {
         setValue(PyLong_AsLong(value));
+#endif
     }
     else {
         std::string error = std::string("type must be int or a sequence of int, not ");
@@ -842,7 +881,11 @@ PyObject *PropertyIntegerSet::getPyObject(void)
 {
     PyObject* set = PySet_New(NULL);
     for(std::set<long>::const_iterator it=_lValueSet.begin();it!=_lValueSet.end();++it)
+#if PY_MAJOR_VERSION < 3
+        PySet_Add(set,PyInt_FromLong(*it));
+#else
         PySet_Add(set,PyLong_FromLong(*it));
+#endif
     return set;
 }
 
@@ -855,18 +898,32 @@ void PropertyIntegerSet::setPyObject(PyObject *value)
 
         for (Py_ssize_t i=0; i<nSize;++i) {
             PyObject* item = PySequence_GetItem(value, i);
+#if PY_MAJOR_VERSION < 3
+            if (!PyInt_Check(item)) {
+                std::string error = std::string("type in list must be int, not ");
+                error += item->ob_type->tp_name;
+                throw Base::TypeError(error);
+            }
+            values.insert(PyInt_AsLong(item));
+#else
             if (!PyLong_Check(item)) {
                 std::string error = std::string("type in list must be int, not ");
                 error += item->ob_type->tp_name;
                 throw Base::TypeError(error);
             }
             values.insert(PyLong_AsLong(item));
+#endif
         }
 
         setValues(values);
     }
+#if PY_MAJOR_VERSION < 3
+    else if (PyInt_Check(value)) {
+        setValue(PyInt_AsLong(value));
+#else
     else if (PyLong_Check(value)) {
         setValue(PyLong_AsLong(value));
+#endif
     }
     else {
         std::string error = std::string("type must be int or list of int, not ");
@@ -973,9 +1030,15 @@ void PropertyFloat::setPyObject(PyObject *value)
         _dValue = PyFloat_AsDouble(value);
         hasSetValue();
     }
+#if PY_MAJOR_VERSION < 3
+    else if(PyInt_Check(value)) {
+        aboutToSetValue();
+        _dValue = PyInt_AsLong(value);
+#else
     else if(PyLong_Check(value)) {
         aboutToSetValue();
         _dValue = PyLong_AsLong(value);
+#endif
         hasSetValue();
     }
     else {
@@ -1077,8 +1140,13 @@ void PropertyFloatConstraint::setPyObject(PyObject *value)
         _dValue = temp;
         hasSetValue();
     }
+#if PY_MAJOR_VERSION < 3
+    else if (PyInt_Check(value)) {
+        double temp = (double)PyInt_AsLong(value);
+#else
     else if (PyLong_Check(value)) {
         double temp = (double)PyLong_AsLong(value);
+#endif
         if (_ConstStruct) {
             if (temp > _ConstStruct->UpperBound)
                 temp = _ConstStruct->UpperBound;
@@ -1097,8 +1165,13 @@ void PropertyFloatConstraint::setPyObject(PyObject *value)
             item = PyTuple_GetItem(value,i);
             if (PyFloat_Check(item))
                 values[i] = PyFloat_AsDouble(item);
+#if PY_MAJOR_VERSION < 3
+            else if (PyInt_Check(item))
+                values[i] = PyInt_AsLong(item);
+#else
             else if (PyLong_Check(item))
                 values[i] = PyLong_AsLong(item);
+#endif
             else
                 throw Base::TypeError("Type in tuple must be float or int");
         }
@@ -1966,8 +2039,13 @@ void PropertyBool::setPyObject(PyObject *value)
 {
     if (PyBool_Check(value))
         setValue(PyObject_IsTrue(value)!=0);
+#if PY_MAJOR_VERSION < 3
+    else if(PyInt_Check(value))
+        setValue(PyInt_AsLong(value)!=0);
+#else
     else if(PyLong_Check(value))
         setValue(PyLong_AsLong(value)!=0);
+#endif
     else {
         std::string error = std::string("type must be bool, not ");
         error += value->ob_type->tp_name;
@@ -2132,8 +2210,13 @@ void PropertyBoolList::setPyObject(PyObject *value)
             if (PyBool_Check(item)) {
                 values[i] = (PyObject_IsTrue(item) ? true : false);
             }
+#if PY_MAJOR_VERSION < 3
+            else if (PyInt_Check(item)) {
+                values[i] = (PyInt_AsLong(item) ? true : false);
+#else
             else if (PyLong_Check(item)) {
                 values[i] = (PyLong_AsLong(item) ? true : false);
+#endif
             }
             else {
                 std::string error = std::string("type in list must be bool or int, not ");
@@ -2147,8 +2230,13 @@ void PropertyBoolList::setPyObject(PyObject *value)
     else if (PyBool_Check(value)) {
         setValue(PyObject_IsTrue(value) ? true : false);
     }
+#if PY_MAJOR_VERSION < 3
+    else if (PyInt_Check(value)) {
+        setValue(PyInt_AsLong(value) ? true : false);
+#else
     else if (PyLong_Check(value)) {
         setValue(PyLong_AsLong(value) ? true : false);
+#endif
     }
     else {
         std::string error = std::string("type must be bool or a sequence of bool, not ");
