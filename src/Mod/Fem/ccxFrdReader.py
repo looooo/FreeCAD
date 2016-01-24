@@ -37,6 +37,8 @@ import numpy as np
 
 if open.__module__ == '__builtin__':
     pyopen = open  # because we'll redefine open below
+elif open.__module__ == 'io': # Python3
+    pyopen = open  # because we'll redefine open below
 
 
 # read a calculix result file and extract the nodes, displacement vectores and stress values.
