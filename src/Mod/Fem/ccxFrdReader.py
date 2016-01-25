@@ -470,9 +470,9 @@ def importFrd(filename, analysis=None, result_name_prefix=None):
                 scale = 1.0
 
             if len(disp) > 0:
-                results.DisplacementVectors = map((lambda x: x * scale), disp.values())
-                results.StressVectors = map((lambda x: x * scale), stressv.values())
-                results.StrainVectors = map((lambda x: x * scale), strainv.values())
+                results.DisplacementVectors = list(map((lambda x: x * scale), disp.values()))
+                results.StressVectors = list(map((lambda x: x * scale), stressv.values()))
+                results.StrainVectors = list(map((lambda x: x * scale), strainv.values()))
                 results.NodeNumbers = disp.keys()
                 if(mesh_object):
                     results.Mesh = mesh_object
@@ -510,11 +510,11 @@ def importFrd(filename, analysis=None, result_name_prefix=None):
                     prinstress3.append(prin3)
                     shearstress.append(shear)
                 if eigenmode_number > 0:
-                    results.StressValues = map((lambda x: x * scale), mstress)
-                    results.PrincipalMax = map((lambda x: x * scale), prinstress1)
-                    results.PrincipalMed = map((lambda x: x * scale), prinstress2)
-                    results.PrincipalMin = map((lambda x: x * scale), prinstress3)
-                    results.MaxShear = map((lambda x: x * scale), shearstress)
+                    results.StressValues = list(map((lambda x: x * scale), mstress))
+                    results.PrincipalMax = list(map((lambda x: x * scale), prinstress1))
+                    results.PrincipalMed = list(map((lambda x: x * scale), prinstress2))
+                    results.PrincipalMin = list(map((lambda x: x * scale), prinstress3))
+                    results.MaxShear = list(map((lambda x: x * scale), shearstress))
                     results.Eigenmode = eigenmode_number
                 else:
                     results.StressValues = mstress
