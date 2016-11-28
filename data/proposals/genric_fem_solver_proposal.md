@@ -73,7 +73,7 @@ eg.: https://github.com/hplgit/fenics-tutorial/blob/master/pub/python/vol1/ft01_
 
 ## generic properties
 
-![generic_solver](./generic_solver_structure.png)
+![generic_solver](./generic_properties_structure.png)
 
 Multiple pde's need multiple bc and properties. For every kind of pde we could add bc inputs. But then the FEM-workspace will explode. So here is a suggestion to add something like a genericFemProperty editor, which can handle all kind of solver inputs.
 
@@ -84,6 +84,8 @@ The suggestion is to handle bc, material properties, solver options all in one o
       {"type": "volume", "density": 1., "lambda": 2},
   "edge_name":
       {"type": "edge", "temperature": 0}
+  "other_edge_name":
+      {"type": "edge", "conduction": {"temperature": 10., "conductivity": 1.}}
   ]
   ```
 
@@ -107,3 +109,18 @@ mesh = {
 - How to deal with solver options. How to pass them from the gui to the solver?
 - generic property setter: Can we use there something from the fem-workbench? How to transform properties from Geometry to mesh-data.
 - how to deal with time-depending analysis? Is the post-processing already useable for this?
+
+
+## files of interest:
+
+- get nodes/elements from mesh
+https://github.com/looooo/FreeCAD/blob/genericSolver/src/Mod/Fem/FemMeshTools.py#L33
+
+- a call to the solver:
+https://github.com/looooo/FreeCAD/blob/genericSolver/src/Mod/Fem/FemToolsZ88.py#L150
+
+- Here the command is added to freecad:
+https://github.com/looooo/FreeCAD/blob/genericSolver/src/Mod/Fem/_CommandSolverZ88.py
+
+- Maybe helpful to find out about the structure of the input data:
+https://github.com/looooo/FreeCAD/blob/genericSolver/src/Mod/Fem/FemInputWriterZ88.py
