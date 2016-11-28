@@ -2,8 +2,8 @@
 
 ## goals
 
-- a generic interface to connect any solver into the FEM Module of FreeCAD
-- adding custom (specific) solvers at runtime
+- provide an interface to create geometry-analysis-tools(eg. pde solvers) working on mesh data as plug-ins for FreeCAD.
+- adding custom (specific) solvers at runtime without changing the FreeCAD source
 - find a generic way to satisfy most use-cases
 
 ## structure
@@ -17,6 +17,7 @@ the generic solver is only one FreeCAD class. The solver type is set by choosing
     - FenicsSteadyStateHeatSolver
     - FenicsHeatSolver *timedepending*
   - other solver types ...
+
 
 #### GenericSolverApi
 
@@ -37,7 +38,14 @@ class GenericSolver(object):
     def convertBCs(self):
         '''implement by subclass'''
 
+    def writeMesh(self, filename):
+        '''writes the mesh to file'''
 
+    def writeInput(self):
+        pass
+
+    def writeOutput(self):
+        pass
 ```
 
 #### Adding a new solver with the console:
