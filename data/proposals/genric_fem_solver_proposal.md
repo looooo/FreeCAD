@@ -69,7 +69,7 @@ eg.: https://github.com/hplgit/fenics-tutorial/blob/master/pub/python/vol1/ft01_
 
 Multiple pde's need multiple bc and properties. For every kind of pde we could add bc inputs. But then the FEM-workspace will explode. So here is a suggestion to add something like a genericFemProperty editor, which can handle all kind of solver inputs.
 
-The suggestion is to handle bc, material properties, solver options all in one object. This object is basically a list of dicts. Every dict specifies on which type it is acting (solver, volume, face, edge, point) and a dict which holds all the input (for example one this could have the following form:
+The suggestion is to handle bc, material properties, solver options all in one object. This object is basically a list of dicts. Every dict specifies on which type it is acting (solver, volume, face, edge, point) and the data which needs to get mapped to the corresponding mesh (for example this could look like this:
   ```python
   [
   "volume_name":
