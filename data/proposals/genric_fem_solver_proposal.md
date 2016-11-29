@@ -8,10 +8,10 @@
 
 ## structure
 
-#### freecad level
-the generic solver is only one FreeCAD class. The solver type is set by choosing from a listproperty. At the moment I can't think of a usecase to implement another solver on FreeCAD-level. (maybe there is?)
+#### freecad level (__solver__)
+the generic __solver__ is only one FreeCAD class. The solver type is set by choosing from a listproperty. At the moment I can't think of a usecase to implement another solver on FreeCAD-level. (maybe there is?)
 
-#### python level
+#### python level (__solver_script__)
 - GenericSolver
   - FenicsSolver
     - FenicsSteadyStateHeatSolver
@@ -19,7 +19,7 @@ the generic solver is only one FreeCAD class. The solver type is set by choosing
   - other solver types ...
 
 
-#### GenericSolverApi
+#### GenericSolver api
 
 ```python
 class GenericSolver(object):
@@ -41,32 +41,35 @@ class GenericSolver(object):
     def writeMesh(self, filename):
         '''writes the mesh to file'''
 
-    def writeInput(self):
+    def writeInputFile(self):
         pass
 
-    def writeOutput(self):
+    def writeOutputFile(self):
         pass
 ```
 
 #### Adding a new solver with the console:
 
 ```python
-from Fem import GenericSolver
-class mySolver(GenericSolver):
+from Fem.genericSolver import GenericSolver
+class MySolver(GenericSolver):
     ...
 
-Fem.customSolvers.append(mySolver)
+Fem.customSolvers.append(MySolver)
 # maybe we should check if the solver is already in the list
 # so doing it with a special function
-Fem.registerSolver(mySolver)
+Fem.registerSolver(MySolver)
+# we could also have the list stored as a class-method
+# this is possible because MySolver is inherited from GenericSolver
+MySolver.register()
 
 ```
 
 ## examples
 
-### Heat equation with fenics
+### poisson-equation with fenics
 
-the steady state heat equation should be quite simple to implement and could be used as an example for the fenics solver class. To also deal with time depending analysis it makes sense to consider also an example for this use-case.
+The poisson-equation should be quite simple to implement and could be used as an example for the fenics solver class. To also deal with time depending analysis it makes sense to consider also an example for this use-case. (time dependent posson equation)
 
 eg.: https://github.com/hplgit/fenics-tutorial/blob/master/pub/python/vol1/ft01_poisson.py
 
@@ -124,3 +127,23 @@ https://github.com/looooo/FreeCAD/blob/genericSolver/src/Mod/Fem/_CommandSolverZ
 
 - Maybe helpful to find out about the structure of the input data:
 https://github.com/looooo/FreeCAD/blob/genericSolver/src/Mod/Fem/FemInputWriterZ88.py
+
+
+## TODO
+
+#### __solver__
+- [ ] investigate how other solvers are implemented +++
+- [ ] implement a new solver type +
+- [ ] add a solver selection to the solver (category ?) ++
+- [ ] write interface to existing constraints (constraints to dict) +++
+
+#### freecad-generic-property
+- [ ] add a new constraint type (generic property) +
+- [ ] create a command to create this property +
+- [ ] create an input dialog +++
+- [ ] investigate how to deal with volume and solver properties +++
+
+#### __solver_script__
+- [ ] implement the GenericSolver +
+
+#### fenics
