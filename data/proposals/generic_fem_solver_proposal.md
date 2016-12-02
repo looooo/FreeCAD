@@ -147,3 +147,5 @@ https://github.com/looooo/FreeCAD/blob/genericSolver/src/Mod/Fem/FemInputWriterZ
 - [ ] implement the GenericSolver +
 
 #### fenics
+- [ ] document best practices for the installation of fenics to use while developing this solver interface (possible: docker, distribution packages [usually outdated], anaconda, ...)
+
