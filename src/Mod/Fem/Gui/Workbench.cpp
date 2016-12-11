@@ -66,6 +66,7 @@ Gui::ToolBarItem* Workbench::setupToolBars() const
     *fem << "Fem_FemMesh2Mesh"
          << "Fem_Analysis"
          << "Fem_SolverCalculix"
+         << "Fem_SolverGeneric"
          // << "Fem_SolverZ88"
          << "Separator"
          << "Fem_MeshNetgenFromShape"
