@@ -9,6 +9,7 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_COMPILER_IS_CLANGXX)
 endif()
 
 add_subdirectory(App)
+add_subdirectory(genericSolver)
 
 if(BUILD_GUI)
     add_subdirectory(Gui)
