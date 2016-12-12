@@ -1,6 +1,8 @@
+# the task panel of the FemSolverGeneric (FreeCAD object)
+
 import FreeCADGui
 from PySide import QtGui
-from _CommandSolverGeneric import FemSolverGeneric
+from genericSolver import solvers
 
 text_field = QtGui.QFormLayout.LabelRole
 input_field = QtGui.QFormLayout.FieldRole
@@ -27,7 +29,7 @@ class TaskPanelFemSolverGeneric:
         self.layout.setWidget(1, input_field, self.QlistSolvers)
         self.layout.setWidget(2, text_field, self.QwriteFile)
         self.layout.setWidget(2, input_field, self.QsolveCase)
-        self.QlistSolvers.addItems(FemSolverGeneric.solvers.keys())
+        self.QlistSolvers.addItems(solvers.keys())
 
     def getStandardButtons(self):
         return int(QtGui.QDialogButtonBox.Close)

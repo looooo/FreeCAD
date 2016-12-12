@@ -1,17 +1,13 @@
-__title__ = "_CommandSolverGeneric"
-__url__ = "http://www.freecadweb.org"
-
+# the FreeCAD objects
 
 import FreeCAD
 import FreeCADGui
-from FemCommands import FemCommands
 from PySide import QtCore
-
 import FemGui
 
+
 class FemSolverGeneric(object):
-    """The Fem::FemSolver's Proxy python type, add solver specific properties
-    """
+
     solvers = {}
     def __init__(self, obj):
         self.Type = "Generic"
@@ -88,35 +84,3 @@ class ViewProviderFemSolverGeneric(object):
 
     def __setstate__(self, state):
         return None
-
-
-
-
-
-
-class _CommandSolverGeneric(FemCommands):
-    "The Fem_SolverGeneric command definition"
-    def __init__(self):
-        super(_CommandSolverGeneric, self).__init__()
-        self.resources = {'Pixmap': 'fem-solver-generic',
-                          'MenuText': QtCore.QT_TRANSLATE_NOOP("Fem_SolverGeneric", "Solver Generic"),
-                          'ToolTip': QtCore.QT_TRANSLATE_NOOP("Fem_SolverGeneric", "Creates a generic FEM solver")}
-        self.is_active = 'with_analysis'
-
-    def Activated(self):
-        self.makeFemSolverGeneric()
-
-    def makeFemSolverGeneric(self, name="Generic"):
-        obj = FreeCAD.ActiveDocument.addObject("Fem::FemSolverObjectPython", name)
-        FemSolverGeneric(obj)
-        if FreeCAD.GuiUp:
-            ViewProviderFemSolverGeneric(obj.ViewObject)
-        return obj
-
-FreeCADGui.addCommand('Fem_SolverGeneric', _CommandSolverGeneric())
-
-
-class MyGenericSolver(object):
-    pass
-
-FemSolverGeneric.solvers["MyGenericSolver"] = MyGenericSolver
