@@ -34,7 +34,7 @@ class _CommandGenericProperty(FemCommands):
     "The Fem_GenericProperty command definition"
     def __init__(self):
         super(_CommandGenericProperty, self).__init__()
-        self.resources = {'Pixmap': 'fem-solver',
+        self.resources = {'Pixmap': 'fem-generic-property',
                           'MenuText': QtCore.QT_TRANSLATE_NOOP("Fem_GenericProperty", "Solver Generic"),
                           'Accel': "S, Z",
                           'ToolTip': QtCore.QT_TRANSLATE_NOOP("Fem_GenericProperty", "Creates a FEM solver Generic")}

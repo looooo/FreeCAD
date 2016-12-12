@@ -102,6 +102,10 @@ INSTALL(
         _ViewProviderFemSolverZ88.py
         _CommandSolverZ88.py
 
+        # solver generic
+        _CommandSolverGeneric
+        _CommandGenericProperty
+
     DESTINATION
         Mod/Fem
 )
