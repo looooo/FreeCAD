@@ -105,6 +105,7 @@ INSTALL(
         # solver generic
         _CommandSolverGeneric.py
         _CommandGenericProperty.py
+        _TaskPanelFemSolverGeneric.py
 
     DESTINATION
         Mod/Fem
