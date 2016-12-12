@@ -103,8 +103,8 @@ INSTALL(
         _CommandSolverZ88.py
 
         # solver generic
-        _CommandSolverGeneric
-        _CommandGenericProperty
+        _CommandSolverGeneric.py
+        _CommandGenericProperty.py
 
     DESTINATION
         Mod/Fem
