@@ -127,6 +127,10 @@ INSTALL(
         # additional imports and exports
         importVTKResults.py
 
+        # solver generic
+        _CommandSolverGeneric
+        _CommandGenericProperty
+
     DESTINATION
         Mod/Fem
 )

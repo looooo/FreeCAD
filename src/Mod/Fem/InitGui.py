@@ -65,6 +65,8 @@ class FemWorkbench (Workbench):
         import _CommandSolverCalculix
         import _CommandSolverZ88
         import _CommandConstraintSelfWeight
+        import _CommandSolverGeneric
+        import _CommandGenericProperty
 
     def GetClassName(self):
         return "FemGui::Workbench"

@@ -180,7 +180,9 @@ Gui::MenuItem* Workbench::setupMenuBar() const
          << "Fem_RunSolver"
          << "Separator"
          << "Fem_PurgeResults"
-         << "Fem_ShowResult";
+         << "Fem_ShowResult"
+         << "Fem_SolverGeneric"
+         << "Fem_GenericProperty";
 
     return root;
 }
