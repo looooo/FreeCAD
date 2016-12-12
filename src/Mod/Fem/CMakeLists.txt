@@ -128,8 +128,8 @@ INSTALL(
         importVTKResults.py
 
         # solver generic
-        _CommandSolverGeneric
-        _CommandGenericProperty
+        _CommandSolverGeneric.py
+        _CommandGenericProperty.py
 
     DESTINATION
         Mod/Fem
