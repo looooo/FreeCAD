@@ -4,6 +4,7 @@ if(BUILD_FEM_VTK)
 endif(BUILD_FEM_VTK)
 
 add_subdirectory(App)
+add_subdirectory(genericSolver)
 
 if(BUILD_GUI)
     add_subdirectory(Gui)
