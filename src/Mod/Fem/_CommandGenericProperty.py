@@ -20,7 +20,7 @@
 # *                                                                         *
 # ***************************************************************************
 
-__title__ = "_CommandSolverGeneric"
+__title__ = "_CommandGenericProperty"
 __url__ = "http://www.freecadweb.org"
 
 
@@ -30,21 +30,21 @@ from FemCommands import FemCommands
 from PySide import QtCore
 
 
-class _CommandSolverGeneric(FemCommands):
-    "The Fem_SolverGeneric command definition"
+class _CommandGenericProperty(FemCommands):
+    "The Fem_GenericProperty command definition"
     def __init__(self):
-        super(_CommandSolverGeneric, self).__init__()
+        super(_CommandGenericProperty, self).__init__()
         self.resources = {'Pixmap': 'fem-solver',
-                          'MenuText': QtCore.QT_TRANSLATE_NOOP("Fem_SolverGeneric", "Solver Generic"),
+                          'MenuText': QtCore.QT_TRANSLATE_NOOP("Fem_GenericProperty", "Solver Generic"),
                           'Accel': "S, Z",
-                          'ToolTip': QtCore.QT_TRANSLATE_NOOP("Fem_SolverGeneric", "Creates a FEM solver Generic")}
+                          'ToolTip': QtCore.QT_TRANSLATE_NOOP("Fem_GenericProperty", "Creates a FEM solver Generic")}
         self.is_active = 'with_analysis'
 
     def Activated(self):
-        # FreeCAD.ActiveDocument.openTransaction("Create SolverGeneric")
-        # FreeCADGui.addModule("FemSolverGeneric")
-        # FreeCADGui.doCommand("FemGui.getActiveAnalysis().Member = FemGui.getActiveAnalysis().Member + [FemSolverGeneric.makeFemSolverGeneric()]")
+        # FreeCAD.ActiveDocument.openTransaction("Create GenericProperty")
+        # FreeCADGui.addModule("FemGenericProperty")
+        # FreeCADGui.doCommand("FemGui.getActiveAnalysis().Member = FemGui.getActiveAnalysis().Member + [FemGenericProperty.makeFemGenericProperty()]")
         # TODO
         pass
 
-FreeCADGui.addCommand('Fem_SolverGeneric', _CommandSolverGeneric())
+FreeCADGui.addCommand('Fem_GenericProperty', _CommandGenericProperty())
