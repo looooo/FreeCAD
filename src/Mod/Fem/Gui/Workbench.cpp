@@ -90,6 +90,7 @@ Gui::ToolBarItem* Workbench::setupToolBars() const
          << "Fem_ConstraintSelfWeight"
          << "Fem_ConstraintForce"
          << "Fem_ConstraintPressure"
+         << "Fem_GenericProperty"
          //<< "Separator"
          //<< "Fem_ConstraintBearing"
          //<< "Fem_ConstraintGear"
