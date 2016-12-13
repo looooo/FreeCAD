@@ -1,11 +1,12 @@
 INSTALL(
     FILES
         FemToolsGeneric.py
+        GenericSolver.py
+        FenicsSolver.py
         _FemSolverGeneric.py
-        _GenericSolver.py
         _TaskPanelFemSolverGeneric.py
         __init__.py
         _commands.py
     DESTINATION
-        Mod/Fem
+        Mod/Fem/genericSolver
         )
