@@ -76,9 +76,12 @@ class TaskPanelFemSolverGeneric:
 
     def mesh2py(self):
         # at this point the solver must be specified. Maybe another interface where the type of
-        # solver is selected at the creation of the solver is better?
+        # solver is selected at the initialization of the solver is better?
         # also there are analysis types where faces and volumes are involved. How to deal with that?
         #   (I will leave this to others as this is I have no usecase for this at the moment.)
+
+        # TODO passing groups of elements???
+
         elements = []
         if self._solver.typeOfElements == "volumes":
             for i in self.mesh.FemMesh.Volumes:
