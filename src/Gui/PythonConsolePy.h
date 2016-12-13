@@ -103,6 +103,7 @@ public:
     Py::Object repr();
     Py::Object write(const Py::Tuple&);
     Py::Object flush(const Py::Tuple&);
+    Py::Object isatty();
 };
 
 /**
@@ -125,6 +126,7 @@ public:
     Py::Object repr();
     Py::Object write(const Py::Tuple&);
     Py::Object flush(const Py::Tuple&);
+    Py::Object isatty();
 };
 
 /**
