@@ -201,6 +201,7 @@ void OutputStdout::init_type()
     behaviors().supportRepr();
     add_varargs_method("write",&OutputStdout::write,"write()");
     add_varargs_method("flush",&OutputStdout::flush,"flush()");
+    add_noargs_method("isatty",&OutputStdout::isatty,"isatty()");
 }
 
 OutputStdout::OutputStdout()
@@ -259,6 +260,11 @@ Py::Object OutputStdout::flush(const Py::Tuple&)
     return Py::None();
 }
 
+Py::Object OutputStdout::isatty()
+{
+    return Py::False();
+}
+
 // -------------------------------------------------------------------------
 
 void OutputStderr::init_type()
@@ -269,6 +275,7 @@ void OutputStderr::init_type()
     behaviors().supportRepr();
     add_varargs_method("write",&OutputStderr::write,"write()");
     add_varargs_method("flush",&OutputStderr::flush,"flush()");
+    add_noargs_method("isatty",&OutputStderr::isatty,"isatty()");
 }
 
 OutputStderr::OutputStderr()
@@ -325,6 +332,11 @@ Py::Object OutputStderr::write(const Py::Tuple& args)
 Py::Object OutputStderr::flush(const Py::Tuple&)
 {
     return Py::None();
+}
+
+Py::Object OutputStderr::isatty()
+{
+    return Py::False();
 }
 
 // -------------------------------------------------------------------------
