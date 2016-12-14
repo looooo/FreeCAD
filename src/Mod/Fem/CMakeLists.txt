@@ -128,11 +128,6 @@ INSTALL(
         # additional imports and exports
         importVTKResults.py
 
-        # solver generic
-        _CommandSolverGeneric.py
-        _CommandGenericProperty.py
-        _TaskPanelFemSolverGeneric.py
-
     DESTINATION
         Mod/Fem
 )
