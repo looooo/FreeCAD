@@ -1,5 +1,7 @@
 # this is the base class for solvers pluged into the genericSolver interface.
 
+
+
 class GenericSolver(object):
     def __init__(self):
         '''pass everything we need inside the solver'''
@@ -10,7 +12,6 @@ class GenericSolver(object):
     def setMesh(self, nodes, elements):
         self.nodes = nodes
         self.elements = elements
-        print(self.elements)
 
     def setProperties(self, properties):
         pass
@@ -20,8 +21,9 @@ class GenericSolver(object):
         pass
 
     def getSolution(self):
-        '''to be implemented by subclass, called by freecad-solver after computation'''
-        pass
+        '''to be implemented by subclass, called by freecad-solver after computation
+        return elements_result, node_result'''
+        return [i for node in self.nodes for i in node]
 
     def convertMesh(self):
         '''implement by subclass'''
