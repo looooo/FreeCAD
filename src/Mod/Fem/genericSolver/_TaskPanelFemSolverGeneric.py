@@ -73,6 +73,13 @@ class TaskPanelFemSolverGeneric:
         self.solver.setMesh(*self.mesh2py())
         self.solver.run()
         self.femConsoleMessage("run solver")
+        solution = self.solver.getSolution()
+
+        # create a result object
+        result = FreeCAD.ActiveDocument.addObject('Fem::FemResultObject', "result")
+        result.Mesh = self.mesh
+        result.DisplacementLengths = solution
+        self.analysis.Member += [result]
 
     def mesh2py(self):
         # at this point the solver must be specified. Maybe another interface where the type of
@@ -85,10 +92,10 @@ class TaskPanelFemSolverGeneric:
         elements = []
         if self._solver.typeOfElements == "volumes":
             for i in self.mesh.FemMesh.Volumes:
-                elements += self.mesh.FemMesh.getElementNodes(i)
+                elements.append(self.mesh.FemMesh.getElementNodes(i))
         elif self._solver.typeOfElements == "faces":
             for i in self.mesh.FemMesh.Faces:
-                elements += self.mesh.FemMesh.getElementNodes(i)
+                elements.append(list(self.mesh.FemMesh.getElementNodes(i)))
         elif self._solver.typeOfElements == "edges":
             pass  # TODO
 
