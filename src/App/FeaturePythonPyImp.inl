@@ -142,7 +142,11 @@ int FeaturePythonPyT<FeaturePyT>::_setattro(PyObject *attro, PyObject *value)
         if (value) {
             if (PyFunction_Check(value)) {
                 PyErr_Clear();
+#if PY_MAJOR_VERSION < 3
                 dict_item = PyMethod_New(value, this, 0);
+#else
+                dict_item = PyMethod_New(value, this);
+#endif
                 returnValue = PyDict_SetItemString(dict_methods, attr, dict_item);
                 Py_XDECREF(dict_item);
             }

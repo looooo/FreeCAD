@@ -486,9 +486,13 @@ void PropertyEnumeration::setPyObject(PyObject *value)
 #endif
     }
     else if (PyUnicode_Check(value)) {
+#if PY_MAJOR_VERSION >=3
+        std::string str = PyUnicode_AsUTF8(value);
+#else
         PyObject* unicode = PyUnicode_AsUTF8String(value);
         std::string str = PyString_AsString(unicode);
         Py_DECREF(unicode);
+#endif
         if (_enum.contains(str.c_str())) {
             aboutToSetValue();
             _enum.setValue(str);
@@ -508,14 +512,20 @@ void PropertyEnumeration::setPyObject(PyObject *value)
         for (Py_ssize_t i = 0; i < nSize; ++i) {
             PyObject *item = PySequence_GetItem(value, i);
 
-            if (PyString_Check(item)) {
-                values[i] = PyString_AsString(item);
-            }
-            else if (PyUnicode_Check(item)) {
+            if (PyUnicode_Check(item)) {
+#if PY_MAJOR_VERSION >= 3
+                values[i] = PyUnicode_AsUTF8(item);
+#else
                 PyObject* unicode = PyUnicode_AsUTF8String(item);
                 values[i] = PyString_AsString(unicode);
                 Py_DECREF(unicode);
+#endif
             }
+#if PY_MAJOR_VERSION < 3
+            if (PyString_Check(item)) {
+                values[i] = PyString_AsString(item);
+            }
+#endif
             else {
                 std::string error = std::string("type in list must be str or unicode, not ");
                 throw Base::TypeError(error + item->ob_type->tp_name);
