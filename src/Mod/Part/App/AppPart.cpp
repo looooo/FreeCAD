@@ -349,7 +349,12 @@ PyMOD_INIT_FUNC(Part)
     Base::Interpreter().addType(&Part::BRepOffsetAPI_MakePipeShellPy::Type,brepModule,"MakePipeShell");
 
     // Geom2d package
-    PyObject* geom2dModule = Py_InitModule3("Geom2d", 0, "Geom2d");
+#if PY_MAJOR_VERSION >= 3
+    static struct PyModuleDef geom2dDef = {PyModuleDef_HEAD_INIT,"Geom2dD", "Geom2dDef", -1, 0};^M
+    PyObject* geom2dModule = PyModule_Create(&geom2dDef);^M
+#else
+     PyObject* geom2dModule = Py_InitModule3("Geom2d", 0, "Geom2d");
+#endif
     Py_INCREF(geom2dModule);
     PyModule_AddObject(partModule, "Geom2d", geom2dModule);
     Base::Interpreter().addType(&Part::Geometry2dPy::Type,geom2dModule,"Geometry2d");
