@@ -135,6 +135,8 @@ PyObject* Part::PartExceptionOCCRangeError;
 PyObject* Part::PartExceptionOCCConstructionError;
 PyObject* Part::PartExceptionOCCDimensionError;
 
+#if PY_MAJOR_VERSION < 3
+// TODO: port to python3
 // <---
 namespace Part {
 
@@ -217,6 +219,7 @@ PyTypeObject LinePyOld::Type = {
 };
 
 }
+#endif PY_MAJOR_VERSION < 3
 // --->
 
 PyMOD_INIT_FUNC(Part)
@@ -295,6 +298,7 @@ PyMOD_INIT_FUNC(Part)
     Base::Reference<ParameterGrp> hPartGrp = App::GetApplication().GetUserParameter()
         .GetGroup("BaseApp")->GetGroup("Preferences")->GetGroup("Mod/Part");
 
+#if PY_MAJOR_VERSION < 3
     // General
     Base::Reference<ParameterGrp> hGenPGrp = hPartGrp->GetGroup("General");
     if (hGenPGrp->GetBool("LineOld", true)) {
@@ -304,6 +308,9 @@ PyMOD_INIT_FUNC(Part)
     else {
         Base::Interpreter().addType(&Part::LinePy           ::Type,partModule,"Line");
     }
+#else
+    Base::Interpreter().addType(&Part::LinePy           ::Type,partModule,"Line");
+#endif
     Base::Interpreter().addType(&Part::LineSegmentPy        ::Type,partModule,"LineSegment");
     Base::Interpreter().addType(&Part::PointPy              ::Type,partModule,"Point");
     Base::Interpreter().addType(&Part::ConicPy              ::Type,partModule,"Conic");
@@ -350,8 +357,8 @@ PyMOD_INIT_FUNC(Part)
 
     // Geom2d package
 #if PY_MAJOR_VERSION >= 3
-    static struct PyModuleDef geom2dDef = {PyModuleDef_HEAD_INIT,"Geom2dD", "Geom2dDef", -1, 0};^M
-    PyObject* geom2dModule = PyModule_Create(&geom2dDef);^M
+    static struct PyModuleDef geom2dDef = {PyModuleDef_HEAD_INIT,"Geom2dD", "Geom2d", -1, 0};
+    PyObject* geom2dModule = PyModule_Create(&geom2dDef);
 #else
      PyObject* geom2dModule = Py_InitModule3("Geom2d", 0, "Geom2d");
 #endif
