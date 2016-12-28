@@ -362,7 +362,7 @@ PyObject* BezierCurve2dPy::getResolution(PyObject* args)
         return 0;
     }
 }
-
+#if PY_MAJOR_VERSION > 3
 Py::Long BezierCurve2dPy::getDegree(void) const
 {
     Handle_Geom2d_BezierCurve curve = Handle_Geom2d_BezierCurve::DownCast
@@ -383,6 +383,29 @@ Py::Long BezierCurve2dPy::getNbPoles(void) const
         (getGeometry2dPtr()->handle());
     return Py::Long(curve->NbPoles()); 
 }
+
+#else
+Py::Int BezierCurve2dPy::getDegree(void) const
+{
+    Handle_Geom2d_BezierCurve curve = Handle_Geom2d_BezierCurve::DownCast
+        (getGeometry2dPtr()->handle());
+    return Py::Int(curve->Degree()); 
+}
+
+Py::Int BezierCurve2dPy::getMaxDegree(void) const
+{
+    Handle_Geom2d_BezierCurve curve = Handle_Geom2d_BezierCurve::DownCast
+        (getGeometry2dPtr()->handle());
+    return Py::Int(curve->MaxDegree()); 
+}
+
+Py::Int BezierCurve2dPy::getNbPoles(void) const
+{
+    Handle_Geom2d_BezierCurve curve = Handle_Geom2d_BezierCurve::DownCast
+        (getGeometry2dPtr()->handle());
+    return Py::Int(curve->NbPoles()); 
+}
+#endif
 
 Py::Object BezierCurve2dPy::getStartPoint(void) const
 {
