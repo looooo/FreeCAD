@@ -26,8 +26,9 @@ class TemplateClassPyExport (template.ModelTemplate):
 		# Imp.cpp must not exist, neither in path nor in dirname
 		if(not os.path.exists(path + exportName + "Imp.cpp")):
 			if(not os.path.exists(dirname + exportName + "Imp.cpp")):
-				file = open(path + exportName + "Imp.cpp",'w')
+				file = open(path + exportName + "Imp.cpp",'wb')
 				generateBase.generateTools.replace(self.TemplateImplement,locals(),file)
+				file.close()
 		file = open(path + exportName + ".cpp",'wb')
 		generateBase.generateTools.replace(self.TemplateModule,locals(),file)
 		file.close()
