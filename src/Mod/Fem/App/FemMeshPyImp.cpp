@@ -931,8 +931,11 @@ PyObject* FemMeshPy::getGroupName(PyObject *args)
     int id;
     if (!PyArg_ParseTuple(args, "i", &id))
          return 0;
-
+#if PY_MAJOR_VERSION >= 3
+    return PyBytes_FromString(getFemMeshPtr()->getSMesh()->GetGroup(id)->GetName());
+#else
     return PyString_FromString(getFemMeshPtr()->getSMesh()->GetGroup(id)->GetName());
+#endif
 }
 
 PyObject* FemMeshPy::getGroupElementType(PyObject *args)
@@ -953,7 +956,11 @@ PyObject* FemMeshPy::getGroupElementType(PyObject *args)
         case SMDSAbs_Ball           : typeString = "Ball"; break;
         default                     : typeString = "Unknown"; break;
     }
+#if PY_MAJOR_VERSION >= 3
+    return PyBytes_FromString(typeString);
+#else
     return PyString_FromString(typeString);
+#endif
 }
 
 PyObject* FemMeshPy::getGroupElements(PyObject *args)
