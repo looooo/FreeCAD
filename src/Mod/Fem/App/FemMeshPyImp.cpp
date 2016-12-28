@@ -257,7 +257,11 @@ PyObject* FemMeshPy::addEdge(PyObject *args)
         Py::List list(obj);
         std::vector<const SMDS_MeshNode*> Nodes;
         for (Py::List::iterator it = list.begin(); it != list.end(); ++it) {
+#if PY_MAJOR_VERSION >= 3
+            Py::Long NoNr(*it);
+#else
             Py::Int NoNr(*it);
+#endif
             const SMDS_MeshNode* node = meshDS->FindNode(NoNr);
             if (!node)
                 throw std::runtime_error("Failed to get node of the given indices");
@@ -297,7 +301,11 @@ PyObject* FemMeshPy::addEdge(PyObject *args)
                 throw std::runtime_error("Unknown node count, [2|3] are allowed"); //unknown edge type
             }
         }
+#if PY_MAJOR_VERSION >= 3
+        return Py::new_reference_to(Py::Long(edge->GetID()));
+#else
         return Py::new_reference_to(Py::Int(edge->GetID()));
+#endif
     }
     PyErr_SetString(PyExc_TypeError, "addEdge accepts:\n"
         "-- int,int\n"
@@ -683,7 +691,11 @@ PyObject* FemMeshPy::getFacesByFace(PyObject *args)
         Py::List ret;
         std::list<int> resultSet = getFemMeshPtr()->getFacesByFace(fc);
         for (std::list<int>::const_iterator it = resultSet.begin();it!=resultSet.end();++it) {
+#if PY_MAJOR_VERSION >= 3
+            ret.append(Py::Long(*it));
+#else
             ret.append(Py::Int(*it));
+#endif
         }
 
         return Py::new_reference_to(ret);
@@ -960,7 +972,11 @@ PyObject* FemMeshPy::getGroupElements(PyObject *args)
     Py::Tuple tuple(ids.size());
     int index = 0;
     for (std::set<int>::iterator it = ids.begin(); it != ids.end(); ++it) {
+#if PY_MAJOR_VERSION >= 3
+        tuple.setItem(index++, Py::Long(*it));
+#else
         tuple.setItem(index++, Py::Int(*it));
+#endif
     }
 
     return Py::new_reference_to(tuple);
@@ -1200,7 +1216,11 @@ Py::Tuple FemMeshPy::getGroups(void) const
     Py::Tuple tuple(groupIDs.size());
     int index = 0;
     for (std::list<int>::iterator it = groupIDs.begin(); it != groupIDs.end(); ++it) {
+#if PY_MAJOR_VERSION >= 3
+        tuple.setItem(index++, Py::Long(*it));
+#else
         tuple.setItem(index++, Py::Int(*it));
+#endif
     }
 
     return tuple;

@@ -362,7 +362,7 @@ PyObject* BezierCurve2dPy::getResolution(PyObject* args)
         return 0;
     }
 }
-#if PY_MAJOR_VERSION > 3
+#if PY_MAJOR_VERSION >= 3
 Py::Long BezierCurve2dPy::getDegree(void) const
 {
     Handle_Geom2d_BezierCurve curve = Handle_Geom2d_BezierCurve::DownCast
