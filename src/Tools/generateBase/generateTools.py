@@ -77,7 +77,7 @@ class copier:
                 stat = self.preproc(stat, 'exec')
                 stat = '%s _cb(%s,%s)' % (stat,i+1,j)
                 # for debugging, uncomment...: print("-> Executing: {"+stat+"}")
-                exec(stat, self.globals, self.locals)
+                exec(stat) in self.globals, self.locals
                 i=j+1
             else:       # normal line, just copy with substitution
                 try:
