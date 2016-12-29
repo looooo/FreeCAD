@@ -38,7 +38,7 @@ __url__ = "http://www.freecadweb.org"
 # Generic stuff
 #---------------------------------------------------------------------------
 
-import os, FreeCAD, FreeCADGui, WorkingPlane, math, re, Draft, Draft_rc, DraftVecUtils
+import sys, os, FreeCAD, FreeCADGui, WorkingPlane, math, re, Draft, Draft_rc, DraftVecUtils
 from FreeCAD import Vector
 from DraftGui import todo,QtCore,QtGui
 from DraftSnap import *
@@ -74,9 +74,15 @@ MODALT = MODS[Draft.getParam("modalt",2)]
 #---------------------------------------------------------------------------
 
 
-def translate(context,text):
-    "convenience function for Qt translator"
-    return QtGui.QApplication.translate(context, text, None, QtGui.QApplication.UnicodeUTF8).encode("utf8")
+try:
+    _encoding = QtGui.QApplication.UnicodeUTF8
+    def translate(context, text):
+        "convenience function for Qt translator"
+        return QtGui.QApplication.translate(context, text, None, _encoding).encode("utf8")
+except AttributeError:
+    def translate(context, text):
+        "convenience function for Qt translator"
+        return QtGui.QApplication.translate(context, text, None).encode("utf8")
 
 def msg(text=None,mode=None):
     "prints the given message on the FreeCAD status bar"
@@ -719,7 +725,7 @@ class BezCurve(Line):
                 'ToolTip': QtCore.QT_TRANSLATE_NOOP("Draft_BezCurve", "Creates a Bezier curve. CTRL to snap, SHIFT to constrain")}
 
     def Activated(self):
-        Line.Activated(self,name=translate("draft","BezCurve").decode("utf8"))
+        Line.Activated(self,name=translate("draft","BezCurve"))
         if self.doc:
             self.bezcurvetrack = bezcurveTracker()
 
@@ -2635,8 +2641,8 @@ class Offset(Modifier):
     def numericRadius(self,rad):
         '''this function gets called by the toolbar when
         valid radius have been entered there'''
-        #print "dvec:",self.dvec
-        #print "rad:",rad
+        #print("dvec:",self.dvec)
+        #print("rad:",rad)
         if self.dvec:
             if isinstance(self.dvec,float):
                 if self.mode == "Circle":
@@ -2648,7 +2654,7 @@ class Offset(Modifier):
                         rad = r1 - rad
                     d = str(rad)
                 else:
-                    print "Draft.Offset error: Unhandled case"
+                    print("Draft.Offset error: Unhandled case")
             else:
                 self.dvec.normalize()
                 self.dvec.multiply(rad)

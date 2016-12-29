@@ -37,6 +37,8 @@ import numpy as np
 
 if open.__module__ == '__builtin__':
     pyopen = open  # because we'll redefine open below
+elif open.__module__ == 'io': # Python3
+    pyopen = open  # because we'll redefine open below
 
 
 # read a calculix result file and extract the nodes, displacement vectores and stress values.
@@ -384,7 +386,7 @@ def importFrd(filename, analysis=None, result_name_prefix=None):
 
         if 'Nodes' in m:
             positions = []
-            for k, v in m['Nodes'].iteritems():
+            for k, v in m['Nodes'].items():
                 positions.append(v)
             p_x_max, p_y_max, p_z_max = map(max, zip(*positions))
             p_x_min, p_y_min, p_z_min = map(min, zip(*positions))
@@ -423,7 +425,7 @@ def importFrd(filename, analysis=None, result_name_prefix=None):
             disp = result_set['disp']
             no_of_values = len(disp)
             displacement = []
-            for k, v in disp.iteritems():
+            for k, v in disp.items():
                 displacement.append(v)
 
             x_max, y_max, z_max = map(max, zip(*displacement))
@@ -437,8 +439,8 @@ def importFrd(filename, analysis=None, result_name_prefix=None):
                 scale = 1.0
 
             if len(disp) > 0:
-                results.DisplacementVectors = map((lambda x: x * scale), disp.values())
-                results.NodeNumbers = disp.keys()
+                results.DisplacementVectors = list(map((lambda x: x * scale), disp.values()))
+                results.NodeNumbers = list(disp.keys())
                 if(mesh_object):
                     results.Mesh = mesh_object
 
@@ -475,11 +477,11 @@ def importFrd(filename, analysis=None, result_name_prefix=None):
                     prinstress3.append(prin3)
                     shearstress.append(shear)
                 if eigenmode_number > 0:
-                    results.StressValues = map((lambda x: x * scale), mstress)
-                    results.PrincipalMax = map((lambda x: x * scale), prinstress1)
-                    results.PrincipalMed = map((lambda x: x * scale), prinstress2)
-                    results.PrincipalMin = map((lambda x: x * scale), prinstress3)
-                    results.MaxShear = map((lambda x: x * scale), shearstress)
+                    results.StressValues = list(map((lambda x: x * scale), mstress))
+                    results.PrincipalMax = list(map((lambda x: x * scale), prinstress1))
+                    results.PrincipalMed = list(map((lambda x: x * scale), prinstress2))
+                    results.PrincipalMin = list(map((lambda x: x * scale), prinstress3))
+                    results.MaxShear = list(map((lambda x: x * scale), shearstress))
                     results.Eigenmode = eigenmode_number
                 else:
                     results.StressValues = mstress

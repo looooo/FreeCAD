@@ -367,10 +367,6 @@ if(FREECAD_LIBPACK_USE)
                 "==================================================\n")
     ENDIF(NOT SWIG_FOUND)
 
-# -------------------------------- Shiboken/PySide ------------------------
-
-    find_package(PySideTools REQUIRED) # Pyside utilities (pyside-uic & pyside-rcc)
-
 # -------------------------------- Salome SMESH --------------------------
 
     if(NOT FREECAD_USE_EXTERNAL_SMESH)
@@ -387,9 +383,9 @@ if(NOT FREECAD_LIBPACK_USE OR FREECAD_LIBPACK_CHECKFILE_CLBUNDLER)
 
 # -------------------------------- Python --------------------------------
 
-#http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=677598
+# http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=677598
 # Acceptable versions of Python
-set(Python_ADDITIONAL_VERSIONS "2.5" "2.6" "2.7" "2.8" "2.9")
+set(Python_ADDITIONAL_VERSIONS "2.7")
 
 # For building on OS X
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
@@ -517,6 +513,13 @@ endif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         MESSAGE(FATAL_ERROR "=================================\n"
                             "Python not found, install Python!\n"
                             "=================================\n")
+    ELSE(NOT PYTHONLIBS_FOUND)
+        # prevent python3 lower than 3.3 (not enough utf8<->unicode tools)
+        IF(PYTHON_VERSION_MAJOR GREATER 3)
+            IF(PYTHON_VERSION_MINOR LESS 5)
+                MESSAGE(FATAL_ERROR "To build FreeCAD with Python3, you need at least version 3.5\n")
+            ENDIF(PYTHON_VERSION_MINOR LESS 5)
+        ENDIF(PYTHON_VERSION_MAJOR GREATER 3)
     ENDIF(NOT PYTHONLIBS_FOUND)
 
 # -------------------------------- pcl ----------------------------------
@@ -588,13 +591,14 @@ endif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
             vtkFiltersSources
             vtkFiltersGeometry
         )
+
         # check which modules are available
         if(UNIX AND NOT APPLE)
+            find_package(VTK COMPONENTS vtkCommonCore REQUIRED NO_MODULE)
             list(APPEND VTK_COMPONENTS vtkIOMPIParallel vtkParallelMPI vtkhdf5)
             foreach(_module ${VTK_COMPONENTS})
-                file(GLOB_RECURSE _module_exists /usr/lib*/cmake/*${_module}.cmake
-                                                 ${CMAKE_ROOT}/*${_module}.cmake)
-                if(_module_exists)
+                list (FIND VTK_MODULES_ENABLED ${_module} _index)
+                if (${_index} GREATER -1)
                     list(APPEND AVAILABLE_VTK_COMPONENTS ${_module})
                 endif()
             endforeach()
@@ -622,6 +626,8 @@ endif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
                 set(BUILD_FEM_VTK OFF)
             endif()
         endif()
+        # on openSUSE 13.1 VTK_LIBRARIES ends with "optimized" keyword
+        list(REMOVE_ITEM VTK_LIBRARIES "optimized" "debug")
 
         if(NOT FREECAD_USE_EXTERNAL_SMESH)
             # See https://www.hdfgroup.org/HDF5/release/cmakebuild.html
@@ -828,9 +834,55 @@ endif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 
 # -------------------------------- Shiboken/PySide ------------------------
 
+    if(BUILD_QT5)
         # set(PYTHON_SUFFIX -python${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR})
         SET(PYTHON_SUFFIX -python2.7) # for shiboken
         SET(PYTHON_BASENAME -python2.7) # for PySide
+
+        if(DEFINED MACPORTS_PREFIX)
+            find_package(Shiboken REQUIRED HINTS "${PYTHON_LIBRARY_DIR}/cmake")
+            find_package(PySide REQUIRED HINTS "${PYTHON_LIBRARY_DIR}/cmake")
+        endif(DEFINED MACPORTS_PREFIX)
+
+        find_package(Shiboken2)# REQUIRED
+        if(NOT SHIBOKEN_INCLUDE_DIR)
+            MESSAGE(FATAL_ERROR "====================\n"
+                                "shiboken2 not found.\n"
+                                "====================\n")
+        endif(NOT SHIBOKEN_INCLUDE_DIR)
+
+        find_package(PySide2)# REQUIRED
+        if(NOT PYSIDE_INCLUDE_DIR)
+            MESSAGE(FATAL_ERROR "==================\n"
+                                "PySide2 not found.\n"
+                                "==================\n")
+        endif(NOT PYSIDE_INCLUDE_DIR)
+
+        find_package(PySide2Tools REQUIRED) # PySide2 utilities (pyside2-uic & pyside2-rcc)
+
+        file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/bin/PySide)
+        file(WRITE ${CMAKE_BINARY_DIR}/bin/PySide/__init__.py "# PySide wrapper\n")
+        file(WRITE ${CMAKE_BINARY_DIR}/bin/PySide/QtCore.py "from PySide2.QtCore import *\n\n"
+                                                            "#QCoreApplication.CodecForTr=0\n"
+                                                            "#QCoreApplication.UnicodeUTF8=1\n")
+        file(WRITE ${CMAKE_BINARY_DIR}/bin/PySide/QtGui.py  "from PySide2.QtGui import *\n"
+                                                            "from PySide2.QtWidgets import *\n")
+        file(WRITE ${CMAKE_BINARY_DIR}/bin/PySide/QtSvg.py  "from PySide2.QtSvg import *\n")
+
+        INSTALL(
+            FILES
+                ${CMAKE_BINARY_DIR}/bin/PySide/__init__.py
+                ${CMAKE_BINARY_DIR}/bin/PySide/QtCore.py
+                ${CMAKE_BINARY_DIR}/bin/PySide/QtGui.py
+                ${CMAKE_BINARY_DIR}/bin/PySide/QtSvg.py
+            DESTINATION
+                bin/PySide
+        )
+    else()
+        # set(PYTHON_SUFFIX -python${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR})
+        # below are two variables that can be left empty for standard python, but must be set by the user for different python versions such as 3.5
+        SET(PYTHON_SUFFIX "" CACHE STRING "Shiboken cmake file sufix. If left empty, system default python version will be used: <ShibokenConfigPYTHON_SUFFIX.cmake>")
+        SET(PYTHON_BASENAME "" CACHE STRING "Same as PYTHON_SUFFIX but for PySide. if left empty, PYTHON_SUFFIX will be used: <PySideConfigPYTHON_BASENAME.cmake>")
 
         if(DEFINED MACPORTS_PREFIX)
             find_package(Shiboken REQUIRED HINTS "${PYTHON_LIBRARY_DIR}/cmake")
@@ -852,6 +904,7 @@ endif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         endif(NOT PYSIDE_INCLUDE_DIR)
 
         find_package(PySideTools REQUIRED) # PySide utilities (pyside-uic & pyside-rcc)
+    endif()
 
 # ------------------------------ Matplotlib ------------------------------
 

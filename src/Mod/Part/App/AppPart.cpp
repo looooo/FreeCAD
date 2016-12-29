@@ -135,6 +135,8 @@ PyObject* Part::PartExceptionOCCRangeError;
 PyObject* Part::PartExceptionOCCConstructionError;
 PyObject* Part::PartExceptionOCCDimensionError;
 
+#if PY_MAJOR_VERSION < 3
+// TODO: port to python3
 // <---
 namespace Part {
 
@@ -217,9 +219,10 @@ PyTypeObject LinePyOld::Type = {
 };
 
 }
+#endif PY_MAJOR_VERSION < 3
 // --->
 
-PyMODINIT_FUNC initPart()
+PyMOD_INIT_FUNC(Part)
 {
     Base::Console().Log("Module: Part\n");
 
@@ -295,6 +298,7 @@ PyMODINIT_FUNC initPart()
     Base::Reference<ParameterGrp> hPartGrp = App::GetApplication().GetUserParameter()
         .GetGroup("BaseApp")->GetGroup("Preferences")->GetGroup("Mod/Part");
 
+#if PY_MAJOR_VERSION < 3
     // General
     Base::Reference<ParameterGrp> hGenPGrp = hPartGrp->GetGroup("General");
     if (hGenPGrp->GetBool("LineOld", true)) {
@@ -304,6 +308,9 @@ PyMODINIT_FUNC initPart()
     else {
         Base::Interpreter().addType(&Part::LinePy           ::Type,partModule,"Line");
     }
+#else
+    Base::Interpreter().addType(&Part::LinePy           ::Type,partModule,"Line");
+#endif
     Base::Interpreter().addType(&Part::LineSegmentPy        ::Type,partModule,"LineSegment");
     Base::Interpreter().addType(&Part::PointPy              ::Type,partModule,"Point");
     Base::Interpreter().addType(&Part::ConicPy              ::Type,partModule,"Conic");
@@ -336,16 +343,25 @@ PyMODINIT_FUNC initPart()
                                                             ::Type,partModule,"RectangularTrimmedSurface");
 
     Base::Interpreter().addType(&Part::PartFeaturePy        ::Type,partModule,"Feature");
-
     Base::Interpreter().addType(&Attacher::AttachEnginePy   ::Type,partModule,"AttachEngine");
 
+#if PY_MAJOR_VERSION >= 3
+    static struct PyModuleDef BRepOffsetAPIDef = {PyModuleDef_HEAD_INIT,"BRepOffsetAPI", "BRepOffsetAPI", -1, 0};
+    PyObject* brepModule = PyModule_Create(&BRepOffsetAPIDef);
+#else
     PyObject* brepModule = Py_InitModule3("BRepOffsetAPI", 0, "BrepOffsetAPI");
+#endif
     Py_INCREF(brepModule);
     PyModule_AddObject(partModule, "BRepOffsetAPI", brepModule);
     Base::Interpreter().addType(&Part::BRepOffsetAPI_MakePipeShellPy::Type,brepModule,"MakePipeShell");
 
     // Geom2d package
-    PyObject* geom2dModule = Py_InitModule3("Geom2d", 0, "Geom2d");
+#if PY_MAJOR_VERSION >= 3
+    static struct PyModuleDef geom2dDef = {PyModuleDef_HEAD_INIT,"Geom2dD", "Geom2d", -1, 0};
+    PyObject* geom2dModule = PyModule_Create(&geom2dDef);
+#else
+     PyObject* geom2dModule = Py_InitModule3("Geom2d", 0, "Geom2d");
+#endif
     Py_INCREF(geom2dModule);
     PyModule_AddObject(partModule, "Geom2d", geom2dModule);
     Base::Interpreter().addType(&Part::Geometry2dPy::Type,geom2dModule,"Geometry2d");
@@ -586,4 +602,6 @@ PyMODINIT_FUNC initPart()
     Interface_Static::SetCVal("write.step.schema", ap.c_str());
     Interface_Static::SetCVal("write.step.product.name", hStepGrp->GetASCII("Product",
        Interface_Static::CVal("write.step.product.name")).c_str());
+
+    PyMOD_Return(partModule);
 }

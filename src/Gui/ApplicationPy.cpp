@@ -579,6 +579,7 @@ PyObject* Application::sGetMainWindow(PyObject * /*self*/, PyObject *args,PyObje
     PythonWrapper wrap;
     wrap.loadCoreModule();
     wrap.loadGuiModule();
+    wrap.loadWidgetsModule();
     try {
         return Py::new_reference_to(wrap.fromQWidget(Gui::getMainWindow(), "QMainWindow"));
     }
@@ -615,7 +616,11 @@ PyObject* Application::sGetLocale(PyObject * /*self*/, PyObject *args,PyObject *
         return NULL;                                      // NULL triggers exception 
 
     std::string locale = Translator::instance()->activeLanguage();
+#if PY_MAJOR_VERSION >= 3
+    return PyUnicode_FromString(locale.c_str());
+#else
     return PyString_FromString(locale.c_str());
+#endif
 }
 
 PyObject* Application::sCreateDialog(PyObject * /*self*/, PyObject *args,PyObject * /*kwd*/)
@@ -657,7 +662,11 @@ PyObject* Application::sAddPreferencePage(PyObject * /*self*/, PyObject *args,Py
 
     PyObject* dlg;
     // old style classes
+#if PY_MAJOR_VERSION >= 3
+    if (PyArg_ParseTuple(args, "O!s", &PyType_Type, &dlg, &grp)) {
+#else
     if (PyArg_ParseTuple(args, "O!s", &PyClass_Type, &dlg, &grp)) {
+#endif
         // add to the preferences dialog
         new PrefPagePyProducer(Py::Object(dlg), grp);
 
@@ -1045,7 +1054,11 @@ PyObject* Application::sListCommands(PyObject * /*self*/, PyObject *args,PyObjec
     PyObject* pyList = PyList_New(cmds.size());
     int i=0;
     for ( std::vector<Command*>::iterator it = cmds.begin(); it != cmds.end(); ++it ) {
+#if PY_MAJOR_VERSION >= 3
+        PyObject* str = PyUnicode_FromString((*it)->getName());
+#else
         PyObject* str = PyString_FromString((*it)->getName());
+#endif
         PyList_SetItem(pyList, i++, str);
     }
     return pyList;

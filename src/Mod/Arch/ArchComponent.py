@@ -138,7 +138,7 @@ class SelectionTaskPanel:
     """A temp taks panel to wait for a selection"""
     def __init__(self):
         self.baseform = QtGui.QLabel()
-        self.baseform.setText(QtGui.QApplication.translate("Arch", "Please select a base object", None, QtGui.QApplication.UnicodeUTF8))
+        self.baseform.setText(QtGui.QApplication.translate("Arch", "Please select a base object", None))
 
     def getStandardButtons(self):
         return int(QtGui.QDialogButtonBox.Cancel)
@@ -292,19 +292,19 @@ class ComponentTaskPanel:
                 FreeCADGui.ActiveDocument.setEdit(obj.Name,0)
 
     def retranslateUi(self, TaskPanel):
-        self.baseform.setWindowTitle(QtGui.QApplication.translate("Arch", "Components", None, QtGui.QApplication.UnicodeUTF8))
-        self.delButton.setText(QtGui.QApplication.translate("Arch", "Remove", None, QtGui.QApplication.UnicodeUTF8))
-        self.addButton.setText(QtGui.QApplication.translate("Arch", "Add", None, QtGui.QApplication.UnicodeUTF8))
-        self.title.setText(QtGui.QApplication.translate("Arch", "Components of this object", None, QtGui.QApplication.UnicodeUTF8))
-        self.treeBase.setText(0,QtGui.QApplication.translate("Arch", "Base component", None, QtGui.QApplication.UnicodeUTF8))
-        self.treeAdditions.setText(0,QtGui.QApplication.translate("Arch", "Additions", None, QtGui.QApplication.UnicodeUTF8))
-        self.treeSubtractions.setText(0,QtGui.QApplication.translate("Arch", "Subtractions", None, QtGui.QApplication.UnicodeUTF8))
-        self.treeObjects.setText(0,QtGui.QApplication.translate("Arch", "Objects", None, QtGui.QApplication.UnicodeUTF8))
-        self.treeAxes.setText(0,QtGui.QApplication.translate("Arch", "Axes", None, QtGui.QApplication.UnicodeUTF8))
-        self.treeComponents.setText(0,QtGui.QApplication.translate("Arch", "Components", None, QtGui.QApplication.UnicodeUTF8))
-        self.treeFixtures.setText(0,QtGui.QApplication.translate("Arch", "Fixtures", None, QtGui.QApplication.UnicodeUTF8))
-        self.treeArmatures.setText(0,QtGui.QApplication.translate("Arch", "Armatures", None, QtGui.QApplication.UnicodeUTF8))
-        self.treeGroup.setText(0,QtGui.QApplication.translate("Arch", "Group", None, QtGui.QApplication.UnicodeUTF8))
+        self.baseform.setWindowTitle(QtGui.QApplication.translate("Arch", "Components", None))
+        self.delButton.setText(QtGui.QApplication.translate("Arch", "Remove", None))
+        self.addButton.setText(QtGui.QApplication.translate("Arch", "Add", None))
+        self.title.setText(QtGui.QApplication.translate("Arch", "Components of this object", None))
+        self.treeBase.setText(0,QtGui.QApplication.translate("Arch", "Base component", None))
+        self.treeAdditions.setText(0,QtGui.QApplication.translate("Arch", "Additions", None))
+        self.treeSubtractions.setText(0,QtGui.QApplication.translate("Arch", "Subtractions", None))
+        self.treeObjects.setText(0,QtGui.QApplication.translate("Arch", "Objects", None))
+        self.treeAxes.setText(0,QtGui.QApplication.translate("Arch", "Axes", None))
+        self.treeComponents.setText(0,QtGui.QApplication.translate("Arch", "Components", None))
+        self.treeFixtures.setText(0,QtGui.QApplication.translate("Arch", "Fixtures", None))
+        self.treeArmatures.setText(0,QtGui.QApplication.translate("Arch", "Armatures", None))
+        self.treeGroup.setText(0,QtGui.QApplication.translate("Arch", "Group", None))
 
 class Component:
     "The default Arch Component object"
@@ -333,6 +333,8 @@ class Component:
         obj.setEditorMode("PerimeterLength",1)
 
     def execute(self,obj):
+        if self.clone(obj):
+            return
         if obj.Base:
             obj.Shape = obj.Base.Shape
 
@@ -350,7 +352,7 @@ class Component:
         "if this object is a clone, sets the shape. Returns True if this is the case"
         if hasattr(obj,"CloneOf"):
             if obj.CloneOf:
-                if Draft.getType(obj.CloneOf) == Draft.getType(obj):
+                if (Draft.getType(obj.CloneOf) == Draft.getType(obj)) or (Draft.getType(obj) == "Component"):
                     pl = obj.Placement
                     obj.Shape = obj.CloneOf.Shape.copy()
                     obj.Placement = pl
@@ -390,9 +392,11 @@ class Component:
             if obj.Base.isDerivedFrom("Part::Extrusion"):
                 if obj.Base.Base:
                     base,placement = self.rebase(obj.Base.Base.Shape)
-                    extrusion = obj.Base.Dir
+                    extrusion = FreeCAD.Vector(obj.Base.Dir)
                     if extrusion.Length == 0:
                         extrusion = FreeCAD.Vector(0,0,1)
+                    else:
+                        extrusion = placement.inverse().Rotation.multVec(extrusion)
                     if hasattr(obj.Base,"LengthForward"):
                         if obj.Base.LengthForward.Value:
                             extrusion = extrusion.multiply(obj.Base.LengthForward.Value)
@@ -431,7 +435,7 @@ class Component:
     def processSubShapes(self,obj,base,placement=None):
         "Adds additions and subtractions to a base shape"
         import Draft,Part
-        #print "Processing subshapes of ",obj.Label, " : ",obj.Additions
+        #print("Processing subshapes of ",obj.Label, " : ",obj.Additions)
 
         if placement:
             if placement.isNull():
@@ -481,7 +485,7 @@ class Component:
                                             try:
                                                 base = base.fuse(s)
                                             except Part.OCCError:
-                                                print "Arch: unable to fuse object ",obj.Name, " with ", o.Name
+                                                print("Arch: unable to fuse object ", obj.Name, " with ", o.Name)
                                     else:
                                         base = s
 
@@ -519,7 +523,7 @@ class Component:
                                     try:
                                         base = base.cut(s)
                                     except Part.OCCError:
-                                        print "Arch: unable to cut object ",o.Name, " from ", obj.Name
+                                        print("Arch: unable to cut object ",o.Name, " from ", obj.Name)
         return base
 
     def applyShape(self,obj,shape,placement,allowinvalid=False,allownosolid=False):
@@ -594,7 +598,7 @@ class Component:
                     except Part.OCCError:
                         # error in computing the areas. Better set them to zero than show a wrong value
                         if obj.HorizontalArea.Value != 0:
-                            print "Debug: Error computing areas for ",obj.Label,": unable to project face: ",str([v.Point for v in f.Vertexes])," (face normal:",f.normalAt(0,0),")"
+                            print("Debug: Error computing areas for ",obj.Label,": unable to project face: ",str([v.Point for v in f.Vertexes])," (face normal:",f.normalAt(0,0),")")
                             obj.HorizontalArea = 0
                         if hasattr(obj,"PerimeterLength"):
                             if obj.PerimeterLength.Value != 0:
@@ -620,7 +624,7 @@ class ViewProviderComponent:
         self.Object = vobj.Object
 
     def updateData(self,obj,prop):
-        #print obj.Name," : updating ",prop
+        #print(obj.Name," : updating ",prop)
         if prop == "BaseMaterial":
             if obj.BaseMaterial:
                 if 'Color' in obj.BaseMaterial.Material:
@@ -648,7 +652,7 @@ class ViewProviderComponent:
         return ":/icons/Arch_Component.svg"
 
     def onChanged(self,vobj,prop):
-        #print vobj.Object.Name, " : changing ",prop
+        #print(vobj.Object.Name, " : changing ",prop)
         if prop == "Visibility":
             #for obj in vobj.Object.Additions+vobj.Object.Subtractions:
             #    if (Draft.getType(obj) == "Window") or (Draft.isClone(obj,"Window",True)):

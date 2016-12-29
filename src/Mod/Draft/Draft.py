@@ -330,7 +330,7 @@ def getGroupContents(objectslist,walls=False,addgroups=False):
         objectslist = [objectslist]
     for obj in objectslist:
         if obj:
-            if obj.isDerivedFrom("App::DocumentObjectGroup") or ((getType(obj) == "Space") and hasattr(obj,"Group")):
+            if obj.isDerivedFrom("App::DocumentObjectGroup") or ((getType(obj) in ["Space","Site"]) and hasattr(obj,"Group")):
                 if obj.isDerivedFrom("Drawing::FeaturePage"):
                     # skip if the group is a page
                     newlist.append(obj)
@@ -1512,6 +1512,7 @@ def offset(obj,delta,copy=False,bind=False,sym=False,occ=False):
         else:
             return nr * math.cos(math.pi/obj.FacesNumber)
 
+    newwire = None
     if getType(obj) == "Circle":
         pass
     elif getType(obj) == "BSpline":
@@ -1566,11 +1567,23 @@ def offset(obj,delta,copy=False,bind=False,sym=False,occ=False):
         newobj = None
         if sym: return None
         if getType(obj) == "Wire":
-            newobj = makeWire(p)
-            newobj.Closed = obj.Closed
+            if p:
+                newobj = makeWire(p)
+                newobj.Closed = obj.Closed
+            elif newwire:
+                newobj = FreeCAD.ActiveDocument.addObject("Part::Feature","Offset")
+                newobj.Shape = newwire
+            else:
+                print("Draft.offset: Unable to duplicate this object")
         elif getType(obj) == "Rectangle":
-            length,height,plac = getRect(p,obj)
-            newobj = makeRectangle(length,height,plac)
+            if p:
+                length,height,plac = getRect(p,obj)
+                newobj = makeRectangle(length,height,plac)
+            elif newwire:
+                newobj = FreeCAD.ActiveDocument.addObject("Part::Feature","Offset")
+                newobj.Shape = newwire
+            else:
+                print("Draft.offset: Unable to duplicate this object")
         elif getType(obj) == "Circle":
             pl = obj.Placement
             newobj = makeCircle(delta)
@@ -1598,7 +1611,7 @@ def offset(obj,delta,copy=False,bind=False,sym=False,occ=False):
                 newobj = FreeCAD.ActiveDocument.addObject("Part::Feature","Offset")
                 newobj.Shape = newwire
             else:
-                print("Unable to create an offset")
+                print("Draft.offset: Unable to create an offset")
         if newobj:
             formatObject(newobj,obj)
     else:
@@ -2694,11 +2707,12 @@ def makeShapeString(String,FontFile,Size = 100,Tracking = 0):
     FreeCAD.ActiveDocument.recompute()
     return obj
 
-def clone(obj,delta=None):
-    '''clone(obj,[delta]): makes a clone of the given object(s). The clone is an exact,
+def clone(obj,delta=None,forcedraft=False):
+    '''clone(obj,[delta,forcedraft]): makes a clone of the given object(s). The clone is an exact,
     linked copy of the given object. If the original object changes, the final object
     changes too. Optionally, you can give a delta Vector to move the clone from the
-    original position.'''
+    original position. If forcedraft is True, the resulting object is a Draft clone
+    even if the input object is an Arch object.'''
     prefix = getParam("ClonePrefix","")
     if prefix:
         prefix = prefix.strip()+" "
@@ -2707,7 +2721,7 @@ def clone(obj,delta=None):
     if (len(obj) == 1) and obj[0].isDerivedFrom("Part::Part2DObject"):
         cl = FreeCAD.ActiveDocument.addObject("Part::Part2DObjectPython","Clone2D")
         cl.Label = prefix + obj[0].Label + " (2D)"
-    elif (len(obj) == 1) and hasattr(obj[0],"CloneOf"):
+    elif (len(obj) == 1) and hasattr(obj[0],"CloneOf") and (not forcedraft):
         # arch objects can be clones
         import Arch
         cl = getattr(Arch,"make"+obj[0].Proxy.Type)()
@@ -4374,12 +4388,12 @@ class _Rectangle(_DraftObject):
     def __init__(self, obj):
         _DraftObject.__init__(self,obj,"Rectangle")
         obj.addProperty("App::PropertyDistance","Length","Draft",QT_TRANSLATE_NOOP("App::Property","Length of the rectangle"))
-        obj.addProperty("App::PropertyDistance","Height","Draft",QT_TRANSLATE_NOOP("App::Property","Height of the rectange"))
+        obj.addProperty("App::PropertyDistance","Height","Draft",QT_TRANSLATE_NOOP("App::Property","Height of the rectangle"))
         obj.addProperty("App::PropertyLength","FilletRadius","Draft",QT_TRANSLATE_NOOP("App::Property","Radius to use to fillet the corners"))
         obj.addProperty("App::PropertyLength","ChamferSize","Draft",QT_TRANSLATE_NOOP("App::Property","Size of the chamfer to give to the corners"))
         obj.addProperty("App::PropertyBool","MakeFace","Draft",QT_TRANSLATE_NOOP("App::Property","Create a face"))
-        obj.addProperty("App::PropertyInteger","Rows","Draft",QT_TRANSLATE_NOOP("App::Property","Horizontal subdivisions of this rectange"))
-        obj.addProperty("App::PropertyInteger","Columns","Draft",QT_TRANSLATE_NOOP("App::Property","Vertical subdivisions of this rectange"))
+        obj.addProperty("App::PropertyInteger","Rows","Draft",QT_TRANSLATE_NOOP("App::Property","Horizontal subdivisions of this rectangle"))
+        obj.addProperty("App::PropertyInteger","Columns","Draft",QT_TRANSLATE_NOOP("App::Property","Vertical subdivisions of this rectangle"))
         obj.MakeFace = getParam("fillmode",True)
         obj.Length=1
         obj.Height=1
@@ -4623,7 +4637,7 @@ class _Wire(_DraftObject):
                 try:
                     shape = Part.Wire(edges)
                 except Part.OCCError:
-                    print "Error wiring edges"
+                    print("Error wiring edges")
                     shape = None
                 if "ChamferSize" in obj.PropertiesList:
                     if obj.ChamferSize.Value != 0:

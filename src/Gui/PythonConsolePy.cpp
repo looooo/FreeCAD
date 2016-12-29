@@ -61,7 +61,11 @@ Py::Object PythonStdout::getattr(const char *name)
 {
     if (strcmp(name, "softspace") == 0) {
         int i=0;
+#if PY_MAJOR_VERSION < 3
         return Py::Int(i);
+#else
+        return Py::Long(i);
+#endif
     }
     return getattr_methods(name);
 }
@@ -81,7 +85,11 @@ Py::Object PythonStdout::write(const Py::Tuple& args)
         if (PyUnicode_Check(output.ptr())) {
             PyObject* unicode = PyUnicode_AsEncodedObject(output.ptr(), "utf-8", "strict");
             if (unicode) {
+#if PY_MAJOR_VERSION >= 3
+                const char* string = PyBytes_AsString(unicode);
+#else
                 const char* string = PyString_AsString(unicode);
+#endif
                 int maxlen = qstrlen(string) > 10000 ? 10000 : -1;
                 pyConsole->insertPythonOutput(QString::fromUtf8(string, maxlen));
                 Py_DECREF(unicode);
@@ -132,7 +140,11 @@ Py::Object PythonStderr::getattr(const char *name)
 {
     if (strcmp(name, "softspace") == 0) {
         int i=0;
+#if PY_MAJOR_VERSION < 3
         return Py::Int(i);
+#else
+        return Py::Long(i);
+#endif
     }
     return getattr_methods(name);
 }
@@ -152,7 +164,11 @@ Py::Object PythonStderr::write(const Py::Tuple& args)
         if (PyUnicode_Check(output.ptr())) {
             PyObject* unicode = PyUnicode_AsEncodedObject(output.ptr(), "utf-8", "strict");
             if (unicode) {
+#if PY_MAJOR_VERSION >= 3
+                const char* string = PyBytes_AsString(unicode);
+#else
                 const char* string = PyString_AsString(unicode);
+#endif
                 int maxlen = qstrlen(string) > 10000 ? 10000 : -1;
                 pyConsole->insertPythonError(QString::fromUtf8(string, maxlen));
                 Py_DECREF(unicode);
@@ -202,7 +218,11 @@ Py::Object OutputStdout::getattr(const char *name)
 {
     if (strcmp(name, "softspace") == 0) {
         int i=0;
+#if PY_MAJOR_VERSION < 3
         return Py::Int(i);
+#else
+        return Py::Long(i);
+#endif
     }
     return getattr_methods(name);
 }
@@ -222,7 +242,11 @@ Py::Object OutputStdout::write(const Py::Tuple& args)
         if (PyUnicode_Check(output.ptr())) {
             PyObject* unicode = PyUnicode_AsEncodedObject(output.ptr(), "utf-8", "strict");
             if (unicode) {
+#if PY_MAJOR_VERSION >= 3
+                const char* string = PyBytes_AsString(unicode);
+#else
                 const char* string = PyString_AsString(unicode);
+#endif
                 Base::Console().Message("%s",string);
                 Py_DECREF(unicode);
             }
@@ -270,7 +294,11 @@ Py::Object OutputStderr::getattr(const char *name)
 {
     if (strcmp(name, "softspace") == 0) {
         int i=0;
+#if PY_MAJOR_VERSION < 3
         return Py::Int(i);
+#else
+        return Py::Long(i);
+#endif
     }
     return getattr_methods(name);
 }
@@ -290,7 +318,11 @@ Py::Object OutputStderr::write(const Py::Tuple& args)
         if (PyUnicode_Check(output.ptr())) {
             PyObject* unicode = PyUnicode_AsEncodedObject(output.ptr(), "utf-8", "strict");
             if (unicode) {
+#if PY_MAJOR_VERSION >= 3
+                const char* string = PyBytes_AsString(unicode);
+#else
                 const char* string = PyString_AsString(unicode);
+#endif
                 Base::Console().Error("%s",string);
                 Py_DECREF(unicode);
             }

@@ -276,6 +276,9 @@ public:
     double getAngleXU(void) const;
     void setAngleXU(double angle);
 
+    Base::Vector3d getXAxisDir() const;
+    void setXAxisDir(const Base::Vector3d& newdir);
+
     virtual unsigned int getMemSize(void) const = 0;
     virtual PyObject *getPyObject(void) = 0;
 
@@ -496,6 +499,8 @@ public:
 
     double getFocal(void) const;
     void setFocal(double length);
+    
+    Base::Vector3d getFocus(void) const;
     
     virtual void getRange(double& u, double& v, bool emulateCCWXY) const;
     virtual void setRange(double u, double v, bool emulateCCWXY);

@@ -21,7 +21,8 @@
 #*                                                                         *
 #***************************************************************************
 
-import FreeCAD,Draft,ArchComponent,DraftVecUtils,ArchCommands,Units
+import FreeCAD,Draft,ArchComponent,DraftVecUtils,ArchCommands
+from FreeCAD import Units
 from FreeCAD import Vector
 if FreeCAD.GuiUp:
     import FreeCADGui
@@ -386,7 +387,7 @@ def makeWindowPreset(windowtype,width,height,h1,h2,h3,w1,w2,o1,o2,placement=None
             FreeCAD.ActiveDocument.recompute()
             return obj
 
-    print "Arch: Unknown window type"
+    print("Arch: Unknown window type")
 
 
 class _CommandWindow:
@@ -863,7 +864,7 @@ class _Window(ArchComponent.Component):
                             if not DraftGeomUtils.isNull(pl):
                                 base.Placement = base.Placement.multiply(pl)
                     else:
-                        print "Arch: Bad formatting of window parts definitions"
+                        print("Arch: Bad formatting of window parts definitions")
 
         base = self.processSubShapes(obj,base)
         if base:
@@ -1002,7 +1003,7 @@ class _ViewProviderWindow(ArchComponent.ViewProviderComponent):
         if not obj.WindowParts:
             return
         solids = obj.Shape.copy().Solids
-        #print "Colorizing ", solids
+        #print("Colorizing ", solids)
         colors = []
         base = obj.ViewObject.ShapeColor
         for i in range(len(solids)):
@@ -1014,7 +1015,7 @@ class _ViewProviderWindow(ArchComponent.ViewProviderComponent):
                     ccol = ArchCommands.getDefaultColor("WindowGlass")
             for f in solids[i].Faces:
                 colors.append(ccol)
-        #print "colors: ",colors
+        #print("colors: ",colors)
         if colors:
             obj.ViewObject.DiffuseColor = colors
 
@@ -1352,28 +1353,28 @@ class _ArchWindowTaskPanel:
         return True
 
     def retranslateUi(self, TaskPanel):
-        TaskPanel.setWindowTitle(QtGui.QApplication.translate("Arch", "Components", None, QtGui.QApplication.UnicodeUTF8))
-        self.delButton.setText(QtGui.QApplication.translate("Arch", "Remove", None, QtGui.QApplication.UnicodeUTF8))
-        self.addButton.setText(QtGui.QApplication.translate("Arch", "Add", None, QtGui.QApplication.UnicodeUTF8))
-        self.editButton.setText(QtGui.QApplication.translate("Arch", "Edit", None, QtGui.QApplication.UnicodeUTF8))
-        self.createButton.setText(QtGui.QApplication.translate("Arch", "Create/update component", None, QtGui.QApplication.UnicodeUTF8))
-        self.title.setText(QtGui.QApplication.translate("Arch", "Base 2D object", None, QtGui.QApplication.UnicodeUTF8))
-        self.wiretree.setHeaderLabels([QtGui.QApplication.translate("Arch", "Wires", None, QtGui.QApplication.UnicodeUTF8)])
-        self.comptree.setHeaderLabels([QtGui.QApplication.translate("Arch", "Components", None, QtGui.QApplication.UnicodeUTF8)])
-        self.newtitle.setText(QtGui.QApplication.translate("Arch", "Create new component", None, QtGui.QApplication.UnicodeUTF8))
-        self.new1.setText(QtGui.QApplication.translate("Arch", "Name", None, QtGui.QApplication.UnicodeUTF8))
-        self.new2.setText(QtGui.QApplication.translate("Arch", "Type", None, QtGui.QApplication.UnicodeUTF8))
-        self.new3.setText(QtGui.QApplication.translate("Arch", "Wires", None, QtGui.QApplication.UnicodeUTF8))
-        self.new4.setText(QtGui.QApplication.translate("Arch", "Thickness", None, QtGui.QApplication.UnicodeUTF8))
-        self.new5.setText(QtGui.QApplication.translate("Arch", "Z offset", None, QtGui.QApplication.UnicodeUTF8))
-        self.new6.setText(QtGui.QApplication.translate("Arch", "Hinge", None, QtGui.QApplication.UnicodeUTF8))
-        self.new7.setText(QtGui.QApplication.translate("Arch", "Opening mode", None, QtGui.QApplication.UnicodeUTF8))
-        self.field6.setText(QtGui.QApplication.translate("Arch", "Get selected edge", None, QtGui.QApplication.UnicodeUTF8))
-        self.field6.setToolTip(QtGui.QApplication.translate("Arch", "Press to retrieve the selected edge", None, QtGui.QApplication.UnicodeUTF8))
+        TaskPanel.setWindowTitle(QtGui.QApplication.translate("Arch", "Components", None))
+        self.delButton.setText(QtGui.QApplication.translate("Arch", "Remove", None))
+        self.addButton.setText(QtGui.QApplication.translate("Arch", "Add", None))
+        self.editButton.setText(QtGui.QApplication.translate("Arch", "Edit", None))
+        self.createButton.setText(QtGui.QApplication.translate("Arch", "Create/update component", None))
+        self.title.setText(QtGui.QApplication.translate("Arch", "Base 2D object", None))
+        self.wiretree.setHeaderLabels([QtGui.QApplication.translate("Arch", "Wires", None)])
+        self.comptree.setHeaderLabels([QtGui.QApplication.translate("Arch", "Components", None)])
+        self.newtitle.setText(QtGui.QApplication.translate("Arch", "Create new component", None))
+        self.new1.setText(QtGui.QApplication.translate("Arch", "Name", None))
+        self.new2.setText(QtGui.QApplication.translate("Arch", "Type", None))
+        self.new3.setText(QtGui.QApplication.translate("Arch", "Wires", None))
+        self.new4.setText(QtGui.QApplication.translate("Arch", "Thickness", None))
+        self.new5.setText(QtGui.QApplication.translate("Arch", "Z offset", None))
+        self.new6.setText(QtGui.QApplication.translate("Arch", "Hinge", None))
+        self.new7.setText(QtGui.QApplication.translate("Arch", "Opening mode", None))
+        self.field6.setText(QtGui.QApplication.translate("Arch", "Get selected edge", None))
+        self.field6.setToolTip(QtGui.QApplication.translate("Arch", "Press to retrieve the selected edge", None))
         for i in range(len(WindowPartTypes)):
-            self.field2.setItemText(i, QtGui.QApplication.translate("Arch", WindowPartTypes[i], None, QtGui.QApplication.UnicodeUTF8))
+            self.field2.setItemText(i, QtGui.QApplication.translate("Arch", WindowPartTypes[i], None))
         for i in range(len(WindowOpeningModes)):
-            self.field7.setItemText(i, QtGui.QApplication.translate("Arch", WindowOpeningModes[i], None, QtGui.QApplication.UnicodeUTF8))
+            self.field7.setItemText(i, QtGui.QApplication.translate("Arch", WindowOpeningModes[i], None))
 
 if FreeCAD.GuiUp:
     FreeCADGui.addCommand('Arch_Window',_CommandWindow())

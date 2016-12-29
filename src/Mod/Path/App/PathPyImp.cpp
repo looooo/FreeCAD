@@ -112,10 +112,17 @@ Py::Float PathPy::getLength(void) const
     return Py::Float(getToolpathPtr()->getLength());
 }
 
+#if PY_MAJOR_VERSION >= 3
+Py::Long PathPy::getSize(void) const
+{
+    return Py::Long((long)getToolpathPtr()->getSize());
+}
+#else
 Py::Int PathPy::getSize(void) const
 {
-    return Py::Int((int)getToolpathPtr()->getSize());
+    return Py::Int((long)getToolpathPtr()->getSize());
 }
+#endif
 
 // specific methods
 
@@ -178,7 +185,11 @@ PyObject* PathPy::toGCode(PyObject * args)
 {
     if (PyArg_ParseTuple(args, "")) {
         std::string result = getToolpathPtr()->toGCode();
+#if PY_MAJOR_VERSION >= 3
+        return PyBytes_FromString(result.c_str());
+#else
         return PyString_FromString(result.c_str());
+#endif
     }
     throw Py::Exception("This method accepts no argument");
 }

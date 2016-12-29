@@ -423,7 +423,11 @@ bool ViewProviderPythonFeatureImp::setEdit(int ModNum)
                 if (vp.hasAttr("__object__")) {
                     Py::Callable method(vp.getAttr(std::string("setEdit")));
                     Py::Tuple args(1);
+#if PY_MAJOR_VERSION < 3
                     args.setItem(0, Py::Int(ModNum));
+#else
+                    args.setItem(0, Py::Long(ModNum));
+#endif
                     Py::Boolean ok(method.apply(args));
                     return (bool)ok;
                 }
@@ -431,7 +435,11 @@ bool ViewProviderPythonFeatureImp::setEdit(int ModNum)
                     Py::Callable method(vp.getAttr(std::string("setEdit")));
                     Py::Tuple args(2);
                     args.setItem(0, Py::Object(object->getPyObject(), true));
+#if PY_MAJOR_VERSION < 3
                     args.setItem(1, Py::Int(ModNum));
+#else
+                    args.setItem(1, Py::Long(ModNum));
+#endif
                     Py::Boolean ok(method.apply(args));
                     return (bool)ok;
                 }
@@ -458,7 +466,11 @@ bool ViewProviderPythonFeatureImp::unsetEdit(int ModNum)
                 if (vp.hasAttr("__object__")) {
                     Py::Callable method(vp.getAttr(std::string("unsetEdit")));
                     Py::Tuple args(1);
+#if PY_MAJOR_VERSION < 3
                     args.setItem(0, Py::Int(ModNum));
+#else
+                    args.setItem(0, Py::Long(ModNum));
+#endif
                     Py::Boolean ok(method.apply(args));
                     return (bool)ok;
                 }
@@ -466,7 +478,11 @@ bool ViewProviderPythonFeatureImp::unsetEdit(int ModNum)
                     Py::Callable method(vp.getAttr(std::string("unsetEdit")));
                     Py::Tuple args(2);
                     args.setItem(0, Py::Object(object->getPyObject(), true));
+#if PY_MAJOR_VERSION < 3
                     args.setItem(1, Py::Int(ModNum));
+#else
+                    args.setItem(1, Py::Long(ModNum));
+#endif
                     Py::Boolean ok(method.apply(args));
                     return (bool)ok;
                 }
@@ -527,6 +543,7 @@ void ViewProviderPythonFeatureImp::setupContextMenu(QMenu* menu)
                 if (vp.hasAttr("__object__")) {
                     PythonWrapper wrap;
                     wrap.loadGuiModule();
+                    wrap.loadWidgetsModule();
                     Py::Callable method(vp.getAttr(std::string("setupContextMenu")));
                     Py::Tuple args(1);
                     args.setItem(0, wrap.fromQWidget(menu, "QMenu"));
@@ -535,6 +552,7 @@ void ViewProviderPythonFeatureImp::setupContextMenu(QMenu* menu)
                 else {
                     PythonWrapper wrap;
                     wrap.loadGuiModule();
+                    wrap.loadWidgetsModule();
                     Py::Callable method(vp.getAttr(std::string("setupContextMenu")));
                     Py::Tuple args(2);
                     args.setItem(0, Py::Object(object->getPyObject(), true));
@@ -664,7 +682,11 @@ void ViewProviderPythonFeatureImp::finishRestoring()
         Py::Object vp = static_cast<App::PropertyPythonObject*>(proxy)->getValue();
         if (vp.ptr() == Py::_None()) {
             object->show();
+#if PY_MAJOR_VERSION < 3
             static_cast<App::PropertyPythonObject*>(proxy)->setValue(Py::Int(1));
+#else
+            static_cast<App::PropertyPythonObject*>(proxy)->setValue(Py::Long(1));
+#endif
         }
     }
 }
