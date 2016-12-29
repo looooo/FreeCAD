@@ -152,8 +152,13 @@ PyObject* VectorPy::number_multiply_handler(PyObject *self, PyObject *other)
             double b = PyFloat_AsDouble(self);
             return new VectorPy(a * b);
         }
+#if PY_MAJOR_VERSION >= 3
+        else if (PyLong_Check(self)) {
+            long b = PyLong_AsLong(self);
+#else
         else if (PyInt_Check(self)) {
             long b = PyInt_AsLong(self);
+#endif
             return new VectorPy(a * (double)b);
         }
         else {
