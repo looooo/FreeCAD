@@ -1,15 +1,18 @@
 # the task panel of the FemSolverGeneric (FreeCAD object)
 
 import time
-from PySide import QtGui
+from PySide import QtGui, QtCore
 import FreeCAD
 import FreeCADGui
 import FemGui
 from genericSolver import solvers
 from genericSolver.FemToolsGeneric import FemToolsGeneric
 
+from threading import Thread
+
 text_field = QtGui.QFormLayout.LabelRole
 input_field = QtGui.QFormLayout.FieldRole
+
 
 class TaskPanelFemSolverGeneric:
     def __init__(self, solver_object):
@@ -20,6 +23,7 @@ class TaskPanelFemSolverGeneric:
         self.properties = {}
         self.start = 0
         self.object = solver_object
+        self.current_thread = None
 
         self.setupMeshAndProperties()
 
@@ -49,13 +53,16 @@ class TaskPanelFemSolverGeneric:
         self.QsolveCase = QtGui.QPushButton("solve case")
         self.QlistSolvers = QtGui.QComboBox()
         self.QtextOutput = QtGui.QTextEdit()
+        self.QprepareMesh = QtGui.QPushButton("prepare mesh")
         # self.layout.setWidget(0, text_field, QtGui.QLabel("analyse type")) # meabe a category
         self.layout.addWidget(self.QlistSolvers)
+        self.layout.addWidget(self.QprepareMesh)
         self.layout.addWidget(self.QwriteFile)
         self.layout.addWidget(self.QsolveCase)
         self.layout.addWidget(self.QtextOutput)
         self.QlistSolvers.addItems(solvers.keys())
 
+        self.QprepareMesh.clicked.connect(self.prepare)
         self.QsolveCase.clicked.connect(self.solve)
 
     @property
@@ -67,19 +74,35 @@ class TaskPanelFemSolverGeneric:
             self.QlistSolvers.setDisabled(True)
         return self._solver
 
-    def solve(self, *attr):
-        # run in subprocess!!! TODO
-        self.start = time.time()
-        self.solver.setMesh(*self.mesh2py())
-        self.solver.run()
-        self.femConsoleMessage("run solver")
-        solution = self.solver.getSolution()
+    def prepare(self):
+        self.solver.setMesh(*self.mesh2py()) 
 
+        def write_finished():
+            self.femConsoleMessage("end of preparation")
+
+        def write_start():
+            self.start = time.time()
+            self.femConsoleMessage("start of preparation")
+
+        self.solver.doJob(self.solver.prepare, write_start, write_finished)
+
+    def solve(self):
+        def write_finished():
+            self.femConsoleMessage("end of computation")
+
+        def write_start():
+            self.start = time.time()
+            self.femConsoleMessage("start of computation")
+
+        self.solver.doJob(self.solver.run, write_start, write_finished)
+
+    def _solve(self):
+        pass
         # create a result object
-        result = FreeCAD.ActiveDocument.addObject('Fem::FemResultObject', "result")
-        result.Mesh = self.mesh
-        result.DisplacementLengths = solution
-        self.analysis.Member += [result]
+        # result = FreeCAD.ActiveDocument.addObject('Fem::FemResultObject', "result")
+        # result.Mesh = self.mesh
+        # result.DisplacementLengths = solution
+        # self.analysis.Member += [result]
 
     def mesh2py(self):
         # at this point the solver must be specified. Maybe another interface where the type of
@@ -98,8 +121,9 @@ class TaskPanelFemSolverGeneric:
                 elements.append(list(self.mesh.FemMesh.getElementNodes(i)))
         elif self._solver.typeOfElements == "edges":
             pass  # TODO
-
+        elements = [[(index - 1) for index in element] for element in elements]
         nodes = [list(i) for i in self.mesh.FemMesh.Nodes.values()]
+
         return nodes, elements
 
     def femConsoleMessage(self, message="", color="#000000"):

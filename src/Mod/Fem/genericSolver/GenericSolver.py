@@ -1,13 +1,32 @@
 # this is the base class for solvers pluged into the genericSolver interface.
 
+# TODO: logger to see what was going wrong with the case
+
+
+import time
+from PySide import QtCore
 
 
 class GenericSolver(object):
+
     def __init__(self):
         '''pass everything we need inside the solver'''
         self.set_properties = False
         self.nodes = []
         self.elements = []
+        self.worker = QtCore.QThread()
+
+    def doJob(self, foo, foo_start=None, foo_end=None):
+        if not self.worker.isRunning():
+            self.worker = QtCore.QThread()
+            self.worker.run = foo
+            if foo_start:
+                self.worker.started.connect(foo_start)
+            if foo_end:
+                self.worker.finished.connect(foo_end)
+            self.worker.start()
+        else:
+            raise RuntimeError("worker has job, please wait")
 
     def setMesh(self, nodes, elements):
         self.nodes = nodes
@@ -16,26 +35,19 @@ class GenericSolver(object):
     def setProperties(self, properties):
         pass
 
-    def run(self):
+# function called in an extern thread
+    def prepare(self):
         '''to be implemented by subclass'''
         pass
 
-    def getSolution(self):
-        '''to be implemented by subclass, called by freecad-solver after computation
-        return elements_result, node_result'''
-        return [i for node in self.nodes for i in node]
-
-    def convertMesh(self):
-        '''implement by subclass'''
-        pass
-
-    def convertBCs(self):
-        '''implement by subclass'''
-        pass
+    def run(self):
+        '''to be implemented by subclass'''
+        time.sleep(5)
 
     def writeMesh(self, filename):
-        '''writes the mesh to file'''
+        '''to be implemented by subclass'''
         pass
+######################################################
 
     def writeInputFile(self):
         pass
