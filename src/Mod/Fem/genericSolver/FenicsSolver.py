@@ -25,3 +25,5 @@ class FenicsSolver(GenericSolver):
         for i, el in enumerate(self.elements):
             editor.add_cell(i, np.array(el, dtype=np.uintp))
         editor.close()
+
+        

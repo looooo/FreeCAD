@@ -149,3 +149,11 @@ https://github.com/looooo/FreeCAD/blob/genericSolver/src/Mod/Fem/FemInputWriterZ
 #### fenics
 - [ ] document best practices for the installation of fenics to use while developing this solver interface (possible: docker, distribution packages [usually outdated], anaconda, ...)
 
+
+
+## Boundaries:
+
+get the elements of a boundary
+```
+a.FemMesh.getFacesByFace(b.References[0][0].Shape.getElement(b.References[0][1][0]))
+```

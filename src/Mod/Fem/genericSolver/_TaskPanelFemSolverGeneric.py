@@ -6,7 +6,6 @@ import FreeCAD
 import FreeCADGui
 import FemGui
 from genericSolver import solvers
-from genericSolver.FemToolsGeneric import FemToolsGeneric
 
 from threading import Thread
 
@@ -27,8 +26,6 @@ class TaskPanelFemSolverGeneric:
 
         self.setupMeshAndProperties()
 
-        self.FemToolsGeneric = FemToolsGeneric()
-
         self.base_widget = QtGui.QWidget()
         self.layout = QtGui.QVBoxLayout(self.base_widget)
         self.base_widget.setWindowTitle("generic solver")
@@ -40,7 +37,6 @@ class TaskPanelFemSolverGeneric:
             if member.isDerivedFrom("Fem::FemMeshObject"):
                 self.mesh = member
 
-
         if not self.mesh:
             raise(AttributeError("no mesh in analyse"))
 
@@ -51,10 +47,10 @@ class TaskPanelFemSolverGeneric:
         # 3 write file button
         self.QwriteFile = QtGui.QPushButton("write file")
         self.QsolveCase = QtGui.QPushButton("solve case")
+        self.QprepareMesh = QtGui.QPushButton("prepare mesh")
         self.QlistSolvers = QtGui.QComboBox()
         self.QtextOutput = QtGui.QTextEdit()
-        self.QprepareMesh = QtGui.QPushButton("prepare mesh")
-        # self.layout.setWidget(0, text_field, QtGui.QLabel("analyse type")) # meabe a category
+
         self.layout.addWidget(self.QlistSolvers)
         self.layout.addWidget(self.QprepareMesh)
         self.layout.addWidget(self.QwriteFile)
@@ -125,6 +121,11 @@ class TaskPanelFemSolverGeneric:
         nodes = [list(i) for i in self.mesh.FemMesh.Nodes.values()]
 
         return nodes, elements
+
+    def properties_to_py(self):
+        for m in self.analysis.Members:
+            if "References" in m.PropertyList:      # this is a constraint!
+                pass # this is a constraint!! get the data, apply to solver
 
     def femConsoleMessage(self, message="", color="#000000"):
         # borrowed from calculix taskpanel, very nice
