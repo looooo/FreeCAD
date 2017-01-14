@@ -15,6 +15,7 @@ class GenericSolver(object):
         self.nodes = []
         self.elements = []
         self.worker = QtCore.QThread()
+        self.property_dict = {}
 
     def doJob(self, foo, foo_start=None, foo_end=None):
         if not self.worker.isRunning():

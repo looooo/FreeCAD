@@ -123,9 +123,15 @@ class TaskPanelFemSolverGeneric:
         return nodes, elements
 
     def properties_to_py(self):
+        """
+        node_groups: {"my_node_group": [indices], ...}
+        element_groups: {"my_element_group": [indices], ...}
+        "constraint_name": {"value": 1, "nodes_group": "my_group"}"""
+
         for m in self.analysis.Members:
             if "References" in m.PropertyList:      # this is a constraint!
-                pass # this is a constraint!! get the data, apply to solver
+                # this is a constraint!! get the data, apply to solver
+                # "constraint_name": {value: 1, "nodes": []....}
 
     def femConsoleMessage(self, message="", color="#000000"):
         # borrowed from calculix taskpanel, very nice
