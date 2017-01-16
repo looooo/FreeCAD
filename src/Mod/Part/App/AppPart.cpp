@@ -381,7 +381,8 @@ PyMOD_INIT_FUNC(Part)
     Base::Interpreter().addType(&Part::Line2dSegmentPy::Type,geom2dModule,"Line2dSegment");
     Base::Interpreter().addType(&Part::Line2dPy::Type,geom2dModule,"Line2d");
     Base::Interpreter().addType(&Part::OffsetCurve2dPy::Type,geom2dModule,"OffsetCurve2d");
-
+#if PY_MAJOR_VERSION < 3
+// this causes double initialisation of the part modul with python3.
     try {
         //import all submodules of BOPTools, to make them easy to browse in Py console.
         //It's done in this weird manner instead of bt.caMemberFunction("importAll"),
@@ -394,6 +395,7 @@ PyMOD_INIT_FUNC(Part)
         Base::Console().Error("Failed to import BOPTools package:\n");
         err.ReportException();
     }
+#endif
 
     Part::TopoShape             ::init();
     Part::PropertyPartShape     ::init();
