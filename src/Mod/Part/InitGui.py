@@ -45,7 +45,7 @@ class PartWorkbench ( Workbench ):
         try:
             Part.BOPTools.addCommands()
         except Exception as err:
-            FreeCAD.Console.PrintError("Features from BOPTools package cannot be loaded. {err}\n".format(err= err.message))        
+            FreeCAD.Console.PrintError("Features from BOPTools package cannot be loaded. {err}\n".format(err= str(err)))        
 
     def GetClassName(self):
         return "PartGui::Workbench"
