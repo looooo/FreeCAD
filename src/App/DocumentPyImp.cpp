@@ -403,7 +403,11 @@ PyObject*  DocumentPy::recompute(PyObject * args)
     if (!PyArg_ParseTuple(args, ""))     // convert args: Python->C 
         return NULL;                    // NULL triggers exception 
     int objectCount = getDocumentPtr()->recompute();
+#if PY_MAJOR_VERSION < 3
     return Py::new_reference_to(Py::Int(objectCount));
+#else
+    return Py::new_reference_to(Py::Long(objectCount));
+#endif
 }
 
 PyObject*  DocumentPy::getObject(PyObject *args)
