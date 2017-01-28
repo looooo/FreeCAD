@@ -1221,7 +1221,7 @@ Py::Object PythonExtensionBase::callOnSelf( const std::string &fn_name,
     return self().callMemberFunction( fn_name, args );
 }
 
-void PythonExtensionBase::reinit( Tuple &args, Dict &kwds )
+void PythonExtensionBase::reinit( Tuple & /* args */, Dict & /* kwds */)
 {
     throw RuntimeError( "Must not call __init__ twice on this class" );
 }
@@ -1479,7 +1479,7 @@ Py::Object PythonExtensionBase::number_power( const Py::Object &, const Py::Obje
 
 
 // Buffer
-int PythonExtensionBase::buffer_get( Py_buffer *buf, int flags )
+int PythonExtensionBase::buffer_get( Py_buffer * /* buf */, int /* flags */ )
 {
     missing_method( buffer_get );
     return -1;
