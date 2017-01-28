@@ -778,16 +778,15 @@ PyObject *@self.export.Name@::_getattro(PyObject *attro)				// __getattr__ funct
     }
 #endif  // DONT_CATCH_CXX_EXCEPTIONS
 
-    PyObject *rvalue = PyObject_GenericGetAttr(this, attro);
-    if (rvalue == NULL)
+    for (unsigned int i=0; i< sizeof(this->Methods); i++)
     {
-        PyErr_Clear();
-        return @self.export.Father@::_getattro(attro);
+        PyMethodDef* meth = & Methods[i];
+        if (Methods[i].ml_name == attr)
+            return PyCFunction_New(meth, this);
     }
-    else
-    {
-        return rvalue;
-    }
+
+    PyErr_Clear();
+    return @self.export.Father@::_getattro(attro);
 }
 
 int @self.export.Name@::_setattro(PyObject *attro, PyObject *value) 	// __setattr__ function: note only need to handle new state

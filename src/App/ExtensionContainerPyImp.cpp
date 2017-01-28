@@ -110,6 +110,37 @@ int ExtensionContainerPy::PyInit(PyObject* /*args*/, PyObject* /*kwd*/)
     return 0;
 }
 
+// PyObject *ExtensionContainerPy::getCustomAttributes(const char* attr) const
+// {
+//     // Search for the method called 'attr' in the extensions. If the search with
+//     // Py_FindMethod is successful then a PyCFunction_New instance is returned
+//     // with the PyObject pointer of the extension to make sure the method will
+//     // be called for the correct instance.
+//     PyObject *func = 0;
+//     ExtensionContainer::ExtensionIterator it = this->getExtensionContainerPtr()->extensionBegin();
+//     for (; it != this->getExtensionContainerPtr()->extensionEnd(); ++it) {
+//         // The PyTypeObject is shared by all instances of this type and therefore
+//         // we have to add new methods only once.
+//         PyObject* obj = (*it).second->getExtensionPyObject();
+//         PyMethodDef* meth = reinterpret_cast<PyMethodDef*>(obj->ob_type->tp_methods);
+// #if PY_MAJOR_VERSION >= 3
+//         // potential error:
+//         // http://forum.freecadweb.org/viewtopic.php?f=10&t=12534&sid=bf8c7cfe816b5351f11592bf0b8dd0cd&start=220#p150297
+//         PyObject *nameobj = PyUnicode_FromString(attr);
+//         func = PyObject_GenericGetAttr((PyObject*) obj, nameobj);
+//         Py_DECREF(nameobj);
+// #else
+//         func = Py_FindMethod(meth, obj, attr);
+// #endif
+//         Py_DECREF(obj);
+//         if (func)
+//             break;
+//         PyErr_Clear(); // clear the error set inside Py_FindMethod
+//     }
+
+//     return func;
+// }
+
 PyObject *ExtensionContainerPy::getCustomAttributes(const char* attr) const
 {
     // Search for the method called 'attr' in the extensions. If the search with
@@ -122,19 +153,20 @@ PyObject *ExtensionContainerPy::getCustomAttributes(const char* attr) const
         // The PyTypeObject is shared by all instances of this type and therefore
         // we have to add new methods only once.
         PyObject* obj = (*it).second->getExtensionPyObject();
-        PyMethodDef* meth = reinterpret_cast<PyMethodDef*>(obj->ob_type->tp_methods);
-#if PY_MAJOR_VERSION >= 3
-        // potential error:
-        // http://forum.freecadweb.org/viewtopic.php?f=10&t=12534&sid=bf8c7cfe816b5351f11592bf0b8dd0cd&start=220#p150297
         PyObject *nameobj = PyUnicode_FromString(attr);
-        func = PyObject_GenericGetAttr((PyObject*) obj, nameobj);
+        func = PyObject_GenericGetAttr(obj, nameobj);
         Py_DECREF(nameobj);
-#else
-        func = Py_FindMethod(meth, obj, attr);
-#endif
         Py_DECREF(obj);
-        if (func)
-            break;
+        if (func && PyCFunction_Check(func)) {
+            PyCFunctionObject* cfunc = reinterpret_cast<PyCFunctionObject*>(func);
+
+            // OK, that's what we wanted
+            if (cfunc->m_self == obj)
+                break;
+            // otherwise cleanup the result again
+            Py_DECREF(func);
+            func = 0;
+        }
         PyErr_Clear(); // clear the error set inside Py_FindMethod
     }
 
