@@ -473,7 +473,7 @@ def importFrd(filename, analysis=None, result_name_prefix=None):
                 results.DisplacementVectors = list(map((lambda x: x * scale), disp.values()))
                 results.StressVectors = list(map((lambda x: x * scale), stressv.values()))
                 results.StrainVectors = list(map((lambda x: x * scale), strainv.values()))
-                results.NodeNumbers = disp.keys()
+                results.NodeNumbers = list(disp.keys())
                 if(mesh_object):
                     results.Mesh = mesh_object
 
@@ -523,10 +523,10 @@ def importFrd(filename, analysis=None, result_name_prefix=None):
                     results.PrincipalMin = prinstress3
                     results.MaxShear = shearstress
 
-            if (results.NodeNumbers != 0 and results.NodeNumbers != stress.keys()):
+            if (results.NodeNumbers != 0 and results.NodeNumbers != list(stress.keys())):
                 print("Inconsistent FEM results: element number for Stress doesn't equal element number for Displacement {} != {}"
                       .format(results.NodeNumbers, len(results.StressValues)))
-                results.NodeNumbers = stress.keys()
+                results.NodeNumbers = list(stress.keys())
 
             x_min, y_min, z_min = map(min, zip(*displacement))
             sum_list = map(sum, zip(*displacement))
