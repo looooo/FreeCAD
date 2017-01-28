@@ -778,11 +778,11 @@ PyObject *@self.export.Name@::_getattro(PyObject *attro)				// __getattr__ funct
     }
 #endif  // DONT_CATCH_CXX_EXCEPTIONS
 
-    for (unsigned int i=0; i< sizeof(this->Methods); i++)
-    {
-        PyMethodDef* meth = & Methods[i];
-        if (Methods[i].ml_name == attr)
-            return PyCFunction_New(meth, this);
+    PyMethodDef *ml = Methods;
+    for (; ml->ml_name != NULL; ml++) {
+        if (attr[0] == ml->ml_name[0] &&
+            strcmp(attr+1, ml->ml_name+1) == 0)
+            return PyCFunction_New(ml, this);
     }
 
     PyErr_Clear();
