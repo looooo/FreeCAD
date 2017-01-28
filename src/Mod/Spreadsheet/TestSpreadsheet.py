@@ -124,12 +124,12 @@ class SpreadsheetCases(unittest.TestCase):
         self.assertEqual(sheet.F4, (1.0 + 2 + 3 + 4) / 4)
         self.assertEqual(sheet.F5, (1.0 + 2 + 3 + 4 + 5 + 6) / 6)
 
-        self.assertEqual(sheet.G1, Quantity('5 mm'))
-        self.assertEqual(sheet.G2, Quantity('4 mm'))
-        self.assertEqual(sheet.G3, Quantity('6 mm'))
+        self.assertEqual(sheet.G1, Units.Quantity('5 mm'))
+        self.assertEqual(sheet.G2, Units.Quantity('4 mm'))
+        self.assertEqual(sheet.G3, Units.Quantity('6 mm'))
         self.assertEqual(sheet.G4, 3)
-        self.assertEqual(sheet.G5, Quantity('1 mm'))
-        self.assertEqual(sheet.G6, Quantity('15 mm'))
+        self.assertEqual(sheet.G5, Units.Quantity('1 mm'))
+        self.assertEqual(sheet.G6, Units.Quantity('15 mm'))
 
         self.assertEqual(sheet.H1, u'ERR: Quantity::operator +=(): Unit mismatch in plus operation')
         self.assertEqual(sheet.H2, u'ERR: Quantity::operator <(): quantities need to have same unit to compare')
