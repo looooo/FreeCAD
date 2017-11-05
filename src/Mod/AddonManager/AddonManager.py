@@ -24,6 +24,7 @@
 #***************************************************************************
 
 from __future__ import print_function
+from freecad import porting_tools
 
 __title__="FreeCAD Addon Manager Module"
 __author__ = "Yorik van Havre","Jonathan Wiedemann","Kurt Kremitzki"
@@ -850,7 +851,7 @@ class InstallWorker(QtCore.QThread):
         except:
             return translate("AddonsInstaller", "Error: Unable to download") + " " + zipurl
         zfile = io.StringIO()
-        zfile.write(u.read())
+        zfile.write(porting_tools.text2str(u.read()))
         zfile = zipfile.ZipFile(zfile)
         master = zfile.namelist()[0] # github will put everything in a subfolder
         zfile.extractall(clonedir)
