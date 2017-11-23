@@ -43,18 +43,13 @@
 #include <Eigen/IterativeLinearSolvers>
 
 #include "MeshFlatteningLscmRelax.h"
+#include "MeshFlattening.h"
 
 typedef Eigen::SparseMatrix<double> spMat;
 
 
 typedef Eigen::Vector3d Vector3;
 typedef Eigen::Vector2d Vector2;
-
-template <typename type, unsigned int size>
-using ColMat = Eigen::Matrix<type, Eigen::Dynamic, size>;
-
-template <typename type, unsigned int size>
-using RowMat = Eigen::Matrix<type, size, Eigen::Dynamic>;
 
 class LscmRelax{
 private:

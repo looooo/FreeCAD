@@ -20,7 +20,7 @@
  *                                                                         *
  ***************************************************************************/
 
-
+#include "PreCompiled.h"
 #include "MeshFlattening.h"
 #include "MeshFlatteningLscmRelax.h"
 #include <Poly_Triangulation.hxx>
