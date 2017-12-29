@@ -67,8 +67,8 @@ using namespace Part;
 TYPESYSTEM_SOURCE(Sketcher::Sketch, Base::Persistence)
 
 Sketch::Sketch()
-: SolveTime(0), GCSsys(), ConstraintsCounter(0), isInitMove(false), isFine(true),
-    defaultSolver(GCS::DogLeg),defaultSolverRedundant(GCS::DogLeg),debugMode(GCS::Minimal)
+: SolveTime(0), RecalculateInitialSolutionWhileMovingPoint(false), GCSsys(), ConstraintsCounter(0), isInitMove(false), isFine(true),
+defaultSolver(GCS::DogLeg),defaultSolverRedundant(GCS::DogLeg),debugMode(GCS::Minimal)
 {
 }
 
@@ -737,7 +737,7 @@ int Sketch::addBSpline(const Part::GeomBSplineCurve &bspline, bool fixed)
     double * p1x = new double(startPnt.x);
     double * p1y = new double(startPnt.y);
 
-    // if periodic, startpoint and endpoint do not play a role in the solver, this removes unnecesarry DoF of determining where in the curve
+    // if periodic, startpoint and endpoint do not play a role in the solver, this removes unnecessary DoF of determining where in the curve
     // the start and the stop should be
     if(!periodic) {
         params.push_back(p1x);
@@ -750,7 +750,7 @@ int Sketch::addBSpline(const Part::GeomBSplineCurve &bspline, bool fixed)
     double * p2x = new double(endPnt.x);
     double * p2y = new double(endPnt.y);
     
-    // if periodic, startpoint and endpoint do not play a role in the solver, this removes unnecesarry DoF of determining where in the curve
+    // if periodic, startpoint and endpoint do not play a role in the solver, this removes unnecessary DoF of determining where in the curve
     // the start and the stop should be
     if(!periodic) {
         params.push_back(p2x);
@@ -3185,6 +3185,11 @@ int Sketch::initMove(int geoId, PointPos pos, bool fine)
     return 0;
 }
 
+void Sketch::resetInitMove()
+{
+    isInitMove = false;
+}
+
 int Sketch::movePoint(int geoId, PointPos pos, Base::Vector3d toPoint, bool relative)
 {
     geoId = checkGeoId(geoId);
@@ -3193,8 +3198,24 @@ int Sketch::movePoint(int geoId, PointPos pos, Base::Vector3d toPoint, bool rela
     if (hasConflicts())
         return -1;
 
-    if (!isInitMove)
+    if (!isInitMove) {
         initMove(geoId, pos);
+        initToPoint = toPoint;
+        moveStep = 0;
+    }
+    else {
+        if(!relative && RecalculateInitialSolutionWhileMovingPoint) {
+            if (moveStep == 0) {
+                moveStep = (toPoint-initToPoint).Length();
+            }
+            else {
+                if( (toPoint-initToPoint).Length() > 20*moveStep) { // I am getting too far away from the original solution so reinit the solution
+                    initMove(geoId, pos);
+                    initToPoint = toPoint;
+                }
+            }
+        }
+    }
 
     if (relative) {
         for (int i=0; i < int(MoveParameters.size()-1); i+=2) {
@@ -3351,7 +3372,7 @@ TopoShape Sketch::toShape(void) const
 
         TopoDS_Wire new_wire = mkWire.Wire(); // current new wire
 
-        // try to connect each edge to the wire, the wire is complete if no more egdes are connectible
+        // try to connect each edge to the wire, the wire is complete if no more edges are connectible
         bool found = false;
         do {
             found = false;

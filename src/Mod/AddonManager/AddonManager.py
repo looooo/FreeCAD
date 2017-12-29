@@ -282,6 +282,9 @@ class AddonsInstaller(QtGui.QDialog):
             else:
                 idx = self.listWorkbenches.currentRow()
             if idx != None:
+                if hasattr(self,"install_worker"):
+                    if self.install_worker.isRunning():
+                        return
                 self.install_worker = InstallWorker(self.repos, idx)
                 self.install_worker.info_label.connect(self.set_information_label)
                 self.install_worker.progressbar_show.connect(self.show_progress_bar)

@@ -602,6 +602,10 @@ void View3DInventorViewer::OnChange(Gui::SelectionSingleton::SubjectType& rCalle
         SoFCSelectionAction cAct(Reason);
         cAct.apply(pcViewProviderRoot);
     }
+    else if (Reason.Type == SelectionChanges::RmvPreselect) {
+        SoFCHighlightAction cAct(Reason);
+        cAct.apply(pcViewProviderRoot);
+    }
 }
 /// @endcond
 
@@ -1022,6 +1026,8 @@ void View3DInventorViewer::savePicture(int w, int h, const QColor& bg, QImage& i
         else {
             SoFCOffscreenRenderer& renderer = SoFCOffscreenRenderer::instance();
             renderer.setViewportRegion(vp);
+            renderer.getGLRenderAction()->setSmoothing(true);
+            renderer.getGLRenderAction()->setNumPasses(4);
             if (bgColor.isValid())
                 renderer.setBackgroundColor(SbColor(bgColor.redF(), bgColor.greenF(), bgColor.blueF()));
             if (!renderer.render(root))
@@ -2132,7 +2138,7 @@ void View3DInventorViewer::boxZoom(const SbBox2s& box)
 
 void View3DInventorViewer::viewAll()
 {
-    // in the scene graph we may have objects which we want to exlcude
+    // in the scene graph we may have objects which we want to exclude
     // when doing a fit all. Such objects must be part of the group
     // SoSkipBoundingGroup.
     SoSearchAction sa;
@@ -2630,7 +2636,7 @@ void View3DInventorViewer::setCursorRepresentation(int modearg)
 {
     // There is a synchronization problem between Qt and SoQt which
     // happens when popping up a context-menu. In this case the
-    // Qt::WA_UnderMouse attribute is resetted and never set again
+    // Qt::WA_UnderMouse attribute is reset and never set again
     // even if the mouse is still in the canvas. Thus, the cursor
     // won't be changed as long as the user doesn't leave and enter
     // the canvas. To fix this we explicitly set Qt::WA_UnderMouse

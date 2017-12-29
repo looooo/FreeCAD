@@ -1744,7 +1744,7 @@ void PlacementEditor::showValue(const QVariant& d)
     const Base::Placement& p = d.value<Base::Placement>();
     double angle;
     Base::Vector3d dir, pos;
-    p.getRotation().getValue(dir, angle);
+    p.getRotation().getRawValue(dir, angle);
     angle = Base::toDegrees<double>(angle);
     pos = p.getPosition();
     QString data = QString::fromUtf8("[(%1 %2 %3);%4 \xc2\xb0;(%5 %6 %7)]")
@@ -1806,7 +1806,7 @@ Base::Quantity PropertyPlacementItem::getAngle() const
     const Base::Placement& val = value.value<Base::Placement>();
     double angle;
     Base::Vector3d dir;
-    val.getRotation().getValue(dir, angle);
+    val.getRotation().getRawValue(dir, angle);
     if (dir * this->rot_axis < 0.0)
         angle = -angle;
     return Base::Quantity(Base::toDegrees<double>(angle), Base::Unit::Angle);
@@ -1876,18 +1876,23 @@ void PropertyPlacementItem::setPosition(const Base::Vector3d& pos)
 
 void PropertyPlacementItem::assignProperty(const App::Property* prop)
 {
-    // Choose an adaptive epsilon to avoid chaning the axis when they are considered to
+    // Choose an adaptive epsilon to avoid changing the axis when they are considered to
     // be equal. See https://forum.freecadweb.org/viewtopic.php?f=10&t=24662&start=10
     double eps = std::pow(10.0, -2*(decimals()+1));
     if (prop->getTypeId().isDerivedFrom(App::PropertyPlacement::getClassTypeId())) {
         const Base::Placement& value = static_cast<const App::PropertyPlacement*>(prop)->getValue();
         double angle;
         Base::Vector3d dir;
-        value.getRotation().getValue(dir, angle);
+        value.getRotation().getRawValue(dir, angle);
         Base::Vector3d cross = this->rot_axis.Cross(dir);
         double len2 = cross.Sqr();
-        if (angle != 0 && len2 > eps) {
-            this->rot_axis = dir;
+        if (angle != 0) {
+            // vectors are not parallel
+            if (len2 > eps)
+                this->rot_axis = dir;
+            // vectors point into opposite directions
+            else if (this->rot_axis.Dot(dir) < 0)
+                this->rot_axis = -this->rot_axis;
         }
         this->rot_angle = Base::toDegrees(angle);
     }
@@ -1900,7 +1905,7 @@ QVariant PropertyPlacementItem::value(const App::Property* prop) const
     const Base::Placement& value = static_cast<const App::PropertyPlacement*>(prop)->getValue();
     double angle;
     Base::Vector3d dir;
-    value.getRotation().getValue(dir, angle);
+    value.getRotation().getRawValue(dir, angle);
     if (!init_axis) {
         if (m_a->hasExpression()) {
             QString str = m_a->expressionAsString();
@@ -1938,7 +1943,7 @@ QVariant PropertyPlacementItem::toolTip(const App::Property* prop) const
     const Base::Placement& p = static_cast<const App::PropertyPlacement*>(prop)->getValue();
     double angle;
     Base::Vector3d dir, pos;
-    p.getRotation().getValue(dir, angle);
+    p.getRotation().getRawValue(dir, angle);
     angle = Base::toDegrees<double>(angle);
     pos = p.getPosition();
     QString data = QString::fromUtf8("Axis: (%1 %2 %3)\n"
@@ -1959,7 +1964,7 @@ QVariant PropertyPlacementItem::toString(const QVariant& prop) const
     const Base::Placement& p = prop.value<Base::Placement>();
     double angle;
     Base::Vector3d dir, pos;
-    p.getRotation().getValue(dir, angle);
+    p.getRotation().getRawValue(dir, angle);
     angle = Base::toDegrees<double>(angle);
     pos = p.getPosition();
     QString data = QString::fromUtf8("[(%1 %2 %3); %4; (%5  %6  %7)]")

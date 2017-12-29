@@ -5107,8 +5107,8 @@ class Draft_Slope():
 
     def GetResources(self):
         return {'Pixmap'  : 'Draft_Slope',
-                'MenuText': QtCore.QT_TRANSLATE_NOOP("Draft_Slope", "Set slope"),
-                'ToolTip' : QtCore.QT_TRANSLATE_NOOP("Draft_Slope", "Sets the slope of a selected line or wire")}
+                'MenuText': QtCore.QT_TRANSLATE_NOOP("Draft_Slope", "Set Slope"),
+                'ToolTip' : QtCore.QT_TRANSLATE_NOOP("Draft_Slope", "Sets the slope of a selected Line or Wire")}
 
     def Activated(self):
         if not FreeCADGui.Selection.getSelection():
@@ -5127,7 +5127,7 @@ class Draft_Slope():
         self.spinbox.setMinimum(-9999.99)
         self.spinbox.setMaximum(9999.99)
         self.spinbox.setSingleStep(0.01)
-        self.spinbox.setToolTip(translate("Draft", "Slope to give toselected Wires/Lines: 0 = horizontal, 1 = 45deg up, -1 = 45deg down"))
+        self.spinbox.setToolTip(translate("Draft", "Slope to give selected Wires/Lines: 0 = horizontal, 1 = 45deg up, -1 = 45deg down"))
         layout.addWidget(self.spinbox)
         taskwidget = QtGui.QWidget()
         taskwidget.form = w
