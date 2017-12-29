@@ -60,7 +60,6 @@
 # include <basewrapper.h>
 # include <sbkconverter.h>
 # include <sbkmodule.h>
-# include <typeresolver.h>
 # include <shiboken.h>
 # ifdef HAVE_PYSIDE
 # include <pyside_qtcore_python.h>
@@ -77,7 +76,6 @@ PyTypeObject** SbkPySide_QtGuiTypes=NULL;
 # include <basewrapper.h>
 # include <sbkconverter.h>
 # include <sbkmodule.h>
-# include <typeresolver.h>
 # include <shiboken.h>
 # ifdef HAVE_PYSIDE2
 # define HAVE_PYSIDE
@@ -113,7 +111,7 @@ PyTypeObject** SbkPySide2_QtWidgetsTypes=NULL;
 
 using namespace Gui;
 
-#if defined (HAVE_SHIBOKEN)
+#if 0 // defined (HAVE_SHIBOKEN)^M
 namespace Shiboken {
 template<> struct Converter<Base::Quantity>
 {
@@ -206,7 +204,7 @@ void registerTypes()
 
 PythonWrapper::PythonWrapper()
 {
-#if defined (HAVE_SHIBOKEN)
+#if 0 // defined (HAVE_SHIBOKEN)^M
     static bool init = false;
     if (!init) {
         init = true;
@@ -296,7 +294,7 @@ QObject* PythonWrapper::toQObject(const Py::Object& pyobject)
 
 Py::Object PythonWrapper::fromQIcon(const QIcon* icon)
 {
-#if defined (HAVE_SHIBOKEN) && defined(HAVE_PYSIDE)
+#if 0 // defined (HAVE_SHIBOKEN) && defined(HAVE_PYSIDE)^M
     PyObject* pyobj = Shiboken::createWrapper<QIcon>(icon, true);
     if (pyobj)
         return Py::asObject(pyobj);
