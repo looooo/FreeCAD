@@ -16,6 +16,7 @@ build:
 requirements:
     build:
         - nomkl  # [unix]
+        - gcc  # [linux]
         - vc 14  # [win and py>=35]
         - ninja  # [win and py>=35]
         - cmake
@@ -41,6 +42,8 @@ requirements:
         - git
     run:
         - vc 14  # [win and py>=35]
+        - libgcc  # [linux]
+        - nomkl
         - boost-cpp 1.66*
         - boost 1.66*  # [win]
         - python
