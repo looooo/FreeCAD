@@ -21,16 +21,15 @@ requirements:
         - cmake
         - swig
         - eigen
-        - boost-cpp 1.64*
+        - boost-cpp 1.66*
         - pybind11  # [unix]
-        - boost 1.64*  # [win]
+        - boost 1.66*  # [win]
         - python
         - matplotlib
         - coin3d
         - pivy
         - qt 5.*
-        - pyside2  2.0.0.dev0 py36_0  # [unix]
-        - pyside2  2.0.0.dev0 py36_vc14_0  # [win]
+        - pyside2
         - occt
         - netgen
         - vtk
@@ -42,21 +41,20 @@ requirements:
         - git
     run:
         - vc 14  # [win and py>=35]
-        - boost-cpp 1.64*
-        - boost 1.64*  # [win]
+        - boost-cpp 1.66*
+        - boost 1.66*  # [win]
         - python
         - numpy
         - matplotlib
         - coin3d
         - pivy
         - qt 5.*
-        - pyside2  2.0.0.dev0 py36_0  # [unix]
-        - pyside2  2.0.0.dev0 py36_vc14_0  # [win]
+        - pyside2
         - occt
         - netgen
         - vtk
         - libmed
-        - xerces-c 3.1.*
+        - xerces-c
         - zlib 1.2*
         - git
         - calculix  # [unix]
