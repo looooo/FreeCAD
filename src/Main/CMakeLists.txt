@@ -42,6 +42,13 @@ if(BUILD_GUI)
     add_executable(FreeCADMain WIN32 ${FreeCAD_SRCS})
     target_link_libraries(FreeCADMain ${FreeCAD_LIBS})
 
+	OPTION(CONDA_PREFIX "enable this variable if you build FreeCAD with conda" "")
+	if (CONDA_PREFIX)
+		message(STATUS ${CONDA_PREFIX})
+		message(STAUS ________________)
+		target_compile_definitions(FreeCADMain PRIVATE -DCONDA_PREFIX=${CONDA_PREFIX})
+	endif()
+
     SET_BIN_DIR(FreeCADMain FreeCAD)
 
     if(WIN32)

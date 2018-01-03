@@ -87,6 +87,13 @@ QByteArray myEncoderFunc(const QString &fileName)
 
 int main( int argc, char ** argv )
 {
+#if defined (CONDA_PREFIX)
+	#define STRINGIFY2(x) #x
+	#define STRINGIFY(x) STRINGIFY2(x)
+
+	_putenv_s("FC_PYTHONHOME", STRINGIFY(CONDA_PREFIX));
+#endif
+    
 #if defined (FC_OS_LINUX) || defined(FC_OS_BSD)
     // Make sure to setup the Qt locale system before setting LANG and LC_ALL to C.
     // which is needed to use the system locale settings.
@@ -115,6 +122,7 @@ int main( int argc, char ** argv )
     else
         _putenv("PYTHONHOME=");
 #endif
+
 
 #if defined (FC_OS_WIN32)
     int argc_ = argc;
