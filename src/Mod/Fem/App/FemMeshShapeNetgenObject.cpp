@@ -43,6 +43,7 @@
     #include <NETGENPlugin_SimpleHypothesis_3D.hxx>
     #include <NETGENPlugin_Hypothesis.hxx>
     #include <NETGENPlugin_Mesher.hxx>
+    #include <SMESHDS_Mesh.hxx>
 #endif
 
 #include <BRepBuilderAPI_Copy.hxx>

@@ -46,6 +46,7 @@ namespace Fem
 
 typedef boost::shared_ptr<SMESH_Hypothesis> SMESH_HypothesisPtr;
 
+
 /** The representation of a FemMesh
  */
 class AppFemExport FemMesh : public Data::ComplexGeoData
@@ -56,6 +57,7 @@ public:
     FemMesh();
     FemMesh(const FemMesh&);
     ~FemMesh();
+    
 
     FemMesh &operator=(const FemMesh&);
     const SMESH_Mesh* getSMesh() const;
@@ -158,8 +160,8 @@ private:
     /// positioning matrix
     Base::Matrix4D _Mtrx;
     SMESH_Mesh *myMesh;
-
     std::list<SMESH_HypothesisPtr> hypoth;
+    static SMESH_Gen *_mesh_gen;
 };
 
 } //namespace Part

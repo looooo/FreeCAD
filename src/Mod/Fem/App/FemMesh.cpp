@@ -54,15 +54,16 @@
 #endif
 
 #include <boost/assign/list_of.hpp>
-#include <SMESH_Gen.hxx>
 #include <SMESH_Mesh.hxx>
 #include <SMESH_MeshEditor.hxx>
+#include <SMESH_Gen.hxx>
 #include <SMESH_Group.hxx>
 #include <SMDS_MeshGroup.hxx>
 #include <SMESHDS_GroupBase.hxx>
 #include <SMESHDS_Group.hxx>
 #include <SMDS_PolyhedralVolumeOfNodes.hxx>
 #include <SMDS_VolumeTool.hxx>
+#include <SMESHDS_Mesh.hxx>
 #include <StdMeshers_MaxLength.hxx>
 #include <StdMeshers_LocalLength.hxx>
 #include <StdMeshers_MaxElementArea.hxx>
@@ -89,8 +90,10 @@ using namespace Base;
 using namespace boost;
 
 static int StatCount = 0;
+SMESH_Gen* FemMesh::_mesh_gen = 0;
 
 TYPESYSTEM_SOURCE(Fem::FemMesh , Base::Persistence);
+
 
 FemMesh::FemMesh()
 {
@@ -371,7 +374,7 @@ void FemMesh::copyMeshData(const FemMesh& mesh)
                                         aVol->GetNode(5),
                                         aVol->GetNode(6),
                                         aVol->GetNode(7),
-                                        aVol->GetNode(8),
+                                        aVol->GetNode(8),SMESH_Gen
                                         aVol->GetNode(9),
                                         aVol->GetNode(10),
                                         aVol->GetNode(11),
@@ -489,7 +492,9 @@ SMESH_Mesh* FemMesh::getSMesh()
 
 SMESH_Gen * FemMesh::getGenerator()
 {
-    return SMESH_Gen::get();
+    if (! FemMesh::_mesh_gen)
+	FemMesh::_mesh_gen = new SMESH_Gen();
+    return FemMesh::_mesh_gen;
 }
 
 void FemMesh::addHypothesis(const TopoDS_Shape & aSubShape, SMESH_HypothesisPtr hyp)
@@ -1155,11 +1160,11 @@ void FemMesh::read(const char *FileName)
         // read brep-file
         myMesh->STLToMesh(File.filePath().c_str());
     }
-    else if (File.hasExtension("dat") ) {
-        // read brep-file
-    // vejmarie disable
-        myMesh->DATToMesh(File.filePath().c_str());
-    }
+//     else if (File.hasExtension("dat") ) {
+//         // read brep-file
+//     // vejmarie disable
+//         myMesh->DATToMesh(File.filePath().c_str());
+//     }
     else if (File.hasExtension("bdf") ) {
         // read Nastran-file
         readNastran(File.filePath());

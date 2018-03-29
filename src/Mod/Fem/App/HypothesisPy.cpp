@@ -53,7 +53,7 @@
 #include <StdMeshers_QuadraticMesh.hxx>
 #include <StdMeshers_RadialPrism_3D.hxx>
 #include <StdMeshers_SegmentAroundVertex_0D.hxx>
-#include <StdMeshers_TrianglePreference.hxx>
+// #include <StdMeshers_TrianglePreference.hxx>
 #include <StdMeshers_ProjectionSource1D.hxx>
 #include <StdMeshers_ProjectionSource2D.hxx>
 #include <StdMeshers_ProjectionSource3D.hxx>
@@ -87,11 +87,11 @@ void SMESH_HypothesisPy<T>::init_type(PyObject* module)
 
     SMESH_HypothesisPy::add_varargs_method("setLibName", &SMESH_HypothesisPy<T>::setLibName, "setLibName(String)");
     SMESH_HypothesisPy::add_varargs_method("getLibName", &SMESH_HypothesisPy<T>::getLibName, "String getLibName()");
-    SMESH_HypothesisPy::add_varargs_method("setParameters", &SMESH_HypothesisPy<T>::setParameters, "setParameters(String)");
+    /*SMESH_HypothesisPy::add_varargs_method("setParameters", &SMESH_HypothesisPy<T>::setParameters, "setParameters(String)");
     SMESH_HypothesisPy::add_varargs_method("getParameters", &SMESH_HypothesisPy<T>::getParameters, "String getParameters()");
     SMESH_HypothesisPy::add_varargs_method("setLastParameters", &SMESH_HypothesisPy<T>::setLastParameters, "setLastParameters(String)");
     SMESH_HypothesisPy::add_varargs_method("getLastParameters", &SMESH_HypothesisPy<T>::getLastParameters, "String getLastParameters()");
-    SMESH_HypothesisPy::add_varargs_method("clearParameters", &SMESH_HypothesisPy<T>::clearParameters, "clearParameters()");
+    SMESH_HypothesisPy::add_varargs_method("clearParameters", &SMESH_HypothesisPy<T>::clearParameters, "clearParameters()"); */
     SMESH_HypothesisPy::add_varargs_method("isAuxiliary", &SMESH_HypothesisPy<T>::isAuxiliary, "Bool isAuxiliary()");
     SMESH_HypothesisPy::add_varargs_method("setParametersByMesh", &SMESH_HypothesisPy<T>::setParametersByMesh, "setParametersByMesh(Mesh,Shape)");
     Base::Interpreter().addType(SMESH_HypothesisPy<T>::behaviors().type_object(),
@@ -140,48 +140,48 @@ Py::Object SMESH_HypothesisPy<T>::getLibName(const Py::Tuple& args)
     return Py::String(hypothesis<SMESH_Hypothesis>()->GetLibName());
 }
 
-template<class T>
-Py::Object SMESH_HypothesisPy<T>::setParameters(const Py::Tuple& args)
-{
-    std::string paramName = (std::string)Py::String(args[0]);
-    hypothesis<SMESH_Hypothesis>()->SetParameters(paramName.c_str());
-    return Py::None();
-}
+// template<class T>
+// Py::Object SMESH_HypothesisPy<T>::setParameters(const Py::Tuple& args)
+// {
+//     std::string paramName = (std::string)Py::String(args[0]);
+//     hypothesis<SMESH_Hypothesis>()->SetParameters(paramName.c_str());
+//     return Py::None();
+// }
 
-template<class T>
-Py::Object SMESH_HypothesisPy<T>::getParameters(const Py::Tuple& args)
-{
-    if (!PyArg_ParseTuple(args.ptr(), ""))
-        throw Py::Exception();
-    return Py::String(hypothesis<SMESH_Hypothesis>()->GetParameters());
-}
+// template<class T>
+// Py::Object SMESH_HypothesisPy<T>::getParameters(const Py::Tuple& args)
+// {
+//     if (!PyArg_ParseTuple(args.ptr(), ""))
+//         throw Py::Exception();
+//     return Py::String(hypothesis<SMESH_Hypothesis>()->GetParameters());
+// }
 
-template<class T>
-Py::Object SMESH_HypothesisPy<T>::setLastParameters(const Py::Tuple& args)
-{
-    if (!PyArg_ParseTuple(args.ptr(), ""))
-        throw Py::Exception();
-    std::string paramName = (std::string)Py::String(args[0]);
-    hypothesis<SMESH_Hypothesis>()->SetLastParameters(paramName.c_str());
-    return Py::None();
-}
+// template<class T>
+// Py::Object SMESH_HypothesisPy<T>::setLastParameters(const Py::Tuple& args)
+// {
+//     if (!PyArg_ParseTuple(args.ptr(), ""))
+//         throw Py::Exception();
+//     std::string paramName = (std::string)Py::String(args[0]);
+//     hypothesis<SMESH_Hypothesis>()->SetLastParameters(paramName.c_str());
+//     return Py::None();
+// }
 
-template<class T>
-Py::Object SMESH_HypothesisPy<T>::getLastParameters(const Py::Tuple& args)
-{
-    if (!PyArg_ParseTuple(args.ptr(), ""))
-        throw Py::Exception();
-    return Py::String(hypothesis<SMESH_Hypothesis>()->GetLastParameters());
-}
+// template<class T>
+// Py::Object SMESH_HypothesisPy<T>::getLastParameters(const Py::Tuple& args)
+// {
+//     if (!PyArg_ParseTuple(args.ptr(), ""))
+//         throw Py::Exception();
+//     return Py::String(hypothesis<SMESH_Hypothesis>()->GetLastParameters());
+// }
 
-template<class T>
-Py::Object SMESH_HypothesisPy<T>::clearParameters(const Py::Tuple& args)
-{
-    if (!PyArg_ParseTuple(args.ptr(), ""))
-        throw Py::Exception();
-    hypothesis<SMESH_Hypothesis>()->ClearParameters();
-    return Py::None();
-}
+// template<class T>
+// Py::Object SMESH_HypothesisPy<T>::clearParameters(const Py::Tuple& args)
+// {
+//     if (!PyArg_ParseTuple(args.ptr(), ""))
+//         throw Py::Exception();
+//     hypothesis<SMESH_Hypothesis>()->ClearParameters();
+//     return Py::None();
+// }
 
 template<class T>
 Py::Object SMESH_HypothesisPy<T>::setParametersByMesh(const Py::Tuple& args)
@@ -646,21 +646,21 @@ StdMeshers_Hexa_3DPy::~StdMeshers_Hexa_3DPy()
 
 // ----------------------------------------------------------------------------
 
-void StdMeshers_TrianglePreferencePy::init_type(PyObject* module)
-{
-    behaviors().name("StdMeshers_TrianglePreference");
-    behaviors().doc("StdMeshers_TrianglePreference");
-    SMESH_HypothesisPyBase::init_type(module);
-}
+// void StdMeshers_TrianglePreferencePy::init_type(PyObject* module)
+// {
+//     behaviors().name("StdMeshers_TrianglePreference");
+//     behaviors().doc("StdMeshers_TrianglePreference");
+//     SMESH_HypothesisPyBase::init_type(module);
+// }
 
-StdMeshers_TrianglePreferencePy::StdMeshers_TrianglePreferencePy(int hypId, int studyId, SMESH_Gen* gen)
-  : SMESH_HypothesisPyBase(new StdMeshers_TrianglePreference(hypId, studyId, gen))
-{
-}
+// StdMeshers_TrianglePreferencePy::StdMeshers_TrianglePreferencePy(int hypId, int studyId, SMESH_Gen* gen)
+//   : SMESH_HypothesisPyBase(new StdMeshers_TrianglePreference(hypId, studyId, gen))
+// {
+// }
 
-StdMeshers_TrianglePreferencePy::~StdMeshers_TrianglePreferencePy()
-{
-}
+// StdMeshers_TrianglePreferencePy::~StdMeshers_TrianglePreferencePy()
+// {
+// }
 
 // ----------------------------------------------------------------------------
 

@@ -45,7 +45,7 @@
 #include <StdMeshers_LocalLength.hxx>
 #include <StdMeshers_NumberOfSegments.hxx>
 #include <StdMeshers_AutomaticLength.hxx>
-#include <StdMeshers_TrianglePreference.hxx>
+//#include <StdMeshers_TrianglePreference.hxx>
 #include <StdMeshers_MEFISTO_2D.hxx>
 #include <StdMeshers_Deflection1D.hxx>
 #include <StdMeshers_Arithmetic1D.hxx>
@@ -60,6 +60,7 @@
 #include <NETGENPlugin_NETGEN_2D.hxx>
 #include <NETGENPlugin_Hypothesis_2D.hxx>
 #include <NETGENPlugin_SimpleHypothesis_2D.hxx>
+#include <SMESHDS_Mesh.hxx>
 #endif // HAVE_NETGEN
 #if defined(__clang__)
 # pragma clang diagnostic pop
@@ -311,7 +312,7 @@ Mesh::MeshObject* Mesher::createMesh() const
 #else
     std::list<SMESH_Hypothesis*> hypoth;
 
-    SMESH_Gen* meshgen = SMESH_Gen::get();
+    SMESH_Gen* meshgen = new SMESH_Gen();
     SMESH_Mesh* mesh = meshgen->CreateMesh(0, true);
     int hyp=0;
 
@@ -386,8 +387,8 @@ Mesh::MeshObject* Mesher::createMesh() const
             hypoth.push_back(hyp1d);
         }
 
-        StdMeshers_TrianglePreference* hyp2d_1 = new StdMeshers_TrianglePreference(hyp++,0,meshgen);
-        hypoth.push_back(hyp2d_1);
+//         StdMeshers_TrianglePreference* hyp2d_1 = new StdMeshers_TrianglePreference(hyp++,0,meshgen);
+//         hypoth.push_back(hyp2d_1);
         StdMeshers_MEFISTO_2D* alg2d = new StdMeshers_MEFISTO_2D(hyp++,0,meshgen);
         hypoth.push_back(alg2d);
     } break;

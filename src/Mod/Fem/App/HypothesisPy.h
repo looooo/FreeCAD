@@ -60,11 +60,11 @@ public:
     Py::Object repr();
     Py::Object getLibName(const Py::Tuple& args);
     Py::Object setLibName(const Py::Tuple& args);
-    Py::Object setParameters(const Py::Tuple& args);
-    Py::Object getParameters(const Py::Tuple& args);
-    Py::Object setLastParameters(const Py::Tuple& args);
-    Py::Object getLastParameters(const Py::Tuple& args);
-    Py::Object clearParameters(const Py::Tuple& args);
+//     Py::Object setParameters(const Py::Tuple& args);
+//     Py::Object getParameters(const Py::Tuple& args);
+//     Py::Object setLastParameters(const Py::Tuple& args);
+//     Py::Object getLastParameters(const Py::Tuple& args);
+//     Py::Object clearParameters(const Py::Tuple& args);
     Py::Object isAuxiliary(const Py::Tuple& args);
     Py::Object setParametersByMesh(const Py::Tuple& args);
 
@@ -220,13 +220,13 @@ public:
     ~StdMeshers_Hexa_3DPy();
 };
 
-class StdMeshers_TrianglePreferencePy : public SMESH_HypothesisPy<StdMeshers_TrianglePreferencePy>
-{
-public:
-    static void init_type(PyObject*);
-    StdMeshers_TrianglePreferencePy(int hypId, int studyId, SMESH_Gen* gen);
-    ~StdMeshers_TrianglePreferencePy();
-};
+// class StdMeshers_TrianglePreferencePy : public SMESH_HypothesisPy<StdMeshers_TrianglePreferencePy>
+// {
+// public:
+//     static void init_type(PyObject*);
+//     StdMeshers_TrianglePreferencePy(int hypId, int studyId, SMESH_Gen* gen);
+//     ~StdMeshers_TrianglePreferencePy();
+// };
 
 class StdMeshers_StartEndLengthPy : public SMESH_HypothesisPy<StdMeshers_StartEndLengthPy>
 {
