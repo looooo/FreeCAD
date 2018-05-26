@@ -56,7 +56,10 @@ else(OCE_FOUND) #look for OpenCASCADE
       )
     endif(CYGWIN OR MINGW)
   else(WIN32)
+    MESSAGE(STATUS "################################")
+    MESSAGE(STATUS ${CMAKE_PREFIX_PATH}/include/opencascade)
     FIND_PATH(OCC_INCLUDE_DIR Standard_Version.hxx
+      ${CMAKE_PREFIX_PATH}/include/opencascade
       /usr/include/opencascade
       /usr/local/include/opencascade
       /opt/opencascade/include

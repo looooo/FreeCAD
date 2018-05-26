@@ -22,6 +22,10 @@ include_directories(
     ${FREETYPE_INCLUDE_DIRS}
 )
 
+message(STATS "#####################")
+message(STATUS ${OCC_LIBRARY_DIR})
+message(STATUS "####################")
+
 link_directories(${OCC_LIBRARY_DIR})
 
 set(Part_LIBS 
