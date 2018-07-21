@@ -1,60 +1,90 @@
+{% set name = "freecad-daily" %}
+{% set version = "0.18b0" %}
+
 package:
-    name: freecad_daily
-    version: 0.18
+    name: {{ name }}
+    version: {{ version }}
+
+
+source:
+    path: ../..
 
 build:
     number: 0
 
 requirements:
     build:
-        - toolchain
-        - gcc  # [unix]
-        - vc 14  # [win and py>=35]
-        - ninja
+        - {{ compiler("cxx") }}
         - cmake
-        - nomkl  # [unix]
+        - ninja
+        - git
+    host:
+        - boost-cpp
+        - python
+        - qt
+        - occt
+        - xerces-c
+        - zlib
+        - vtk 8.1.1
         - swig
         - eigen
-        - boost-cpp 1.66.0
-        - boost 1.66.0  # [win]
-        - pybind11  # [unix]
-        - python
+        - pybind11
         - matplotlib
         - coin3d
         - pivy
-        - qt 5.6.*
-        - pyside2 5.6.*
-        - occt 7.2.0
+        - pyside2
         - smesh
         - netgen  # [not win32]
-        - vtk 8.1.*
-        - hdf5
-        - xerces-c 3.2.*
-        - zlib 1.2.*
         - doxygen
-        - git
         - libglu  # [linux]
+        - mesalib  # [linux]
+        - hdf5 1.10.1
+        - blas=*=openblas
     run:
-        - libgcc  # [unix]
-        - vc 14  # [win and py>=35]
-        - boost-cpp 1.66.0
-        - boost 1.66.0  # [win]
+        - {{ pin_compatible("pyside2") }}
+        - occt
+        - vtk
+        - qt
+        - xerces-c
+        - zlib
+        - boost-cpp
+        - hdf5
         - python
         - numpy
         - matplotlib
         - coin3d
         - pivy
-        - qt 5.6.*
-        - pyside2 5.6.*
-        - occt 7.2.0
-        - vtk 8.1.*
         - smesh
         - netgen  # [not win32]
-        - xerces-c 3.2.*
-        - zlib 1.2*
-        - git
-        - calculix  # [unix]
         - libglu  # [linux]
-about:
-    summary: freecad
+        - mesalib  # [linux]
+        - blas=*=openblas
 
+test:
+    commands:
+        - FreeCADCmd -t 0
+
+about:
+    home: https://www.freecadweb.org/
+    license: LGPL2
+    license_family: LGPL
+    license_file: COPYING
+    summary: 'FreeCAD is a parametric 3D modeler made primarily to design real-life objects of any size. '
+    description: |
+        FreeCAD is a general purpose feature-based, parametric 3D modeler for
+        CAD, MCAD, CAx, CAE and PLM, aimed directly at mechanical engineering
+        and product design but also fits a wider range of uses in engineering,
+        such as architecture or other engineering specialties. It is 100% Open
+        Source (LGPL2+ license) and extremely modular, allowing for very
+        advanced extension and customization.
+        FreeCAD is based on OpenCASCADE, a powerful geometry kernel, features an
+        Open Inventor-compliant 3D scene representation model provided by the
+        Coin 3D library, and a broad Python API. The interface is built with Qt.
+        FreeCAD runs exactly the same way on Windows, Mac OSX, BSD and Linux
+        platforms.
+    doc_url: https://www.freecadweb.org/wiki/Main_Page
+    dev_url: https://github.com/FreeCAD/FreeCAD
+
+extra:
+    recipe-maintainers:
+        - looooo

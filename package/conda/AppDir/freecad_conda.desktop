@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=FreeCAD
+Exec=AppRun
+Icon=freecad_conda
+Type=Application
+Categories=Engineering;
+Comment=FreeCAD
+MimeType=inode/directory;audio/flac;
+Name[en]=FreeCAD
+Terminal=false
+StartupNotify=true
+NoDisplay=false
