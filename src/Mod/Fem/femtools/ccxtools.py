@@ -693,7 +693,7 @@ class FemToolsCcx(QtCore.QRunnable, QtCore.QObject):
                              stderr=subprocess.PIPE, shell=False,
                              startupinfo=startup_info)
         ccx_stdout, ccx_stderr = p.communicate()
-        m = re.search(r"(\d+).(\d+)", ccx_stdout)
+        m = re.search(rb"(\d+).(\d+)", ccx_stdout)
         return (int(m.group(1)), int(m.group(2)))
 
     def run(self):
