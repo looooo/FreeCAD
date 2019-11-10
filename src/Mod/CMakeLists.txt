@@ -100,6 +100,7 @@ endif(BUILD_ASSEMBLY)
 
 if(BUILD_FEM)
     add_subdirectory(Fem)
+    add_subdirectory(FemDeprecated)
 endif(BUILD_FEM)
 
 if(BUILD_CLOUD)

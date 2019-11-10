@@ -1,0 +1,1 @@
+from freecad.fem.examples import *

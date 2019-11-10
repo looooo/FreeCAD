@@ -33,7 +33,7 @@ import FreeCAD
 import FreeCADGui
 
 
-class FemWorkbench(Workbench):
+class FemWorkbench(FreeCADGui.Workbench):
     "Fem workbench object"
 
     def __init__(self):
@@ -43,9 +43,9 @@ class FemWorkbench(Workbench):
 
     def Initialize(self):
         # load the module
-        import Fem
-        import FemGui
-        import femcommands.commands
+        from freecad import fem
+        from freecad.fem import femgui
+        from freecad.fem.femcommands import commands
 
     def GetClassName(self):
         return "FemGui::Workbench"
