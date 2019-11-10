@@ -170,8 +170,8 @@ def importVtkFCResult(
 
     # add missing DisplacementLengths (They should have been added by Fem.readResult)
     if not result_obj.DisplacementLengths:
-        import femresult.resulttools as restools
-        result_obj = restools.add_disp_apps(result_obj)  # DisplacementLengths
+        from freecad.fem.result import resulttools
+        result_obj = resulttools.add_disp_apps(result_obj)  # DisplacementLengths
 
     """ seems unused at the moment
     filenamebase = ".".join(filename.split(".")[:-1])  # pattern: filebase_timestamp.vtk

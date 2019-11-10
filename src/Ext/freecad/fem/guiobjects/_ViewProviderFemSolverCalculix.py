@@ -99,7 +99,7 @@ class _TaskPanelFemSolverCalculix:
             FreeCAD.getHomePath() + "Mod/Fem/Resources/ui/SolverCalculix.ui"
         )
 
-        from femtools.ccxtools import CcxTools as ccx
+        from freecad.fem.tools.ccxtools import CcxTools as ccx
         # we do not need to pass the analysis, it will be found on fea init
         self.fea = ccx(solver_object)
         self.fea.setup_working_dir()

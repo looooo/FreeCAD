@@ -27,7 +27,7 @@ __url__ = "http://www.freecadweb.org"
 #  @{
 
 import FreeCAD
-from femmesh import meshtools
+from freecad.fem.mesh import meshtools
 import os
 
 

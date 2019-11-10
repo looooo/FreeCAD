@@ -28,8 +28,8 @@ __url__ = "http://www.freecadweb.org"
 
 import FreeCAD
 import time
-import femmesh.meshtools as FemMeshTools
-import feminout.importZ88Mesh as importZ88Mesh
+from freecad.fem.mesh import meshtools as FemMeshTools
+from freecad.fem.inout import importZ88Mesh as importZ88Mesh
 from .. import writerbase as FemInputWriter
 
 

@@ -29,7 +29,7 @@ __url__ = "http://www.freecadweb.org"
 #  @{
 
 import FreeCAD
-import femtools.femutils as femutils
+from freecad.fem.tools import femutils
 
 if FreeCAD.GuiUp:
     import FreeCADGui

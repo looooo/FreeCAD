@@ -39,7 +39,7 @@ import os.path
 import shutil
 
 import FreeCAD as App
-import femtools.femutils as femutils
+from freecad.fem.tools import femutils
 from . import settings
 from . import signal
 from . import task
@@ -93,7 +93,7 @@ def run_fem_solver(solver, working_dir=None):
 
     if solver.Proxy.Type == "Fem::FemSolverCalculixCcxTools":
         App.Console.PrintMessage("CalxuliX ccx tools solver!\n")
-        from femtools.ccxtools import CcxTools as ccx
+        from freecad.fem.tools.ccxtools import CcxTools as ccx
         fea = ccx(solver)
         fea.reset_mesh_purge_results_checked()
         if working_dir is None:

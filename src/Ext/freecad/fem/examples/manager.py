@@ -237,10 +237,10 @@ def run_all():
 
 
 """
-from femexamples.manager import *
+from freecad.fem.femexamples.manager import *
 run_all()
 
-from femexamples.manager import *
+from freecad.fem.femexamples.manager import *
 doc = run_boxanalysisstatic()
 doc = run_boxanalysisfrequency()
 doc = run_ccx_cantileverfaceload()

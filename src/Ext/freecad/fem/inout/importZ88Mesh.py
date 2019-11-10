@@ -86,7 +86,7 @@ def export(
         Console.PrintError("No FEM mesh object selected.\n")
         return
     femnodes_mesh = obj.FemMesh.Nodes
-    import femmesh.meshtools as FemMeshTools
+    from freecad.fem.mesh import meshtools as FemMeshTools
     femelement_table = FemMeshTools.get_femelement_table(obj.FemMesh)
     z88_element_type = get_z88_element_type(obj.FemMesh, femelement_table)
     f = pyopen(filename, "wb")
@@ -433,7 +433,7 @@ def write(
         Console.PrintError("Not a FemMesh was given as parameter.\n")
         return
     femnodes_mesh = fem_mesh.Nodes
-    import femmesh.meshtools as FemMeshTools
+    from freecad.fem.mesh import meshtools as FemMeshTools
     femelement_table = FemMeshTools.get_femelement_table(fem_mesh)
     z88_element_type = get_z88_element_type(fem_mesh, femelement_table)
     f = pyopen(filename, "w")
@@ -558,7 +558,7 @@ def get_z88_element_type(
     femmesh,
     femelement_table=None
 ):
-    import femmesh.meshtools as FemMeshTools
+    from freecad.fem.mesh import meshtools as FemMeshTools
     if not femmesh:
         Console.PrintError("Error: No femmesh!")
     if not femelement_table:

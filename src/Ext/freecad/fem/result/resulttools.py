@@ -28,7 +28,7 @@ __url__ = "http://www.freecadweb.org"
 #  @{
 
 import FreeCAD
-import femtools.femutils as femutils
+from freecad.fem.tools import femutils
 import numpy as np
 from math import isnan
 
@@ -421,7 +421,7 @@ def get_concrete_nodes(res_obj):
     # HarryvL: determine concrete / non-concrete nodes
     #
 
-    from femmesh.meshtools import get_femnodes_by_refshape
+    from freecad.fem.mesh. meshtools import get_femnodes_by_refshape
     femmesh = res_obj.Mesh.FemMesh
     nsr = femmesh.NodeCount  # nsr number of stress results
 
@@ -581,7 +581,7 @@ def compact_result(res_obj):
     # as workaround for https://www.freecadweb.org/tracker/view.php?id=2873
 
     # get compact mesh data
-    from femmesh.meshtools import compact_mesh as cm
+    from freecad.fem.mesh. meshtools import compact_mesh as cm
     compact_femmesh_data = cm(res_obj.Mesh.FemMesh)
     compact_femmesh = compact_femmesh_data[0]
     node_map = compact_femmesh_data[1]

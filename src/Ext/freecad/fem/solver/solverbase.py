@@ -29,12 +29,12 @@ __url__ = "http://www.freecadweb.org"
 from PySide import QtGui
 
 import FreeCAD as App
-import femtools.femutils as femutils
+from freecad.fem.tools import femutils
 from . import run
 
 if App.GuiUp:
     import FreeCADGui as Gui
-    from femguiobjects import _TaskPanelFemSolverControl
+    from freecad.fem.guiobjects import _TaskPanelFemSolverControl
 
 
 class Proxy(object):

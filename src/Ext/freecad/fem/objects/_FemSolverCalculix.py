@@ -29,7 +29,7 @@ __url__ = "http://www.freecadweb.org"
 #  \brief FreeCAD FEM _FemSolverCalculix
 
 import FreeCAD
-from femtools import ccxtools
+from freecad.fem.tools import ccxtools
 
 
 class _FemSolverCalculix():

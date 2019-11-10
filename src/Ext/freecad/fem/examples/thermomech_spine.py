@@ -142,7 +142,7 @@ def setup(doc=None, solvertype="ccxtools"):
 
 
 """
-from femexamples import thermomech_spine as spine
+from freecad.fem.femexamples import thermomech_spine as spine
 spine.setup()
 
 """

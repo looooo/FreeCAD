@@ -33,7 +33,7 @@ import FreeCADGui
 from . import ViewProviderFemConstraint
 
 # for the panel
-import femtools.femutils as femutils
+from freecad.fem.tools import femutils
 from FreeCAD import Units
 
 

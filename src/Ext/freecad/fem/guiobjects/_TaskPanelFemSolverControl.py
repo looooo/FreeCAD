@@ -31,8 +31,8 @@ from PySide import QtCore
 from PySide import QtGui
 
 import FreeCADGui as Gui
-import femsolver.run
-import femsolver.report
+from freecad.fem.solver import run as femsolver_run
+from freecad.fem.solver import report as femsolver_report
 
 
 _UPDATE_INTERVAL = 50
@@ -110,18 +110,18 @@ class ControlTaskPanel(QtCore.QObject):
     @QtCore.Slot()
     def write(self):
         self.machine.reset()
-        self.machine.target = femsolver.run.PREPARE
+        self.machine.target = femsolver_run.PREPARE
         self.machine.start()
 
     @QtCore.Slot()
     def run(self):
-        self.machine.reset(femsolver.run.SOLVE)
-        self.machine.target = femsolver.run.RESULTS
+        self.machine.reset(femsolver_run.SOLVE)
+        self.machine.target = femsolver_run.RESULTS
         self.machine.start()
 
     @QtCore.Slot()
     def edit(self):
-        self.machine.reset(femsolver.run.SOLVE)
+        self.machine.reset(femsolver_run.SOLVE)
         self.machine.solver.Proxy.edit(
             self.machine.directory)
 
@@ -139,7 +139,7 @@ class ControlTaskPanel(QtCore.QObject):
     @QtCore.Slot()
     def updateMachine(self):
         if self.form.directory() != self.machine.directory:
-            self.machine = femsolver.run.getMachine(
+            self.machine = femsolver_run.getMachine(
                 self.machine.solver, self.form.directory())
 
     @QtCore.Slot()
@@ -150,7 +150,7 @@ class ControlTaskPanel(QtCore.QObject):
     @QtCore.Slot(object)
     def _displayReport(self, machine):
         text = _REPORT_ERR if machine.failed else None
-        femsolver.report.display(machine.report, _REPORT_TITLE, text)
+        femsolver_report.display(machine.report, _REPORT_TITLE, text)
 
     def getStandardButtons(self):
         return int(QtGui.QDialogButtonBox.Close)
@@ -296,11 +296,11 @@ class ControlWidget(QtGui.QWidget):
 
     @QtCore.Slot(int)
     def updateState(self, machine):
-        if machine.state <= femsolver.run.PREPARE:
+        if machine.state <= femsolver_run.PREPARE:
             self._writeBtt.setText(self.tr("Write"))
             self._editBtt.setText(self.tr("Edit"))
             self._runBtt.setText(self.tr("Run"))
-        elif machine.state <= femsolver.run.SOLVE:
+        elif machine.state <= femsolver_run.SOLVE:
             self._writeBtt.setText(self.tr("Re-write"))
             self._editBtt.setText(self.tr("Edit"))
             self._runBtt.setText(self.tr("Run"))
@@ -334,7 +334,7 @@ class ControlWidget(QtGui.QWidget):
             self._writeBtt.setDisabled(False)
             self._editBtt.setDisabled(
                 not machine.solver.Proxy.editSupported()
-                or machine.state < femsolver.run.PREPARE
+                or machine.state < femsolver_run.PREPARE
             )
 
 ##  @}

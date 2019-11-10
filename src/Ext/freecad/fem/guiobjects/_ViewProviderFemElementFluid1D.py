@@ -35,7 +35,7 @@ import FreeCADGui
 import FemGui  # needed to display the icons in TreeView
 
 # for the panel
-from femobjects import _FemElementFluid1D
+from freecad.fem.objects import _FemElementFluid1D
 from PySide import QtCore
 from PySide import QtGui
 from . import FemSelectionWidgets

@@ -169,7 +169,7 @@ def setup_frequency(doc=None, solvertype="ccxtools"):
 
 
 """
-from femexamples import boxanalysis as box
+from freecad.fem.femexamples import boxanalysis as box
 
 box.setup_base()
 box.setup_static()

@@ -32,7 +32,7 @@ import os
 import sys
 import subprocess
 import FreeCAD
-import femtools.femutils as femutils
+from freecad.fem.tools import femutils
 from PySide import QtCore
 if FreeCAD.GuiUp:
     from PySide import QtGui
@@ -170,7 +170,7 @@ class FemToolsCcx(QtCore.QRunnable, QtCore.QObject):
     def purge_results(self):
         """Remove all result objects and result meshes from an analysis group
         """
-        from femresult.resulttools import purge_results as pr
+        from freecad.fem.result.resulttools import purge_results as pr
         pr(self.analysis)
 
     def reset_mesh_purge_results_checked(self):
@@ -726,7 +726,7 @@ class FemToolsCcx(QtCore.QRunnable, QtCore.QObject):
         self.set_inp_file_name()
 
     def write_inp_file(self):
-        import femsolver.calculix.writer as iw
+        from freecad.fem.solver.calculix import writer as iw
         self.inp_file_name = ""
         try:
             inp_writer = iw.FemInputWriterCcx(
@@ -1156,7 +1156,7 @@ class FemToolsCcx(QtCore.QRunnable, QtCore.QObject):
     def load_results_ccxfrd(self):
         """Load results of ccx calculations from .frd file.
         """
-        import feminout.importCcxFrdResults as importCcxFrdResults
+        from freecad.fem.inout import importCcxFrdResults as importCcxFrdResults
         frd_result_file = os.path.splitext(self.inp_file_name)[0] + ".frd"
         if os.path.isfile(frd_result_file):
             importCcxFrdResults.importFrd(frd_result_file, self.analysis, "CCX_")
@@ -1179,7 +1179,7 @@ class FemToolsCcx(QtCore.QRunnable, QtCore.QObject):
     def load_results_ccxdat(self):
         """Load results of ccx calculations from .dat file.
         """
-        import feminout.importCcxDatResults as importCcxDatResults
+        from freecad.fem.inout import importCcxDatResults as importCcxDatResults
         dat_result_file = os.path.splitext(self.inp_file_name)[0] + ".dat"
         if os.path.isfile(dat_result_file):
             mode_frequencies = importCcxDatResults.import_dat(dat_result_file, self.analysis)

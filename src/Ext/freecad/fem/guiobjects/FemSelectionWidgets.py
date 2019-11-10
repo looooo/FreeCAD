@@ -31,7 +31,7 @@ __url__ = "http://www.freecadweb.org"
 
 import FreeCAD
 import FreeCADGui
-import femmesh.meshtools as FemMeshTools
+from freecad.fem.mesh import meshtools as FemMeshTools
 
 from PySide import QtGui
 from PySide import QtCore

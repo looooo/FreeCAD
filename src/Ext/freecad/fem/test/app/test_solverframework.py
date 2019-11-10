@@ -24,7 +24,7 @@
 
 import FreeCAD
 import ObjectsFem
-import femsolver.run
+from freecad.fem.solver import run as femsolver_run
 import unittest
 from . import support_utils as testtools
 from .support_utils import fcc_print
@@ -73,7 +73,7 @@ class TestSolverFrameWork(unittest.TestCase):
         fcc_print("\n--------------- Start of FEM tests solver framework solver CalculiX ------")
 
         # set up the CalculiX static analysis example
-        from femexamples import boxanalysis as box
+        from freecad.fem.femexamples import boxanalysis as box
         box.setup_static(self.active_doc, "calculix")
 
         solver_obj = self.active_doc.SolverCalculiX
@@ -92,7 +92,7 @@ class TestSolverFrameWork(unittest.TestCase):
             solver_obj,
             analysis_dir
         )
-        machine_ccx.target = femsolver.run.PREPARE
+        machine_ccx.target = femsolver_run.PREPARE
         machine_ccx.start()
         machine_ccx.join()  # wait for the machine to finish.
 
@@ -115,7 +115,7 @@ class TestSolverFrameWork(unittest.TestCase):
         fcc_print("\n--------------- Start of FEM tests solver framework solver Elmer ---------")
 
         # set up the Elmer static analysis example
-        from femexamples import boxanalysis as box
+        from freecad.fem.femexamples import boxanalysis as box
         box.setup_static(self.active_doc, "elmer")
 
         analysis_obj = self.active_doc.Analysis
@@ -158,7 +158,7 @@ class TestSolverFrameWork(unittest.TestCase):
             analysis_dir,
             True
         )
-        machine_elmer.target = femsolver.run.PREPARE
+        machine_elmer.target = femsolver_run.PREPARE
         machine_elmer.start()
         machine_elmer.join()  # wait for the machine to finish.
 

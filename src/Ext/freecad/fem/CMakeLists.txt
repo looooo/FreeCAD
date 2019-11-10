@@ -6,6 +6,7 @@ SET(FemScripts_SRCS
     init_gui.py
     objects_fem.py
     test_fem.py
+    femgui.py  # should be added to gui install target
 )
 
 SET(FemCommands_SRCS

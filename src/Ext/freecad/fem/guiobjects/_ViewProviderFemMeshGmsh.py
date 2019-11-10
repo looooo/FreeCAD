@@ -34,7 +34,7 @@ import FreeCADGui
 import FemGui
 
 # for the panel
-from femobjects import _FemMeshGmsh
+from freecad.fem.objects import _FemMeshGmsh
 from PySide import QtCore
 from PySide import QtGui
 from PySide.QtCore import Qt
@@ -386,7 +386,7 @@ class _TaskPanelFemMeshGmsh:
         self.gmsh_runs = True
         self.console_log("We are going to start ...")
         self.get_active_analysis()
-        import femmesh.gmshtools as gmshtools
+        from freecad.fem.mesh import gmshtools
         gmsh_mesh = gmshtools.GmshTools(self.obj, self.analysis)
         self.console_log("Start Gmsh ...")
         error = ""

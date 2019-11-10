@@ -23,7 +23,7 @@
 # *                                                                         *
 # ***************************************************************************/
 
-from femtools import ccxtools
+from freecad.fem.tools import ccxtools
 import FreeCAD
 import unittest
 from . import support_utils as testtools
@@ -74,7 +74,7 @@ class TestCcxTools(unittest.TestCase):
         fcc_print("\n--------------- Start of FEM ccxtools static analysis test ---------------")
 
         # set up the static analysis example
-        from femexamples import boxanalysis as box
+        from freecad.fem.femexamples import boxanalysis as box
         box.setup_static(self.active_doc, "ccxtools")
 
         analysis = self.active_doc.Analysis
@@ -181,7 +181,7 @@ class TestCcxTools(unittest.TestCase):
         fcc_print("\n--------------- Start of FEM ccxtools multiple material test -------------")
 
         # set up the simple multimat example
-        from femexamples import material_multiple_twoboxes
+        from freecad.fem.femexamples import material_multiple_twoboxes
         material_multiple_twoboxes.setup(self.active_doc, "ccxtools")
 
         analysis = self.active_doc.Analysis
@@ -233,7 +233,7 @@ class TestCcxTools(unittest.TestCase):
         fcc_print("\n--------------- Start of FEM ccxtools frequency analysis test ------------")
 
         # set up the static analysis example
-        from femexamples import boxanalysis as box
+        from freecad.fem.femexamples import boxanalysis as box
         box.setup_frequency(self.active_doc, "ccxtools")
 
         analysis = self.active_doc.Analysis
@@ -338,7 +338,7 @@ class TestCcxTools(unittest.TestCase):
         fcc_print("\n--------------- Start of FEM ccxtools thermomechanical analysis test -----")
 
         # set up the thermomech example
-        from femexamples.thermomech_spine import setup as thermomech
+        from freecad.fem.femexamples.thermomech_spine import setup as thermomech
         thermomech(self.active_doc, "ccxtools")
 
         analysis = self.active_doc.Analysis
@@ -444,7 +444,7 @@ class TestCcxTools(unittest.TestCase):
         fcc_print("\n--------------- Start of FEM ccxtools Flow1D analysis test ---------------")
 
         # set up the thermomech flow1d example
-        from femexamples.thermomech_flow1d import setup as flow1d
+        from freecad.fem.femexamples.thermomech_flow1d import setup as flow1d
         flow1d(self.active_doc, "ccxtools")
         analysis = self.active_doc.Analysis
 
@@ -559,8 +559,8 @@ def create_test_results():
     import shutil
     import os
     import FemGui
-    import femresult.resulttools as resulttools
-    from femtools import ccxtools
+    from freecad.fem.result import resulttools
+    from freecad.fem.tools import ccxtools
 
     stat_types = [
         "U1", "U2", "U3", "Uabs",

@@ -200,7 +200,7 @@ def compare_stats(
     res_obj_name,
     loc_stat_types=None
 ):
-    import femresult.resulttools as resulttools
+    from freecad.fem.result import resulttools
 
     # get the stat types which should be compared
     stat_types = [

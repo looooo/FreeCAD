@@ -249,7 +249,7 @@ def setup(doc=None, solvertype="ccxtools"):
 
 
 """
-from femexamples import thermomech_flow1d as flow
+from freecad.fem.femexamples import thermomech_flow1d as flow
 flow.setup()
 
 """

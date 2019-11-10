@@ -26,16 +26,16 @@
 
 # Unit test for the FEM module
 # to get the right order import as is used
-from femtest.app.test_femimport import TestFemImport as FemTest01
-from femtest.app.test_common import TestFemCommon as FemTest02
-from femtest.app.test_object import TestObjectCreate as FemTest03
-from femtest.app.test_object import TestObjectType as FemTest04
-from femtest.app.test_material import TestMaterialUnits as FemTest05
-from femtest.app.test_mesh import TestMeshCommon as FemTest06
-from femtest.app.test_mesh import TestMeshEleTetra10 as FemTest07
-from femtest.app.test_result import TestResult as FemTest08
-from femtest.app.test_ccxtools import TestCcxTools as FemTest09
-from femtest.app.test_solverframework import TestSolverFrameWork as FemTest10
+from freecad.fem.test.app.test_femimport import TestFemImport as FemTest01
+from freecad.fem.test.app.test_common import TestFemCommon as FemTest02
+from freecad.fem.test.app.test_object import TestObjectCreate as FemTest03
+from freecad.fem.test.app.test_object import TestObjectType as FemTest04
+from freecad.fem.test.app.test_material import TestMaterialUnits as FemTest05
+from freecad.fem.test.app.test_mesh import TestMeshCommon as FemTest06
+from freecad.fem.test.app.test_mesh import TestMeshEleTetra10 as FemTest07
+from freecad.fem.test.app.test_result import TestResult as FemTest08
+from freecad.fem.test.app.test_ccxtools import TestCcxTools as FemTest09
+from freecad.fem.test.app.test_solverframework import TestSolverFrameWork as FemTest10
 
 # dummy usage to get flake8 and lgtm quiet
 False if FemTest01.__name__ else True
@@ -270,7 +270,7 @@ doc = FreeCAD.open(FreeCAD.ConfigGet("AppHomePath") + 'Mod/Fem/femtest/data/ccx/
 doc = FreeCAD.open(FreeCAD.ConfigGet("AppHomePath") + 'Mod/Fem/femtest/data/ccx/spine_thermomech.FCStd')
 
 # open files generated from test suite
-import femtest.utilstest as ut
+from freecad.fem.test import utilstest as ut
 ut.all_test_files()
 
 doc = ut.cube_frequency()

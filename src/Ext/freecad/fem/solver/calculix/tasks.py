@@ -32,9 +32,9 @@ import subprocess
 import os.path
 
 import FreeCAD
-import femtools.femutils as femutils
-import feminout.importCcxFrdResults as importCcxFrdResults
-import feminout.importCcxDatResults as importCcxDatResults
+from freecad.fem.tools import femutils
+from freecad.fem.inout import importCcxFrdResults as importCcxFrdResults
+from freecad.fem.inout import importCcxDatResults as importCcxDatResults
 
 from .. import run
 from .. import settings

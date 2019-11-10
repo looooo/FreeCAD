@@ -85,7 +85,7 @@ class _ClippingPlaneAdd(CommandManager):
         self.is_active = "with_document"
 
     def Activated(self):
-        from femtools import femutils
+        from freecad.fem.tools import femutils
         overalboundbox = femutils.getBoundBoxOfAllDocumentShapes(FreeCAD.ActiveDocument)
         # print(overalboundbox)
         min_bb_length = (min(set([
@@ -921,7 +921,7 @@ class _ResultsPurge(CommandManager):
         self.is_active = "with_results"
 
     def Activated(self):
-        import femresult.resulttools as resulttools
+        from freecad.fem.result import resulttools
         resulttools.purge_results(self.active_analysis)
 
 

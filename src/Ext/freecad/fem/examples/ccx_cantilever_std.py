@@ -174,7 +174,7 @@ def setup_cantileverprescribeddisplacement(doc=None, solvertype="ccxtools"):
 
 
 """
-from femexamples import ccx_cantilever_std as canti
+from freecad.fem.femexamples import ccx_cantilever_std as canti
 
 canti.setup_cantileverbase()
 canti.setup_cantileverfaceload()

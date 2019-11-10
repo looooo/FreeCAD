@@ -156,7 +156,7 @@ def setup(doc=None, solvertype="ccxtools"):
 
 
 """
-from femexamples import material_multiple_twoboxes as twoboxes
+from freecad.fem.femexamples import material_multiple_twoboxes as twoboxes
 twoboxes.setup()
 
 """

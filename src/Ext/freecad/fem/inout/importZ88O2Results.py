@@ -71,7 +71,7 @@ def import_z88_disp(
 ):
     """insert a FreeCAD FEM mechanical result object in the ActiveDocument
     pure usage:
-    import feminout.importZ88O2Results as importZ88O2Results
+    from freecad.fem.inout import importZ88O2Results as importZ88O2Results
     disp_file = "/pathtofile/z88o2.txt"
     importZ88O2Results.import_z88_disp(disp_file)
 

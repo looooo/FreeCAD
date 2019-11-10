@@ -313,7 +313,7 @@ class TestResult(unittest.TestCase):
         self
     ):
         expected_mises = 283.2082
-        from femresult.resulttools import calculate_von_mises as vm
+        from freecad.fem.result.resulttools import calculate_von_mises as vm
         mises = vm(self.get_stress_values())
         # fcc_print(round(mises, 4))
         self.assertEqual(
@@ -327,7 +327,7 @@ class TestResult(unittest.TestCase):
         self
     ):
         expected_principal = (-178.0076, -194.0749, -468.9075, 145.4499)
-        from femresult.resulttools import calculate_principal_stress_std as pr
+        from freecad.fem.result.resulttools import calculate_principal_stress_std as pr
         prin = pr(self.get_stress_values())
         rounded_prin = (
             round(prin[0], 4),
@@ -347,7 +347,7 @@ class TestResult(unittest.TestCase):
         self
     ):
         expected_principal = (-178.0076, -194.0749, -468.9075, 145.4499)
-        from femresult.resulttools import calculate_principal_stress_reinforced as prrc
+        from freecad.fem.result.resulttools import calculate_principal_stress_reinforced as prrc
         prin = prrc(self.get_stress_values())
         rounded_prin = (
             round(prin[0], 4),
@@ -423,7 +423,7 @@ class TestResult(unittest.TestCase):
             )
         )
 
-        from femresult.resulttools import calculate_rho as calrho
+        from freecad.fem.result.resulttools import calculate_rho as calrho
         for i, case in enumerate(data):
             res = calrho(case[0], 500)
             rhores = (
@@ -445,7 +445,7 @@ class TestResult(unittest.TestCase):
         expected_dispabs = 87.302986
         # x, y, z in node 4 of CalculiX cantilver face load
         disp_xyz = [FreeCAD.Vector(8.12900E+00, 3.38889E-02, -8.69237E+01)]
-        from femresult.resulttools import calculate_disp_abs as dp
+        from freecad.fem.result.resulttools import calculate_disp_abs as dp
         disp_abs = round(dp(disp_xyz)[0], 6)
         # fcc_print(disp_abs)
         self.assertEqual(

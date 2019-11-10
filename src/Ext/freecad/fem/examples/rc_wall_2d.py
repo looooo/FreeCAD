@@ -158,7 +158,7 @@ def setup(doc=None, solvertype="ccxtools"):
 
 
 """
-from femexamples import rc_wall_2d as rc
+from freecad.fem.femexamples import rc_wall_2d as rc
 rc.setup()
 
 """

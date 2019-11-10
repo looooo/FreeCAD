@@ -1182,7 +1182,7 @@ void FemMesh::readAbaqus(const std::string &FileName)
     femmesh = read_inp(FreeCAD.ConfigGet("AppHomePath") + 'Mod/Fem/femtest/data/mesh/tetra10_mesh.inp')
     */
 
-    PyObject* module = PyImport_ImportModule("feminout.importInpMesh");
+    PyObject* module = PyImport_ImportModule("freecad.fem.inout.importInpMesh");
     if (!module)
         return;
     try {
@@ -1218,7 +1218,7 @@ void FemMesh::readZ88(const std::string &FileName)
     femmesh = read_z88(FreeCAD.ConfigGet("AppHomePath") + 'Mod/Fem/femtest/data/mesh/tetra10_mesh.z88')
     */
 
-    PyObject* module = PyImport_ImportModule("feminout.importZ88Mesh");
+    PyObject* module = PyImport_ImportModule("freecad.fem.inout.importZ88Mesh");
     if (!module)
         return;
     try {
@@ -1692,11 +1692,11 @@ void FemMesh::writeZ88(const std::string &FileName) const
 
     /*
     Python command to export FemMesh from StartWB FEM 3D example:
-    import feminout.importZ88Mesh
-    feminout.importZ88Mesh.write(App.ActiveDocument.Box_Mesh.FemMesh, '/tmp/mesh.z88')
+    from freecad.fem.feminout import  importZ88Mesh
+    importZ88Mesh.write(App.ActiveDocument.Box_Mesh.FemMesh, '/tmp/mesh.z88')
     */
 
-    PyObject* module = PyImport_ImportModule("feminout.importZ88Mesh");
+    PyObject* module = PyImport_ImportModule("freecad.fem.inout.importZ88Mesh");
     if (!module)
         return;
     try {

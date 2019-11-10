@@ -38,7 +38,7 @@ import os
 import sys
 
 import FreeCAD
-from femsolver import settings
+from freecad.fem.solver import settings
 # from femsolver.run import _getUniquePath as getUniquePath
 if FreeCAD.GuiUp:
     import FreeCADGui
@@ -455,7 +455,7 @@ def get_refshape_type(fem_doc_object):
     :note:
      Undefined behaviour if constraint contains no references (empty list).
     """
-    import femmesh.meshtools as FemMeshTools
+    from freecad.fem.mesh import meshtools as FemMeshTools
     if hasattr(fem_doc_object, "References") and fem_doc_object.References:
         first_ref_obj = fem_doc_object.References[0]
         first_ref_shape = FemMeshTools.get_element(first_ref_obj[0], first_ref_obj[1][0])

@@ -34,7 +34,7 @@ import codecs
 import six
 
 import FreeCAD
-from femmesh import meshtools
+from freecad.fem.mesh import meshtools
 from .. import writerbase
 
 

@@ -28,11 +28,11 @@ __url__ = "http://www.freecadweb.org"
 
 import FreeCAD as App
 from ... import equationbase
-import femtools.femutils as femutils
+from freecad.fem.tools import femutils
 
 if App.GuiUp:
     import FreeCADGui as Gui
-    from femguiobjects import FemSelectionWidgets
+    from freecad.fem.guiobjects import FemSelectionWidgets
 
 
 class Proxy(equationbase.BaseProxy):

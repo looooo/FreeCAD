@@ -35,7 +35,7 @@ from FreeCAD import Console
 import Fem
 from FreeCAD import Units
 from . import meshtools
-import femtools.femutils as femutils
+from freecad.fem.tools import femutils
 
 
 class GmshTools():
@@ -840,7 +840,7 @@ femmesh_obj = ObjectsFem.makeMeshGmsh(doc, box_obj.Name + "_Mesh")
 femmesh_obj.Part = box_obj
 doc.recompute()
 
-from femmesh.gmshtools import GmshTools as gt
+from freecad.fem.mesh. gmshtools import GmshTools as gt
 gmsh_mesh = gt(femmesh_obj)
 error = gmsh_mesh.create_mesh()
 print(error)
@@ -858,7 +858,7 @@ box_obj = doc.addObject("Part::Box", "Box")
 doc.recompute()
 box_obj.ViewObject.Visibility = False
 
-from femmesh.gmshtools import GmshTools
+from freecad.fem.mesh. gmshtools import GmshTools
 max_mesh_sizes = [0.5, 1, 2, 3, 5, 10]
 for len in max_mesh_sizes:
     quantity_len = "{}".format(len)
