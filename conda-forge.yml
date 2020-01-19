@@ -1,0 +1,4 @@
+provider:
+  win: azure
+  osx: azure
+  linux: azure
