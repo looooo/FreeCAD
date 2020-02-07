@@ -28,3 +28,4 @@ FreeCAD version in {}".format( "${CMAKE_INSTALL_LIBDIR}"))
 
 from pkgutil import extend_path as _extend_path
 __path__ = _extend_path(__path__, __name__)
+__version__ = "{}.{}".format(app.Version()[0], app.Version()[1])  # TODO (py3 only): .format(*app.Version())
