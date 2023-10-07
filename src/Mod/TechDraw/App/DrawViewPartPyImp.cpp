@@ -38,6 +38,7 @@
 #include <Mod/Part/App/TopoShapeEdgePy.h>
 #include <Mod/Part/App/TopoShapeVertexPy.h>
 
+#include "CenterLine.h"
 #include "DrawViewPart.h"
 #include "Geometry.h"
 #include "GeometryObject.h"
@@ -69,8 +70,8 @@ PyObject* DrawViewPartPy::getVisibleEdges(PyObject *args)
     Py::List pEdgeList;
     std::vector<TechDraw::BaseGeomPtr> geoms = dvp->getEdgeGeometry();
     for (auto& g: geoms) {
-        if (g->hlrVisible) {
-            PyObject* pEdge = new Part::TopoShapeEdgePy(new Part::TopoShape(g->occEdge));
+        if (g->getHlrVisible()) {
+            PyObject* pEdge = new Part::TopoShapeEdgePy(new Part::TopoShape(g->getOCCEdge()));
             pEdgeList.append(Py::asObject(pEdge));
         }
     }
@@ -88,8 +89,8 @@ PyObject* DrawViewPartPy::getHiddenEdges(PyObject *args)
     Py::List pEdgeList;
     std::vector<TechDraw::BaseGeomPtr> geoms = dvp->getEdgeGeometry();
     for (auto& g: geoms) {
-        if (!g->hlrVisible) {
-            PyObject* pEdge = new Part::TopoShapeEdgePy(new Part::TopoShape(g->occEdge));
+        if (!g->getHlrVisible()) {
+            PyObject* pEdge = new Part::TopoShapeEdgePy(new Part::TopoShape(g->getOCCEdge()));
             pEdgeList.append(Py::asObject(pEdge));
         }
     }
@@ -387,9 +388,9 @@ PyObject* DrawViewPartPy::makeCosmeticCircle(PyObject *args)
     }
 
     DrawViewPart* dvp = getDrawViewPartPtr();
-    Base::Vector3d pnt1 = DrawUtil::invertY(static_cast<Base::VectorPy*>(pPnt1)->value());
+    Base::Vector3d pnt1 = static_cast<Base::VectorPy*>(pPnt1)->value();
     TechDraw::BaseGeomPtr bg = std::make_shared<TechDraw::Circle> (pnt1, radius);
-    std::string newTag = dvp->addCosmeticEdge(bg);
+    std::string newTag = dvp->addCosmeticEdge(bg->inverted());
     TechDraw::CosmeticEdge* ce = dvp->getCosmeticEdge(newTag);
     if (ce) {
         ce->permaRadius = radius;
@@ -427,9 +428,97 @@ PyObject* DrawViewPartPy::makeCosmeticCircleArc(PyObject *args)
 
     //from here on is almost duplicate of makeCosmeticCircle
     DrawViewPart* dvp = getDrawViewPartPtr();
-    Base::Vector3d pnt1 = DrawUtil::invertY(static_cast<Base::VectorPy*>(pPnt1)->value());
+    Base::Vector3d pnt1 = static_cast<Base::VectorPy*>(pPnt1)->value();
     TechDraw::BaseGeomPtr bg = std::make_shared<TechDraw::AOC> (pnt1, radius, angle1, angle2);
-    std::string newTag = dvp->addCosmeticEdge(bg);
+    std::string newTag = dvp->addCosmeticEdge(bg->inverted());
+    TechDraw::CosmeticEdge* ce = dvp->getCosmeticEdge(newTag);
+    if (ce) {
+        ce->permaRadius = radius;
+        ce->m_format.m_style = style;
+        ce->m_format.m_weight = weight;
+        if (!pColor)
+            ce->m_format.m_color = defCol;
+        else
+            ce->m_format.m_color = DrawUtil::pyTupleToColor(pColor);
+    }
+    else {
+        PyErr_SetString(PyExc_RuntimeError, "DVPPI:makeCosmeticCircleArc - arc creation failed");
+        return nullptr;
+    }
+
+    //int link =
+    dvp->add1CEToGE(newTag);
+    dvp->requestPaint();
+
+    return PyUnicode_FromString(newTag.c_str());   //return tag for new CE
+}
+
+PyObject* DrawViewPartPy::makeCosmeticCircle3d(PyObject *args)
+{
+    PyObject* pPnt1 = nullptr;
+    double radius = 5.0;
+    int style = LineFormat::getDefEdgeStyle();
+    double weight = LineFormat::getDefEdgeWidth();
+    App::Color defCol = LineFormat::getDefEdgeColor();
+    PyObject* pColor = nullptr;
+
+    if (!PyArg_ParseTuple(args, "O!d|idO!", &(Base::VectorPy::Type), &pPnt1,
+                                        &radius,
+                                        &style, &weight,
+                                        &PyTuple_Type, &pColor)) {
+        return nullptr;
+    }
+
+    DrawViewPart* dvp = getDrawViewPartPtr();
+    Base::Vector3d pnt1 = static_cast<Base::VectorPy*>(pPnt1)->value();
+    // center, project and invert the 3d point
+    Base::Vector3d centroid = dvp->getOriginalCentroid();
+    pnt1 = DrawUtil::invertY(dvp->projectPoint(pnt1 - centroid));
+    TechDraw::BaseGeomPtr bg = std::make_shared<TechDraw::Circle> (pnt1, radius);
+    std::string newTag = dvp->addCosmeticEdge(bg->inverted());
+    TechDraw::CosmeticEdge* ce = dvp->getCosmeticEdge(newTag);
+    if (ce) {
+        ce->permaRadius = radius;
+        ce->m_format.m_style = style;
+        ce->m_format.m_weight = weight;
+        ce->m_format.m_color = pColor ? DrawUtil::pyTupleToColor(pColor) : defCol;
+    }
+    else {
+        PyErr_SetString(PyExc_RuntimeError, "DVPPI:makeCosmeticCircle - circle creation failed");
+        return nullptr;
+    }
+    //int link =
+    dvp->add1CEToGE(newTag);
+    dvp->requestPaint();
+
+    return PyUnicode_FromString(newTag.c_str());   //return tag for new CE
+}
+
+PyObject* DrawViewPartPy::makeCosmeticCircleArc3d(PyObject *args)
+{
+    PyObject* pPnt1 = nullptr;
+    double radius = 5.0;
+    double angle1 = 0.0;
+    double angle2 = 360.0;
+    int style = LineFormat::getDefEdgeStyle();
+    double weight = LineFormat::getDefEdgeWidth();
+    App::Color defCol = LineFormat::getDefEdgeColor();
+    PyObject* pColor = nullptr;
+
+    if (!PyArg_ParseTuple(args, "O!ddd|idO!", &(Base::VectorPy::Type), &pPnt1,
+                                        &radius, &angle1, &angle2,
+                                        &style, &weight, &PyTuple_Type, &pColor)) {
+        return nullptr;
+    }
+
+    //from here on is almost duplicate of makeCosmeticCircle
+    DrawViewPart* dvp = getDrawViewPartPtr();
+    Base::Vector3d pnt1 = static_cast<Base::VectorPy*>(pPnt1)->value();
+    // center, project and invert the 3d point
+    Base::Vector3d centroid = dvp->getOriginalCentroid();
+    pnt1 = DrawUtil::invertY(dvp->projectPoint(pnt1 - centroid));
+    TechDraw::BaseGeomPtr bg = std::make_shared<TechDraw::AOC> (pnt1, radius, angle1, angle2);
+    std::string newTag = dvp->addCosmeticEdge(bg->inverted());
     TechDraw::CosmeticEdge* ce = dvp->getCosmeticEdge(newTag);
     if (ce) {
         ce->permaRadius = radius;
@@ -657,7 +746,7 @@ PyObject* DrawViewPartPy::getEdgeByIndex(PyObject *args)
         return nullptr;
     }
 
-    TopoDS_Shape temp = TechDraw::mirrorShapeVec(geom->occEdge,
+    TopoDS_Shape temp = ShapeUtils::mirrorShapeVec(geom->getOCCEdge(),
                                       Base::Vector3d(0.0, 0.0, 0.0),
                                       1.0 / dvp->getScale());
 
@@ -711,7 +800,7 @@ PyObject* DrawViewPartPy::getEdgeBySelection(PyObject *args)
         return nullptr;
     }
 
-    TopoDS_Shape temp = TechDraw::mirrorShapeVec(geom->occEdge,
+    TopoDS_Shape temp = ShapeUtils::mirrorShapeVec(geom->getOCCEdge(),
                                       Base::Vector3d(0.0, 0.0, 0.0),
                                       1.0 / dvp->getScale());
 

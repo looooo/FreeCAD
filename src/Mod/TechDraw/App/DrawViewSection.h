@@ -37,7 +37,6 @@
 
 #include "DrawViewPart.h"
 
-
 class Bnd_Box;
 class gp_Pln;
 class gp_Pnt;
@@ -48,10 +47,6 @@ class gp_Ax2;
 namespace TechDraw
 {
 class Face;
-}
-
-namespace TechDraw
-{
 class DrawProjGroupItem;
 class DrawGeomHatch;
 class PATLineSpec;
@@ -107,6 +102,10 @@ public:
 
     App::PropertyBool FuseBeforeCut;
     App::PropertyBool TrimAfterCut;//new v021
+    App::PropertyBool UsePreviousCut;   // new v022
+
+    App::PropertyFloat SectionLineStretch;  // new v022
+
 
     bool isReallyInBox(const Base::Vector3d v, const Base::BoundBox3d bb) const;
     bool isReallyInBox(const gp_Pnt p, const Bnd_Box& bb) const;
@@ -121,7 +120,7 @@ public:
     short mustExecute() const override;
 
     void sectionExec(TopoDS_Shape& s);
-    virtual void makeSectionCut(TopoDS_Shape& baseShape);
+    virtual void makeSectionCut(const TopoDS_Shape& baseShape);
     void postHlrTasks(void) override;
     virtual void postSectionCutTasks();
     void waitingForCut(bool s) { m_waitingForCut = s; }
@@ -144,10 +143,8 @@ public:
     Base::Vector3d getXDirection() const override;//don't use XDirection.getValue()
 
     TechDraw::DrawViewPart* getBaseDVP() const;
-    TechDraw::DrawProjGroupItem* getBaseDPGI() const;
 
     //section face related methods
-    TopoDS_Compound getSectionTFaces() { return m_sectionTopoDSFaces; }
     std::vector<TechDraw::FacePtr> getTDFaceGeometry() { return m_tdSectionFaces; }
     TopoDS_Face getSectionTopoDSFace(int i);
     virtual TopoDS_Compound alignSectionFaces(TopoDS_Shape faceIntersections);
@@ -160,6 +157,7 @@ public:
     std::vector<PATLineSpec> getDecodedSpecsFromFile(std::string fileSpec, std::string myPattern);
 
     TopoDS_Shape getCutShape() const { return m_cutShape; }
+    TopoDS_Shape getCutShapeRaw() const { return m_cutShapeRaw; }
 
     TopoDS_Shape getShapeForDetail() const override;
 
@@ -170,6 +168,8 @@ public:
     virtual ChangePointVector getChangePointsFromSectionLine();
 
     bool showSectionEdges(void);
+
+    TopoDS_Shape makeFaceFromWires(std::vector<TopoDS_Wire> &inWires);
 
 public Q_SLOTS:
     virtual void onSectionCutFinished(void);
@@ -187,7 +187,8 @@ protected:
     int prefCutSurface() const;
     bool trimAfterCut() const;
 
-    TopoDS_Shape m_cutShape;
+    TopoDS_Shape m_cutShape;        // centered, scaled, rotated result of cut
+    TopoDS_Shape m_cutShapeRaw;     // raw result of cut w/o center/scale/rotate
 
     void onDocumentRestored() override;
     void setupObject() override;

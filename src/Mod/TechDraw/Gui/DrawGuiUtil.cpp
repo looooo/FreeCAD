@@ -35,7 +35,8 @@
 # include <BRepLProp_SLProps.hxx>
 # include <gp_Dir.hxx>
 #endif
-
+#include <Gui/View3DInventor.h>
+#include <Gui/View3DInventorViewer.h>
 #include <App/Application.h>
 #include <App/Document.h>
 #include <App/DocumentObject.h>
@@ -50,8 +51,6 @@
 #include <Gui/MainWindow.h>
 #include <Gui/MDIView.h>
 #include <Gui/Selection.h>
-#include <Gui/View3DInventor.h>
-#include <Gui/View3DInventorViewer.h>
 #include <Inventor/SbVec3f.h>
 #include <Mod/TechDraw/App/ArrowPropEnum.h>
 #include <Mod/TechDraw/App/DrawPage.h>
@@ -73,7 +72,7 @@ void DrawGuiUtil::loadArrowBox(QComboBox* qcb)
     qcb->clear();
     int i = 0;
     for (; i < ArrowPropEnum::ArrowCount; i++) {
-        qcb->addItem(tr(ArrowPropEnum::ArrowTypeEnums[i]));
+        qcb->addItem(QCoreApplication::translate("ArrowPropEnum", ArrowPropEnum::ArrowTypeEnums[i]));
         QIcon itemIcon(QString::fromUtf8(ArrowPropEnum::ArrowTypeIcons[i].c_str()));
         qcb->setItemIcon(i, itemIcon);
     }
@@ -380,18 +379,32 @@ std::pair<Base::Vector3d, Base::Vector3d> DrawGuiUtil::get3DDirAndRot()
         }
     }
     if (!viewer) {
-        Base::Console().Log("LOG - DrawGuiUtil could not find a 3D viewer\n");
         return std::make_pair(viewDir, viewRight);
     }
 
+    // Coin is giving us a values like 0.000000134439 instead of 0.000000000000.
+    // This small difference caused circles to be projected as ellipses among other
+    // problems.
+    // Since SbVec3f is single precision floating point, it is only good to 6-9
+    // significant decimal digits, and the rest of TechDraw works with doubles
+    // that are good to 15-18 significant decimal digits.
+    // But. When a float is promoted to double the value is supposed to be unchanged!
+    // So where do the garbage digits come from???
+    // In any case, if we restrict directions to 6 digits, we avoid the problem.
+    int digits(6);
     SbVec3f dvec = viewer->getViewDirection();
-    SbVec3f upvec = viewer->getUpDirection();
-
-    viewDir = Base::Vector3d(dvec[0], dvec[1], dvec[2]);
+    double dvecX = roundToDigits(dvec[0], digits);
+    double dvecY = roundToDigits(dvec[1], digits);
+    double dvecZ = roundToDigits(dvec[2], digits);
+    viewDir = Base::Vector3d(dvecX, dvecY, dvecZ);
     viewDir = viewDir * (-1.0);// Inventor dir is opposite TD projection dir
-    viewUp = Base::Vector3d(upvec[0], upvec[1], upvec[2]);
 
-    //    Base::Vector3d dirXup = viewDir.Cross(viewUp);
+    SbVec3f upvec = viewer->getUpDirection();
+    double upvecX = roundToDigits(upvec[0], digits);
+    double upvecY = roundToDigits(upvec[1], digits);
+    double upvecZ = roundToDigits(upvec[2], digits);
+    viewUp = Base::Vector3d(upvecX, upvecY, upvecZ);
+
     Base::Vector3d right = viewUp.Cross(viewDir);
 
     result = std::make_pair(viewDir, right);
@@ -434,10 +447,16 @@ std::pair<Base::Vector3d, Base::Vector3d> DrawGuiUtil::getProjDirFromFace(App::D
             projDir = projDir * (-1.0);
         }
     }
-    else {
-        Base::Console().Log("Selected Face has no normal at midpoint\n");
-    }
 
-    dirs = std::make_pair(projDir, rotVec);
-    return dirs;
+    return std::make_pair(projDir, rotVec);
+}
+
+// converts original value to one with only digits significant figures
+double DrawGuiUtil::roundToDigits(double original, int digits)
+{
+    double factor = std::pow(10.0, digits);
+    double temp = original * factor;
+    double rounded = std::round(temp);
+    temp = rounded / factor;
+    return temp;
 }

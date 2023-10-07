@@ -36,6 +36,7 @@
 # include <QFileInfo>
 # include <QFont>
 # include <QFontMetrics>
+# include <QImageReader>
 # include <QMessageBox>
 # include <QPainter>
 # include <QPointer>
@@ -62,6 +63,7 @@
 #include "DlgSettingsImageImp.h"
 #include "Document.h"
 #include "FileDialog.h"
+#include "ImageView.h"
 #include "Macro.h"
 #include "MainWindow.h"
 #include "NavigationStyle.h"
@@ -70,7 +72,6 @@
 #include "SelectionObject.h"
 #include "SoAxisCrossKit.h"
 #include "SoFCOffscreenRenderer.h"
-#include "SoFCUnifiedSelection.h"
 #include "TextureMapping.h"
 #include "Tools.h"
 #include "Tree.h"
@@ -85,7 +86,7 @@
 
 using namespace Gui;
 using Gui::Dialog::DlgSettingsImageImp;
-namespace bp = boost::placeholders;
+namespace sp = std::placeholders;
 
 namespace {
 // A helper class to open a transaction when changing properties of view providers.
@@ -286,7 +287,7 @@ class StdCmdFreezeViews : public Gui::Command
 {
 public:
     StdCmdFreezeViews();
-    ~StdCmdFreezeViews() override{}
+    ~StdCmdFreezeViews() override = default;
     const char* className() const override
     { return "StdCmdFreezeViews"; }
 
@@ -296,7 +297,7 @@ public:
 protected:
     void activated(int iMsg) override;
     bool isActive() override;
-    Action * createAction(void) override;
+    Action * createAction() override;
     void languageChange() override;
 
 private:
@@ -304,24 +305,17 @@ private:
     void onRestoreViews();
 
 private:
-    const int maxViews;
-    int savedViews;
-    int offset;
-    QAction* saveView;
-    QAction* freezeView;
-    QAction* clearView;
-    QAction* separator;
+    const int maxViews{50};
+    int savedViews{0};
+    int offset{0};
+    QAction* saveView{nullptr};
+    QAction* freezeView{nullptr};
+    QAction* clearView{nullptr};
+    QAction* separator{nullptr};
 };
 
 StdCmdFreezeViews::StdCmdFreezeViews()
   : Command("Std_FreezeViews")
-  , maxViews(50)
-  , savedViews(0)
-  , offset(0)
-  , saveView(nullptr)
-  , freezeView(nullptr)
-  , clearView(nullptr)
-  , separator(nullptr)
 {
     sGroup        = "Standard-View";
     sMenuText     = QT_TR_NOOP("Freeze display");
@@ -635,7 +629,7 @@ class StdCmdDrawStyle : public Gui::Command
 {
 public:
     StdCmdDrawStyle();
-    ~StdCmdDrawStyle() override{}
+    ~StdCmdDrawStyle() override = default;
     void languageChange() override;
     const char* className() const override {return "StdCmdDrawStyle";}
     void updateIcon(const Gui::MDIView* view);
@@ -656,7 +650,9 @@ StdCmdDrawStyle::StdCmdDrawStyle()
     sPixmap       = "DrawStyleAsIs";
     eType         = Alter3DView;
 
-    this->getGuiApplication()->signalActivateView.connect(boost::bind(&StdCmdDrawStyle::updateIcon, this, bp::_1));
+    this->getGuiApplication()->signalActivateView.connect([this](auto view) {
+        this->updateIcon(view);
+    });
 }
 
 Gui::Action * StdCmdDrawStyle::createAction()
@@ -1356,6 +1352,7 @@ void StdCmdViewTop::activated(int iMsg)
     doCommand(Command::Gui,"Gui.activeDocument().activeView().viewTop()");
 }
 
+
 //===========================================================================
 // Std_ViewIsometric
 //===========================================================================
@@ -1807,12 +1804,12 @@ StdViewScreenShot::StdViewScreenShot()
   : Command("Std_ViewScreenShot")
 {
     sGroup      = "Standard-View";
-    sMenuText   = QT_TR_NOOP("Save picture...");
+    sMenuText   = QT_TR_NOOP("Save image...");
     sToolTipText= QT_TR_NOOP("Creates a screenshot of the active view");
     sWhatsThis  = "Std_ViewScreenShot";
     sStatusTip  = QT_TR_NOOP("Creates a screenshot of the active view");
     sPixmap     = "camera-photo";
-    eType         = Alter3DView;
+    eType       = Alter3DView;
 }
 
 void StdViewScreenShot::activated(int iMsg)
@@ -1848,7 +1845,7 @@ void StdViewScreenShot::activated(int iMsg)
         FileOptionsDialog fd(getMainWindow(), Qt::WindowFlags());
         fd.setFileMode(QFileDialog::AnyFile);
         fd.setAcceptMode(QFileDialog::AcceptSave);
-        fd.setWindowTitle(QObject::tr("Save picture"));
+        fd.setWindowTitle(QObject::tr("Save image"));
         fd.setNameFilters(filter);
         if (!selFilter.isEmpty())
             fd.selectNameFilter(selFilter);
@@ -1863,8 +1860,8 @@ void StdViewScreenShot::activated(int iMsg)
         fd.setOptionsWidget(FileOptionsDialog::ExtensionRight, opt);
         fd.setOption(QFileDialog::DontConfirmOverwrite, false);
         opt->onSelectedFilter(fd.selectedNameFilter());
-        QObject::connect(&fd, SIGNAL(filterSelected(const QString&)),
-                         opt, SLOT(onSelectedFilter(const QString&)));
+        QObject::connect(&fd, &FileOptionsDialog::filterSelected,
+                         opt, &DlgSettingsImageImp::onSelectedFilter);
 
         if (fd.exec() == QDialog::Accepted) {
             selFilter = fd.selectedNameFilter();
@@ -1969,6 +1966,51 @@ bool StdViewScreenShot::isActive()
     return isViewOfType(Gui::View3DInventor::getClassTypeId());
 }
 
+//===========================================================================
+// Std_ViewLoadImage
+//===========================================================================
+DEF_STD_CMD(StdViewLoadImage)
+
+StdViewLoadImage::StdViewLoadImage()
+  : Command("Std_ViewLoadImage")
+{
+    sGroup      = "Standard-View";
+    sMenuText   = QT_TR_NOOP("Load image...");
+    sToolTipText= QT_TR_NOOP("Loads an image");
+    sWhatsThis  = "Std_ViewLoadImage";
+    sStatusTip  = QT_TR_NOOP("Loads an image");
+    sPixmap     = "image-open";
+    eType       = 0;
+}
+
+void StdViewLoadImage::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+
+    // add all supported QImage formats
+    QStringList mimeTypeFilters;
+    QList<QByteArray> supportedMimeTypes = QImageReader::supportedMimeTypes();
+    for (const auto& mimeTypeName : supportedMimeTypes) {
+        mimeTypeFilters.append(QString::fromLatin1(mimeTypeName));
+    }
+
+    // Reading an image
+    QFileDialog dialog(Gui::getMainWindow());
+    dialog.setWindowTitle(QObject::tr("Choose an image file to open"));
+    dialog.setMimeTypeFilters(mimeTypeFilters);
+    dialog.selectMimeTypeFilter(QString::fromLatin1("image/png"));
+    dialog.setDefaultSuffix(QString::fromLatin1("png"));
+    dialog.setAcceptMode(QFileDialog::AcceptOpen);
+    dialog.setOption(QFileDialog::DontUseNativeDialog);
+
+    if (dialog.exec()) {
+        QString fileName = dialog.selectedFiles().constFirst();
+        ImageView* view = new ImageView(Gui::getMainWindow());
+        view->loadFile(fileName);
+        view->resize(400, 300);
+        Gui::getMainWindow()->addWindow(view);
+    }
+}
 
 //===========================================================================
 // Std_ViewCreate
@@ -2058,8 +2100,8 @@ StdCmdAxisCross::StdCmdAxisCross()
 {
         sGroup        = "Standard-View";
         sMenuText     = QT_TR_NOOP("Toggle axis cross");
-        sToolTipText  = QT_TR_NOOP("Toggle axis cross");
-        sStatusTip    = QT_TR_NOOP("Toggle axis cross");
+        sToolTipText  = QT_TR_NOOP("Turns on or off the axis cross at the origin");
+        sStatusTip    = QT_TR_NOOP("Turns on or off the axis cross at the origin");
         sWhatsThis    = "Std_AxisCross";
         sPixmap       = "Std_AxisCross";
         sAccel        = "A,C";
@@ -2381,9 +2423,9 @@ StdViewZoomIn::StdViewZoomIn()
 {
     sGroup        = "Standard-View";
     sMenuText     = QT_TR_NOOP("Zoom In");
-    sToolTipText  = QT_TR_NOOP("Zoom In");
+    sToolTipText  = QT_TR_NOOP("Increase the zoom factor by a fixed amount");
     sWhatsThis    = "Std_ViewZoomIn";
-    sStatusTip    = QT_TR_NOOP("Zoom In");
+    sStatusTip    = QT_TR_NOOP("Increase the zoom factor by a fixed amount");
     sPixmap       = "zoom-in";
     sAccel        = keySequenceToAccel(QKeySequence::ZoomIn);
     eType         = Alter3DView;
@@ -2392,16 +2434,12 @@ StdViewZoomIn::StdViewZoomIn()
 void StdViewZoomIn::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
-    auto view = qobject_cast<View3DInventor*>(getMainWindow()->activeWindow());
-    if ( view ) {
-        View3DInventorViewer* viewer = view->getViewer();
-        viewer->navigationStyle()->zoomIn();
-    }
+    getGuiApplication()->sendMsgToFocusView("ZoomIn");
 }
 
 bool StdViewZoomIn::isActive()
 {
-    return (qobject_cast<View3DInventor*>(getMainWindow()->activeWindow()));
+    return getGuiApplication()->sendHasMsgToActiveView("ZoomIn");
 }
 
 //===========================================================================
@@ -2414,9 +2452,9 @@ StdViewZoomOut::StdViewZoomOut()
 {
     sGroup        = "Standard-View";
     sMenuText     = QT_TR_NOOP("Zoom Out");
-    sToolTipText  = QT_TR_NOOP("Zoom Out");
+    sToolTipText  = QT_TR_NOOP("Decrease the zoom factor by a fixed amount");
     sWhatsThis    = "Std_ViewZoomOut";
-    sStatusTip    = QT_TR_NOOP("Zoom Out");
+    sStatusTip    = QT_TR_NOOP("Decrease the zoom factor by a fixed amount");
     sPixmap       = "zoom-out";
     sAccel        = keySequenceToAccel(QKeySequence::ZoomOut);
     eType         = Alter3DView;
@@ -2425,16 +2463,12 @@ StdViewZoomOut::StdViewZoomOut()
 void StdViewZoomOut::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
-    auto view = qobject_cast<View3DInventor*>(getMainWindow()->activeWindow());
-    if (view) {
-        View3DInventorViewer* viewer = view->getViewer();
-        viewer->navigationStyle()->zoomOut();
-    }
+    getGuiApplication()->sendMsgToFocusView("ZoomOut");
 }
 
 bool StdViewZoomOut::isActive()
 {
-    return (qobject_cast<View3DInventor*>(getMainWindow()->activeWindow()));
+    return getGuiApplication()->sendHasMsgToActiveView("ZoomOut");
 }
 
 namespace {
@@ -2462,7 +2496,7 @@ public:
             return;
         }
 
-        currentSelectionHandler = std::unique_ptr<SelectionCallbackHandler>(new SelectionCallbackHandler());
+        currentSelectionHandler = std::make_unique<SelectionCallbackHandler>();
         if (viewer)
         {
             currentSelectionHandler->userData = ud;
@@ -2584,9 +2618,9 @@ StdViewBoxZoom::StdViewBoxZoom()
 {
     sGroup        = "Standard-View";
     sMenuText     = QT_TR_NOOP("Box zoom");
-    sToolTipText  = QT_TR_NOOP("Box zoom");
+    sToolTipText  = QT_TR_NOOP("Activate the box zoom tool");
     sWhatsThis    = "Std_ViewBoxZoom";
-    sStatusTip    = QT_TR_NOOP("Box zoom");
+    sStatusTip    = QT_TR_NOOP("Activate the box zoom tool");
     sPixmap       = "zoom-border";
     sAccel        = "Ctrl+B";
     eType         = Alter3DView;
@@ -2654,9 +2688,9 @@ StdBoxSelection::StdBoxSelection()
 {
     sGroup        = "Standard-View";
     sMenuText     = QT_TR_NOOP("Box selection");
-    sToolTipText  = QT_TR_NOOP("Box selection");
+    sToolTipText  = QT_TR_NOOP("Activate the box selection tool");
     sWhatsThis    = "Std_BoxSelection";
-    sStatusTip    = QT_TR_NOOP("Box selection");
+    sStatusTip    = QT_TR_NOOP("Activate the box selection tool");
     sPixmap       = "edit-select-box";
     sAccel        = "Shift+B";
     eType         = AlterSelection;
@@ -2792,8 +2826,7 @@ static void doSelect(void* ud, SoEventCallback * cb)
     bool selectElement = ud ? true : false;
     auto viewer = static_cast<Gui::View3DInventorViewer*>(cb->getUserData());
 
-    SoNode* root = viewer->getSceneGraph();
-    static_cast<Gui::SoFCUnifiedSelection*>(root)->selectionRole.setValue(true);
+    viewer->setSelectionEnabled(true);
 
     SelectionMode selectionMode = CENTER;
 
@@ -2858,9 +2891,9 @@ void StdBoxSelection::activated(int iMsg)
                 SoKeyboardEvent ev;
                 viewer->navigationStyle()->processEvent(&ev);
             }
+
             SelectionCallbackHandler::Create(viewer, View3DInventorViewer::Rubberband, QCursor(QPixmap(cursor_box_select), 7, 7), doSelect, nullptr);
-            SoNode* root = viewer->getSceneGraph();
-            static_cast<Gui::SoFCUnifiedSelection*>(root)->selectionRole.setValue(false);
+            viewer->setSelectionEnabled(false);
         }
     }
 }
@@ -2939,9 +2972,9 @@ void StdBoxElementSelection::activated(int iMsg)
                 SoKeyboardEvent ev;
                 viewer->navigationStyle()->processEvent(&ev);
             }
+
             SelectionCallbackHandler::Create(viewer, View3DInventorViewer::Rubberband, QCursor(QPixmap(cursor_box_element_select), 7, 7), doSelect, this);
-            SoNode* root = viewer->getSceneGraph();
-            static_cast<Gui::SoFCUnifiedSelection*>(root)->selectionRole.setValue(false);
+            viewer->setSelectionEnabled(false);
         }
     }
 }
@@ -3084,9 +3117,9 @@ StdCmdMeasureDistance::StdCmdMeasureDistance()
 {
     sGroup        = "View";
     sMenuText     = QT_TR_NOOP("Measure distance");
-    sToolTipText  = QT_TR_NOOP("Measure distance");
+    sToolTipText  = QT_TR_NOOP("Activate the distance measurement tool");
     sWhatsThis    = "Std_MeasureDistance";
-    sStatusTip    = QT_TR_NOOP("Measure distance");
+    sStatusTip    = QT_TR_NOOP("Activate the distance measurement tool");
     sPixmap       = "view-measurement";
     eType         = Alter3DView;
 }
@@ -3263,7 +3296,7 @@ CmdViewMeasureClearAll::CmdViewMeasureClearAll()
 {
     sGroup        = "Measure";
     sMenuText     = QT_TR_NOOP("Clear measurement");
-    sToolTipText  = QT_TR_NOOP("Clear measurement");
+    sToolTipText  = QT_TR_NOOP("Clear all visible measurements");
     sWhatsThis    = "View_Measure_Clear_All";
     sStatusTip    = sToolTipText;
     sPixmap       = "Part_Measure_Clear_All";
@@ -3293,7 +3326,7 @@ CmdViewMeasureToggleAll::CmdViewMeasureToggleAll()
 {
     sGroup        = "Measure";
     sMenuText     = QT_TR_NOOP("Toggle measurement");
-    sToolTipText  = QT_TR_NOOP("Toggle measurement");
+    sToolTipText  = QT_TR_NOOP("Turn on or off the display of all measurements");
     sWhatsThis    = "View_Measure_Toggle_All";
     sStatusTip    = sToolTipText;
     sPixmap       = "Part_Measure_Toggle_All";
@@ -3321,10 +3354,14 @@ StdCmdSelBack::StdCmdSelBack()
   :Command("Std_SelBack")
 {
   sGroup        = "View";
-  sMenuText     = QT_TR_NOOP("&Back");
-  sToolTipText  = QT_TR_NOOP("Go back to previous selection");
+  sMenuText     = QT_TR_NOOP("Selection Back");
+  static std::string toolTip = std::string("<p>")
+      + QT_TR_NOOP("Restore the previous Tree view selection. "
+      "Only works if Tree RecordSelection mode is switched on.")
+      + "</p>";
+  sToolTipText = toolTip.c_str();
   sWhatsThis    = "Std_SelBack";
-  sStatusTip    = QT_TR_NOOP("Go back to previous selection");
+  sStatusTip    = sToolTipText;
   sPixmap       = "sel-back";
   sAccel        = "S, B";
   eType         = AlterSelection;
@@ -3351,10 +3388,14 @@ StdCmdSelForward::StdCmdSelForward()
   :Command("Std_SelForward")
 {
   sGroup        = "View";
-  sMenuText     = QT_TR_NOOP("&Forward");
-  sToolTipText  = QT_TR_NOOP("Repeat the backed selection");
+  sMenuText     = QT_TR_NOOP("Selection Forward");
+  static std::string toolTip = std::string("<p>")
+      + QT_TR_NOOP("Restore the next Tree view selection. "
+      "Only works if Tree RecordSelection mode is switched on.")
+      + "</p>";
+  sToolTipText = toolTip.c_str();
   sWhatsThis    = "Std_SelForward";
-  sStatusTip    = QT_TR_NOOP("Repeat the backed selection");
+  sStatusTip    = sToolTipText;
   sPixmap       = "sel-forward";
   sAccel        = "S, F";
   eType         = AlterSelection;
@@ -3620,6 +3661,11 @@ public:
 
         addCommand(new StdTreeDrag(),!cmds.empty());
         addCommand(new StdTreeSelection(),!cmds.empty());
+
+        addCommand();
+
+        addCommand(new StdCmdSelBack());
+        addCommand(new StdCmdSelForward());
     }
     const char* className() const override {return "StdCmdTreeViewActions";}
 };
@@ -3740,6 +3786,7 @@ namespace Gui {
 
 void CreateViewStdCommands()
 {
+    // NOLINTBEGIN
     CommandManager &rcCmdMgr = Application::Instance->commandManager();
 
     // views
@@ -3775,6 +3822,7 @@ void CreateViewStdCommands()
 
     rcCmdMgr.addCommand(new StdCmdViewCreate());
     rcCmdMgr.addCommand(new StdViewScreenShot());
+    rcCmdMgr.addCommand(new StdViewLoadImage());
     rcCmdMgr.addCommand(new StdMainFullscreen());
     rcCmdMgr.addCommand(new StdViewDockUndockFullscreen());
     rcCmdMgr.addCommand(new StdCmdSetAppearance());
@@ -3810,8 +3858,6 @@ void CreateViewStdCommands()
     rcCmdMgr.addCommand(new CmdViewMeasureClearAll());
     rcCmdMgr.addCommand(new CmdViewMeasureToggleAll());
     rcCmdMgr.addCommand(new StdCmdSelBoundingBox());
-    rcCmdMgr.addCommand(new StdCmdSelBack());
-    rcCmdMgr.addCommand(new StdCmdSelForward());
     rcCmdMgr.addCommand(new StdCmdTreeViewActions());
 
     auto hGrp = App::GetApplication().GetParameterGroupByPath("User parameter:BaseApp/Preferences/View");
@@ -3819,6 +3865,7 @@ void CreateViewStdCommands()
         hGrp->SetASCII("GestureRollFwdCommand","Std_SelForward");
     if(hGrp->GetASCII("GestureRollBackCommand").empty())
         hGrp->SetASCII("GestureRollBackCommand","Std_SelBack");
+    // NOLINTEND
 }
 
 } // namespace Gui

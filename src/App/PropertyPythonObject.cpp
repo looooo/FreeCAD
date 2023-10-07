@@ -30,7 +30,12 @@
 #include <Base/Console.h>
 #include <Base/Interpreter.h>
 #include <Base/Reader.h>
+#include <Base/DocumentReader.h>
 #include <Base/Writer.h>
+
+//#ifndef _PreComp_
+//# include <xercesc/dom/DOM.hpp>
+//#endif
 
 #include "PropertyPythonObject.h"
 #include "DocumentObject.h"
@@ -87,11 +92,19 @@ std::string PropertyPythonObject::toString() const
             throw Py::Exception();
         Py::Callable method(pickle.getAttr(std::string("dumps")));
         Py::Object dump;
-        if (this->object.hasAttr("__getstate__")) {
+        if (this->object.hasAttr("dumps")) {
+            Py::Tuple args;
+            Py::Callable state(this->object.getAttr("dumps"));
+            dump = state.apply(args);
+        }
+#if PY_VERSION_HEX < 0x030b0000
+        // support add-ons that use the old method names
+        else if (this->object.hasAttr("__getstate__")) {
             Py::Tuple args;
             Py::Callable state(this->object.getAttr("__getstate__"));
             dump = state.apply(args);
         }
+#endif
         else if (this->object.hasAttr("__dict__")) {
             dump = this->object.getAttr("__dict__");
         }
@@ -129,14 +142,25 @@ void PropertyPythonObject::fromString(const std::string& repr)
         args.setItem(0, Py::String(repr));
         Py::Object res = method.apply(args);
 
-        if (this->object.hasAttr("__setstate__")) {
+        if (this->object.hasAttr("loads")) {
+            Py::Tuple args(1);
+            args.setItem(0, res);
+            Py::Callable state(this->object.getAttr("loads"));
+            state.apply(args);
+        }
+#if PY_VERSION_HEX < 0x030b0000
+        // support add-ons that use the old method names
+        else if (this->object.hasAttr("__setstate__")) {
             Py::Tuple args(1);
             args.setItem(0, res);
             Py::Callable state(this->object.getAttr("__setstate__"));
             state.apply(args);
         }
+#endif
         else if (this->object.hasAttr("__dict__")) {
-            this->object.setAttr("__dict__", res);
+            if (!res.isNone()) {
+                this->object.setAttr("__dict__", res);
+            }
         }
         else {
             this->object = res;
@@ -154,7 +178,7 @@ void PropertyPythonObject::loadPickle(const std::string& str)
     Base::PyGILStateLocker lock;
     try {
         std::string buffer = str;
-        boost::regex pickle("S'(\\w+)'.+S'(\\w+)'\\n");
+        boost::regex pickle(R"(S'(\w+)'.+S'(\w+)'\n)");
         boost::match_results<std::string::const_iterator> what;
         std::string::const_iterator start, end;
         start = buffer.begin();
@@ -177,19 +201,19 @@ void PropertyPythonObject::loadPickle(const std::string& str)
 std::string PropertyPythonObject::encodeValue(const std::string& str) const
 {
     std::string tmp;
-    for (std::string::const_iterator it = str.begin(); it != str.end(); ++it) {
-        if (*it == '<')
+    for (char it : str) {
+        if (it == '<')
             tmp += "&lt;";
-        else if (*it == '"')
+        else if (it == '"')
             tmp += "&quot;";
-        else if (*it == '&')
+        else if (it == '&')
             tmp += "&amp;";
-        else if (*it == '>')
+        else if (it == '>')
             tmp += "&gt";
-        else if (*it == '\n')
+        else if (it == '\n')
             tmp += "\\n";
         else
-            tmp += *it;
+            tmp += it;
     }
 
     return tmp;
@@ -262,6 +286,37 @@ void PropertyPythonObject::restoreObject(Base::XMLReader &reader)
     }
 }
 
+void PropertyPythonObject::restoreObject(Base::DocumentReader &reader,XERCES_CPP_NAMESPACE_QUALIFIER DOMElement *ContainerDOM)
+{
+	Base::PyGILStateLocker lock;
+    try {
+        PropertyContainer* parent = this->getContainer();
+        const char* object_cstr = reader.GetAttribute(ContainerDOM,"object");
+        if (object_cstr) {
+            if (strcmp(object_cstr,"yes") == 0) {
+                Py::Object obj = Py::asObject(parent->getPyObject());
+                this->object.setAttr("__object__", obj);
+            }
+        }
+        const char* vobject_cstr = reader.GetAttribute(ContainerDOM,"vobject");
+        if (vobject_cstr) {
+            if (strcmp(vobject_cstr,"yes") == 0) {
+                Py::Object obj = Py::asObject(parent->getPyObject());
+                this->object.setAttr("__vobject__", obj);
+            }
+        }
+    }
+    catch (Py::Exception& e) {
+        e.clear();
+    }
+    catch (const Base::Exception& e) {
+        Base::Console().Error("%s\n",e.what());
+    }
+    catch (...) {
+        Base::Console().Error("Critical error in PropertyPythonObject::restoreObject\n");
+    }
+}
+
 void PropertyPythonObject::Save (Base::Writer &writer) const
 {
     //if (writer.isForceXML()) {
@@ -269,7 +324,7 @@ void PropertyPythonObject::Save (Base::Writer &writer) const
         repr = Base::base64_encode((const unsigned char*)repr.c_str(), repr.size());
         std::string val = /*encodeValue*/(repr);
         writer.Stream() << writer.ind() << "<Python value=\"" << val
-                        << "\" encoded=\"yes\"";
+                        << R"(" encoded="yes")";
 
         Base::PyGILStateLocker lock;
         try {
@@ -322,7 +377,7 @@ void PropertyPythonObject::Restore(Base::XMLReader &reader)
 
         Base::PyGILStateLocker lock;
         try {
-            boost::regex pickle("^\\(i(\\w+)\\n(\\w+)\\n");
+            boost::regex pickle(R"(^\(i(\w+)\n(\w+)\n)");
             boost::match_results<std::string::const_iterator> what;
             std::string::const_iterator start, end;
             start = buffer.begin();
@@ -379,11 +434,93 @@ void PropertyPythonObject::Restore(Base::XMLReader &reader)
     }
 }
 
+void PropertyPythonObject::Restore(Base::DocumentReader &reader,XERCES_CPP_NAMESPACE_QUALIFIER DOMElement *ContainerDOM)
+{
+	auto PythonDOM = reader.FindElement(ContainerDOM,"Python");
+	if(PythonDOM){
+		const char* file_cstr = reader.GetAttribute(PythonDOM,"file");
+		if (file_cstr){
+		    reader.addFile(file_cstr,this);
+		}else{
+			bool load_json=false;
+		    bool load_pickle=false;
+		    bool load_failed=false;
+		    const char* value_cstr = reader.GetAttribute(PythonDOM,"value");
+		    const char* encoded_cstr = reader.GetAttribute(PythonDOM,"encoded");
+		    std::string buffer = value_cstr;
+		    if (encoded_cstr && strcmp(encoded_cstr,"yes") == 0) {
+		        buffer = Base::base64_decode(buffer);
+		    }else {
+		        buffer = decodeValue(buffer);
+		    }
+		    Base::PyGILStateLocker lock;
+		    try {
+		        boost::regex pickle(R"(^\(i(\w+)\n(\w+)\n)");
+		        boost::match_results<std::string::const_iterator> what;
+		        std::string::const_iterator start, end;
+		        start = buffer.begin();
+		        end = buffer.end();
+		        
+		        const char* module_cstr = reader.GetAttribute(PythonDOM,"module");
+		        const char* class_cstr = reader.GetAttribute(PythonDOM,"class");
+		        const char* json_cstr = reader.GetAttribute(PythonDOM,"json");
+		        if (module_cstr && class_cstr) {		        	
+		            Py::Module mod(PyImport_ImportModule(module_cstr),true);
+		            if (mod.isNull())
+		                throw Py::Exception();
+		            PyObject* cls = mod.getAttr(class_cstr).ptr();
+		            if (!cls) {
+		                std::stringstream s;
+		                s << "Module " << module_cstr
+		                  << " has no class " << class_cstr;
+		                throw Py::AttributeError(s.str());
+		            }
+		            if (PyType_Check(cls)) {
+		                this->object = PyType_GenericAlloc((PyTypeObject*)cls, 0);
+		            }
+		            else {
+		                throw Py::TypeError("neither class nor type object");
+		            }
+		            load_json = true;
+		        }
+		        else if (boost::regex_search(start, end, what, pickle)) {
+		            std::string name = std::string(what[1].first, what[1].second);
+		            std::string type = std::string(what[2].first, what[2].second);
+		            Py::Module mod(PyImport_ImportModule(name.c_str()),true);
+		            if (mod.isNull())
+		                throw Py::Exception();
+		            this->object = PyObject_CallObject(mod.getAttr(type).ptr(), nullptr);
+		            load_pickle = true;
+		            buffer = std::string(what[2].second, end);
+		        }
+		        else if (json_cstr) {
+		            load_json = true;
+		        }
+		    }
+		    catch (Py::Exception&) {
+		        Base::PyException e; // extract the Python error text
+		        e.ReportException();
+		        this->object = Py::None();
+		        load_failed = true;
+		    }
+		    aboutToSetValue();
+		    if (load_json)
+		        this->fromString(buffer);
+		    else if (load_pickle)
+		        this->loadPickle(buffer);
+		    else if (!load_failed)
+		        Base::Console().Warning("PropertyPythonObject::Restore: unsupported serialisation: %s\n", buffer.c_str());
+		    restoreObject(reader,PythonDOM);
+		    hasSetValue();
+		}
+	}
+}
+
 void PropertyPythonObject::SaveDocFile (Base::Writer &writer) const
 {
     std::string buffer = this->toString();
-    for (std::string::iterator it = buffer.begin(); it != buffer.end(); ++it)
-        writer.Stream().put(*it);
+    for (char it : buffer)
+        writer.Stream().put(it);
 }
 
 void PropertyPythonObject::RestoreDocFile(Base::Reader &reader)

@@ -1,36 +1,35 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
+# SPDX-License-Identifier: LGPL-2.1-or-later
 # ***************************************************************************
 # *                                                                         *
+# *   Copyright (c) 2022-2023 FreeCAD Project Association                   *
 # *   Copyright (c) 2015 Yorik van Havre <yorik@uncreated.net>              *
-# *   Copyright (c) 2022 FreeCAD Project Association                        *
 # *                                                                         *
-# *   This program is free software; you can redistribute it and/or modify  *
-# *   it under the terms of the GNU Lesser General Public License (LGPL)    *
-# *   as published by the Free Software Foundation; either version 2 of     *
-# *   the License, or (at your option) any later version.                   *
-# *   for detail see the LICENCE text file.                                 *
+# *   This file is part of FreeCAD.                                         *
 # *                                                                         *
-# *   This program is distributed in the hope that it will be useful,       *
-# *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
-# *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
-# *   GNU Library General Public License for more details.                  *
+# *   FreeCAD is free software: you can redistribute it and/or modify it    *
+# *   under the terms of the GNU Lesser General Public License as           *
+# *   published by the Free Software Foundation, either version 2.1 of the  *
+# *   License, or (at your option) any later version.                       *
 # *                                                                         *
-# *   You should have received a copy of the GNU Library General Public     *
-# *   License along with this program; if not, write to the Free Software   *
-# *   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  *
-# *   USA                                                                   *
+# *   FreeCAD is distributed in the hope that it will be useful, but        *
+# *   WITHOUT ANY WARRANTY; without even the implied warranty of            *
+# *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU      *
+# *   Lesser General Public License for more details.                       *
+# *                                                                         *
+# *   You should have received a copy of the GNU Lesser General Public      *
+# *   License along with FreeCAD. If not, see                               *
+# *   <https://www.gnu.org/licenses/>.                                      *
 # *                                                                         *
 # ***************************************************************************
 
 import os
 import functools
 import tempfile
-import hashlib
 import threading
 import json
-import re  # Needed for py 3.6 and earlier, can remove later, search for "re."
-from datetime import date, timedelta
+from datetime import date
 from typing import Dict
 
 from PySide import QtGui, QtCore, QtWidgets
@@ -58,6 +57,7 @@ from Addon import Addon
 from manage_python_dependencies import (
     PythonPackageManager,
 )
+from addonmanager_cache import local_cache_needs_update
 from addonmanager_devmode import DeveloperMode
 from addonmanager_firstrun import FirstRunDialog
 from addonmanager_connection_checker import ConnectionCheckerGUI
@@ -119,9 +119,10 @@ class CommandAddonManager:
     restart_required = False
 
     def __init__(self):
+        QT_TRANSLATE_NOOP("QObject", "Addon Manager")
         FreeCADGui.addPreferencePage(
             AddonManagerOptions,
-            translate("AddonsInstaller", "Addon Manager"),
+            "Addon Manager",
         )
 
         self.check_worker = None
@@ -169,6 +170,7 @@ class CommandAddonManager:
         self.dialog = FreeCADGui.PySideUic.loadUi(
             os.path.join(os.path.dirname(__file__), "AddonManager.ui")
         )
+        self.dialog.setObjectName("AddonManager_Main_Window")
         # self.dialog.setWindowFlag(QtCore.Qt.WindowStaysOnTopHint, True)
 
         # cleanup the leftovers from previous runs
@@ -176,7 +178,7 @@ class CommandAddonManager:
         self.packages_with_updates = set()
         self.startup_sequence = []
         self.cleanup_workers()
-        self.determine_cache_update_status()
+        self.update_cache = local_cache_needs_update()
 
         # restore window geometry from stored state
         pref = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Addons")
@@ -196,9 +198,7 @@ class CommandAddonManager:
         self.item_model = PackageListItemModel()
         self.packageList.setModel(self.item_model)
         self.dialog.contentPlaceholder.hide()
-        self.dialog.layout().replaceWidget(
-            self.dialog.contentPlaceholder, self.packageList
-        )
+        self.dialog.layout().replaceWidget(self.dialog.contentPlaceholder, self.packageList)
         self.packageList.show()
 
         # Package details start out hidden
@@ -210,16 +210,12 @@ class CommandAddonManager:
         # set nice icons to everything, by theme with fallback to FreeCAD icons
         self.dialog.setWindowIcon(QtGui.QIcon(":/icons/AddonManager.svg"))
         self.dialog.buttonUpdateAll.setIcon(QtGui.QIcon(":/icons/button_valid.svg"))
-        self.dialog.buttonCheckForUpdates.setIcon(
-            QtGui.QIcon(":/icons/view-refresh.svg")
-        )
+        self.dialog.buttonCheckForUpdates.setIcon(QtGui.QIcon(":/icons/view-refresh.svg"))
         self.dialog.buttonClose.setIcon(
             QtGui.QIcon.fromTheme("close", QtGui.QIcon(":/icons/process-stop.svg"))
         )
         self.dialog.buttonPauseUpdate.setIcon(
-            QtGui.QIcon.fromTheme(
-                "pause", QtGui.QIcon(":/icons/media-playback-stop.svg")
-            )
+            QtGui.QIcon.fromTheme("pause", QtGui.QIcon(":/icons/media-playback-stop.svg"))
         )
 
         pref = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Addons")
@@ -229,9 +225,7 @@ class CommandAddonManager:
         self.dialog.buttonUpdateAll.setEnabled(False)
         self.hide_progress_widgets()
         self.dialog.buttonUpdateCache.setEnabled(False)
-        self.dialog.buttonUpdateCache.setText(
-            translate("AddonsInstaller", "Starting up...")
-        )
+        self.dialog.buttonUpdateCache.setText(translate("AddonsInstaller", "Starting up..."))
         if dev_mode_active:
             self.dialog.buttonDevTools.show()
         else:
@@ -246,9 +240,7 @@ class CommandAddonManager:
         self.dialog.buttonCheckForUpdates.clicked.connect(
             lambda: self.force_check_updates(standalone=True)
         )
-        self.dialog.buttonUpdateDependencies.clicked.connect(
-            self.show_python_updates_dialog
-        )
+        self.dialog.buttonUpdateDependencies.clicked.connect(self.show_python_updates_dialog)
         self.dialog.buttonDevTools.clicked.connect(self.show_developer_tools)
         self.packageList.itemSelected.connect(self.table_row_activated)
         self.packageList.setEnabled(False)
@@ -262,9 +254,7 @@ class CommandAddonManager:
         # center the dialog over the FreeCAD window
         mw = FreeCADGui.getMainWindow()
         self.dialog.move(
-            mw.frameGeometry().topLeft()
-            + mw.rect().center()
-            - self.dialog.rect().center()
+            mw.frameGeometry().topLeft() + mw.rect().center() - self.dialog.rect().center()
         )
 
         # set info for the progress bar:
@@ -303,81 +293,6 @@ class CommandAddonManager:
                                 ).format(worker)
                                 + "\n"
                             )
-
-    def determine_cache_update_status(self) -> None:
-        """Determine whether we need to update the cache, based on user preference, and previous
-        cache update status. Sets self.update_cache to either True or False."""
-
-        # Figure out our cache update frequency: there is a combo box in the preferences dialog
-        # with three options: never, daily, and weekly. Check that first, but allow it to be
-        # overridden by a more specific DaysBetweenUpdates selection, if the user has provided it.
-        # For that parameter we use:
-        # -1: Only manual updates (default)
-        #  0: Update every launch
-        # >0: Update every n days
-        pref = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Addons")
-        self.update_cache = False
-        update_frequency = pref.GetInt("UpdateFrequencyComboEntry", 0)
-        if update_frequency == 0:
-            days_between_updates = -1
-        elif update_frequency == 1:
-            days_between_updates = 1
-        elif update_frequency == 2:
-            days_between_updates = 7
-        days_between_updates = pref.GetInt("DaysBetweenUpdates", days_between_updates)
-        last_cache_update_string = pref.GetString("LastCacheUpdate", "never")
-        cache_path = FreeCAD.getUserCachePath()
-        am_path = os.path.join(cache_path, "AddonManager")
-        if last_cache_update_string == "never":
-            self.update_cache = True
-        elif days_between_updates > 0:
-            if hasattr(date, "fromisoformat"):
-                last_cache_update = date.fromisoformat(last_cache_update_string)
-            else:
-                # Python 3.6 and earlier don't have date.fromisoformat
-                date_re = re.compile(
-                    "([0-9]{4})-?(1[0-2]|0[1-9])-?(3[01]|0[1-9]|[12][0-9])"
-                )
-                matches = date_re.match(last_cache_update_string)
-                last_cache_update = date(
-                    int(matches.group(1)), int(matches.group(2)), int(matches.group(3))
-                )
-            delta_update = timedelta(days=days_between_updates)
-            if date.today() >= last_cache_update + delta_update:
-                self.update_cache = True
-        elif days_between_updates == 0:
-            self.update_cache = True
-        elif not os.path.isdir(am_path):
-            self.update_cache = True
-        stopfile = utils.get_cache_file_name("CACHE_UPDATE_INTERRUPTED")
-        if os.path.exists(stopfile):
-            self.update_cache = True
-            os.remove(stopfile)
-            FreeCAD.Console.PrintMessage(
-                translate(
-                    "AddonsInstaller",
-                    "Previous cache process was interrupted, restarting...\n",
-                )
-            )
-
-        # See if the user has changed the custom repos list since our last re-cache:
-        stored_hash = pref.GetString("CustomRepoHash", "")
-        custom_repos = pref.GetString("CustomRepositories", "")
-        if custom_repos:
-            hasher = hashlib.sha1()
-            hasher.update(custom_repos.encode("utf-8"))
-            new_hash = hasher.hexdigest()
-        else:
-            new_hash = ""
-        if new_hash != stored_hash:
-            stored_hash = pref.SetString("CustomRepoHash", new_hash)
-            self.update_cache = True
-            FreeCAD.Console.PrintMessage(
-                translate(
-                    "AddonsInstaller",
-                    "Custom repo list changed, forcing recache...\n",
-                )
-            )
 
     def reject(self) -> None:
         """called when the window has been closed"""
@@ -490,9 +405,7 @@ class CommandAddonManager:
             self.startup_sequence.append(self.load_macro_metadata)
         selection = pref.GetString("SelectedAddon", "")
         if selection:
-            self.startup_sequence.insert(
-                2, functools.partial(self.select_addon, selection)
-            )
+            self.startup_sequence.insert(2, functools.partial(self.select_addon, selection))
             pref.SetString("SelectedAddon", "")
         self.current_progress_region = 0
         self.number_of_progress_regions = len(self.startup_sequence)
@@ -522,9 +435,7 @@ class CommandAddonManager:
         use_cache = not self.update_cache
         if use_cache:
             if os.path.isfile(utils.get_cache_file_name("package_cache.json")):
-                with open(
-                    utils.get_cache_file_name("package_cache.json"), encoding="utf-8"
-                ) as f:
+                with open(utils.get_cache_file_name("package_cache.json"), encoding="utf-8") as f:
                     data = f.read()
                     try:
                         from_json = json.loads(data)
@@ -536,9 +447,7 @@ class CommandAddonManager:
                 use_cache = False
 
         if not use_cache:
-            self.update_cache = (
-                True  # Make sure to trigger the other cache updates, if the json
-            )
+            self.update_cache = True  # Make sure to trigger the other cache updates, if the json
             # file was missing
             self.create_addon_list_worker = CreateAddonListWorker()
             self.create_addon_list_worker.status_message.connect(self.show_information)
@@ -584,14 +493,10 @@ class CommandAddonManager:
                 cache_is_bad = False
         if cache_is_bad:
             if not self.update_cache:
-                self.update_cache = (
-                    True  # Make sure to trigger the other cache updates, if the
-                )
+                self.update_cache = True  # Make sure to trigger the other cache updates, if the
                 # json file was missing
                 self.create_addon_list_worker = CreateAddonListWorker()
-                self.create_addon_list_worker.status_message.connect(
-                    self.show_information
-                )
+                self.create_addon_list_worker.status_message.connect(self.show_information)
                 self.create_addon_list_worker.addon_repo.connect(self.add_addon_repo)
                 self.update_progress_bar(10, 100)
                 self.create_addon_list_worker.finished.connect(
@@ -630,21 +535,13 @@ class CommandAddonManager:
 
     def update_metadata_cache(self) -> None:
         if self.update_cache:
-            self.update_metadata_cache_worker = UpdateMetadataCacheWorker(
-                self.item_model.repos
-            )
-            self.update_metadata_cache_worker.status_message.connect(
-                self.show_information
-            )
+            self.update_metadata_cache_worker = UpdateMetadataCacheWorker(self.item_model.repos)
+            self.update_metadata_cache_worker.status_message.connect(self.show_information)
             self.update_metadata_cache_worker.finished.connect(
                 self.do_next_startup_phase
             )  # Link to step 4
-            self.update_metadata_cache_worker.progress_made.connect(
-                self.update_progress_bar
-            )
-            self.update_metadata_cache_worker.package_updated.connect(
-                self.on_package_updated
-            )
+            self.update_metadata_cache_worker.progress_made.connect(self.update_progress_bar)
+            self.update_metadata_cache_worker.package_updated.connect(self.on_package_updated)
             self.update_metadata_cache_worker.start()
         else:
             self.do_next_startup_phase()
@@ -655,9 +552,7 @@ class CommandAddonManager:
         am_path = os.path.join(cache_path, "AddonManager")
         utils.rmdir(am_path)
         self.dialog.buttonUpdateCache.setEnabled(False)
-        self.dialog.buttonUpdateCache.setText(
-            translate("AddonsInstaller", "Updating cache...")
-        )
+        self.dialog.buttonUpdateCache.setText(translate("AddonsInstaller", "Updating cache..."))
         self.startup()
 
         # Recaching implies checking for updates, regardless of the user's autocheck option
@@ -673,18 +568,10 @@ class CommandAddonManager:
 
     def load_macro_metadata(self) -> None:
         if self.update_cache:
-            self.load_macro_metadata_worker = CacheMacroCodeWorker(
-                self.item_model.repos
-            )
-            self.load_macro_metadata_worker.status_message.connect(
-                self.show_information
-            )
-            self.load_macro_metadata_worker.update_macro.connect(
-                self.on_package_updated
-            )
-            self.load_macro_metadata_worker.progress_made.connect(
-                self.update_progress_bar
-            )
+            self.load_macro_metadata_worker = CacheMacroCodeWorker(self.item_model.repos)
+            self.load_macro_metadata_worker.status_message.connect(self.show_information)
+            self.load_macro_metadata_worker.update_macro.connect(self.on_package_updated)
+            self.load_macro_metadata_worker.progress_made.connect(self.update_progress_bar)
             self.load_macro_metadata_worker.finished.connect(self.do_next_startup_phase)
             self.load_macro_metadata_worker.start()
         else:
@@ -699,9 +586,7 @@ class CommandAddonManager:
                 break
         if not found:
             FreeCAD.Console.PrintWarning(
-                translate(
-                    "AddonsInstaller", "Could not find addon '{}' to select\n"
-                ).format(name)
+                translate("AddonsInstaller", "Could not find addon '{}' to select\n").format(name)
             )
         self.do_next_startup_phase()
 
@@ -729,9 +614,7 @@ class CommandAddonManager:
                     self.do_next_startup_phase()
                     return
 
-        self.dialog.buttonUpdateAll.setText(
-            translate("AddonsInstaller", "Checking for updates...")
-        )
+        self.dialog.buttonUpdateAll.setText(translate("AddonsInstaller", "Checking for updates..."))
         self.packages_with_updates.clear()
         self.dialog.buttonUpdateAll.show()
         self.dialog.buttonCheckForUpdates.setDisabled(True)
@@ -758,9 +641,7 @@ class CommandAddonManager:
         """enables the update button"""
 
         if number_of_updates:
-            s = translate(
-                "AddonsInstaller", "Apply {} update(s)", "", number_of_updates
-            )
+            s = translate("AddonsInstaller", "Apply {} update(s)", "", number_of_updates)
             self.dialog.buttonUpdateAll.setText(s.format(number_of_updates))
             self.dialog.buttonUpdateAll.setEnabled(True)
         elif hasattr(self, "check_worker") and self.check_worker.isRunning():
@@ -783,9 +664,7 @@ class CommandAddonManager:
 
     def show_python_updates_dialog(self) -> None:
         if not hasattr(self, "manage_python_packages_dialog"):
-            self.manage_python_packages_dialog = PythonPackageManager(
-                self.item_model.repos
-            )
+            self.manage_python_packages_dialog = PythonPackageManager(self.item_model.repos)
         self.manage_python_packages_dialog.show()
 
     def show_developer_tools(self) -> None:
@@ -826,9 +705,7 @@ class CommandAddonManager:
                     path = repo.macro.icon
                     default_icon = QtGui.QIcon(":/icons/document-python.svg")
                 else:
-                    path = os.path.join(
-                        os.path.dirname(repo.macro.src_filename), repo.macro.icon
-                    )
+                    path = os.path.join(os.path.dirname(repo.macro.src_filename), repo.macro.icon)
                     default_icon = QtGui.QIcon(":/icons/document-python.svg")
             elif repo.macro and repo.macro.xpm:
                 cache_path = FreeCAD.getUserCachePath()
@@ -980,9 +857,7 @@ class CommandAddonManager:
         self.hide_progress_widgets()
         self.write_cache_stopfile()
         self.dialog.buttonUpdateCache.setEnabled(True)
-        self.dialog.buttonUpdateCache.setText(
-            translate("AddonsInstaller", "Refresh local cache")
-        )
+        self.dialog.buttonUpdateCache.setText(translate("AddonsInstaller", "Refresh local cache"))
 
     def write_cache_stopfile(self) -> None:
         stopfile = utils.get_cache_file_name("CACHE_UPDATE_INTERRUPTED")

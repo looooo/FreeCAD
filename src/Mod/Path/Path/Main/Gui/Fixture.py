@@ -112,10 +112,10 @@ class _ViewProviderFixture:
         vobj.setEditorMode("Transparency", mode)
         vobj.setEditorMode("Visibility", mode)
 
-    def __getstate__(self):  # mandatory
+    def dumps(self):  # mandatory
         return None
 
-    def __setstate__(self, state):  # mandatory
+    def loads(self, state):  # mandatory
         return None
 
     def getIcon(self):  # optional
@@ -150,9 +150,9 @@ class CommandPathFixture:
     def GetResources(self):
         return {
             "Pixmap": "Path_Datums",
-            "MenuText": QT_TRANSLATE_NOOP("PathFixture", "Fixture"),
+            "MenuText": QT_TRANSLATE_NOOP("Path_Fixture", "Fixture"),
             "ToolTip": QT_TRANSLATE_NOOP(
-                "PathFixture", "Creates a Fixture Offset object"
+                "Path_Fixture", "Creates a Fixture Offset"
             ),
         }
 

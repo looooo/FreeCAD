@@ -1,22 +1,24 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
 # ***************************************************************************
 # *                                                                         *
-# *   Copyright (c) 2022 FreeCAD Project Association                        *
+# *   Copyright (c) 2022-2023 FreeCAD Project Association                   *
 # *   Copyright (c) 2019 Yorik van Havre <yorik@uncreated.net>              *
 # *                                                                         *
-# *   This library is free software; you can redistribute it and/or         *
-# *   modify it under the terms of the GNU Lesser General Public            *
-# *   License as published by the Free Software Foundation; either          *
-# *   version 2.1 of the License, or (at your option) any later version.    *
+# *   This file is part of FreeCAD.                                         *
 # *                                                                         *
-# *   This library is distributed in the hope that it will be useful,       *
-# *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
-# *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
+# *   FreeCAD is free software: you can redistribute it and/or modify it    *
+# *   under the terms of the GNU Lesser General Public License as           *
+# *   published by the Free Software Foundation, either version 2.1 of the  *
+# *   License, or (at your option) any later version.                       *
+# *                                                                         *
+# *   FreeCAD is distributed in the hope that it will be useful, but        *
+# *   WITHOUT ANY WARRANTY; without even the implied warranty of            *
+# *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU      *
 # *   Lesser General Public License for more details.                       *
 # *                                                                         *
 # *   You should have received a copy of the GNU Lesser General Public      *
-# *   License along with this library; if not, write to the Free Software   *
-# *   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA         *
-# *   02110-1301  USA                                                       *
+# *   License along with FreeCAD. If not, see                               *
+# *   <https://www.gnu.org/licenses/>.                                      *
 # *                                                                         *
 # ***************************************************************************
 
@@ -38,6 +40,7 @@ from PySide import QtCore
 
 import FreeCAD
 import addonmanager_utilities as utils
+from addonmanager_metadata import MetadataReader
 from Addon import Addon
 import NetworkManager
 
@@ -73,9 +76,7 @@ class UpdateMetadataCacheWorker(QtCore.QThread):
         NetworkManager.AM_NETWORK_MANAGER.completed.connect(self.download_completed)
         self.requests_completed = 0
         self.total_requests = 0
-        self.store = os.path.join(
-            FreeCAD.getUserCachePath(), "AddonManager", "PackageMetadata"
-        )
+        self.store = os.path.join(FreeCAD.getUserCachePath(), "AddonManager", "PackageMetadata")
         FreeCAD.Console.PrintLog(f"Storing Addon Manager cache data in {self.store}\n")
         self.updated_repos = set()
 
@@ -119,9 +120,7 @@ class UpdateMetadataCacheWorker(QtCore.QThread):
 
         while self.requests:
             if current_thread.isInterruptionRequested():
-                NetworkManager.AM_NETWORK_MANAGER.completed.disconnect(
-                    self.download_completed
-                )
+                NetworkManager.AM_NETWORK_MANAGER.completed.disconnect(self.download_completed)
                 for request in self.requests:
                     NetworkManager.AM_NETWORK_MANAGER.abort(request)
                 return
@@ -134,9 +133,7 @@ class UpdateMetadataCacheWorker(QtCore.QThread):
         for repo in self.updated_repos:
             self.package_updated.emit(repo)
 
-    def download_completed(
-        self, index: int, code: int, data: QtCore.QByteArray
-    ) -> None:
+    def download_completed(self, index: int, code: int, data: QtCore.QByteArray) -> None:
         """Callback for handling a completed metadata file download."""
         if index in self.requests:
             self.requests_completed += 1
@@ -148,9 +145,7 @@ class UpdateMetadataCacheWorker(QtCore.QThread):
                     self.process_package_xml(request[0], data)
                 elif request[1] == UpdateMetadataCacheWorker.RequestType.METADATA_TXT:
                     self.process_metadata_txt(request[0], data)
-                elif (
-                    request[1] == UpdateMetadataCacheWorker.RequestType.REQUIREMENTS_TXT
-                ):
+                elif request[1] == UpdateMetadataCacheWorker.RequestType.REQUIREMENTS_TXT:
                     self.process_requirements_txt(request[0], data)
                 elif request[1] == UpdateMetadataCacheWorker.RequestType.ICON:
                     self.process_icon(request[0], data)
@@ -164,32 +159,16 @@ class UpdateMetadataCacheWorker(QtCore.QThread):
         new_xml_file = os.path.join(package_cache_directory, "package.xml")
         with open(new_xml_file, "wb") as f:
             f.write(data.data())
-        metadata = FreeCAD.Metadata(new_xml_file)
+        metadata = MetadataReader.from_file(new_xml_file)
         repo.set_metadata(metadata)
         FreeCAD.Console.PrintLog(f"Downloaded package.xml for {repo.name}\n")
         self.status_message.emit(
-            translate("AddonsInstaller", "Downloaded package.xml for {}").format(
-                repo.name
-            )
+            translate("AddonsInstaller", "Downloaded package.xml for {}").format(repo.name)
         )
 
         # Grab a new copy of the icon as well: we couldn't enqueue this earlier because
         # we didn't know the path to it, which is stored in the package.xml file.
-        icon = metadata.Icon
-        if not icon:
-            # If there is no icon set for the entire package, see if there are
-            # any workbenches, which are required to have icons, and grab the first
-            # one we find:
-            content = repo.metadata.Content
-            if "workbench" in content:
-                wb = content["workbench"][0]
-                if wb.Icon:
-                    if wb.Subdirectory:
-                        subdir = wb.Subdirectory
-                    else:
-                        subdir = wb.Name
-                    repo.Icon = subdir + wb.Icon
-                    icon = repo.Icon
+        icon = repo.get_best_icon_relative_path()
 
         icon_url = utils.construct_git_url(repo, icon)
         index = NetworkManager.AM_NETWORK_MANAGER.submit_unmonitored_get(icon_url)
@@ -231,9 +210,7 @@ class UpdateMetadataCacheWorker(QtCore.QThread):
     def process_metadata_txt(self, repo: Addon, data: QtCore.QByteArray):
         """Process the metadata.txt metadata file"""
         self.status_message.emit(
-            translate("AddonsInstaller", "Downloaded metadata.txt for {}").format(
-                repo.display_name
-            )
+            translate("AddonsInstaller", "Downloaded metadata.txt for {}").format(repo.display_name)
         )
 
         f = self._decode_data(data.data(), repo.name, "metadata.txt")
@@ -294,9 +271,7 @@ class UpdateMetadataCacheWorker(QtCore.QThread):
     def process_icon(self, repo: Addon, data: QtCore.QByteArray):
         """Convert icon data into a valid icon file and store it"""
         self.status_message.emit(
-            translate("AddonsInstaller", "Downloaded icon for {}").format(
-                repo.display_name
-            )
+            translate("AddonsInstaller", "Downloaded icon for {}").format(repo.display_name)
         )
         cache_file = repo.get_cached_icon_filename()
         with open(cache_file, "wb") as icon_file:

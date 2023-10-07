@@ -1,16 +1,9 @@
-if(MSVC)
-    add_definitions(-DFCAppPart -DHAVE_ACOSH -DHAVE_ASINH -DHAVE_ATANH)
-else(MSVC)
-    add_definitions(-DHAVE_LIMITS_H -DHAVE_CONFIG_H)
-endif(MSVC)
-
 if(FREETYPE_FOUND)
     add_definitions(-DFCUseFreeType)
 endif(FREETYPE_FOUND)
 
 include_directories(
     ${CMAKE_BINARY_DIR}
-    ${CMAKE_BINARY_DIR}/src
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_CURRENT_BINARY_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -189,6 +182,8 @@ SET(Features_SRCS
     FeatureCompound.h
     FeatureExtrusion.cpp
     FeatureExtrusion.h
+    FeatureScale.cpp
+    FeatureScale.h
     FeatureFace.cpp
     FeatureFace.h
     FeatureFillet.cpp
@@ -229,6 +224,8 @@ SET(Properties_SRCS
     PropertyTopoShape.h
     PropertyGeometryList.cpp
     PropertyGeometryList.h
+    PropertyTopoShapeList.cpp
+    PropertyTopoShapeList.h
 )
 SOURCE_GROUP("Properties" FILES ${Properties_SRCS})
 
@@ -533,6 +530,7 @@ SET(Part_SRCS
     ProgressIndicator.h
     TopoShape.cpp
     TopoShape.h
+    TopoShapeOpCode.h
     edgecluster.cpp
     edgecluster.h
     modelRefine.cpp

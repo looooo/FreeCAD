@@ -23,7 +23,7 @@
 
 __title__ = "FreeCAD FEM solver Z88 writer"
 __author__ = "Bernd Hahnebach"
-__url__ = "https://www.freecadweb.org"
+__url__ = "https://www.freecad.org"
 
 ## \addtogroup FEM
 #  @{
@@ -157,6 +157,7 @@ class FemInputWriterZ88(writerbase.FemInputWriter):
             direction_vec = femobj["Object"].DirectionVector
             for ref_shape in femobj["NodeLoadTable"]:
                 for n in sorted(ref_shape[1]):
+                    # the loads in ref_shape[1][n] are without unit
                     node_load = ref_shape[1][n]
                     if (direction_vec.x != 0.0):
                         v1 = direction_vec.x * node_load

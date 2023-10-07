@@ -30,18 +30,18 @@
 #include <QString>
 
 #include <Geom_Curve.hxx>
-#include <gp_Ax2.hxx>
-#include <gp_Dir.hxx>
-#include <gp_Dir2d.hxx>
-#include <gp_Pnt.hxx>
-#include <gp_Pnt2d.hxx>
-#include <gp_Vec.hxx>
 #include <TopoDS.hxx>
 #include <TopoDS_Edge.hxx>
 #include <TopoDS_Face.hxx>
 #include <TopoDS_Shape.hxx>
 #include <TopoDS_Vertex.hxx>
 #include <TopoDS_Wire.hxx>
+#include <gp_Ax2.hxx>
+#include <gp_Dir.hxx>
+#include <gp_Dir2d.hxx>
+#include <gp_Pnt.hxx>
+#include <gp_Pnt2d.hxx>
+#include <gp_Vec.hxx>
 
 #include <Base/Vector3D.h>
 #include <Mod/Part/App/PartFeature.h>
@@ -56,7 +56,7 @@
 #define VECTORTOLERANCE (Precision::Confusion())
 
 #define SVG_NS_URI "http://www.w3.org/2000/svg"
-#define FREECAD_SVG_NS_URI "http://www.freecadweb.org/wiki/index.php?title=Svg_Namespace"
+#define FREECAD_SVG_NS_URI "http://www.freecad.org/wiki/index.php?title=Svg_Namespace"
 
 //some shapes are being passed in where edges that should be connected are in fact
 //separated by more than 2*Precision::Confusion (expected tolerance for 2 TopoDS_Vertex)
@@ -72,7 +72,8 @@ namespace TechDraw
 {
 
 //used by sort_Edges
-struct EdgePoints {
+struct EdgePoints
+{
     gp_Pnt v1, v2;
     std::list<TopoDS_Edge>::iterator it;
     TopoDS_Edge edge;
@@ -82,9 +83,9 @@ struct EdgePoints {
 class TechDrawExport DrawUtil
 {
 public:
-    static int getIndexFromName(std::string geomName);
-    static std::string getGeomTypeFromName(std::string geomName);
-    static std::string makeGeomName(std::string geomType, int index);
+    static int getIndexFromName(const std::string& geomName);
+    static std::string getGeomTypeFromName(const std::string& geomName);
+    static std::string makeGeomName(const std::string& geomType, int index);
     static bool isSamePoint(TopoDS_Vertex v1, TopoDS_Vertex v2, double tolerance = VERTEXTOLERANCE);
     static bool isZeroEdge(TopoDS_Edge e, double tolerance = VERTEXTOLERANCE);
     static double simpleMinDist(TopoDS_Shape s1, TopoDS_Shape s2);
@@ -117,7 +118,8 @@ public:
 
     static bool vectorLess(const Base::Vector3d& v1, const Base::Vector3d& v2);
     //!std::map require comparator to be a type not a function
-    struct vectorLessType {
+    struct vectorLessType
+    {
         bool operator()(const Base::Vector3d& a, const Base::Vector3d& b) const
         {
             return DrawUtil::vectorLess(a, b);
@@ -126,8 +128,9 @@ public:
     static bool vertexEqual(TopoDS_Vertex& v1, TopoDS_Vertex& v2);
     static bool vectorEqual(Base::Vector3d& v1, Base::Vector3d& v2);
 
-    static TopoDS_Shape vectorToCompound(std::vector<TopoDS_Edge> vecIn);
-    static TopoDS_Shape vectorToCompound(std::vector<TopoDS_Wire> vecIn);
+    static TopoDS_Shape vectorToCompound(std::vector<TopoDS_Edge> vecIn, bool invert = true);
+    static TopoDS_Shape vectorToCompound(std::vector<TopoDS_Wire> vecIn, bool invert = true);
+    static TopoDS_Shape shapeVectorToCompound(std::vector<TopoDS_Shape> vecIn, bool invert = true);
     static std::vector<TopoDS_Edge> shapeToVector(TopoDS_Shape shapeIn);
 
     static Base::Vector3d toR3(const gp_Ax2& fromSystem, const Base::Vector3d& fromPoint);
@@ -171,10 +174,22 @@ public:
         return Base::Vector3d(gp.x(), gp.y(), 0.0);
     }
 
-    static gp_Pnt togp_Pnt(const Base::Vector3d v) { return gp_Pnt(v.x, v.y, v.z); }
-    static gp_Dir togp_Dir(const Base::Vector3d v) { return gp_Dir(v.x, v.y, v.z); }
-    static gp_Vec togp_Vec(const Base::Vector3d v) { return gp_Vec(v.x, v.y, v.z); }
-    static QPointF toQPointF(const Base::Vector3d v) { return QPointF(v.x, v.y); }
+    static gp_Pnt togp_Pnt(const Base::Vector3d v)
+    {
+        return gp_Pnt(v.x, v.y, v.z);
+    }
+    static gp_Dir togp_Dir(const Base::Vector3d v)
+    {
+        return gp_Dir(v.x, v.y, v.z);
+    }
+    static gp_Vec togp_Vec(const Base::Vector3d v)
+    {
+        return gp_Vec(v.x, v.y, v.z);
+    }
+    static QPointF toQPointF(const Base::Vector3d v)
+    {
+        return QPointF(v.x, v.y);
+    }
 
     static std::string shapeToString(TopoDS_Shape s);
     static TopoDS_Shape shapeFromString(std::string s);
@@ -188,6 +203,7 @@ public:
     static bool isCrazy(TopoDS_Edge e);
     static Base::Vector3d getFaceCenter(TopoDS_Face f);
     static bool circulation(Base::Vector3d A, Base::Vector3d B, Base::Vector3d C);
+    static Base::Vector3d getTrianglePoint(Base::Vector3d p1, Base::Vector3d d, Base::Vector3d p2);
     static int countSubShapes(TopoDS_Shape shape, TopAbs_ShapeEnum subShape);
     static void encodeXmlSpecialChars(std::string& inoutText);
     static std::list<TopoDS_Edge> sort_Edges(double tol3d, std::list<TopoDS_Edge>& edges);
@@ -236,6 +252,12 @@ public:
                                                       const Base::BoundBox2d& rectangle,
                                                       std::vector<Base::Vector2d>& intersections);
     static void copyFile(std::string inSpec, std::string outSpec);
+
+    static std::string translateArbitrary(std::string context, std::string baseName, std::string uniqueName);
+
+    static bool isCosmeticVertex(App::DocumentObject* owner, std::string element);
+    static bool isCosmeticEdge(App::DocumentObject* owner, std::string element);
+    static bool isCenterLine(App::DocumentObject* owner, std::string element);
 
     //debugging routines
     static void dumpVertexes(const char* text, const TopoDS_Shape& s);

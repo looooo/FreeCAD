@@ -1,39 +1,41 @@
-# -*- coding: utf-8 -*-
-
+# SPDX-License-Identifier: LGPL-2.1-or-later
 # ***************************************************************************
-# *   Copyright (c) 2022 FreeCAD Project Association                        *
 # *                                                                         *
-# *   This file is part of the FreeCAD CAx development system.              *
+# *   Copyright (c) 2022-2023 FreeCAD Project Association                   *
 # *                                                                         *
-# *   This library is free software; you can redistribute it and/or         *
-# *   modify it under the terms of the GNU Lesser General Public            *
-# *   License as published by the Free Software Foundation; either          *
-# *   version 2.1 of the License, or (at your option) any later version.    *
+# *   This file is part of FreeCAD.                                         *
 # *                                                                         *
-# *   This library is distributed in the hope that it will be useful,       *
-# *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
-# *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU     *
+# *   FreeCAD is free software: you can redistribute it and/or modify it    *
+# *   under the terms of the GNU Lesser General Public License as           *
+# *   published by the Free Software Foundation, either version 2.1 of the  *
+# *   License, or (at your option) any later version.                       *
+# *                                                                         *
+# *   FreeCAD is distributed in the hope that it will be useful, but        *
+# *   WITHOUT ANY WARRANTY; without even the implied warranty of            *
+# *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU      *
 # *   Lesser General Public License for more details.                       *
 # *                                                                         *
 # *   You should have received a copy of the GNU Lesser General Public      *
-# *   License along with this library; if not, write to the Free Software   *
-# *   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA         *
-# *   02110-1301  USA                                                       *
+# *   License along with FreeCAD. If not, see                               *
+# *   <https://www.gnu.org/licenses/>.                                      *
 # *                                                                         *
 # ***************************************************************************
 
-import unittest
 import os
+import sys
 import tempfile
-import FreeCAD
-
 from typing import Dict
+import unittest
+from unittest.mock import MagicMock
+
+sys.path.append("../../")  # So the IDE can find the
+
+import FreeCAD
 
 from addonmanager_macro import Macro
 
 
 class TestMacro(unittest.TestCase):
-
     MODULE = "test_macro"  # file name without extension
 
     def setUp(self):
@@ -184,49 +186,28 @@ static char * blarg_xpm[] = {
         return m
 
     def test_fetch_raw_code_no_data(self):
-        class MockNetworkManagerNoData:
-            def __init__(self):
-                self.fetched_url = None
-
-            def blocking_get(self, url):
-                self.fetched_url = url
-                return None
-
-        nmNoData = MockNetworkManagerNoData()
         m = Macro("Unit Test Macro")
-        Macro.network_manager = nmNoData
+        Macro.blocking_get = MagicMock(return_value=None)
         returned_data = m._fetch_raw_code(
             'rawcodeurl <a href="https://fake_url.com">Totally fake</a>'
         )
         self.assertIsNone(returned_data)
-        self.assertEqual(nmNoData.fetched_url, "https://fake_url.com")
+        m.blocking_get.assert_called_with("https://fake_url.com")
+        Macro.blocking_get = None
 
-        nmNoData.fetched_url = None
+    def test_fetch_raw_code_no_url(self):
+        m = Macro("Unit Test Macro")
+        Macro.blocking_get = MagicMock(return_value=None)
         returned_data = m._fetch_raw_code("Fake pagedata with no URL at all.")
         self.assertIsNone(returned_data)
-        self.assertIsNone(nmNoData.fetched_url)
-
-        Macro.network_manager = None
+        m.blocking_get.assert_not_called()
+        Macro.blocking_get = None
 
     def test_fetch_raw_code_with_data(self):
-        class MockNetworkManagerWithData:
-            class MockQByteArray:
-                def data(self):
-                    return "Data returned to _fetch_raw_code".encode("utf-8")
-
-            def __init__(self):
-                self.fetched_url = None
-
-            def blocking_get(self, url):
-                self.fetched_url = url
-                return MockNetworkManagerWithData.MockQByteArray()
-
-        nmWithData = MockNetworkManagerWithData()
         m = Macro("Unit Test Macro")
-        Macro.network_manager = nmWithData
+        Macro.blocking_get = MagicMock(return_value=b"Data returned to _fetch_raw_code")
         returned_data = m._fetch_raw_code(
             'rawcodeurl <a href="https://fake_url.com">Totally fake</a>'
         )
         self.assertEqual(returned_data, "Data returned to _fetch_raw_code")
-
-        Macro.network_manager = None
+        Macro.blocking_get = None

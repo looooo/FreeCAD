@@ -40,7 +40,7 @@ def get_information():
         "constraints": ["fixed", "force"],
         "solvers": ["calculix", "ccxtools"],
         "material": "multimaterial",
-        "equation": "mechanical"
+        "equations": ["mechanical"]
     }
 
 
@@ -118,7 +118,7 @@ def setup(doc=None, solvertype="ccxtools"):
         solver_obj.WorkingDir = u""
     else:
         FreeCAD.Console.PrintWarning(
-            "Not known or not supported solver type: {}. "
+            "Unknown or unsupported solver type: {}. "
             "No solver object was created.\n".format(solvertype)
         )
     if solvertype == "calculix" or solvertype == "ccxtools":
@@ -182,7 +182,7 @@ def setup(doc=None, solvertype="ccxtools"):
         (doc.Face4, "Edge4"),
         (doc.Face5, "Edge4")
     ]
-    con_force.Force = 10000.00
+    con_force.Force = "10000.00 N"
     con_force.Direction = (doc.Face1, ["Edge1"])
     con_force.Reversed = True
     analysis.addObject(con_force)

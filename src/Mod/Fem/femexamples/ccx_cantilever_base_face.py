@@ -67,7 +67,7 @@ def setup_cantilever_base_face(doc=None, solvertype="ccxtools"):
         solver_obj = ObjectsFem.makeSolverZ88(doc, "SolverZ88")
     else:
         FreeCAD.Console.PrintWarning(
-            "Not known or not supported solver type: {}. "
+            "Unknown or unsupported solver type: {}. "
             "No solver object was created.\n".format(solvertype)
         )
     if solvertype == "calculix" or solvertype == "ccxtools":
@@ -100,7 +100,7 @@ def setup_cantilever_base_face(doc=None, solvertype="ccxtools"):
     # constraint force
     con_force = ObjectsFem.makeConstraintForce(doc, "ConstraintForce")
     con_force.References = [(geom_obj, "Edge3")]
-    con_force.Force = 9000000.0  # 9'000'000 N = 9 MN
+    con_force.Force = "9000000.0 N"
     con_force.Direction = (geom_obj, ["Edge3"])
     con_force.Reversed = True
     analysis.addObject(con_force)

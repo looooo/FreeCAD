@@ -44,7 +44,7 @@ def get_information():
         "constraints": ["fixed", "pressure", "contact"],
         "solvers": ["calculix", "ccxtools"],
         "material": "solid",
-        "equation": "mechanical"
+        "equations": ["mechanical"]
     }
 
 
@@ -57,7 +57,7 @@ setup()
 
 
 See forum topic post:
-https://forum.freecadweb.org/viewtopic.php?f=18&t=20276
+https://forum.freecad.org/viewtopic.php?f=18&t=20276
 constraint contact for solid to solid mesh
 
 """
@@ -86,7 +86,7 @@ def setup(doc=None, solvertype="ccxtools"):
     )
     doc.recompute()
 
-    # top half cylinder, https://forum.freecadweb.org/viewtopic.php?f=18&t=43001#p366111
+    # top half cylinder, https://forum.freecad.org/viewtopic.php?f=18&t=43001#p366111
     top_halfcyl_obj = doc.addObject("Part::Cylinder", "TopHalfCylinder")
     top_halfcyl_obj.Radius = 30
     top_halfcyl_obj.Height = 500
@@ -123,7 +123,7 @@ def setup(doc=None, solvertype="ccxtools"):
         solver_obj.WorkingDir = u""
     else:
         FreeCAD.Console.PrintWarning(
-            "Not known or not supported solver type: {}. "
+            "Unknown or unsupported solver type: {}. "
             "No solver object was created.\n".format(solvertype)
         )
     if solvertype == "calculix" or solvertype == "ccxtools":
@@ -167,7 +167,7 @@ def setup(doc=None, solvertype="ccxtools"):
     # constraint pressure
     con_pressure = ObjectsFem.makeConstraintPressure(doc, "ConstraintPressure")
     con_pressure.References = [(geom_obj, "Face10")]
-    con_pressure.Pressure = 100.0  # Pa ? = 100 Mpa ?
+    con_pressure.Pressure = "100.0 MPa"
     con_pressure.Reversed = False
     analysis.addObject(con_pressure)
 

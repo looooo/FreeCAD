@@ -32,7 +32,7 @@ import os
 
 __title__ = "Tool Bit UI"
 __author__ = "sliptonic (Brad Collette)"
-__url__ = "https://www.freecadweb.org"
+__url__ = "https://www.freecad.org"
 __doc__ = "Task panel editor for a ToolBit"
 
 
@@ -70,10 +70,10 @@ class ViewProvider(object):
             return QtGui.QIcon(pixmap)
         return ":/icons/Path_ToolBit.svg"
 
-    def __getstate__(self):
+    def dumps(self):
         return None
 
-    def __setstate__(self, state):
+    def loads(self, state):
         return None
 
     def onDelete(self, vobj, arg2=None):

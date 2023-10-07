@@ -20,16 +20,15 @@
 # *                                                                         *
 # ***************************************************************************
 
-from __future__ import print_function
 
 from PySide import QtCore
 from PySide.QtCore import QT_TRANSLATE_NOOP
 import FreeCAD
 import Path
-import Path.Base.Util as PathUtil
 import Path.Dressup.Utils as PathDressup
 import PathScripts.PathUtils as PathUtils
 import math
+from pivy import coin
 
 # lazily loaded modules
 from lazy_loader.lazy_loader import LazyLoader
@@ -461,7 +460,7 @@ class ObjectDressup(object):
             "App::PropertyFloat",
             "Custom",
             "Dressup",
-            QT_TRANSLATE_NOOP("App::Property", "Dressup length if Incision == custom"),
+            QT_TRANSLATE_NOOP("App::Property", "Dressup length if incision is set to 'custom'"),
         )
         obj.Custom = 0.0
         obj.Proxy = self
@@ -479,10 +478,10 @@ class ObjectDressup(object):
     def onDocumentRestored(self, obj):
         obj.setEditorMode("BoneBlacklist", 2)  # hide this one
 
-    def __getstate__(self):
+    def dumps(self):
         return None
 
-    def __setstate__(self, state):
+    def loads(self, state):
         return None
 
     def theOtherSideOf(self, side):
@@ -911,7 +910,7 @@ class ObjectDressup(object):
         self.length = 0
         # boneIserted = False
 
-        for (i, thisCommand) in enumerate(obj.Base.Path.Commands):
+        for (i, thisCommand) in enumerate(PathUtils.getPathWithPlacement(obj.Base).Commands):
             # if i > 14:
             #    if lastCommand:
             #        commands.append(lastCommand)
@@ -1168,9 +1167,7 @@ class TaskPanel(object):
 
     def updateBoneList(self):
         itemList = []
-        for loc, (enabled, inaccessible, ids, zs) in PathUtil.keyValueIter(
-            self.obj.Proxy.boneStateList(self.obj)
-        ):
+        for loc, (enabled, inaccessible, ids, zs) in self.obj.Proxy.boneStateList(self.obj).items():
             lbl = "(%.2f, %.2f): %s" % (loc[0], loc[1], ",".join(str(id) for id in ids))
             item = QtGui.QListWidgetItem(lbl)
             if enabled:
@@ -1323,10 +1320,10 @@ class ViewProviderDressup(object):
         panel.setupUi()
         return True
 
-    def __getstate__(self):
+    def dumps(self):
         return None
 
-    def __setstate__(self, state):
+    def loads(self, state):
         return None
 
     def onDelete(self, arg1=None, arg2=None):

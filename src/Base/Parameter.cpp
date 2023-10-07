@@ -33,7 +33,6 @@
 #   include <xercesc/framework/MemBufFormatTarget.hpp>
 #   include <xercesc/framework/MemBufInputSource.hpp>
 #   include <xercesc/parsers/XercesDOMParser.hpp>
-#   include <xercesc/sax/ErrorHandler.hpp>
 #   include <xercesc/sax/SAXParseException.hpp>
 #   include <sstream>
 #   include <string>
@@ -54,9 +53,6 @@
 
 FC_LOG_LEVEL_INIT("Parameter", true, true)
 
-//#ifdef XERCES_HAS_CPP_NAMESPACE
-//  using namespace xercesc;
-//#endif
 
 XERCES_CPP_NAMESPACE_USE
 using namespace Base;
@@ -67,58 +63,56 @@ using namespace Base;
 //**************************************************************************
 //**************************************************************************
 // private classes declaration:
-// - DOMTreeErrorReporter
 // - StrX
 // - DOMPrintFilter
 // - DOMPrintErrorHandler
 // - XStr
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+DOMTreeErrorReporter::DOMTreeErrorReporter():
+	fSawErrors(false) {
+}
 
-
-class DOMTreeErrorReporter : public ErrorHandler
+void DOMTreeErrorReporter::warning(const SAXParseException&)
 {
-public:
-    // -----------------------------------------------------------------------
-    //  Constructors and Destructor
-    // -----------------------------------------------------------------------
-    DOMTreeErrorReporter() :
-            fSawErrors(false) {
-    }
+	//
+	// Ignore all warnings.
+	//
+}
 
-    ~DOMTreeErrorReporter() override = default;
+void DOMTreeErrorReporter::error(const SAXParseException& toCatch)
+{
+	fSawErrors = true;
+	std::cerr << "Error at file \"" << StrX(toCatch.getSystemId())
+	<< "\", line " << toCatch.getLineNumber()
+	<< ", column " << toCatch.getColumnNumber()
+	<< "\n   Message: " << StrX(toCatch.getMessage()) << std::endl;
+}
 
+void DOMTreeErrorReporter::fatalError(const SAXParseException& toCatch)
+{
+	fSawErrors = true;
+	std::cerr << "Fatal Error at file \"" << StrX(toCatch.getSystemId())
+	<< "\", line " << toCatch.getLineNumber()
+	<< ", column " << toCatch.getColumnNumber()
+	<< "\n   Message: " << StrX(toCatch.getMessage()) << std::endl;
+}
 
-    // -----------------------------------------------------------------------
-    //  Implementation of the error handler interface
-    // -----------------------------------------------------------------------
-    void warning(const SAXParseException& toCatch) override;
-    void error(const SAXParseException& toCatch) override;
-    void fatalError(const SAXParseException& toCatch) override;
-    void resetErrors() override;
+void DOMTreeErrorReporter::resetErrors()
+{
+	// No-op in this case
+}
 
-    // -----------------------------------------------------------------------
-    //  Getter methods
-    // -----------------------------------------------------------------------
-    bool getSawErrors() const;
-
-    // -----------------------------------------------------------------------
-    //  Private data members
-    //
-    //  fSawErrors
-    //      This is set if we get any errors, and is queryable via a getter
-    //      method. Its used by the main code to suppress output if there are
-    //      errors.
-    // -----------------------------------------------------------------------
-    bool    fSawErrors;
-};
-
+inline bool DOMTreeErrorReporter::getSawErrors() const
+{
+    return fSawErrors;
+}
 
 class DOMPrintFilter : public DOMLSSerializerFilter
 {
 public:
 
     /** @name Constructors */
-    DOMPrintFilter(ShowType whatToShow = DOMNodeFilter::SHOW_ALL);
+    explicit DOMPrintFilter(ShowType whatToShow = DOMNodeFilter::SHOW_ALL);
     //@{
 
     /** @name Destructors */
@@ -133,10 +127,9 @@ public:
         return fWhatToShow;
     }
 
-private:
     // unimplemented copy ctor and assignment operator
     DOMPrintFilter(const DOMPrintFilter&) = delete;
-    DOMPrintFilter & operator = (const DOMPrintFilter&);
+    DOMPrintFilter & operator = (const DOMPrintFilter&) = delete;
 
    ShowType fWhatToShow;
 };
@@ -151,20 +144,11 @@ public:
     bool handleError(const DOMError& domError) override;
     void resetErrors() {}
 
-private :
     /* Unimplemented constructors and operators */
-    DOMPrintErrorHandler(const DOMErrorHandler&);
-    void operator=(const DOMErrorHandler&);
+    explicit DOMPrintErrorHandler(const DOMErrorHandler&) = delete;
+    void operator=(const DOMErrorHandler&) = delete;
 
 };
-
-
-inline bool DOMTreeErrorReporter::getSawErrors() const
-{
-    return fSawErrors;
-}
-
-
 //**************************************************************************
 //**************************************************************************
 // ParameterManager
@@ -400,7 +384,7 @@ Base::Reference<ParameterGrp> ParameterGrp::_GetGroup(const char* Name)
         return rParamGrp;
     }
 
-    DOMElement *pcTemp;
+    DOMElement *pcTemp{};
 
     // search if Group node already there
     pcTemp = FindElement(_pGroupNode,"FCParamGroup",Name);
@@ -480,7 +464,7 @@ bool ParameterGrp::HasGroup(const char* Name) const
     if (_GroupMap.find(Name) != _GroupMap.end())
         return true;
 
-    if (_pGroupNode && FindElement(_pGroupNode,"FCParamGroup",Name) != 0)
+    if (_pGroupNode && FindElement(_pGroupNode,"FCParamGroup",Name) != nullptr)
         return true;
 
     return false;
@@ -920,17 +904,6 @@ std::vector<std::pair<std::string,double> > ParameterGrp::GetFloatMap(const char
     return vrValues;
 }
 
-void  ParameterGrp::SetBlob(const char* /*Name*/, void* /*pValue*/, long /*lLength*/)
-{
-    // not implemented so far
-    assert(0);
-}
-
-void ParameterGrp::GetBlob(const char* /*Name*/, void* /*pBuf*/, long /*lMaxLength*/, void* /*pPreset*/) const
-{
-    // not implemented so far
-    assert(0);
-}
 
 void  ParameterGrp::SetASCII(const char* Name, const char *sValue)
 {
@@ -982,16 +955,14 @@ std::string ParameterGrp::GetASCII(const char* Name, const char * pPreset) const
     // if not return preset
     if (!pcElem) {
         if (!pPreset)
-            return std::string("");
-        else
-            return std::string(pPreset);
+            return {};
+        return {pPreset};
     }
     // if yes check the value and return
     DOMNode *pcElem2 = pcElem->getFirstChild();
     if (pcElem2)
-        return std::string(StrXUTF8(pcElem2->getNodeValue()).c_str());
-    else
-        return std::string("");
+        return {StrXUTF8(pcElem2->getNodeValue()).c_str()};
+    return {};
 }
 
 std::vector<std::string> ParameterGrp::GetASCIIs(const char * sFilter) const
@@ -1087,18 +1058,6 @@ void ParameterGrp::RemoveBool(const char* Name)
     Notify(Name);
 }
 
-void ParameterGrp::RemoveBlob(const char* /*Name*/)
-{
-    /* not implemented yet
-    // check if Element in group
-    DOMElement *pcElem = FindElement(_pGroupNode,"FCGrp",Name);
-    // if not return
-    if(!pcElem)
-        return;
-    else
-        _pGroupNode->removeChild(pcElem);
-    */
-}
 
 void ParameterGrp::RemoveFloat(const char* Name)
 {
@@ -1246,7 +1205,7 @@ void ParameterGrp::Clear(bool notify)
 
     // Remove the rest of non-group nodes;
     std::vector<std::pair<ParamType, std::string>> params;
-    for (DOMNode *child = _pGroupNode->getFirstChild(), *next = child; child != 0;  child = next) {
+    for (DOMNode *child = _pGroupNode->getFirstChild(), *next = child; child != nullptr;  child = next) {
         next = next->getNextSibling();
         ParamType type = TypeValue(StrX(child->getNodeName()).c_str());
         if (type != ParamType::FCInvalid && type != ParamType::FCGroup)
@@ -1354,7 +1313,7 @@ ParameterGrp::GetParameterNames(const char * sFilter) const
     std::string Name;
 
     for (DOMNode *clChild = _pGroupNode->getFirstChild();
-            clChild != 0;  clChild = clChild->getNextSibling()) {
+            clChild != nullptr;  clChild = clChild->getNextSibling()) {
         if (clChild->getNodeType() == DOMNode::ELEMENT_NODE) {
             StrX type(clChild->getNodeName());
             ParamType Type = TypeValue(type.c_str());
@@ -1375,28 +1334,28 @@ void ParameterGrp::NotifyAll()
 {
     // get all ints and notify
     std::vector<std::pair<std::string,long> > IntMap = GetIntMap();
-    for (std::vector<std::pair<std::string,long> >::iterator It1= IntMap.begin(); It1 != IntMap.end(); ++It1)
-        Notify(It1->first.c_str());
+    for (const auto & it : IntMap)
+        Notify(it.first.c_str());
 
     // get all booleans and notify
     std::vector<std::pair<std::string,bool> > BoolMap = GetBoolMap();
-    for (std::vector<std::pair<std::string,bool> >::iterator It2= BoolMap.begin(); It2 != BoolMap.end(); ++It2)
-        Notify(It2->first.c_str());
+    for (const auto & it : BoolMap)
+        Notify(it.first.c_str());
 
     // get all Floats and notify
     std::vector<std::pair<std::string,double> > FloatMap  = GetFloatMap();
-    for (std::vector<std::pair<std::string,double> >::iterator It3= FloatMap.begin(); It3 != FloatMap.end(); ++It3)
-        Notify(It3->first.c_str());
+    for (const auto & it : FloatMap)
+        Notify(it.first.c_str());
 
     // get all strings and notify
     std::vector<std::pair<std::string,std::string> > StringMap = GetASCIIMap();
-    for (std::vector<std::pair<std::string,std::string> >::iterator It4= StringMap.begin(); It4 != StringMap.end(); ++It4)
-        Notify(It4->first.c_str());
+    for (const auto & it : StringMap)
+        Notify(it.first.c_str());
 
     // get all uints and notify
     std::vector<std::pair<std::string,unsigned long> > UIntMap = GetUnsignedMap();
-    for (std::vector<std::pair<std::string,unsigned long> >::iterator It5= UIntMap.begin(); It5 != UIntMap.end(); ++It5)
-        Notify(It5->first.c_str());
+    for (const auto & it : UIntMap)
+        Notify(it.first.c_str());
 }
 
 void ParameterGrp::_Reset()
@@ -1445,7 +1404,6 @@ static XercesDOMParser::ValSchemes    gValScheme       = XercesDOMParser::Val_Au
 /** Default construction
   */
 ParameterManager::ParameterManager()
-  : ParameterGrp(), _pDocument(nullptr), paramSerializer(nullptr)
 {
     _Manager = this;
 
@@ -1519,7 +1477,7 @@ ParameterManager::~ParameterManager()
 
 Base::Reference<ParameterManager> ParameterManager::Create()
 {
-    return Base::Reference<ParameterManager>(new ParameterManager());
+    return {new ParameterManager()};
 }
 
 void ParameterManager::Init()
@@ -1752,16 +1710,17 @@ void  ParameterManager::SaveDocument(XMLFormatTarget* pFormatTarget) const
             theOutput->setEncoding(gOutputEncoding);
 
             if (gUseFilter) {
-                myFilter.reset(new DOMPrintFilter(DOMNodeFilter::SHOW_ELEMENT   |
-                                                  DOMNodeFilter::SHOW_ATTRIBUTE |
-                                                  DOMNodeFilter::SHOW_DOCUMENT_TYPE |
-                                                  DOMNodeFilter::SHOW_TEXT
-                                                  ));
+                myFilter = std::make_unique<DOMPrintFilter>(
+                            DOMNodeFilter::SHOW_ELEMENT   |
+                            DOMNodeFilter::SHOW_ATTRIBUTE |
+                            DOMNodeFilter::SHOW_DOCUMENT_TYPE |
+                            DOMNodeFilter::SHOW_TEXT
+                           );
                 theSerializer->setFilter(myFilter.get());
             }
 
             // plug in user's own error handler
-            myErrorHandler.reset(new DOMPrintErrorHandler());
+            myErrorHandler = std::make_unique<DOMPrintErrorHandler>();
             DOMConfiguration* config = theSerializer->getDomConfig();
             config->setParameter(XMLUni::fgDOMErrorHandler, myErrorHandler.get());
 
@@ -1862,42 +1821,6 @@ void  ParameterManager::CheckDocument() const
         << std::endl
         << StrX(e.getMessage()) << std::endl;
     }
-}
-
-
-//**************************************************************************
-//**************************************************************************
-// DOMTreeErrorReporter
-//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-void DOMTreeErrorReporter::warning(const SAXParseException&)
-{
-    //
-    // Ignore all warnings.
-    //
-}
-
-void DOMTreeErrorReporter::error(const SAXParseException& toCatch)
-{
-    fSawErrors = true;
-    std::cerr << "Error at file \"" << StrX(toCatch.getSystemId())
-    << "\", line " << toCatch.getLineNumber()
-    << ", column " << toCatch.getColumnNumber()
-    << "\n   Message: " << StrX(toCatch.getMessage()) << std::endl;
-}
-
-void DOMTreeErrorReporter::fatalError(const SAXParseException& toCatch)
-{
-    fSawErrors = true;
-    std::cerr << "Fatal Error at file \"" << StrX(toCatch.getSystemId())
-    << "\", line " << toCatch.getLineNumber()
-    << ", column " << toCatch.getColumnNumber()
-    << "\n   Message: " << StrX(toCatch.getMessage()) << std::endl;
-}
-
-void DOMTreeErrorReporter::resetErrors()
-{
-    // No-op in this case
 }
 
 

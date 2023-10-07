@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
 # ***************************************************************************
 # *                                                                         *
 # *   Copyright (c) 2022 FreeCAD Project Association                        *
@@ -45,9 +46,7 @@ class LicensesTable:
             os.path.join(os.path.dirname(__file__), "developer_mode_licenses_table.ui")
         )
 
-        self.widget.addButton.setIcon(
-            QIcon.fromTheme("add", QIcon(":/icons/list-add.svg"))
-        )
+        self.widget.addButton.setIcon(QIcon.fromTheme("add", QIcon(":/icons/list-add.svg")))
         self.widget.removeButton.setIcon(
             QIcon.fromTheme("remove", QIcon(":/icons/list-remove.svg"))
         )
@@ -71,9 +70,9 @@ class LicensesTable:
         """Use the passed metadata object to populate the maintainers and authors"""
         self.widget.tableWidget.setRowCount(0)
         row = 0
-        for l in self.metadata.License:
-            shortcode = l["name"]
-            path = l["file"]
+        for lic in self.metadata.License:
+            shortcode = lic["name"]
+            path = lic["file"]
             self._add_row(row, shortcode, path)
             row += 1
 

@@ -106,7 +106,7 @@ class ViewProviderDraft(object):
                              "Draft",
                              QT_TRANSLATE_NOOP("App::Property",
                                                "Defines an SVG pattern."))
-            patterns = list(utils.svg_patterns().keys())
+            patterns = list(utils.svg_patterns())
             patterns.sort()
             vobj.Pattern = ["None"] + patterns
 
@@ -118,7 +118,7 @@ class ViewProviderDraft(object):
                                                "Defines the size of the SVG pattern."))
             vobj.PatternSize = utils.get_param("HatchPatternSize", 1)
 
-    def __getstate__(self):
+    def dumps(self):
         """Return a tuple of all serializable objects or None.
 
         When saving the document this view provider object gets stored
@@ -138,7 +138,7 @@ class ViewProviderDraft(object):
         """
         return None
 
-    def __setstate__(self, state):
+    def loads(self, state):
         """Set some internal properties for all restored objects.
 
         When a document is restored this method is used to set some properties
@@ -147,7 +147,7 @@ class ViewProviderDraft(object):
         Override this method to define the properties to change for the
         restored serialized objects.
 
-        By default no objects were serialized with `__getstate__`,
+        By default no objects were serialized with `dumps`,
         so nothing needs to be done here, and it returns `None`.
 
         Parameters
@@ -283,7 +283,7 @@ class ViewProviderDraft(object):
                             path = vobj.TextureImage
                     if not path:
                         if hasattr(vobj, "Pattern"):
-                            if str(vobj.Pattern) in list(utils.svg_patterns().keys()):
+                            if str(vobj.Pattern) in utils.svg_patterns():
                                 path = utils.svg_patterns()[vobj.Pattern][1]
                             else:
                                 path = "None"
@@ -388,18 +388,21 @@ class ViewProviderDraft(object):
         if mode == 1 or mode == 2:
             return None
 
-        tp = utils.get_type(vobj.Object)
+        # Fillet, Point, Shape2DView and PanelCut objects rely on a doubleClicked
+        # function which takes precedence over all double-click edit modes. This
+        # is a workaround as calling Gui.runCommand("Std_TransformManip") from
+        # setEdit does not work properly. The object then seems to be put into
+        # edit mode twice (?) and Esc will not cancel the command.
 
-        if tp in ("Wire", "Circle", "Ellipse", "Rectangle", "Polygon",
-                  "BSpline", "BezCurve"): # Facebinder and ShapeString objects have their own setEdit.
+        # Facebinder, ShapeString, PanelSheet and Profile objects have their own
+        # setEdit and unsetEdit.
+
+        if utils.get_type(vobj.Object) in ("Wire", "Circle", "Ellipse", "Rectangle", "Polygon",
+                                           "BSpline", "BezCurve"):
             if not "Draft_Edit" in Gui.listCommands():
                 self.wb_before_edit = Gui.activeWorkbench()
                 Gui.activateWorkbench("DraftWorkbench")
             Gui.runCommand("Draft_Edit")
-            return True
-
-        if tp in ("Fillet", "Point", "Shape2DView"):
-            Gui.runCommand("Std_TransformManip")
             return True
 
         return None
@@ -412,10 +415,8 @@ class ViewProviderDraft(object):
         if mode == 1 or mode == 2:
             return None
 
-        tp = utils.get_type(vobj.Object)
-
-        if tp in ("Wire", "Circle", "Ellipse", "Rectangle", "Polygon",
-                  "BSpline", "BezCurve"): # Facebinder and ShapeString objects have their own setEdit.
+        if utils.get_type(vobj.Object) in ("Wire", "Circle", "Ellipse", "Rectangle", "Polygon",
+                                           "BSpline", "BezCurve"):
             if hasattr(App, "activeDraftCommand") and App.activeDraftCommand:
                 App.activeDraftCommand.finish()
             Gui.Control.closeDialog()
@@ -424,16 +425,14 @@ class ViewProviderDraft(object):
                 delattr(self, "wb_before_edit")
             return True
 
-        if tp in ("Fillet", "Point", "Shape2DView"):
-            return True
-
         return None
 
     def setupContextMenu(self, vobj, menu):
         tp = utils.get_type(self.Object)
 
         if tp in ("Wire", "Circle", "Ellipse", "Rectangle", "Polygon",
-                  "BSpline", "BezCurve", "Facebinder", "ShapeString"):
+                  "BSpline", "BezCurve", "Facebinder", "ShapeString",
+                  "PanelSheet", "Profile"):
             action_edit = QtGui.QAction(translate("draft", "Edit"),
                                         menu)
             QtCore.QObject.connect(action_edit,
@@ -455,7 +454,8 @@ class ViewProviderDraft(object):
         # have to add our own `Transform` item.
         # To override the default menu this function must return `True`.
         if tp in ("Wire", "Circle", "Ellipse", "Rectangle", "Polygon",
-                  "BSpline","BezCurve", "Fillet", "Point", "Shape2DView"):
+                  "BSpline","BezCurve", "Fillet", "Point", "Shape2DView",
+                  "PanelCut", "PanelSheet", "Profile"):
             action_transform = QtGui.QAction(Gui.getIcon("Std_TransformManip.svg"),
                                              translate("Command", "Transform"), # Context `Command` instead of `draft`.
                                              menu)
@@ -540,15 +540,21 @@ class ViewProviderDraftAlt(ViewProviderDraft):
 
     The `claimChildren` method is overridden to return an empty list.
 
+    The `doubleClicked` method is defined.
+
     Only used by the `Shape2DView` object.
     """
 
     def __init__(self, vobj):
         super(ViewProviderDraftAlt, self).__init__(vobj)
 
+    def doubleClicked(self, vobj):
+        # See setEdit in ViewProviderDraft.
+        Gui.runCommand("Std_TransformManip")
+        return True
+
     def claimChildren(self):
-        objs = []
-        return objs
+        return []
 
 
 # Alias for compatibility with v0.18 and earlier

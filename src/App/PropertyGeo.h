@@ -89,6 +89,7 @@ public:
 
     void Save (Base::Writer &writer) const override;
     void Restore(Base::XMLReader &reader) override;
+    void Restore(Base::DocumentReader &reader, XERCES_CPP_NAMESPACE_QUALIFIER DOMElement *containerEl) override;
 
     Property *Copy() const override;
     void Paste(const Property &from) override;
@@ -102,7 +103,7 @@ public:
     bool getPyPathValue(const ObjectIdentifier &path, Py::Object &res) const override;
 
     virtual Base::Unit getUnit() const {
-        return Base::Unit();
+        return {};
     }
 
     bool isSame(const Property &other) const override {
@@ -248,7 +249,7 @@ class AppExport PropertyMatrix: public Property
 public:
     /**
      * A constructor.
-     * Intitialises to an identity matrix
+     * Initialises to an identity matrix
      */
     PropertyMatrix();
 
@@ -273,7 +274,7 @@ public:
     void setPyObject(PyObject *) override;
 
     void Save (Base::Writer &writer) const override;
-    void Restore(Base::XMLReader &reader) override;
+    void Restore(Base::XMLReader &reader) override;    
 
     Property *Copy() const override;
     void Paste(const Property &from) override;

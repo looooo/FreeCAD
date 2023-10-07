@@ -195,40 +195,40 @@ void TaskSectionView::setUiCommon(Base::Vector3d origin)
 
     enableAll(false);
 
-    connect(ui->leSymbol, SIGNAL(editingFinished()), this, SLOT(onIdentifierChanged()));
+    connect(ui->leSymbol, &QLineEdit::editingFinished, this, &TaskSectionView::onIdentifierChanged);
 
     //TODO: use event filter instead of keyboard tracking to capture enter/return keys
     // the UI file uses keyboardTracking = false so that a recomputation
     // will only be triggered when the arrow keys of the spinboxes are used
     //if this is not done, recomputes are triggered on each key press giving
     //unaccceptable UX
-    connect(ui->sbScale, SIGNAL(valueChanged(double)), this, SLOT(onScaleChanged()));
-    connect(ui->sbOrgX, SIGNAL(valueChanged(double)), this, SLOT(onXChanged()));
-    connect(ui->sbOrgY, SIGNAL(valueChanged(double)), this, SLOT(onYChanged()));
-    connect(ui->sbOrgZ, SIGNAL(valueChanged(double)), this, SLOT(onZChanged()));
+    connect(ui->sbScale, qOverload<double>(&QuantitySpinBox::valueChanged), this, &TaskSectionView::onScaleChanged);
+    connect(ui->sbOrgX, qOverload<double>(&QuantitySpinBox::valueChanged), this, &TaskSectionView::onXChanged);
+    connect(ui->sbOrgY, qOverload<double>(&QuantitySpinBox::valueChanged), this, &TaskSectionView::onYChanged);
+    connect(ui->sbOrgZ, qOverload<double>(&QuantitySpinBox::valueChanged), this, &TaskSectionView::onZChanged);
 
-    connect(ui->cmbScaleType, SIGNAL(currentIndexChanged(int)), this, SLOT(scaleTypeChanged(int)));
+    connect(ui->cmbScaleType, qOverload<int>(&QComboBox::currentIndexChanged), this, &TaskSectionView::scaleTypeChanged);
 
-    connect(ui->pbUp, SIGNAL(clicked(bool)), this, SLOT(onUpClicked()));
-    connect(ui->pbDown, SIGNAL(clicked(bool)), this, SLOT(onDownClicked()));
-    connect(ui->pbRight, SIGNAL(clicked(bool)), this, SLOT(onRightClicked()));
-    connect(ui->pbLeft, SIGNAL(clicked(bool)), this, SLOT(onLeftClicked()));
+    connect(ui->pbUp, &QToolButton::clicked, this, &TaskSectionView::onUpClicked);
+    connect(ui->pbDown, &QToolButton::clicked, this, &TaskSectionView::onDownClicked);
+    connect(ui->pbRight, &QToolButton::clicked, this, &TaskSectionView::onRightClicked);
+    connect(ui->pbLeft, &QToolButton::clicked, this, &TaskSectionView::onLeftClicked);
 
-    connect(ui->pbUpdateNow, SIGNAL(clicked(bool)), this, SLOT(updateNowClicked()));
-    connect(ui->cbLiveUpdate, SIGNAL(clicked(bool)), this, SLOT(liveUpdateClicked()));
+    connect(ui->pbUpdateNow, &QToolButton::clicked, this, &TaskSectionView::updateNowClicked);
+    connect(ui->cbLiveUpdate, &QToolButton::clicked, this, &TaskSectionView::liveUpdateClicked);
 
     m_compass = new CompassWidget(this);
     auto layout = ui->compassLayout;
     layout->addWidget(m_compass);
-    connect(m_compass, SIGNAL(angleChanged(double)), this, SLOT(slotChangeAngle(double)));
+    connect(m_compass, &CompassWidget::angleChanged, this, &TaskSectionView::slotChangeAngle);
 
     m_viewDirectionWidget = new VectorEditWidget(this);
     m_viewDirectionWidget->setLabel(QObject::tr("Current View Direction"));
     m_viewDirectionWidget->setToolTip(QObject::tr("The view direction in BaseView coordinates"));
     auto editLayout = ui->viewDirectionLayout;
     editLayout->addWidget(m_viewDirectionWidget);
-    connect(m_viewDirectionWidget, SIGNAL(valueChanged(Base::Vector3d)), this,
-            SLOT(slotViewDirectionChanged(Base::Vector3d)));
+    connect(m_viewDirectionWidget, &VectorEditWidget::valueChanged, this,
+            &TaskSectionView::slotViewDirectionChanged);
 }
 
 //save the start conditions
@@ -382,8 +382,6 @@ void TaskSectionView::scaleTypeChanged(int index)
         }
     }
     else {
-        Base::Console().Log("Error - TaskSectionView::scaleTypeChanged - unknown scale type: %d\n",
-                            index);
         return;
     }
 }
@@ -421,8 +419,8 @@ void TaskSectionView::updateNowClicked() { apply(true); }
 //******************************************************************************
 bool TaskSectionView::apply(bool forceUpdate)
 {
-    //    Base::Console().Message("TSV::apply() - liveUpdate: %d force: %d deferred: %d\n",
-    //                            ui->cbLiveUpdate->isChecked(), forceUpdate, m_applyDeferred);
+//    Base::Console().Message("TSV::apply() - liveUpdate: %d force: %d deferred: %d\n",
+//                            ui->cbLiveUpdate->isChecked(), forceUpdate, m_applyDeferred);
     if (!ui->cbLiveUpdate->isChecked() && !forceUpdate) {
         //nothing to do
         m_applyDeferred++;
@@ -497,16 +495,30 @@ TechDraw::DrawViewSection* TaskSectionView::createSectionView(void)
         return nullptr;
     }
 
-    std::string sectionName;
     std::string baseName = m_base->getNameInDocument();
 
     Gui::Command::openCommand(QT_TRANSLATE_NOOP("Command", "Create SectionView"));
     if (!m_section) {
-        m_sectionName = m_base->getDocument()->getUniqueObjectName("SectionView");
-        std::string sectionType = "TechDraw::DrawViewSection";
+        const std::string objectName("SectionView");
+        m_sectionName = m_base->getDocument()->getUniqueObjectName(objectName.c_str());
+        Command::doCommand(Command::Doc, "App.ActiveDocument.addObject('TechDraw::DrawViewSection', '%s')",
+                           m_sectionName.c_str());
 
-        Command::doCommand(Command::Doc, "App.ActiveDocument.addObject('%s', '%s')",
-                           sectionType.c_str(), m_sectionName.c_str());
+        // section labels (Section A-A) are not unique, and are not the same as the object name (SectionView)
+        // we pluck the generated suffix from the object name and append it to "Section" to generate
+        // unique Labels
+        QString qTemp = ui->leSymbol->text();
+        std::string temp = Base::Tools::toStdString(qTemp);
+        Command::doCommand(Command::Doc, "App.ActiveDocument.%s.SectionSymbol = '%s'",
+                           m_sectionName.c_str(), temp.c_str());
+
+        Command::doCommand(Command::Doc, "App.ActiveDocument.%s.Label = '%s'",
+                           m_sectionName.c_str(),
+                           makeSectionLabel(qTemp).c_str());
+        Command::doCommand(Command::Doc, "App.activeDocument().%s.translateLabel('DrawViewSection', 'Section', '%s')",
+              m_sectionName.c_str(), makeSectionLabel(qTemp).c_str());
+
+
         Command::doCommand(Command::Doc, "App.ActiveDocument.%s.addView(App.ActiveDocument.%s)",
                            m_savePageName.c_str(), m_sectionName.c_str());
         Command::doCommand(Command::Doc, "App.ActiveDocument.%s.BaseView = App.ActiveDocument.%s",
@@ -547,6 +559,7 @@ TechDraw::DrawViewSection* TaskSectionView::createSectionView(void)
         double rotation = requiredRotation(viewDirectionAngle);
         Command::doCommand(Command::Doc, "App.ActiveDocument.%s.Rotation = %.6f",
                            m_sectionName.c_str(), rotation);
+
     }
     Gui::Command::commitCommand();
     return m_section;
@@ -554,12 +567,13 @@ TechDraw::DrawViewSection* TaskSectionView::createSectionView(void)
 
 void TaskSectionView::updateSectionView()
 {
-    //    Base::Console().Message("TSV::updateSectionView() - m_sectionName: %s\n", m_sectionName.c_str());
+//    Base::Console().Message("TSV::updateSectionView() - m_sectionName: %s\n", m_sectionName.c_str());
     if (!isSectionValid()) {
         failNoObject();
         return;
     }
 
+    const std::string objectName("SectionView");
     Gui::Command::openCommand(QT_TRANSLATE_NOOP("Command", "Edit SectionView"));
     if (m_section) {
         Command::doCommand(Command::Doc, "App.ActiveDocument.%s.SectionDirection = '%s'",
@@ -568,13 +582,18 @@ void TaskSectionView::updateSectionView()
                            "App.ActiveDocument.%s.SectionOrigin = FreeCAD.Vector(%.3f, %.3f, %.3f)",
                            m_sectionName.c_str(), ui->sbOrgX->value().getValue(),
                            ui->sbOrgY->value().getValue(), ui->sbOrgZ->value().getValue());
+
         QString qTemp = ui->leSymbol->text();
         std::string temp = Base::Tools::toStdString(qTemp);
         Command::doCommand(Command::Doc, "App.ActiveDocument.%s.SectionSymbol = '%s'",
                            m_sectionName.c_str(), temp.c_str());
-        std::string lblText = "Section " + temp + " - " + temp;
+
         Command::doCommand(Command::Doc, "App.ActiveDocument.%s.Label = '%s'",
-                           m_sectionName.c_str(), lblText.c_str());
+                           m_sectionName.c_str(),
+                           makeSectionLabel(qTemp).c_str());
+        Command::doCommand(Command::Doc, "App.activeDocument().%s.translateLabel('DrawViewSection', 'Section', '%s')",
+              m_sectionName.c_str(), makeSectionLabel(qTemp).c_str());
+
         Command::doCommand(Command::Doc, "App.ActiveDocument.%s.Scale = %0.6f",
                            m_sectionName.c_str(), ui->sbScale->value().getValue());
         int scaleType = ui->cmbScaleType->currentIndex();
@@ -600,6 +619,15 @@ void TaskSectionView::updateSectionView()
                            m_sectionName.c_str(), rotation);
     }
     Gui::Command::commitCommand();
+}
+
+std::string TaskSectionView::makeSectionLabel(QString symbol)
+{
+    const std::string objectName("SectionView");
+    std::string uniqueSuffix{m_sectionName.substr(objectName.length(), std::string::npos)};
+    std::string uniqueLabel = "Section" + uniqueSuffix;
+    std::string temp = Base::Tools::toStdString(symbol);
+    return ( uniqueLabel + " " + temp + " - " + temp );
 }
 
 void TaskSectionView::failNoObject(void)

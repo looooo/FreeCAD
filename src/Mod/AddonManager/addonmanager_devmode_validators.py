@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
 # ***************************************************************************
 # *                                                                         *
 # *   Copyright (c) 2022 FreeCAD Project Association                        *
@@ -39,6 +40,8 @@ try:
     RegexWrapper = QRegularExpression
     RegexValidatorWrapper = QRegularExpressionValidator
 except ImportError:
+    QRegularExpressionValidator = None
+    QRegularExpression = None
     from PySide.QtGui import (
         QRegExpValidator,
     )
@@ -84,9 +87,7 @@ class PythonIdentifierValidator(QValidator):
             return QValidator.Invalid  # Includes an illegal character of some sort
 
         if keyword.iskeyword(value):
-            return (
-                QValidator.Intermediate
-            )  # They can keep typing and it might become valid
+            return QValidator.Intermediate  # They can keep typing and it might become valid
 
         return QValidator.Acceptable
 
@@ -162,4 +163,4 @@ class VersionValidator(QValidator):
             return semver_result
         if calver_result[0] == QValidator.Intermediate:
             return calver_result
-        return (QValidator.Invalid, value, position)
+        return QValidator.Invalid, value, position

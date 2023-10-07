@@ -43,7 +43,7 @@ def get_information():
         "constraints": ["fixed", "pressure"],
         "solvers": ["calculix", "ccxtools"],
         "material": "multimaterial",
-        "equation": "mechanical"
+        "equations": ["mechanical"]
     }
 
 
@@ -114,7 +114,7 @@ def setup(doc=None, solvertype="ccxtools"):
         solver_obj.WorkingDir = u""
     else:
         FreeCAD.Console.PrintWarning(
-            "Not known or not supported solver type: {}. "
+            "Unknown or unsupported solver type: {}. "
             "No solver object was created.\n".format(solvertype)
         )
     if solvertype == "calculix" or solvertype == "ccxtools":
@@ -153,7 +153,7 @@ def setup(doc=None, solvertype="ccxtools"):
     # constraint pressure
     con_pressure = ObjectsFem.makeConstraintPressure(doc, "ConstraintPressure")
     con_pressure.References = [(geom_obj, "Face11")]
-    con_pressure.Pressure = 1000.0
+    con_pressure.Pressure = "1000.0 MPa"
     con_pressure.Reversed = False
     analysis.addObject(con_pressure)
 

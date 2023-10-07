@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
 # ***************************************************************************
 # *                                                                         *
 # *   Copyright (c) 2022 FreeCAD Project Association                        *
@@ -73,19 +74,11 @@ class TestDependencyInstaller(unittest.TestCase):
 
     def setUp(self):
         self.subprocess_mock = SubprocessMock()
-        self.test_object = DependencyInstaller(
-            [], ["required_py_package"], ["optional_py_package"]
-        )
-        self.test_object._subprocess_wrapper = (
-            self.subprocess_mock.subprocess_interceptor
-        )
+        self.test_object = DependencyInstaller([], ["required_py_package"], ["optional_py_package"])
+        self.test_object._subprocess_wrapper = self.subprocess_mock.subprocess_interceptor
         self.signals_caught = []
-        self.test_object.failure.connect(
-            functools.partial(self.catch_signal, "failure")
-        )
-        self.test_object.finished.connect(
-            functools.partial(self.catch_signal, "finished")
-        )
+        self.test_object.failure.connect(functools.partial(self.catch_signal, "failure"))
+        self.test_object.finished.connect(functools.partial(self.catch_signal, "finished"))
         self.test_object.no_pip.connect(functools.partial(self.catch_signal, "no_pip"))
         self.test_object.no_python_exe.connect(
             functools.partial(self.catch_signal, "no_python_exe")

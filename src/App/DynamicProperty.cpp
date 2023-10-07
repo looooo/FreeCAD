@@ -26,6 +26,7 @@
 #include <Base/Reader.h>
 #include <Base/Tools.h>
 #include <Base/Writer.h>
+#include <Base/DocumentReader.h>
 
 #include "DynamicProperty.h"
 #include "Application.h"
@@ -322,13 +323,42 @@ Property *DynamicProperty::restore(PropertyContainer &pc,
     return addDynamicProperty(pc,TypeName, PropName, group, doc, attribute, readonly, hidden);
 }
 
+Property *DynamicProperty::restore(PropertyContainer &pc,
+        const char *PropName, const char *TypeName, Base::DocumentReader &reader, XERCES_CPP_NAMESPACE_QUALIFIER DOMElement *PropertyDOM)
+{	
+	const char* group_cstr = reader.GetAttribute(PropertyDOM,"group");
+	if(!group_cstr)
+		return nullptr;
+	
+	short attribute = 0;
+	bool readonly = false, hidden = false;
+	
+	const char* doc_cstr = reader.GetAttribute(PropertyDOM,"doc");
+	const char* attr_cstr = reader.GetAttribute(PropertyDOM,"attr");
+	
+	if(attr_cstr){
+		std::istringstream str(attr_cstr);
+		str >> attribute;
+	}
+	
+	const char* ro_cstr = reader.GetAttribute(PropertyDOM,"ro");
+	if(ro_cstr)
+		readonly = (ro_cstr[0]-48) != 0;
+		
+	const char* hide_cstr = reader.GetAttribute(PropertyDOM,"hide");
+	if(hide_cstr)
+		hidden = (hide_cstr[0]-48) != 0;
+	
+	return addDynamicProperty(pc,TypeName, PropName, group_cstr, doc_cstr, attribute, readonly, hidden);
+}
+
 DynamicProperty::PropData DynamicProperty::getDynamicPropertyData(const Property *prop) const
 {
     auto &index = props.get<1>();
     auto it = index.find(const_cast<Property*>(prop));
     if(it != index.end())
         return *it;
-    return PropData();
+    return {};
 }
 
 bool DynamicProperty::changeDynamicProperty(const Property *prop, const char *group, const char *doc) {

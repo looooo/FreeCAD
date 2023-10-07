@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
 # ***************************************************************************
 # *                                                                         *
 # *   Copyright (c) 2022 FreeCAD Project Association                        *
@@ -68,9 +69,7 @@ class ConnectionCheckerGUI(QtCore.QObject):
                 translate("AddonsInstaller", "Checking for connection to GitHub..."),
                 QtWidgets.QMessageBox.Cancel,
             )
-            self.connection_check_message.buttonClicked.connect(
-                self.cancel_network_check
-            )
+            self.connection_check_message.buttonClicked.connect(self.cancel_network_check)
             self.connection_check_message.show()
 
     def cancel_network_check(self, _):

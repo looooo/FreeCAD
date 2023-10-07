@@ -1534,8 +1534,8 @@ into its X, Y, and Z components.</translation>
     </message>
     <message>
       <location filename="../../Command.cpp" line="686"/>
-      <source>Shape splitting tools. Compsolid creation tools. OCC 6.9.0 or later is required.</source>
-      <translation>Công cụ phân chia hình. Công cụ để tạo ra các chất rắn phức tạp. Bắt buộc phải là OCC phiên bản 6.9.0 hoặc phiên bản mới hơn.</translation>
+      <source>Shape splitting and Compsolid creation tools.</source>
+      <translation type="unfinished">Shape splitting and Compsolid creation tools.</translation>
     </message>
   </context>
   <context>
@@ -2322,7 +2322,7 @@ of projection.</translation>
       <translation type="unfinished">Convert mesh</translation>
     </message>
     <message>
-      <location filename="../../TaskAttacher.cpp" line="1071"/>
+      <location filename="../../TaskAttacher.cpp" line="1077"/>
       <source>Edit attachment</source>
       <translation type="unfinished">Edit attachment</translation>
     </message>
@@ -2337,28 +2337,28 @@ of projection.</translation>
       <translation>Công cụ dựng hình Loft</translation>
     </message>
     <message>
-      <location filename="../../TaskShapeBuilder.cpp" line="256"/>
+      <location filename="../../TaskShapeBuilder.cpp" line="261"/>
       <source>Edge</source>
       <translation>Cạnh</translation>
     </message>
     <message>
-      <location filename="../../TaskShapeBuilder.cpp" line="297"/>
+      <location filename="../../TaskShapeBuilder.cpp" line="302"/>
       <source>Wire</source>
       <translation>Dây</translation>
     </message>
     <message>
-      <location filename="../../TaskShapeBuilder.cpp" line="349"/>
-      <location filename="../../TaskShapeBuilder.cpp" line="401"/>
+      <location filename="../../TaskShapeBuilder.cpp" line="354"/>
+      <location filename="../../TaskShapeBuilder.cpp" line="406"/>
       <source>Face</source>
       <translation>Mặt</translation>
     </message>
     <message>
-      <location filename="../../TaskShapeBuilder.cpp" line="464"/>
+      <location filename="../../TaskShapeBuilder.cpp" line="469"/>
       <source>Shell</source>
       <translation>Vỏ</translation>
     </message>
     <message>
-      <location filename="../../TaskShapeBuilder.cpp" line="516"/>
+      <location filename="../../TaskShapeBuilder.cpp" line="521"/>
       <source>Solid</source>
       <translation>Chất rắn</translation>
     </message>
@@ -3544,19 +3544,19 @@ during file reading (slower but higher details).</translation>
     </message>
     <message>
       <location filename="../../DlgPrimitives.ui" line="33"/>
-      <location filename="../../DlgPrimitives.cpp" line="275"/>
+      <location filename="../../DlgPrimitives.cpp" line="274"/>
       <source>Plane</source>
       <translation>Mặt phẳng</translation>
     </message>
     <message>
       <location filename="../../DlgPrimitives.ui" line="42"/>
-      <location filename="../../DlgPrimitives.cpp" line="351"/>
+      <location filename="../../DlgPrimitives.cpp" line="349"/>
       <source>Box</source>
       <translation type="unfinished">Box</translation>
     </message>
     <message>
       <location filename="../../DlgPrimitives.ui" line="51"/>
-      <location filename="../../DlgPrimitives.cpp" line="442"/>
+      <location filename="../../DlgPrimitives.cpp" line="439"/>
       <source>Cylinder</source>
       <translation>Hình trụ</translation>
     </message>
@@ -3568,55 +3568,55 @@ during file reading (slower but higher details).</translation>
     </message>
     <message>
       <location filename="../../DlgPrimitives.ui" line="69"/>
-      <location filename="../../DlgPrimitives.cpp" line="627"/>
+      <location filename="../../DlgPrimitives.cpp" line="626"/>
       <source>Sphere</source>
       <translation>Hình cầu</translation>
     </message>
     <message>
       <location filename="../../DlgPrimitives.ui" line="78"/>
-      <location filename="../../DlgPrimitives.cpp" line="732"/>
+      <location filename="../../DlgPrimitives.cpp" line="730"/>
       <source>Ellipsoid</source>
       <translation>Vật thể hình e líp</translation>
     </message>
     <message>
       <location filename="../../DlgPrimitives.ui" line="87"/>
-      <location filename="../../DlgPrimitives.cpp" line="840"/>
+      <location filename="../../DlgPrimitives.cpp" line="837"/>
       <source>Torus</source>
       <translation>Hình xuyến</translation>
     </message>
     <message>
       <location filename="../../DlgPrimitives.ui" line="96"/>
-      <location filename="../../DlgPrimitives.cpp" line="939"/>
+      <location filename="../../DlgPrimitives.cpp" line="935"/>
       <source>Prism</source>
       <translation>Lăng trụ</translation>
     </message>
     <message>
       <location filename="../../DlgPrimitives.ui" line="105"/>
-      <location filename="../../DlgPrimitives.cpp" line="1082"/>
+      <location filename="../../DlgPrimitives.cpp" line="1077"/>
       <source>Wedge</source>
       <translation>Hình nêm</translation>
     </message>
     <message>
       <location filename="../../DlgPrimitives.ui" line="114"/>
-      <location filename="../../DlgPrimitives.cpp" line="1209"/>
+      <location filename="../../DlgPrimitives.cpp" line="1203"/>
       <source>Helix</source>
       <translation>Xoắn ốc</translation>
     </message>
     <message>
       <location filename="../../DlgPrimitives.ui" line="123"/>
-      <location filename="../../DlgPrimitives.cpp" line="1299"/>
+      <location filename="../../DlgPrimitives.cpp" line="1292"/>
       <source>Spiral</source>
       <translation>Hình xoắn ốc</translation>
     </message>
     <message>
       <location filename="../../DlgPrimitives.ui" line="132"/>
-      <location filename="../../DlgPrimitives.cpp" line="1380"/>
+      <location filename="../../DlgPrimitives.cpp" line="1372"/>
       <source>Circle</source>
       <translation>Vòng tròn</translation>
     </message>
     <message>
       <location filename="../../DlgPrimitives.ui" line="141"/>
-      <location filename="../../DlgPrimitives.cpp" line="1467"/>
+      <location filename="../../DlgPrimitives.cpp" line="1458"/>
       <source>Ellipse</source>
       <translation>Hình elíp</translation>
     </message>
@@ -3627,13 +3627,13 @@ during file reading (slower but higher details).</translation>
     </message>
     <message>
       <location filename="../../DlgPrimitives.ui" line="159"/>
-      <location filename="../../DlgPrimitives.cpp" line="1645"/>
+      <location filename="../../DlgPrimitives.cpp" line="1634"/>
       <source>Line</source>
       <translation>Đường thẳng</translation>
     </message>
     <message>
       <location filename="../../DlgPrimitives.ui" line="168"/>
-      <location filename="../../DlgPrimitives.cpp" line="1545"/>
+      <location filename="../../DlgPrimitives.cpp" line="1535"/>
       <source>Regular polygon</source>
       <translation>Đa giác cân</translation>
     </message>
@@ -3871,25 +3871,25 @@ during file reading (slower but higher details).</translation>
       <translation>Điểm kết thúc</translation>
     </message>
     <message>
-      <location filename="../../DlgPrimitives.cpp" line="1744"/>
+      <location filename="../../DlgPrimitives.cpp" line="1732"/>
       <source>Vertex</source>
       <translation type="unfinished">Vertex</translation>
     </message>
     <message>
-      <location filename="../../DlgPrimitives.cpp" line="1924"/>
-      <location filename="../../DlgPrimitives.cpp" line="1934"/>
-      <location filename="../../DlgPrimitives.cpp" line="1949"/>
-      <location filename="../../DlgPrimitives.cpp" line="1953"/>
+      <location filename="../../DlgPrimitives.cpp" line="1912"/>
+      <location filename="../../DlgPrimitives.cpp" line="1922"/>
+      <location filename="../../DlgPrimitives.cpp" line="1937"/>
+      <location filename="../../DlgPrimitives.cpp" line="1941"/>
       <source>Create %1</source>
       <translation>Tạo %1</translation>
     </message>
     <message>
-      <location filename="../../DlgPrimitives.cpp" line="1925"/>
+      <location filename="../../DlgPrimitives.cpp" line="1913"/>
       <source>No active document</source>
       <translation>Không có tài liệu nào còn hiệu lực</translation>
     </message>
     <message>
-      <location filename="../../DlgPrimitives.cpp" line="2228"/>
+      <location filename="../../DlgPrimitives.cpp" line="2216"/>
       <source>&amp;Create</source>
       <translation>&amp;Tạo</translation>
     </message>
@@ -4647,62 +4647,89 @@ the sketch plane's normal vector will be used</translation>
     </message>
     <message>
       <location filename="../../SectionCutting.ui" line="254"/>
+      <location filename="../../SectionCutting.ui" line="394"/>
       <source>Color of cut face</source>
       <translation type="unfinished">Color of cut face</translation>
     </message>
     <message>
       <location filename="../../SectionCutting.ui" line="257"/>
+      <location filename="../../SectionCutting.ui" line="397"/>
       <source>Color</source>
       <translation>Màu</translation>
     </message>
     <message>
       <location filename="../../SectionCutting.ui" line="302"/>
+      <location filename="../../SectionCutting.ui" line="445"/>
       <source>If checked, the color and transparency
 will be taken from the cut objects.
-Works only if all objects have the same values.</source>
+Works only properly if all objects
+have the same values.</source>
       <translation type="unfinished">If checked, the color and transparency
 will be taken from the cut objects.
-Works only if all objects have the same values.</translation>
+Works only properly if all objects
+have the same values.</translation>
     </message>
     <message>
-      <location filename="../../SectionCutting.ui" line="307"/>
+      <location filename="../../SectionCutting.ui" line="308"/>
+      <location filename="../../SectionCutting.ui" line="451"/>
       <source>Auto</source>
       <translation>Tự động</translation>
     </message>
     <message>
-      <location filename="../../SectionCutting.ui" line="329"/>
+      <location filename="../../SectionCutting.ui" line="330"/>
+      <location filename="../../SectionCutting.ui" line="473"/>
       <source>Transparency of cut face</source>
       <translation type="unfinished">Transparency of cut face</translation>
     </message>
     <message>
-      <location filename="../../SectionCutting.ui" line="332"/>
+      <location filename="../../SectionCutting.ui" line="333"/>
+      <location filename="../../SectionCutting.ui" line="476"/>
       <source>Transparency</source>
       <translation>Tính trong suốt</translation>
     </message>
     <message>
-      <location filename="../../SectionCutting.ui" line="367"/>
+      <location filename="../../SectionCutting.ui" line="371"/>
+      <source>Allows to cut objects intersecting each other
+for the price that all cut objects
+will get the same color</source>
+      <translation type="unfinished">Allows to cut objects intersecting each other
+for the price that all cut objects
+will get the same color</translation>
+    </message>
+    <message>
+      <location filename="../../SectionCutting.ui" line="376"/>
+      <source>Cut intersecting objects</source>
+      <translation type="unfinished">Cut intersecting objects</translation>
+    </message>
+    <message>
+      <location filename="../../SectionCutting.ui" line="419"/>
+      <source>Color for all objects</source>
+      <translation type="unfinished">Color for all objects</translation>
+    </message>
+    <message>
+      <location filename="../../SectionCutting.ui" line="511"/>
       <source>Refreshes the list of visible objects</source>
       <translation type="unfinished">Refreshes the list of visible objects</translation>
     </message>
     <message>
-      <location filename="../../SectionCutting.ui" line="370"/>
+      <location filename="../../SectionCutting.ui" line="514"/>
       <source>Refresh view</source>
       <translation type="unfinished">Refresh view</translation>
     </message>
     <message>
-      <location filename="../../SectionCutting.ui" line="400"/>
+      <location filename="../../SectionCutting.ui" line="544"/>
       <source>When the dialog is closed,
 only created cuts will be visible</source>
       <translation type="unfinished">When the dialog is closed,
 only created cuts will be visible</translation>
     </message>
     <message>
-      <location filename="../../SectionCutting.ui" line="404"/>
+      <location filename="../../SectionCutting.ui" line="548"/>
       <source>Keep only cuts visible when closing</source>
       <translation type="unfinished">Keep only cuts visible when closing</translation>
     </message>
     <message>
-      <location filename="../../SectionCutting.cpp" line="429"/>
+      <location filename="../../SectionCutting.cpp" line="520"/>
       <source>Sliders are disabled for assemblies</source>
       <translation type="unfinished">Sliders are disabled for assemblies</translation>
     </message>
@@ -4710,80 +4737,80 @@ only created cuts will be visible</translation>
   <context>
     <name>PartGui::ShapeBuilderWidget</name>
     <message>
-      <location filename="../../TaskShapeBuilder.cpp" line="215"/>
+      <location filename="../../TaskShapeBuilder.cpp" line="220"/>
       <source>Unsupported</source>
       <translation type="unfinished">Unsupported</translation>
     </message>
     <message>
-      <location filename="../../TaskShapeBuilder.cpp" line="215"/>
+      <location filename="../../TaskShapeBuilder.cpp" line="220"/>
       <source>Box selection for shells is not supported</source>
       <translation type="unfinished">Box selection for shells is not supported</translation>
     </message>
     <message>
-      <location filename="../../TaskShapeBuilder.cpp" line="224"/>
-      <location filename="../../TaskShapeBuilder.cpp" line="243"/>
-      <location filename="../../TaskShapeBuilder.cpp" line="271"/>
-      <location filename="../../TaskShapeBuilder.cpp" line="312"/>
-      <location filename="../../TaskShapeBuilder.cpp" line="364"/>
-      <location filename="../../TaskShapeBuilder.cpp" line="416"/>
-      <location filename="../../TaskShapeBuilder.cpp" line="479"/>
+      <location filename="../../TaskShapeBuilder.cpp" line="229"/>
+      <location filename="../../TaskShapeBuilder.cpp" line="248"/>
+      <location filename="../../TaskShapeBuilder.cpp" line="276"/>
+      <location filename="../../TaskShapeBuilder.cpp" line="317"/>
+      <location filename="../../TaskShapeBuilder.cpp" line="369"/>
+      <location filename="../../TaskShapeBuilder.cpp" line="421"/>
+      <location filename="../../TaskShapeBuilder.cpp" line="484"/>
       <source>Wrong selection</source>
       <translation>Lựa chọn sai</translation>
     </message>
     <message>
-      <location filename="../../TaskShapeBuilder.cpp" line="224"/>
-      <location filename="../../TaskShapeBuilder.cpp" line="243"/>
+      <location filename="../../TaskShapeBuilder.cpp" line="229"/>
+      <location filename="../../TaskShapeBuilder.cpp" line="248"/>
       <source>Select two vertices</source>
       <translation>Chọn hai đỉnh</translation>
     </message>
     <message>
-      <location filename="../../TaskShapeBuilder.cpp" line="271"/>
-      <location filename="../../TaskShapeBuilder.cpp" line="364"/>
+      <location filename="../../TaskShapeBuilder.cpp" line="276"/>
+      <location filename="../../TaskShapeBuilder.cpp" line="369"/>
       <source>Select one or more edges</source>
       <translation>Chọn một hoặc nhiều cạnh</translation>
     </message>
     <message>
-      <location filename="../../TaskShapeBuilder.cpp" line="312"/>
+      <location filename="../../TaskShapeBuilder.cpp" line="317"/>
       <source>Select three or more vertices</source>
       <translation>Chọn ba hoặc nhiều đỉnh</translation>
     </message>
     <message>
-      <location filename="../../TaskShapeBuilder.cpp" line="416"/>
+      <location filename="../../TaskShapeBuilder.cpp" line="421"/>
       <source>Select two or more faces</source>
       <translation>Chọn hai hoặc nhiều mặt</translation>
     </message>
     <message>
-      <location filename="../../TaskShapeBuilder.cpp" line="479"/>
+      <location filename="../../TaskShapeBuilder.cpp" line="484"/>
       <source>Select only one part object</source>
       <translation>Chỉ chọn một phần đối tượng</translation>
     </message>
     <message>
-      <location filename="../../TaskShapeBuilder.cpp" line="531"/>
+      <location filename="../../TaskShapeBuilder.cpp" line="536"/>
       <source>Select two vertices to create an edge</source>
       <translation>Chọn hai đỉnh để tạo cạnh</translation>
     </message>
     <message>
-      <location filename="../../TaskShapeBuilder.cpp" line="538"/>
+      <location filename="../../TaskShapeBuilder.cpp" line="543"/>
       <source>Select adjacent edges</source>
       <translation type="unfinished">Select adjacent edges</translation>
     </message>
     <message>
-      <location filename="../../TaskShapeBuilder.cpp" line="545"/>
+      <location filename="../../TaskShapeBuilder.cpp" line="550"/>
       <source>Select a list of vertices</source>
       <translation>Chọn danh sách các đỉnh</translation>
     </message>
     <message>
-      <location filename="../../TaskShapeBuilder.cpp" line="552"/>
+      <location filename="../../TaskShapeBuilder.cpp" line="557"/>
       <source>Select a closed set of edges</source>
       <translation>Chọn một tập hợp các cạnh khép kín</translation>
     </message>
     <message>
-      <location filename="../../TaskShapeBuilder.cpp" line="559"/>
+      <location filename="../../TaskShapeBuilder.cpp" line="564"/>
       <source>Select adjacent faces</source>
       <translation>Chọn các mặt liền kề</translation>
     </message>
     <message>
-      <location filename="../../TaskShapeBuilder.cpp" line="566"/>
+      <location filename="../../TaskShapeBuilder.cpp" line="571"/>
       <source>All shape types can be selected</source>
       <translation>Tất cả các loại hình có thể được chọn</translation>
     </message>
@@ -4925,7 +4952,7 @@ only created cuts will be visible</translation>
     </message>
     <message>
       <location filename="../../TaskAttacher.ui" line="124"/>
-      <location filename="../../TaskAttacher.cpp" line="329"/>
+      <location filename="../../TaskAttacher.cpp" line="335"/>
       <source>Attachment Offset (in local coordinates):</source>
       <translation type="unfinished">Attachment Offset (in local coordinates):</translation>
     </message>
@@ -5006,77 +5033,77 @@ of object being attached.</translation>
       <translation>Lật mặt</translation>
     </message>
     <message>
-      <location filename="../../TaskAttacher.cpp" line="312"/>
+      <location filename="../../TaskAttacher.cpp" line="318"/>
       <source>OCC error: %1</source>
       <translation>Lỗi OCC: %1</translation>
     </message>
     <message>
-      <location filename="../../TaskAttacher.cpp" line="314"/>
+      <location filename="../../TaskAttacher.cpp" line="320"/>
       <source>unknown error</source>
       <translation>lỗi không xác định</translation>
     </message>
     <message>
-      <location filename="../../TaskAttacher.cpp" line="317"/>
+      <location filename="../../TaskAttacher.cpp" line="323"/>
       <source>Attachment mode failed: %1</source>
       <translation>Chế độ tệp đính kèm không thành công: %1</translation>
     </message>
     <message>
-      <location filename="../../TaskAttacher.cpp" line="321"/>
+      <location filename="../../TaskAttacher.cpp" line="327"/>
       <source>Not attached</source>
       <translation>Không được đính kèm</translation>
     </message>
     <message>
-      <location filename="../../TaskAttacher.cpp" line="325"/>
+      <location filename="../../TaskAttacher.cpp" line="331"/>
       <source>Attached with mode %1</source>
       <translation>Được đính kèm với chế độ %1</translation>
     </message>
     <message>
-      <location filename="../../TaskAttacher.cpp" line="329"/>
+      <location filename="../../TaskAttacher.cpp" line="335"/>
       <source>Attachment Offset (inactive - not attached):</source>
       <translation>Offset đính kèm (không hoạt động - không được đính kèm):</translation>
     </message>
     <message>
-      <location filename="../../TaskAttacher.cpp" line="626"/>
+      <location filename="../../TaskAttacher.cpp" line="632"/>
       <source>Face</source>
       <translation>Mặt</translation>
     </message>
     <message>
-      <location filename="../../TaskAttacher.cpp" line="633"/>
+      <location filename="../../TaskAttacher.cpp" line="639"/>
       <source>Edge</source>
       <translation>Cạnh</translation>
     </message>
     <message>
-      <location filename="../../TaskAttacher.cpp" line="640"/>
+      <location filename="../../TaskAttacher.cpp" line="646"/>
       <source>Vertex</source>
       <translation type="unfinished">Vertex</translation>
     </message>
     <message>
-      <location filename="../../TaskAttacher.cpp" line="705"/>
+      <location filename="../../TaskAttacher.cpp" line="711"/>
       <source>Selecting...</source>
       <translation>Đang chọn...</translation>
     </message>
     <message>
-      <location filename="../../TaskAttacher.cpp" line="709"/>
+      <location filename="../../TaskAttacher.cpp" line="715"/>
       <source>Reference%1</source>
       <translation>Tham chiếu%1</translation>
     </message>
     <message>
-      <location filename="../../TaskAttacher.cpp" line="756"/>
+      <location filename="../../TaskAttacher.cpp" line="762"/>
       <source>Not editable because rotation of AttachmentOffset is bound by expressions.</source>
       <translation type="unfinished">Not editable because rotation of AttachmentOffset is bound by expressions.</translation>
     </message>
     <message>
-      <location filename="../../TaskAttacher.cpp" line="822"/>
+      <location filename="../../TaskAttacher.cpp" line="828"/>
       <source>Reference combinations:</source>
       <translation type="unfinished">Reference combinations:</translation>
     </message>
     <message>
-      <location filename="../../TaskAttacher.cpp" line="839"/>
+      <location filename="../../TaskAttacher.cpp" line="845"/>
       <source>%1 (add %2)</source>
       <translation>%1 (thêm%2)</translation>
     </message>
     <message>
-      <location filename="../../TaskAttacher.cpp" line="844"/>
+      <location filename="../../TaskAttacher.cpp" line="850"/>
       <source>%1 (add more references)</source>
       <translation>%1 (thêm nhiều tham chiếu hơn)</translation>
     </message>
@@ -5296,7 +5323,7 @@ Individual BOP Checks:</translation>
   <context>
     <name>PartGui::TaskDlgAttacher</name>
     <message>
-      <location filename="../../TaskAttacher.cpp" line="1112"/>
+      <location filename="../../TaskAttacher.cpp" line="1118"/>
       <source>Datum dialog: Input error</source>
       <translation>Hộp thoại điểm chuẩn: Lỗi nhập</translation>
     </message>
@@ -5643,21 +5670,21 @@ trong chế độ xem 3D cho đường dẫn quét.</translation>
       <translation>Chỉnh sửa %1</translation>
     </message>
     <message>
-      <location filename="../../AppPartGui.cpp" line="224"/>
+      <location filename="../../AppPartGui.cpp" line="227"/>
       <source>Part and Part Design workbench</source>
       <translation type="unfinished">Part and Part Design workbench</translation>
     </message>
     <message>
-      <location filename="../../AppPartGui.cpp" line="225"/>
-      <location filename="../../AppPartGui.cpp" line="226"/>
-      <location filename="../../AppPartGui.cpp" line="227"/>
       <location filename="../../AppPartGui.cpp" line="228"/>
+      <location filename="../../AppPartGui.cpp" line="229"/>
+      <location filename="../../AppPartGui.cpp" line="230"/>
+      <location filename="../../AppPartGui.cpp" line="231"/>
       <source>Part/Part Design</source>
       <translation type="unfinished">Part/Part Design</translation>
     </message>
     <message>
-      <location filename="../../AppPartGui.cpp" line="229"/>
-      <location filename="../../AppPartGui.cpp" line="230"/>
+      <location filename="../../AppPartGui.cpp" line="232"/>
+      <location filename="../../AppPartGui.cpp" line="233"/>
       <source>Import-Export</source>
       <translation>Nhập-Xuất</translation>
     </message>

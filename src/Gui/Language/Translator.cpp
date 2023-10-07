@@ -95,7 +95,7 @@ using namespace Gui;
  * Q_INIT_RESOURCE(resource);
  *
  * \endcode
- * 
+ *
  * where \a resource is the name of the .qrc file. That's all!
  */
 
@@ -136,6 +136,7 @@ Translator::Translator()
     d->mapLanguageTopLevelDomain[QT_TR_NOOP("Afrikaans"            )] = "af";
     d->mapLanguageTopLevelDomain[QT_TR_NOOP("Arabic"               )] = "ar";
     d->mapLanguageTopLevelDomain[QT_TR_NOOP("Basque"               )] = "eu";
+    d->mapLanguageTopLevelDomain[QT_TR_NOOP("Belarusian"           )] = "be";
     d->mapLanguageTopLevelDomain[QT_TR_NOOP("Bulgarian"            )] = "bg";
     d->mapLanguageTopLevelDomain[QT_TR_NOOP("Catalan"              )] = "ca";
     d->mapLanguageTopLevelDomain[QT_TR_NOOP("Chinese Simplified"   )] = "zh-CN";
@@ -279,7 +280,7 @@ void Translator::setLocale(const std::string& language) const
 
 void Translator::updateLocaleChange() const
 {
-    for (auto &topLevelWidget: qApp->topLevelWidgets()) {
+    for (auto &topLevelWidget : qApp->topLevelWidgets()) {
         topLevelWidget->setLocale(QLocale());
     }
 }
@@ -344,8 +345,8 @@ void Translator::refresh()
     std::map<std::string, std::string>::iterator tld = d->mapLanguageTopLevelDomain.find(d->activatedLanguage);
     if (tld == d->mapLanguageTopLevelDomain.end())
         return; // no language activated
-    for (QStringList::iterator it = d->paths.begin(); it != d->paths.end(); ++it) {
-        QDir dir(*it);
+    for (const QString& it : d->paths) {
+        QDir dir(it);
         installQMFiles(dir, tld->second.c_str());
     }
 }
@@ -355,9 +356,9 @@ void Translator::refresh()
  */
 void Translator::removeTranslators()
 {
-    for (std::list<QTranslator*>::iterator it = d->translators.begin(); it != d->translators.end(); ++it) {
-        qApp->removeTranslator(*it);
-        delete *it;
+    for (QTranslator* it : d->translators) {
+        qApp->removeTranslator(it);
+        delete it;
     }
 
     d->translators.clear();
@@ -395,6 +396,10 @@ bool Translator::eventFilter(QObject* obj, QEvent* ev)
 
 void Translator::enableDecimalPointConversion(bool on)
 {
+    if (!qApp) {
+        return;
+    }
+
     if (!on) {
         decimalPointConverter.reset();
         return;
@@ -412,6 +417,11 @@ void Translator::enableDecimalPointConversion(bool on)
         );
         qApp->installEventFilter(decimalPointConverter.get());
     }
+}
+
+bool Translator::isEnabledDecimalPointConversion() const
+{
+    return static_cast<bool>(decimalPointConverter);
 }
 
 #include "moc_Translator.cpp"

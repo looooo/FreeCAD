@@ -33,7 +33,7 @@ import re
 
 __title__ = "Property Bag Editor"
 __author__ = "sliptonic (Brad Collette)"
-__url__ = "https://www.freecadweb.org"
+__url__ = "https://www.freecad.org"
 __doc__ = "Task panel editor for a PropertyBag"
 
 if False:
@@ -65,10 +65,10 @@ class ViewProvider(object):
     def getIcon(self):
         return ":/icons/Path-SetupSheet.svg"
 
-    def __getstate__(self):
+    def dumps(self):
         return None
 
-    def __setstate__(self, state):
+    def loads(self, state):
         return None
 
     def getDisplayMode(self, mode):

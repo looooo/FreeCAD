@@ -48,7 +48,7 @@ class TaskSectionView : public QWidget
 public:
     explicit TaskSectionView(TechDraw::DrawViewPart* base);
     explicit TaskSectionView(TechDraw::DrawViewSection* section);
-    ~TaskSectionView() = default;
+    ~TaskSectionView() override = default;
 
     virtual bool accept();
     virtual bool reject();
@@ -94,6 +94,7 @@ protected Q_SLOTS:
 
 private:
     double requiredRotation(double inputAngle);
+    std::string makeSectionLabel(QString symbol);
 
     std::unique_ptr<Ui_TaskSectionView> ui;
     TechDraw::DrawViewPart* m_base;

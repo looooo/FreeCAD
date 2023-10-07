@@ -59,10 +59,7 @@ Measurement::Measurement()
     References3D.setScope(App::LinkScope::Global);
 }
 
-Measurement::~Measurement()
-{
-
-}
+Measurement::~Measurement() = default;
 
 void Measurement::clear()
 {
@@ -128,7 +125,7 @@ MeasureType Measurement::getType()
             }
             catch (Standard_Failure& e) {
                 std::stringstream errorMsg;
-        
+
                 errorMsg << "Measurement - getType - " << e.GetMessageString() << std::endl;
                 throw Base::CADKernelError(e.GetMessageString());
             }

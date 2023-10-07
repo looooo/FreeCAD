@@ -39,7 +39,7 @@ from PySide import QtCore, QtGui
 
 __title__ = "Path Operation UI base classes"
 __author__ = "sliptonic (Brad Collette)"
-__url__ = "https://www.freecadweb.org"
+__url__ = "https://www.freecad.org"
 __doc__ = "Base classes and framework for Path operation's UI"
 
 translate = FreeCAD.Qt.translate
@@ -135,8 +135,8 @@ class ViewProvider(object):
         if self.panel:
             self.panel.reject(False)
 
-    def __getstate__(self):
-        """__getstate__() ... callback before receiver is saved to a file.
+    def dumps(self):
+        """dumps() ... callback before receiver is saved to a file.
         Returns a dictionary with the receiver's resources as strings."""
         Path.Log.track()
         state = {}
@@ -146,9 +146,9 @@ class ViewProvider(object):
         state["OpPageClass"] = self.OpPageClass
         return state
 
-    def __setstate__(self, state):
-        """__setstate__(state) ... callback on restoring a saved instance, pendant to __getstate__()
-        state is the dictionary returned by __getstate__()."""
+    def loads(self, state):
+        """loads(state) ... callback on restoring a saved instance, pendant to dumps()
+        state is the dictionary returned by dumps()."""
         self.OpName = state["OpName"]
         self.OpIcon = state["OpIcon"]
         self.OpPageModule = state["OpPageModule"]
@@ -635,13 +635,13 @@ class TaskPanelBaseGeometryPage(TaskPanelPage):
         opLabel = str(self.form.geometryImportList.currentText())
         ops = FreeCAD.ActiveDocument.getObjectsByLabel(opLabel)
         if len(ops) > 1:
-            msg = translate("PathOp", "Mulitiple operations are labeled as")
+            msg = translate("PathOp", "Multiple operations are labeled as")
             msg += " {}\n".format(opLabel)
             FreeCAD.Console.PrintWarning(msg)
-        (base, subList) = ops[0].Base[0]
-        FreeCADGui.Selection.clearSelection()
-        FreeCADGui.Selection.addSelection(base, subList)
-        self.addBase()
+        for base, subList in ops[0].Base:
+            FreeCADGui.Selection.clearSelection()
+            FreeCADGui.Selection.addSelection(base, subList)
+            self.addBase()
 
     def registerSignalHandlers(self, obj):
         self.form.baseList.itemSelectionChanged.connect(self.itemActivated)

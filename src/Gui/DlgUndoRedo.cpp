@@ -50,10 +50,7 @@ UndoDialog::UndoDialog( QWidget* parent )
 /**
  *  Destroys the object and frees any allocated resources.
  */
-UndoDialog::~UndoDialog()
-{
-    // no need to delete child widgets, Qt does it all for us
-}
+UndoDialog::~UndoDialog() = default;
 
 /**
  *  This method fetches the undo / redo information from the
@@ -66,8 +63,9 @@ void UndoDialog::onFetchInfo()
     MDIView* mdi =  getMainWindow()->activeWindow();
     if (mdi) {
         QStringList vecUndos = mdi->undoActions();
-        for (QStringList::Iterator i = vecUndos.begin(); i != vecUndos.end(); ++i)
-            addAction(*i, this, SLOT(onSelected()));
+        for (QStringList::Iterator i = vecUndos.begin(); i != vecUndos.end(); ++i) {
+            addAction(*i, this, &UndoDialog::onSelected);
+        }
     }
 }
 
@@ -98,10 +96,7 @@ RedoDialog::RedoDialog( QWidget* parent )
 /**
  *  Destroys the object and frees any allocated resources.
  */
-RedoDialog::~RedoDialog()
-{
-    // no need to delete child widgets, Qt does it all for us
-}
+RedoDialog::~RedoDialog() = default;
 
 /**
  *  This method fetches the undo / redo information from the
@@ -114,8 +109,9 @@ void RedoDialog::onFetchInfo()
     MDIView* mdi = getMainWindow()->activeWindow();
     if (mdi) {
         QStringList vecRedos = mdi->redoActions();
-        for (QStringList::Iterator i = vecRedos.begin(); i != vecRedos.end(); ++i)
-            addAction(*i, this, SLOT(onSelected()));
+        for (QStringList::Iterator i = vecRedos.begin(); i != vecRedos.end(); ++i) {
+            addAction(*i, this, &RedoDialog::onSelected);
+        }
     }
 }
 

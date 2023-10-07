@@ -89,6 +89,7 @@
 #include <boost/filesystem/path.hpp>
 #include <boost/filesystem/operations.hpp>
 #include <boost/interprocess/sync/file_lock.hpp>
+#include <boost/math/constants/constants.hpp>
 #include <boost/program_options.hpp>
 #include <boost/utility.hpp>
 
@@ -96,8 +97,9 @@
 #include <xercesc/util/TranscodingException.hpp>
 #include <xercesc/util/XMLString.hpp>
 
-#include "InventorAll.h"
+// Keep this order to avoid compiler warnings
 #include "QtAll.h"
+#include "InventorAll.h"
 
 #elif defined(FC_OS_WIN32)
 #include <windows.h>

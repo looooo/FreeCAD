@@ -69,10 +69,10 @@ class ObjectDressup:
         obj.AxisMap = "Y->A"
         obj.Proxy = self
 
-    def __getstate__(self):
+    def dumps(self):
         return None
 
-    def __setstate__(self, state):
+    def loads(self, state):
         return None
 
     def _linear2angular(self, radius, length):
@@ -114,7 +114,7 @@ class ObjectDressup:
             if obj.Base.isDerivedFrom("Path::Feature"):
                 if obj.Base.Path:
                     if obj.Base.Path.Commands:
-                        pp = obj.Base.Path.Commands
+                        pp = PathUtils.getPathWithPlacement(obj.Base).Commands
                         if len([i for i in pp if i.Name in Path.Geom.CmdMoveArc]) == 0:
                             pathlist = pp
                         else:
@@ -239,10 +239,10 @@ class ViewProviderDressup:
     def claimChildren(self):
         return [self.obj.Base]
 
-    def __getstate__(self):
+    def dumps(self):
         return None
 
-    def __setstate__(self, state):
+    def loads(self, state):
         return None
 
     def onDelete(self, arg1=None, arg2=None):

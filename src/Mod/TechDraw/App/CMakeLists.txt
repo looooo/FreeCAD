@@ -1,9 +1,3 @@
-if(MSVC)
-    add_definitions(-DFCAppTechDraw -DHAVE_ACOSH -DHAVE_ASINH -DHAVE_ATANH)
-else(MSVC)
-    add_definitions(-DHAVE_LIMITS_H -DHAVE_CONFIG_H -DHAVE_ACOSH -DHAVE_ATANH -DHAVE_ASINH)
-endif(MSVC)
-
 include_directories(
     ${CMAKE_BINARY_DIR}
     ${CMAKE_BINARY_DIR}/src
@@ -24,15 +18,13 @@ set(TechDrawLIBS
     Part
     Spreadsheet
     Import
+    PartDesign
 )
 
 if(FREECAD_QT_MAJOR_VERSION EQUAL 5)
     include_directories(
         ${QtXmlPatterns_INCLUDE_DIRS}
     )
-else()
-    # This is deprecated as of Qt 5.13, and removed in Qt 6
-    message(WARNING "TechDraw relies on the now-removed Qt XMLPatterns package, and must be refactored to compile against Qt6.")
 endif()
 
 include_directories(
@@ -114,6 +106,8 @@ SET(Draw_SRCS
     DimensionReferences.h
     DimensionFormatter.cpp
     DimensionFormatter.h
+    GeometryMatcher.cpp
+    GeometryMatcher.h
     DrawViewBalloon.cpp
     DrawViewBalloon.h
     DrawViewSection.cpp
@@ -136,8 +130,6 @@ SET(Draw_SRCS
     DrawLeaderLine.h
     DrawRichAnno.cpp
     DrawRichAnno.h
-    QDomNodeModel.cpp
-    QDomNodeModel.h
     DrawTile.cpp
     DrawTile.h
     DrawTileWeld.cpp
@@ -175,6 +167,8 @@ SET(TechDraw_SRCS
     TechDrawExport.h
     ProjectionAlgos.cpp
     ProjectionAlgos.h
+    XMLQuery.cpp
+    XMLQuery.h
 )
 
 SET(Geometry_SRCS
@@ -182,8 +176,14 @@ SET(Geometry_SRCS
     Geometry.h
     GeometryObject.cpp
     GeometryObject.h
+    ShapeUtils.cpp
+    ShapeUtils.h
+    CenterLine.cpp
+    CenterLine.h
     Cosmetic.cpp
     Cosmetic.h
+    CosmeticVertex.cpp
+    CosmeticVertex.h
     PropertyGeomFormatList.cpp
     PropertyGeomFormatList.h
     PropertyCenterLineList.cpp

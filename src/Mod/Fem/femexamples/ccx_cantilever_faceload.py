@@ -37,7 +37,7 @@ def get_information():
         "constraints": ["fixed", "force"],
         "solvers": ["calculix", "ccxtools", "elmer", "mystran", "z88"],
         "material": "solid",
-        "equation": "mechanical"
+        "equations": ["mechanical"]
     }
 
 
@@ -73,7 +73,7 @@ def setup(doc=None, solvertype="ccxtools"):
     # constraint force
     con_force = ObjectsFem.makeConstraintForce(doc, "ConstraintForce")
     con_force.References = [(geom_obj, "Face2")]
-    con_force.Force = 9000000.0
+    con_force.Force = "9000000.0 N"
     con_force.Direction = (geom_obj, ["Edge5"])
     con_force.Reversed = True
     analysis.addObject(con_force)

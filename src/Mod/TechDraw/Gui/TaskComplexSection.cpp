@@ -169,9 +169,7 @@ void TaskComplexSection::setUiPrimary()
     //don't allow updates until a direction is picked
     ui->pbUpdateNow->setEnabled(false);
     ui->cbLiveUpdate->setEnabled(false);
-    QString msgLiteral =
-        QString::fromUtf8(QT_TRANSLATE_NOOP("TaskComplexSection", "No direction set"));
-    ui->lPendingUpdates->setText(msgLiteral);
+    ui->lPendingUpdates->setText(tr("No direction set"));
 }
 
 void TaskComplexSection::setUiEdit()
@@ -220,24 +218,23 @@ void TaskComplexSection::setUiCommon()
     editLayout->addWidget(m_viewDirectionWidget);
 
 
-    connect(m_compass, SIGNAL(angleChanged(double)), this, SLOT(slotChangeAngle(double)));
+    connect(m_compass, &CompassWidget::angleChanged, this, &TaskComplexSection::slotChangeAngle);
 
-    connect(ui->pbUp, SIGNAL(clicked(bool)), this, SLOT(onUpClicked()));
-    connect(ui->pbDown, SIGNAL(clicked(bool)), this, SLOT(onDownClicked()));
-    connect(ui->pbRight, SIGNAL(clicked(bool)), this, SLOT(onRightClicked()));
-    connect(ui->pbLeft, SIGNAL(clicked(bool)), this, SLOT(onLeftClicked()));
+    connect(ui->pbUp, &QPushButton::clicked, this, &TaskComplexSection::onUpClicked);
+    connect(ui->pbDown, &QPushButton::clicked, this, &TaskComplexSection::onDownClicked);
+    connect(ui->pbRight, &QPushButton::clicked, this, &TaskComplexSection::onRightClicked);
+    connect(ui->pbLeft, &QPushButton::clicked, this, &TaskComplexSection::onLeftClicked);
 
-    connect(ui->pbUpdateNow, SIGNAL(clicked(bool)), this, SLOT(updateNowClicked()));
-    connect(ui->cbLiveUpdate, SIGNAL(clicked(bool)), this, SLOT(liveUpdateClicked()));
+    connect(ui->pbUpdateNow, &QPushButton::clicked, this, &TaskComplexSection::updateNowClicked);
+    connect(ui->cbLiveUpdate, &QCheckBox::clicked, this, &TaskComplexSection::liveUpdateClicked);
 
-    connect(ui->pbSectionObjects, SIGNAL(clicked()), this,
-            SLOT(onSectionObjectsUseSelectionClicked()));
-    connect(ui->pbProfileObject, SIGNAL(clicked()), this,
-            SLOT(onProfileObjectsUseSelectionClicked()));
+    connect(ui->pbSectionObjects, &QPushButton::clicked, this,
+            &TaskComplexSection::onSectionObjectsUseSelectionClicked);
+    connect(ui->pbProfileObject, &QPushButton::clicked, this,
+            &TaskComplexSection::onProfileObjectsUseSelectionClicked);
 
-    connect(m_compass, SIGNAL(angleChanged(double)), this, SLOT(slotChangeAngle(double)));
-    connect(m_viewDirectionWidget, SIGNAL(valueChanged(Base::Vector3d)), this,
-            SLOT(slotViewDirectionChanged(Base::Vector3d)));
+    connect(m_viewDirectionWidget, &VectorEditWidget::valueChanged, this,
+            &TaskComplexSection::slotViewDirectionChanged);
 }
 
 //save the start conditions
@@ -414,8 +411,6 @@ void TaskComplexSection::scaleTypeChanged(int index)
         }
     }
     else {
-        Base::Console().Log(
-            "Error - TaskComplexSection::scaleTypeChanged - unknown scale type: %d\n", index);
         return;
     }
 }
@@ -561,21 +556,24 @@ void TaskComplexSection::createComplexSection()
 
     Gui::Command::openCommand(QT_TRANSLATE_NOOP("Command", "Create ComplexSection"));
     if (!m_section) {
-        m_sectionName = m_page->getDocument()->getUniqueObjectName("ComplexSection");
-        std::string sectionType = "TechDraw::DrawComplexSection";
+        const std::string objectName{QT_TR_NOOP("ComplexSection")};
+        m_sectionName = m_page->getDocument()->getUniqueObjectName(objectName.c_str());
+        Command::doCommand(Command::Doc, "App.ActiveDocument.addObject('TechDraw::DrawComplexSection', '%s')",
+                           m_sectionName.c_str());
 
-        Command::doCommand(Command::Doc, "App.ActiveDocument.addObject('%s', '%s')",
-                           sectionType.c_str(), m_sectionName.c_str());
-        Command::doCommand(Command::Doc, "App.ActiveDocument.%s.addView(App.ActiveDocument.%s)",
-                           m_page->getNameInDocument(), m_sectionName.c_str());
-
+        // section labels (Section A-A) are not unique, and are not the same as the object name (SectionView)
+        // we pluck the generated suffix from the object name and append it to "Section" to generate
+        // unique Labels
         QString qTemp = ui->leSymbol->text();
         std::string temp = Base::Tools::toStdString(qTemp);
         Command::doCommand(Command::Doc, "App.ActiveDocument.%s.SectionSymbol = '%s'",
                            m_sectionName.c_str(), temp.c_str());
-        std::string lblText = "Section " + temp + " - " + temp;
+
         Command::doCommand(Command::Doc, "App.ActiveDocument.%s.Label = '%s'",
-                           m_sectionName.c_str(), lblText.c_str());
+                           m_sectionName.c_str(),
+                           makeSectionLabel(qTemp).c_str());
+        Command::doCommand(Command::Doc, "App.ActiveDocument.%s.addView(App.ActiveDocument.%s)",
+                           m_page->getNameInDocument(), m_sectionName.c_str());
 
         Command::doCommand(Command::Doc, "App.ActiveDocument.%s.Scale = %0.6f",
                            m_sectionName.c_str(), ui->sbScale->value());
@@ -630,6 +628,7 @@ void TaskComplexSection::createComplexSection()
         double rotation = requiredRotation(viewDirectionAngle);
         Command::doCommand(Command::Doc, "App.ActiveDocument.%s.Rotation = %.6f",
                            m_sectionName.c_str(), rotation);
+
     }
     Gui::Command::commitCommand();
 }
@@ -648,9 +647,12 @@ void TaskComplexSection::updateComplexSection()
         std::string temp = Base::Tools::toStdString(qTemp);
         Command::doCommand(Command::Doc, "App.ActiveDocument.%s.SectionSymbol = '%s'",
                            m_sectionName.c_str(), temp.c_str());
-        std::string lblText = "Section " + temp + " - " + temp;
+
         Command::doCommand(Command::Doc, "App.ActiveDocument.%s.Label = '%s'",
-                           m_sectionName.c_str(), lblText.c_str());
+                           m_sectionName.c_str(),
+                           makeSectionLabel(qTemp).c_str());
+        Command::doCommand(Command::Doc, "App.activeDocument().%s.translateLabel('DrawViewSection', 'Section', '%s')",
+              m_sectionName.c_str(), makeSectionLabel(qTemp).c_str());
 
         Command::doCommand(Command::Doc, "App.ActiveDocument.%s.Scale = %0.6f",
                            m_sectionName.c_str(), ui->sbScale->value());
@@ -683,6 +685,15 @@ void TaskComplexSection::updateComplexSection()
                            m_sectionName.c_str(), rotation);
     }
     Gui::Command::commitCommand();
+}
+
+std::string TaskComplexSection::makeSectionLabel(QString symbol)
+{
+    const std::string objectName{QT_TR_NOOP("ComplexSection")};
+    std::string uniqueSuffix{m_sectionName.substr(objectName.length(), std::string::npos)};
+    std::string uniqueLabel = "Section" + uniqueSuffix;
+    std::string temp = Base::Tools::toStdString(symbol);
+    return ( uniqueLabel + " " + temp + " - " + temp );
 }
 
 void TaskComplexSection::failNoObject(void)

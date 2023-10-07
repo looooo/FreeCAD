@@ -22,7 +22,7 @@
 
 #include "PreCompiled.h"
 #ifndef _PreComp_
-# include <sstream>
+#include <sstream>
 #endif
 
 #include <Base/Exception.h>
@@ -31,8 +31,8 @@
 #include <Interface_Static.hxx>
 #include <Message_Messenger.hxx>
 #include <Message_PrinterOStream.hxx>
-#include <Standard_Version.hxx>
 #include <STEPControl_Reader.hxx>
+#include <Standard_Version.hxx>
 #include <StepData_StepModel.hxx>
 
 #include "StepShape.h"
@@ -40,14 +40,9 @@
 
 using namespace Import;
 
-StepShape::StepShape()
-{
-}
+StepShape::StepShape() = default;
 
-
-StepShape::~StepShape()
-{
-}
+StepShape::~StepShape() = default;
 
 int StepShape::read(const char* fileName)
 {
@@ -65,25 +60,13 @@ int StepShape::read(const char* fileName)
         throw Base::FileException("Cannot open STEP file");
     }
 
-    //Standard_Integer ic = Interface_Static::IVal("read.precision.mode");
-    //Standard_Real rp = Interface_Static::RVal("read.maxprecision.val");
-    //Standard_Integer ic = Interface_Static::IVal("read.maxprecision.mode");
-    //Standard_Integer mv = Interface_Static::IVal("read.stdsameparameter.mode");
-    //Standard_Integer rp = Interface_Static::IVal("read.surfacecurve.mode");
-    //Standard_Real era = Interface_Static::RVal("read.encoderegularity.angle");
-    //Standard_Integer ic = Interface_Static::IVal("read.step.product.mode");
-    //Standard_Integer ic = Interface_Static::IVal("read.step.product.context");
-    //Standard_Integer ic = Interface_Static::IVal("read.step.shape.repr");
-    //Standard_Integer ic = Interface_Static::IVal("read.step.assembly.level");
-    //Standard_Integer ic = Interface_Static::IVal("read.step.shape.relationship");
-    //Standard_Integer ic = Interface_Static::IVal("read.step.shape.aspect");
 
     Handle(TColStd_HSequenceOfTransient) list = aReader.GiveList();
 
-    //Use method StepData_StepModel::NextNumberForLabel to find its rank with the following:
-    //Standard_CString label = "#...";
+    // Use method StepData_StepModel::NextNumberForLabel to find its rank with the following:
+    // Standard_CString label = "#...";
     Handle(StepData_StepModel) model = aReader.StepModel();
-    //rank = model->NextNumberForLabe(label, 0, Standard_False);
+
 
     std::cout << "dump of step header:" << std::endl;
 #if OCC_VERSION_HEX < 0x070401
@@ -94,15 +77,15 @@ int StepShape::read(const char* fileName)
     model->DumpHeader(std::cout);
 #endif
 
-    for (int nent=1;nent<=model->NbEntities();nent++) {
-      Handle(Standard_Transient) entity=model->Entity(nent);
-      std::cout << "label entity " << nent << ":" ;
+    for (int nent = 1; nent <= model->NbEntities(); nent++) {
+        Handle(Standard_Transient) entity = model->Entity(nent);
+        std::cout << "label entity " << nent << ":";
 #if OCC_VERSION_HEX < 0x070401
-      model->PrintLabel(entity, msg);
+        model->PrintLabel(entity, msg);
 #else
-      model->PrintLabel(entity, std::cout);
+        model->PrintLabel(entity, std::cout);
 #endif
-      std::cout << ";"<< entity->DynamicType()->Name() << std::endl;
+        std::cout << ";" << entity->DynamicType()->Name() << std::endl;
     }
 
     return 0;

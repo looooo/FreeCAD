@@ -42,6 +42,10 @@
 # include <gp_Circ.hxx>
 # include <gp_Elips.hxx>
 # include <gp_Pnt.hxx>
+# include <gp_Pnt2d.hxx>
+# include <Geom_Plane.hxx>
+# include <Geom2d_Curve.hxx>
+# include <Geom2dAPI_ProjectPointOnCurve.hxx>
 # include <TopExp.hxx>
 # include <TopExp_Explorer.hxx>
 # include <TopoDS_Edge.hxx>
@@ -55,7 +59,11 @@
 #include <Base/Quantity.h>
 #include <Base/Tools.h>
 #include <Base/UnitsApi.h>
+
 #include <Mod/Measure/App/Measurement.h>
+#include <Mod/Part/App/Geometry.h>
+#include <Mod/Part/App/TopoShape.h>
+
 #include <Mod/TechDraw/App/DrawViewDimensionPy.h> // generated from DrawViewDimensionPy.xml
 
 #include "DrawViewDimension.h"
@@ -63,10 +71,12 @@
 #include "DrawUtil.h"
 #include "DrawViewPart.h"
 #include "Geometry.h"
+#include "GeometryMatcher.h"
 #include "Preferences.h"
 
-
 using namespace TechDraw;
+using namespace Part;
+using DU = DrawUtil;
 
 //===========================================================================
 // DrawViewDimension
@@ -135,6 +145,9 @@ DrawViewDimension::DrawViewDimension()
     ADD_PROPERTY_TYPE(LineAngle, (0.0), "Override", App::Prop_Output, "Dimension line angle");
     ADD_PROPERTY_TYPE(ExtensionAngle, (0.0), "Override", App::Prop_Output, "Extension line angle");
 
+    ADD_PROPERTY_TYPE(SavedGeometry, ()  ,"References",(App::PropertyType)(App::Prop_None),"Reference Geometry");
+    SavedGeometry.setOrderRelevant(true);
+
     // hide the DrawView properties that don't apply to Dimensions
     ScaleType.setStatus(App::Property::ReadOnly, true);
     ScaleType.setStatus(App::Property::Hidden, true);
@@ -158,7 +171,8 @@ DrawViewDimension::DrawViewDimension()
     resetAngular();
     resetArc();
     m_hasGeometry = false;
-    m_formatter = new DimensionFormatter(this);
+    m_matcher = new GeometryMatcher(this);
+    m_referencesCorrect = true;
 }
 
 DrawViewDimension::~DrawViewDimension()
@@ -166,6 +180,7 @@ DrawViewDimension::~DrawViewDimension()
     delete measurement;
     measurement = nullptr;
     delete m_formatter;
+    delete m_matcher;
 }
 
 void DrawViewDimension::resetLinear()
@@ -208,14 +223,19 @@ void DrawViewDimension::onChanged(const App::Property* prop)
         return;
     }
 
-    if (prop == &References3D) {//have to rebuild the Measurement object
-        clear3DMeasurements();  //Measurement object
+    if (prop == &References2D) {
+        updateSavedGeometry();
+    } else if (prop == &References3D) {
+        // remove the old measurement object
+        clear3DMeasurements();
         if (!(References3D.getValues()).empty()) {
+            // rebuild the Measurement object
             setAll3DMeasurement();
         }
         else if (MeasureType.isValue("True")) {//empty 3dRefs, but True
             MeasureType.touch();               //run MeasureType logic for this case
         }
+        updateSavedGeometry();
         return;
     }
     else if (prop == &Type) {//why??
@@ -370,36 +390,31 @@ short DrawViewDimension::mustExecute() const
 
 App::DocumentObjectExecReturn* DrawViewDimension::execute()
 {
-    //    Base::Console().Message("DVD::execute() - %s\n", getNameInDocument());
-    if (!keepUpdated()) {
+//    Base::Console().Message("DVD::execute() - %s\n", getNameInDocument());
+    if (!okToProceed()) {
         return App::DocumentObject::StdReturn;
     }
-    DrawViewPart* dvp = getViewPart();
-    if (!dvp)
-        return App::DocumentObject::StdReturn;
-
-    if (!has2DReferences() && !has3DReferences()) {
-        //no references, can't do anything
-        return App::DocumentObject::StdReturn;
-    }
-
-    if (!getViewPart()->hasGeometry()) {
-        //can't do anything until Source has geometry
-        return App::DocumentObject::StdReturn;
-    }
-
-    if (References3D.getValues().empty() && !checkReferences2D()) {
-        Base::Console().Warning("DVD::execute - %s has invalid 2D References\n",
-                                getNameInDocument());
-        return App::DocumentObject::StdReturn;
-    }
-
-    //we have either or both valid References3D and References2D
-    ReferenceVector references = getEffectiveReferences();
 
     resetLinear();
     resetAngular();
     resetArc();
+
+    m_referencesCorrect = compareSavedGeometry();
+    if (!m_referencesCorrect) {
+        m_referencesCorrect = fixExactMatch();
+        if (!m_referencesCorrect) {
+            handleNoExactMatch();
+        }
+    }
+
+    if (References3D.getValues().empty() && !checkReferences2D()) {
+        Base::Console().Warning("%s has invalid 2D References\n",
+                                getNameInDocument());
+        return new App::DocumentObjectExecReturn("Dimension object has invalid 2d references");
+    }
+
+    //we have either or both valid References3D and References2D
+    ReferenceVector references = getEffectiveReferences();
 
     if (Type.isValue("Distance") || Type.isValue("DistanceX") || Type.isValue("DistanceY")) {
         if (getRefType() == oneEdge) {
@@ -443,7 +458,29 @@ App::DocumentObjectExecReturn* DrawViewDimension::execute()
     return DrawView::execute();
 }
 
-////TODO: schema not report their multiValue status
+// true if we have enough information to execute, false otherwise
+bool DrawViewDimension::okToProceed()
+{
+    if (!keepUpdated()) {
+        return false;
+    }
+    DrawViewPart* dvp = getViewPart();
+    if (!dvp)
+        return false;
+
+    if (!has2DReferences() && !has3DReferences()) {
+        //no references, can't do anything
+        return App::DocumentObject::StdReturn;
+    }
+
+    if (!getViewPart()->hasGeometry()) {
+        //can't do anything until Source has geometry
+        return false;
+    }
+
+    return true;
+}
+
 bool DrawViewDimension::isMultiValueSchema() const { return m_formatter->isMultiValueSchema(); }
 
 std::string DrawViewDimension::formatValue(qreal value, QString qFormatSpec, int partial,
@@ -495,11 +532,13 @@ double DrawViewDimension::getDimValue()
         //nothing to measure
         return result;
     }
-    if (!getViewPart())
+    if (!getViewPart()) {
         return result;
+    }
 
-    if (!getViewPart()->hasGeometry())//happens when loading saved document
+    if (!getViewPart()->hasGeometry()) { //happens when loading saved document
         return result;
+    }
 
     if (MeasureType.isValue("True")) {
         // True Values
@@ -591,7 +630,7 @@ pointPair DrawViewDimension::getPointsOneEdge(ReferenceVector references)
             ssMessage << getNameInDocument() << " can not find geometry for 2d reference (1)";
             throw Base::RuntimeError(ssMessage.str());
         }
-        if (geom->geomType != TechDraw::GeomType::GENERIC) {
+        if (geom->getGeomType() != TechDraw::GeomType::GENERIC) {
             std::stringstream ssMessage;
             ssMessage << getNameInDocument() << " 2d reference is a " << geom->geomTypeName();
             throw Base::RuntimeError(ssMessage.str());
@@ -612,10 +651,8 @@ pointPair DrawViewDimension::getPointsOneEdge(ReferenceVector references)
     gp_Pnt gEnd1 = BRep_Tool::Pnt(TopExp::LastVertex(edge));
 
     pointPair pts(DrawUtil::toVector3d(gEnd0), DrawUtil::toVector3d(gEnd1));
-    pts.move(getViewPart()->getOriginalCentroid());
+    pts.move(getViewPart()->getCurrentCentroid());
     pts.project(getViewPart());
-    pts.mapToPage(getViewPart());
-    pts.invertY();
     return pts;
 }
 
@@ -635,7 +672,7 @@ pointPair DrawViewDimension::getPointsTwoEdges(ReferenceVector references)
             ssMessage << getNameInDocument() << " can not find geometry for 2d reference (2)";
             throw Base::RuntimeError(ssMessage.str());
         }
-        return closestPoints(geom0->occEdge, geom1->occEdge);
+        return closestPoints(geom0->getOCCEdge(), geom1->getOCCEdge());
     }
 
     //this is a 3d object
@@ -647,10 +684,8 @@ pointPair DrawViewDimension::getPointsTwoEdges(ReferenceVector references)
     }
 
     pointPair pts = closestPoints(geometry0, geometry1);
-    pts.move(getViewPart()->getOriginalCentroid());
+    pts.move(getViewPart()->getCurrentCentroid());
     pts.project(getViewPart());
-    pts.mapToPage(getViewPart());
-    pts.invertY();
     return pts;
 }
 
@@ -671,7 +706,7 @@ pointPair DrawViewDimension::getPointsTwoVerts(ReferenceVector references)
             throw Base::RuntimeError(ssMessage.str());
         }
 
-        return {v0->pnt, v1->pnt};
+        return {v0->point(), v1->point()};
     }
 
     //this is a 3d object
@@ -687,10 +722,8 @@ pointPair DrawViewDimension::getPointsTwoVerts(ReferenceVector references)
     gp_Pnt gPoint1 = BRep_Tool::Pnt(vertex1);
 
     pointPair pts(DrawUtil::toVector3d(gPoint0), DrawUtil::toVector3d(gPoint1));
-    pts.move(getViewPart()->getOriginalCentroid());
+    pts.move(getViewPart()->getCurrentCentroid());
     pts.project(getViewPart());
-    pts.mapToPage(getViewPart());
-    pts.invertY();
     return pts;
 }
 
@@ -716,7 +749,31 @@ pointPair DrawViewDimension::getPointsEdgeVert(ReferenceVector references)
         if (!vertex || !edge) {
             throw Base::RuntimeError("Missing geometry for dimension (4)");
         }
-        return closestPoints(edge->occEdge, vertex->occVertex);
+
+        //get curve from edge
+        double start, end; // curve parameters
+        const Handle(Geom_Surface) hplane = new Geom_Plane(gp_Ax3());
+        auto const occCurve = BRep_Tool::CurveOnPlane(edge->getOCCEdge()
+                                                      , hplane
+                                                      , TopLoc_Location()
+                                                      , start
+                                                      , end);
+        auto const occPoint = gp_Pnt2d(vertex->x(), vertex->y());
+        //project point on curve
+        auto projector = Geom2dAPI_ProjectPointOnCurve(occPoint, occCurve);
+        if (projector.NbPoints() > 0) {
+                auto p1 = Base::Vector3d(vertex->x(), vertex->y(), 0.0);
+                auto p2 = Base::Vector3d(projector.NearestPoint().X()
+                                         , projector.NearestPoint().Y()
+                                         , 0.0);
+                pointPair result = pointPair(p1, p2);
+                result.setExtensionLine(closestPoints(edge->getOCCEdge(), vertex->getOCCVertex()));
+                return result;
+        }
+        else {
+                // unable to project
+                return closestPoints(edge->getOCCEdge(), vertex->getOCCVertex());
+        }
     }
 
     //this is a 3d object
@@ -728,10 +785,8 @@ pointPair DrawViewDimension::getPointsEdgeVert(ReferenceVector references)
     }
 
     pointPair pts = closestPoints(geometry0, geometry1);
-    pts.move(getViewPart()->getOriginalCentroid());
+    pts.move(getViewPart()->getCurrentCentroid());
     pts.project(getViewPart());
-    pts.mapToPage(getViewPart());
-    pts.invertY();
     return pts;
 }
 
@@ -759,10 +814,8 @@ arcPoints DrawViewDimension::getArcParameters(ReferenceVector references)
     }
     const TopoDS_Edge& edge = TopoDS::Edge(geometry);
     arcPoints pts = arcPointsFromEdge(edge);
-    pts.move(getViewPart()->getOriginalCentroid());
+    pts.move(getViewPart()->getCurrentCentroid());
     pts.project(getViewPart());
-    pts.mapToPage(getViewPart());
-    pts.invertY();
     return pts;
 }
 
@@ -772,12 +825,12 @@ arcPoints DrawViewDimension::arcPointsFromBaseGeom(TechDraw::BaseGeomPtr base)
     arcPoints pts;
     pts.center = Base::Vector3d(0.0, 0.0, 0.0);
     pts.radius = 0.0;
-    if ((base && base->geomType == TechDraw::GeomType::CIRCLE)
-        || (base && base->geomType == TechDraw::GeomType::ARCOFCIRCLE)) {
+    if ((base && base->getGeomType() == TechDraw::GeomType::CIRCLE)
+        || (base && base->getGeomType() == TechDraw::GeomType::ARCOFCIRCLE)) {
         circle = std::static_pointer_cast<TechDraw::Circle>(base);
         pts.center = Base::Vector3d(circle->center.x, circle->center.y, 0.0);
         pts.radius = circle->radius;
-        if (base->geomType == TechDraw::GeomType::ARCOFCIRCLE) {
+        if (base->getGeomType() == TechDraw::GeomType::ARCOFCIRCLE) {
             TechDraw::AOCPtr aoc = std::static_pointer_cast<TechDraw::AOC>(circle);
             pts.isArc = true;
             pts.onCurve.first(Base::Vector3d(aoc->midPnt.x, aoc->midPnt.y, 0.0));
@@ -794,8 +847,8 @@ arcPoints DrawViewDimension::arcPointsFromBaseGeom(TechDraw::BaseGeomPtr base)
                 pts.center + Base::Vector3d(-1, 0, 0) * circle->radius);//arbitrary point on edge
         }
     }
-    else if ((base && base->geomType == TechDraw::GeomType::ELLIPSE)
-             || (base && base->geomType == TechDraw::GeomType::ARCOFELLIPSE)) {
+    else if ((base && base->getGeomType() == TechDraw::GeomType::ELLIPSE)
+             || (base && base->getGeomType() == TechDraw::GeomType::ARCOFELLIPSE)) {
         TechDraw::EllipsePtr ellipse = std::static_pointer_cast<TechDraw::Ellipse>(base);
         if (ellipse->closed()) {
             double r1 = ellipse->minor;
@@ -826,14 +879,14 @@ arcPoints DrawViewDimension::arcPointsFromBaseGeom(TechDraw::BaseGeomPtr base)
                                + Base::Vector3d(-1, 0, 0) * rAvg);//arbitrary point on edge
         }
     }
-    else if (base && base->geomType == TechDraw::GeomType::BSPLINE) {
+    else if (base && base->getGeomType() == TechDraw::GeomType::BSPLINE) {
         TechDraw::BSplinePtr spline = std::static_pointer_cast<TechDraw::BSpline>(base);
         if (spline->isCircle()) {
             bool arc;
             double rad;
             Base::Vector3d center;
             //bool circ =
-            GeometryUtils::getCircleParms(spline->occEdge, rad, center, arc);
+            GeometryUtils::getCircleParms(spline->getOCCEdge(), rad, center, arc);
             pts.center = Base::Vector3d(center.x, center.y, 0.0);
             pts.radius = rad;
             pts.arcEnds.first(Base::Vector3d(spline->startPnt.x, spline->startPnt.y, 0.0));
@@ -882,6 +935,7 @@ arcPoints DrawViewDimension::arcPointsFromEdge(TopoDS_Edge occEdge)
     pts.arcEnds.second(DrawUtil::toVector3d(props.Value()));
     props.SetParameter(pMid);
     pts.onCurve.first(DrawUtil::toVector3d(props.Value()));
+    pts.onCurve.second(DrawUtil::toVector3d(props.Value()));
     pts.midArc = DrawUtil::toVector3d(props.Value());
 
     if (adapt.GetType() == GeomAbs_Circle) {
@@ -980,13 +1034,13 @@ anglePoints DrawViewDimension::getAnglePointsTwoEdges(ReferenceVector references
             ssMessage << getNameInDocument() << " can not find geometry for 2d reference (5)";
             throw Base::RuntimeError(ssMessage.str());
         }
-        if (geom0->geomType != TechDraw::GeomType::GENERIC) {
+        if (geom0->getGeomType() != TechDraw::GeomType::GENERIC) {
             std::stringstream ssMessage;
             ssMessage << getNameInDocument() << " first 2d reference is a "
                       << geom0->geomTypeName();
             throw Base::RuntimeError(ssMessage.str());
         }
-        if (geom1->geomType != TechDraw::GeomType::GENERIC) {
+        if (geom1->getGeomType() != TechDraw::GeomType::GENERIC) {
             std::stringstream ssMessage;
             ssMessage << getNameInDocument() << " second 2d reference is a "
                       << geom0->geomTypeName();
@@ -1086,10 +1140,8 @@ anglePoints DrawViewDimension::getAnglePointsTwoEdges(ReferenceVector references
     }
     anglePoints pts(DrawUtil::toVector3d(gApex), DrawUtil::toVector3d(gFar0),
                     DrawUtil::toVector3d(gFar1));
-    pts.move(getViewPart()->getOriginalCentroid());
+    pts.move(getViewPart()->getCurrentCentroid());
     pts.project(getViewPart());
-    pts.mapToPage(getViewPart());
-    pts.invertY();
     return pts;
 }
 
@@ -1134,10 +1186,8 @@ anglePoints DrawViewDimension::getAnglePointsThreeVerts(ReferenceVector referenc
     gp_Pnt point2 = BRep_Tool::Pnt(vertex2);
     anglePoints pts(DrawUtil::toVector3d(point1), DrawUtil::toVector3d(point0),
                     DrawUtil::toVector3d(point2));
-    pts.move(getViewPart()->getOriginalCentroid());
+    pts.move(getViewPart()->getCurrentCentroid());
     pts.project(getViewPart());
-    pts.mapToPage(getViewPart());
-    pts.invertY();
     return pts;
 }
 
@@ -1149,11 +1199,11 @@ DrawViewPart* DrawViewDimension::getViewPart() const
     return dynamic_cast<TechDraw::DrawViewPart*>(References2D.getValues().at(0));
 }
 
-
 //return the references controlling this dimension. 3d references are used when available
 //otherwise 2d references are returned. no checking is performed. Result is pairs of (object, subName)
 ReferenceVector DrawViewDimension::getEffectiveReferences() const
 {
+//    Base::Console().Message("DVD::getEffectiveReferences()\n");
     const std::vector<App::DocumentObject*>& objects3d = References3D.getValues();
     const std::vector<std::string>& subElements3d = References3D.getSubValues();
     const std::vector<App::DocumentObject*>& objects = References2D.getValues();
@@ -1204,6 +1254,21 @@ ReferenceVector DrawViewDimension::getReferences3d() const
         refs3d.push_back(ref);
     }
     return refs3d;
+}
+
+void DrawViewDimension::replaceReferenceSubElement2d(int iRef, std::string& newSubelement)
+{
+//    Base::Console().Message("DVD::replaceReferenceSubElement2d(%d, %s)\n", iRef, newSubelement.c_str());
+    ReferenceVector refs = getReferences2d();
+    refs.at(iRef).setSubName(newSubelement);
+    setReferences2d(refs);
+}
+
+void DrawViewDimension::replaceReferenceSubElement3d(int iRef, std::string& newSubelement)
+{
+    ReferenceVector refs = getReferences3d();
+    refs.at(iRef).setSubName(newSubelement);
+    setReferences3d(refs);
 }
 
 //what configuration of references do we have - Vertex-Vertex, Edge-Vertex, Edge, ...
@@ -1313,6 +1378,308 @@ bool DrawViewDimension::checkReferences2D() const
     return true;
 }
 
+void DrawViewDimension::updateSavedGeometry()
+{
+//    Base::Console().Message("DVD::updateSavedGeometry() - %s - savedGeometry: %d\n",
+//        getNameInDocument(), SavedGeometry.getValues().size());
+    ReferenceVector references = getEffectiveReferences();
+    if (references.empty()) {
+        // no references to save
+        return;
+    }
+    std::vector<TopoShape> newGeometry;
+    const std::vector<TopoShape> oldGeometry = SavedGeometry.getValues();
+    //need to clean up old geometry objects here?
+
+    size_t iOldGeom(0);
+    for (auto& entry : references) {
+        if (entry.getSubName().empty()) {
+            // view only reference has no geometry.
+            continue;
+        }
+        if (entry.isValid()) {
+            newGeometry.push_back(entry.asTopoShape());
+        } else {
+        // use old geometry entry? null shape? have to put something in the vector
+        // so SavedGeometry and references stay in sync.
+            if (iOldGeom < oldGeometry.size()) {
+                newGeometry.push_back(oldGeometry.at(iOldGeom));
+            } else {
+                newGeometry.push_back(Part::TopoShape());
+            }
+        }
+        iOldGeom++;
+    }
+    if (!newGeometry.empty()) {
+        SavedGeometry.setValues(newGeometry);
+    }
+}
+
+// routines related to detecting that references no longer point to the same geometry as
+// when they were created.
+// returns true if the saved geometry is the same as the current reference geometry
+// returns false if the saved geometry is different from the the current reference geometry
+bool DrawViewDimension::compareSavedGeometry()
+{
+//    Base::Console().Message("DVD::compareSavedGeometry() - isRestoring: %d\n", isRestoring());
+    const std::vector<TopoShape> savedGeometry = SavedGeometry.getValues();
+    if (savedGeometry.empty()) {
+        // no saved geometry, so we have nothing to compare, so we don't know if there has been a change
+        // this should return false, since something != nothing
+//        Base::Console().Warning("%s has no saved reference geometry!\n", getNameInDocument());
+        return false;
+    }
+
+    ReferenceVector references = getEffectiveReferences();
+    std::vector<Part::TopoShape> referenceGeometry;
+    for (auto& entry : references) {
+        referenceGeometry.push_back(entry.asTopoShape());
+    }
+    if (savedGeometry.size() != referenceGeometry.size()) {
+//        Base::Console().Message("DVD::compareSavedGeometry - geometry sizes have changed\n");
+        return false;
+    }
+    int geometryCount = savedGeometry.size();
+    int iGeom = 0;
+    for ( ; iGeom < geometryCount; iGeom++) {
+        if (savedGeometry.at(iGeom).getTypeId() != referenceGeometry.at(iGeom).getTypeId()) {
+//            Base::Console().Message("DVD::compareSavedGeometry - saved geometry (%d) has different type\n", iGeom);
+            return false;
+        }
+    }
+    //saved and reference geometry have same count and types
+    for (iGeom = 0; iGeom < geometryCount; iGeom++) {
+        Part::TopoShape temp = savedGeometry.at(iGeom);
+        if (!m_matcher->compareGeometry(temp, referenceGeometry.at(iGeom)) ) {
+//            Base::Console().Message("DVD::compareSavedGeometry - saved geometry (%d) does not match current geometry\n", iGeom);
+            return false;
+        }
+    }
+
+    //free the reference geometry?
+    return true;
+}
+
+// deal with the situation where references do not point to the same geometry as
+// when they were created.
+bool DrawViewDimension::fixExactMatch()
+{
+//    Base::Console().Message("DVD::fixExactMatch() - reference geometry has changed\n");
+    if (!Preferences::autoCorrectDimRefs()) {
+        return false;
+    }
+    ReferenceVector references = getEffectiveReferences();
+    if (references.empty()) {
+        // could not get refs, something is wrong!
+        return false;
+    }
+
+    if (SavedGeometry.getValues().empty()) {
+        // there is no saved geometry, so we can't repair anything.
+        return false;
+    }
+    std::vector< std::pair<int, std::string> > refsToFix2d;
+    std::vector< std::pair<int, std::string> > refsToFix3d;
+    bool success(true);
+    size_t referenceCount = references.size();
+    size_t iRef = 0;
+    for ( ; iRef < referenceCount; iRef++)  {
+        std::string newReference("");
+        TopoDS_Shape geomShape = references.at(iRef).getGeometry();
+        if (geomShape.IsNull()) {
+//            Base::Console().Message("DVD::fixExactMatch - no geometry found for reference: %d\n", iRef);
+            return false;
+        }
+        if (references.at(iRef).is3d()) {
+            if (geomShape.ShapeType() == TopAbs_VERTEX) {
+                newReference = recoverChangedVertex3d(iRef);
+            } else {
+                newReference = recoverChangedEdge3d(iRef);
+            }
+            if (!newReference.empty()) {
+                std::pair<int, std::string> toFix(iRef, newReference);
+                refsToFix3d.push_back(toFix);
+            } else {
+                Base::Console().Warning("%s - no exact match for changed 3d reference: %d\n", getNameInDocument(), iRef);
+                success = false;
+            }
+        } else {
+            if (geomShape.ShapeType() == TopAbs_VERTEX) {
+                newReference = recoverChangedVertex2d(iRef);
+            } else {
+                newReference = recoverChangedEdge2d(iRef);
+            }
+            if (!newReference.empty()) {
+                std::pair<int, std::string> toFix(iRef, newReference);
+                refsToFix2d.push_back(toFix);
+            } else {
+                Base::Console().Warning("%s - no exact match for changed 2d reference: %d\n", getNameInDocument(), iRef);
+                success = false;
+            }
+        }
+    }
+
+    for (auto& fix : refsToFix2d) {
+        replaceReferenceSubElement2d(fix.first, fix.second);
+    }
+    for (auto& fix : refsToFix3d) {
+        replaceReferenceSubElement3d(fix.first, fix.second);
+    }
+
+    return success;
+}
+
+// deal with situation where the current geometry does not match the saved geometry,
+// but we did not find an exact match in the geometry pile
+void DrawViewDimension::handleNoExactMatch()
+{
+//    Base::Console().Message("DVD::handleNoExactMatch()\n");
+//    Base::Console().Message("%s - trying to match changed geometry - stage 2\n", getNameInDocument());
+    // this is where we insert the clever logic to determine that the changed geometry
+    // actually still represents the "front top left" edge.
+    // after figuring out the new reference, save the geometry
+    // updateSavedGeometry();
+    m_referencesCorrect = true;
+}
+
+//find an edge in the view that matches the reference entry's type and characteristics
+std::string DrawViewDimension::recoverChangedEdge2d(int iReference)
+{
+//    Base::Console().Message("DVD::recoverChangedEdge2d(ref: %d)\n", iReference);
+    double scale = getViewPart()->getScale();
+    Part::TopoShape savedGeometryItem = SavedGeometry.getValues().at(iReference);
+    std::vector<TechDraw::BaseGeomPtr> gEdges = getViewPart()->getEdgeGeometry();
+    int iEdge = 0;
+    for (auto& edge : gEdges) {
+        Part::TopoShape temp = edge->asTopoShape(scale);
+        if (savedGeometryItem.getTypeId() != temp.getTypeId()) {
+            // if the typeIds don't match, we can not compare the geometry
+//            Base::Console().Message("DVD::recoverChangedEdge2d - types do not match\n");
+            iEdge++;
+            continue;
+        }
+        bool isSame = m_matcher->compareGeometry(savedGeometryItem, temp);
+//        Base::Console().Message("DVD::recoverChangedEdge2d - iEdge: %d isSame: %d\n", iEdge, isSame);
+        if (isSame) {
+            return std::string("Edge") + std::to_string(iEdge);
+        }
+        iEdge++;
+    }
+    return std::string("");
+}
+
+std::string DrawViewDimension::recoverChangedVertex2d(int iReference)
+{
+//    Base::Console().Message("DVD::recoverChangedVertex2d(%d)\n", iReference);
+    double scale = getViewPart()->getScale();
+    std::vector<Part::TopoShape> savedAll = SavedGeometry.getValues();
+    if (savedAll.empty() ||
+        iReference >= savedAll.size()) {
+            return std::string();
+        }
+    Part::TopoShape savedGeometryItem = SavedGeometry.getValues().at(iReference);
+    std::vector<TechDraw::VertexPtr> gVertexAll = getViewPart()->getVertexGeometry();
+    int iVertex = 0;
+    for (auto& vert : gVertexAll) {
+        Part::TopoShape temp = vert->asTopoShape(scale);
+        bool isSame = m_matcher->compareGeometry(savedGeometryItem, temp);
+        if (isSame) {
+            return std::string("Vertex") + std::to_string(iVertex);
+        }
+        iVertex++;
+    }
+    return std::string("");
+}
+
+std::string DrawViewDimension::recoverChangedEdge3d(int iReference)
+{
+//    Base::Console().Message("DVD::recoverChangedEdge3d(%d)\n", iReference);
+    Part::TopoShape savedGeometryItem = SavedGeometry.getValues().at(iReference);
+    ReferenceVector references = getEffectiveReferences();
+    App::DocumentObject* searchObject = references.at(iReference).getObject();
+    Part::TopoShape shape = Part::Feature::getTopoShape(searchObject);
+    App::GeoFeature* geoFeat = dynamic_cast<App::GeoFeature*>(searchObject);
+    //does a feature in a body get the body's globalPlacement??
+    if (geoFeat) {
+        shape.setPlacement(geoFeat->globalPlacement());
+    }
+    //TODO: these TopoShapes will have to be released when we are finished with them
+    std::vector<TopoShape> edgesAll = getEdges(shape);
+    int iEdge = 1;      //note that edge numbering starts at 1!
+    for (auto& edge : edgesAll) {
+        bool isSame = m_matcher->compareGeometry(savedGeometryItem, edge);
+        if (isSame) {
+            return std::string("Edge") + std::to_string(iEdge);
+        }
+        iEdge++;
+    }
+    return std::string("");
+}
+
+// based on Part::TopoShapePyImp::getShapes. Produces a vector of unique edges within the shape
+std::vector<TopoShape> DrawViewDimension::getEdges(const TopoShape& inShape)
+{
+    std::vector<TopoShape> ret;
+    TopTools_IndexedMapOfShape M;
+    TopExp_Explorer Ex(inShape.getShape(), TopAbs_EDGE);
+    while (Ex.More()) {
+        M.Add(Ex.Current());
+        Ex.Next();
+    }
+
+    for (Standard_Integer k = 1; k <= M.Extent(); k++) {
+        const TopoDS_Shape& shape = M(k);
+        ret.push_back(TopoShape(shape));
+    }
+
+    return ret;
+}
+
+// as recoverChangedVertex2d, but 3d references do not need to be unscaled
+std::string DrawViewDimension::recoverChangedVertex3d(int iReference)
+{
+//    Base::Console().Message("DVD::recoverChangedVertex3d(%d)\n", iReference);
+    Part::TopoShape savedGeometryItem = SavedGeometry.getValues().at(iReference);
+    ReferenceVector references = getEffectiveReferences();
+    App::DocumentObject* searchObject = references.at(iReference).getObject();
+    Part::TopoShape shape = Part::Feature::getTopoShape(searchObject);
+    App::GeoFeature* geoFeat = dynamic_cast<App::GeoFeature*>(searchObject);
+    if (geoFeat) {
+        shape.setPlacement(geoFeat->globalPlacement());
+    }
+
+    //TODO: these TopoShapes will have to be released when we are finished with them
+    std::vector<TopoShape> vertsAll = getVertexes(shape);
+    int iVert = 1;      //note that vertex numbering starts at 1!
+    for (auto& vert : vertsAll) {
+        bool isSame = m_matcher->compareGeometry(savedGeometryItem, vert);
+        if (isSame) {
+            return std::string("Vertex") + std::to_string(iVert);
+        }
+        iVert++;
+    }
+    return std::string("");
+}
+
+// based on Part::TopoShapePyImp::getShapes
+std::vector<TopoShape> DrawViewDimension::getVertexes(const TopoShape& inShape)
+{
+    std::vector<TopoShape> ret;
+    TopTools_IndexedMapOfShape M;
+    TopExp_Explorer Ex(inShape.getShape(), TopAbs_VERTEX);
+    while (Ex.More()) {
+        M.Add(Ex.Current());
+        Ex.Next();
+    }
+
+    for (Standard_Integer k = 1; k <= M.Extent(); k++) {
+        const TopoDS_Shape& shape = M(k);
+        ret.push_back(TopoShape(shape));
+    }
+
+    return ret;
+}
+
 pointPair DrawViewDimension::closestPoints(TopoDS_Shape s1, TopoDS_Shape s2) const
 {
     pointPair result;
@@ -1334,6 +1701,7 @@ pointPair DrawViewDimension::closestPoints(TopoDS_Shape s1, TopoDS_Shape s2) con
 //set the reference property from a reference vector
 void DrawViewDimension::setReferences2d(ReferenceVector refs)
 {
+//    Base::Console().Message("DVD::setReferences2d(%d)\n", refs.size());
     std::vector<App::DocumentObject*> objects;
     std::vector<std::string> subNames;
     if (objects.size() != subNames.size()) {
@@ -1351,6 +1719,11 @@ void DrawViewDimension::setReferences2d(ReferenceVector refs)
 //set the reference property from a reference vector
 void DrawViewDimension::setReferences3d(ReferenceVector refs)
 {
+    if (refs.empty() && !References3D.getValues().empty()) {
+        //clear the property of any old links
+        References3D.setValue(nullptr, nullptr);
+        return;
+    }
     std::vector<App::DocumentObject*> objects;
     std::vector<std::string> subNames;
     if (objects.size() != subNames.size()) {
@@ -1436,13 +1809,13 @@ bool DrawViewDimension::leaderIntersectsArc(Base::Vector3d s, Base::Vector3d poi
     const std::vector<std::string>& subElements = References2D.getSubValues();
     int idx = DrawUtil::getIndexFromName(subElements[0]);
     TechDraw::BaseGeomPtr base = getViewPart()->getGeomByIndex(idx);
-    if (base && base->geomType == TechDraw::GeomType::ARCOFCIRCLE) {
+    if (base && base->getGeomType() == TechDraw::GeomType::ARCOFCIRCLE) {
         TechDraw::AOCPtr aoc = std::static_pointer_cast<TechDraw::AOC>(base);
         if (aoc->intersectsArc(s, pointOnCircle)) {
             result = true;
         }
     }
-    else if (base && base->geomType == TechDraw::GeomType::BSPLINE) {
+    else if (base && base->getGeomType() == TechDraw::GeomType::BSPLINE) {
         TechDraw::BSplinePtr spline = std::static_pointer_cast<TechDraw::BSpline>(base);
         if (spline->isCircle()) {
             if (spline->intersectsArc(s, pointOnCircle)) {
@@ -1505,12 +1878,7 @@ bool DrawViewDimension::hasOverUnderTolerance() const
 
 bool DrawViewDimension::showUnits() const
 {
-    Base::Reference<ParameterGrp> hGrp = App::GetApplication()
-                                             .GetUserParameter()
-                                             .GetGroup("BaseApp")
-                                             ->GetGroup("Preferences")
-                                             ->GetGroup("Mod/TechDraw/Dimensions");
-    return hGrp->GetBool("ShowUnits", false);
+    return Preferences::getPreferenceGroup("Dimensions")->GetBool("ShowUnits", false);
 }
 
 bool DrawViewDimension::useDecimals() const { return Preferences::useGlobalDecimals(); }
@@ -1521,12 +1889,7 @@ std::string DrawViewDimension::getPrefixForDimType() const
         return "R";
     }
     else if (Type.isValue("Diameter")) {
-        Base::Reference<ParameterGrp> hGrp = App::GetApplication()
-                                                 .GetUserParameter()
-                                                 .GetGroup("BaseApp")
-                                                 ->GetGroup("Preferences")
-                                                 ->GetGroup("Mod/TechDraw/Dimensions");
-        return std::string(hGrp->GetASCII("DiameterSymbol", "\xe2\x8c\x80"));// Diameter symbol
+        return std::string(Preferences::getPreferenceGroup("Dimensions")->GetASCII("DiameterSymbol", "\xe2\x8c\x80"));// Diameter symbol
     }
 
     return "";

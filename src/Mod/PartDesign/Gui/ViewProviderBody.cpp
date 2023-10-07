@@ -29,7 +29,8 @@
 # include <Precision.hxx>
 # include <QMenu>
 #endif
-
+#include <Gui/View3DInventor.h>
+#include <Gui/View3DInventorViewer.h>
 #include <App/Document.h>
 #include <App/Origin.h>
 #include <App/Part.h>
@@ -39,8 +40,6 @@
 #include <Gui/Command.h>
 #include <Gui/Document.h>
 #include <Gui/MDIView.h>
-#include <Gui/View3DInventor.h>
-#include <Gui/View3DInventorViewer.h>
 #include <Gui/ViewProviderOrigin.h>
 #include <Gui/ViewProviderOriginFeature.h>
 #include <Mod/PartDesign/App/Body.h>
@@ -55,7 +54,7 @@
 
 
 using namespace PartDesignGui;
-namespace bp = boost::placeholders;
+namespace sp = std::placeholders;
 
 const char* PartDesignGui::ViewProviderBody::BodyModeEnum[] = {"Through","Tip",nullptr};
 
@@ -91,11 +90,13 @@ void ViewProviderBody::attach(App::DocumentObject *pcFeat)
     assert ( adoc );
     assert ( gdoc );
 
+    //NOLINTBEGIN
     connectChangedObjectApp = adoc->signalChangedObject.connect (
-            boost::bind ( &ViewProviderBody::slotChangedObjectApp, this, bp::_1, bp::_2) );
+            std::bind ( &ViewProviderBody::slotChangedObjectApp, this, sp::_1, sp::_2) );
 
     connectChangedObjectGui = gdoc->signalChangedObject.connect (
-            boost::bind ( &ViewProviderBody::slotChangedObjectGui, this, bp::_1, bp::_2) );
+            std::bind ( &ViewProviderBody::slotChangedObjectGui, this, sp::_1, sp::_2) );
+    //NOLINTEND
 }
 
 // TODO on activating the body switch to the "Through" mode (2015-09-05, Fat-Zer)
@@ -131,7 +132,9 @@ void ViewProviderBody::setupContextMenu(QMenu* menu, QObject* receiver, const ch
     Q_UNUSED(member);
     Gui::ActionFunction* func = new Gui::ActionFunction(menu);
     QAction* act = menu->addAction(tr("Toggle active body"));
-    func->trigger(act, std::bind(&ViewProviderBody::doubleClicked, this));
+    func->trigger(act, [this]() {
+        this->doubleClicked();
+    });
 
     Gui::ViewProviderGeometryObject::setupContextMenu(menu, receiver, member); // clazy:exclude=skipped-base-method
 }

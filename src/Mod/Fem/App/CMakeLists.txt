@@ -9,12 +9,6 @@ elseif(CMAKE_COMPILER_IS_GNUCXX)
     add_compile_options(-Wno-pedantic) # needed for vtk headers
 endif()
 
-if(MSVC)
-    add_definitions(-DFCAppFem -DHAVE_ACOSH -DHAVE_ASINH -DHAVE_ATANH)
-else(MSVC)
-    add_definitions(-DHAVE_LIMITS_H -DHAVE_CONFIG_H)
-endif(MSVC)
-
 
 if(BUILD_FEM_NETGEN)
     add_definitions(-DFCWithNetgen ${NETGEN_DEFINITIONS})
@@ -202,12 +196,6 @@ target_link_libraries(Fem ${Fem_LIBS} ${VTK_LIBRARIES})
 find_package(OpenMP)
 if(OpenMP_CXX_FOUND)
 	target_link_libraries(Fem OpenMP::OpenMP_CXX)
-endif()
-
-# external SMESH doesn't support C++17 yet
-if(FREECAD_USE_EXTERNAL_SMESH)
-    set_target_properties(Fem PROPERTIES CXX_STANDARD_REQUIRED ON)
-    set_target_properties(Fem PROPERTIES CXX_STANDARD 14)
 endif()
 
 

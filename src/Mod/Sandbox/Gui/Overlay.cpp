@@ -29,6 +29,8 @@
 # include <Inventor/nodes/SoOrthographicCamera.h>
 # include <Inventor/nodes/SoImage.h>
 #endif
+#include <Gui/View3DInventor.h>
+#include <Gui/View3DInventorViewer.h>
 
 #include <QtOpenGL.h>
 
@@ -36,9 +38,7 @@
 #include <Gui/Document.h>
 #include <Gui/Selection.h>
 #include <Gui/GLPainter.h>
-#include <Gui/View3DInventor.h>
-#include <Gui/View3DInventorViewer.h>
-
+#include <Gui/NavigationStyle.h>
 
 #include "Overlay.h"
 
@@ -63,20 +63,11 @@ public:
             p.drawText(200,200,QString::fromLatin1("Render to QImage"));
         }
 
-#if !defined(HAVE_QT5_OPENGL)
-        img = QtGLWidget::convertToGLFormat(img);
-#endif
         fbo = new QtGLFramebufferObject(v->getGLWidget()->size());
         fbo->bind();
         //glClear(GL_COLOR_BUFFER_BIT);
         fbo->release();
         {
-#if !defined(HAVE_QT5_OPENGL)
-            QPainter p(fbo);
-            p.setPen(Qt::white);
-            p.drawText(200,200,QString::fromLatin1("Render to QtGLFramebufferObject"));
-            p.end();
-#endif
             //img = fbo->toImage();
             //img = QtGLWidget::convertToGLFormat(img);
         }
@@ -112,7 +103,7 @@ public:
     glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glColor4d(0.0,0.0,1.0,0.0f);
     glRasterPos2d(0,0);
-    
+
     //http://wiki.delphigl.com/index.php/Multisampling
     //glDrawPixels(img.width(),img.height(),GL_RGBA,GL_UNSIGNED_BYTE,img.bits());
 /*
@@ -444,9 +435,6 @@ void paintSelection()
 }
 
 // ---------------------------------------
-#include <Gui/NavigationStyle.h>
-#include <Gui/View3DInventor.h>
-#include <Gui/View3DInventorViewer.h>
 #if 0
 void MeshSelection::prepareFreehandSelection(bool add)
 {
@@ -626,18 +614,6 @@ void DrawingPlane::drawLineTo(const QPoint &endPoint)
 {
     Q_UNUSED(endPoint);
     return;
-#if !defined(HAVE_QT5_OPENGL)
-    QPainter painter(fbo);
-  //QPainter painter(_pcView3D->getGLWidget());
-    painter.setPen(QPen(myPenColor, myPenWidth, Qt::SolidLine, Qt::RoundCap,
-                        Qt::RoundJoin));
-    //painter.setOpacity(0.5);
-    //painter.drawLine(lastPoint.x(), fbo->height()-lastPoint.y(), endPoint.x(), fbo->height()-endPoint.y());
-    painter.drawLine(lastPoint.x(), lastPoint.y(), endPoint.x(), endPoint.y());
-
-    //_pcView3D->scheduleRedraw();
-    lastPoint = endPoint;
-#endif
 }
     //Gui::Document* doc = Gui::Application::Instance->activeDocument();
     //Gui::View3DInventorViewer* view = static_cast<Gui::View3DInventor*>(doc->getActiveView())->getViewer();

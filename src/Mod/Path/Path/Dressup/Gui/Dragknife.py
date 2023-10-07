@@ -20,7 +20,6 @@
 # *                                                                         *
 # ***************************************************************************
 
-from __future__ import print_function
 import FreeCAD
 import Path
 import Path.Base.Gui.Util as PathGuiUtil
@@ -84,10 +83,10 @@ class ObjectDressup:
 
         obj.Proxy = self
 
-    def __getstate__(self):
+    def dumps(self):
         return None
 
-    def __setstate__(self, state):
+    def loads(self, state):
         return None
 
     def shortcut(self, queue):
@@ -389,7 +388,7 @@ class ObjectDressup:
 
             queue = []
 
-            for curCommand in obj.Base.Path.Commands:
+            for curCommand in PathUtils.getPathWithPlacement(obj.Base).Commands:
                 replace = None
                 # don't worry about non-move commands, just add to output
                 if curCommand.Name not in movecommands + rapidcommands:
@@ -579,10 +578,10 @@ class ViewProviderDressup:
     def claimChildren(self):
         return [self.Object.Base]
 
-    def __getstate__(self):
+    def dumps(self):
         return None
 
-    def __setstate__(self, state):
+    def loads(self, state):
         return None
 
     def onDelete(self, arg1=None, arg2=None):

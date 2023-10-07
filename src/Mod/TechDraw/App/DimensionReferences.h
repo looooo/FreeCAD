@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (c) 2022 WandererFan <wandererfan@gmail.com                 *
+ *   Copyright (c) 2022 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
  *   This file is part of the FreeCAD CAx development system.              *
  *                                                                         *
@@ -19,7 +19,7 @@
  *   Suite 330, Boston, MA  02111-1307, USA                                *
  *                                                                         *
  ***************************************************************************/
- 
+
 #ifndef TECHDRAW_DIMENSIONREFERENCES_H
 #define TECHDRAW_DIMENSIONREFERENCES_H
 
@@ -29,11 +29,19 @@
 #include <vector>
 
 #include <TopoDS_Shape.hxx>
+#include <TopoDS_Edge.hxx>
+#include <TopoDS_Vertex.hxx>
 
+#include <Mod/Part/App/TopoShape.h>
 
 namespace App
 {
 class DocumentObject;
+}
+
+namespace Part
+{
+class TopoShape;
 }
 
 namespace TechDraw
@@ -53,7 +61,7 @@ public:
     }
     ~ReferenceEntry() = default;
 
-    App::DocumentObject* getObject() const { return m_object; }
+    App::DocumentObject* getObject() const;
     void setObject(App::DocumentObject* docObj) { m_object = docObj; }
     std::string getSubName(bool longForm = false) const;
     void setSubName(std::string subName) { m_subName = subName; }
@@ -61,8 +69,14 @@ public:
     std::string geomType() const;
     bool isWholeObject() const;
 
+    Part::TopoShape asTopoShape() const;
+    Part::TopoShape asTopoShapeVertex(TopoDS_Vertex &vert) const;
+    Part::TopoShape asTopoShapeEdge(TopoDS_Edge& edge) const;
+
+    bool is3d() const;
+    bool isValid() const;
+
 private:
-    bool is3d();
     App::DocumentObject* m_object;
     std::string m_subName;
 };

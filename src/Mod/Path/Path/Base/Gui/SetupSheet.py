@@ -34,7 +34,7 @@ from PySide import QtCore, QtGui
 
 __title__ = "Setup Sheet Editor"
 __author__ = "sliptonic (Brad Collette)"
-__url__ = "https://www.freecadweb.org"
+__url__ = "https://www.freecad.org"
 __doc__ = "Task panel editor for a SetupSheet"
 
 
@@ -67,10 +67,10 @@ class ViewProvider:
     def getIcon(self):
         return ":/icons/Path_SetupSheet.svg"
 
-    def __getstate__(self):
+    def dumps(self):
         return None
 
-    def __setstate__(self, state):
+    def loads(self, state):
         return None
 
     def getDisplayMode(self, mode):
@@ -224,7 +224,7 @@ class OpsDefaultEditor:
         self.ops = sorted(
             [
                 OpTaskPanel(self.obj, name, op)
-                for name, op in PathUtil.keyValueIter(PathSetupSheet._RegisteredOps)
+                for name, op in PathSetupSheet._RegisteredOps.items()
             ],
             key=lambda op: op.name,
         )

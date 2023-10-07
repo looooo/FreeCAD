@@ -80,6 +80,46 @@ so that self intersection is avoided.</source>
       <translation type="unfinished">If false, the tool will propose an initial value for the pitch based on the profile bounding box,
 so that self intersection is avoided.</translation>
     </message>
+    <message>
+      <location filename="../../../InvoluteGearFeature.py" line="98"/>
+      <source>Number of gear teeth</source>
+      <translation type="unfinished">Number of gear teeth</translation>
+    </message>
+    <message>
+      <location filename="../../../InvoluteGearFeature.py" line="101"/>
+      <source>Modules of the gear</source>
+      <translation type="unfinished">Modules of the gear</translation>
+    </message>
+    <message>
+      <location filename="../../../InvoluteGearFeature.py" line="104"/>
+      <source>Pressure angle of gear teeth</source>
+      <translation type="unfinished">Pressure angle of gear teeth</translation>
+    </message>
+    <message>
+      <location filename="../../../InvoluteGearFeature.py" line="108"/>
+      <source>True=2 curves with each 3 control points False=1 curve with 4 control points.</source>
+      <translation type="unfinished">True=2 curves with each 3 control points False=1 curve with 4 control points.</translation>
+    </message>
+    <message>
+      <location filename="../../../InvoluteGearFeature.py" line="111"/>
+      <source>True=external Gear False=internal Gear</source>
+      <translation type="unfinished">True=external Gear False=internal Gear</translation>
+    </message>
+    <message>
+      <location filename="../../../InvoluteGearFeature.py" line="115"/>
+      <source>The height of the tooth from the pitch circle up to its tip, normalized by the module.</source>
+      <translation type="unfinished">The height of the tooth from the pitch circle up to its tip, normalized by the module.</translation>
+    </message>
+    <message>
+      <location filename="../../../InvoluteGearFeature.py" line="119"/>
+      <source>The height of the tooth from the pitch circle down to its root, normalized by the module.</source>
+      <translation type="unfinished">The height of the tooth from the pitch circle down to its root, normalized by the module.</translation>
+    </message>
+    <message>
+      <location filename="../../../InvoluteGearFeature.py" line="123"/>
+      <source>The radius of the fillet at the root of the tooth, normalized by the module.</source>
+      <translation type="unfinished">The radius of the fillet at the root of the tooth, normalized by the module.</translation>
+    </message>
   </context>
   <context>
     <name>CmdPartDesignAdditiveHelix</name>
@@ -895,22 +935,22 @@ so that self intersection is avoided.</translation>
       <translation type="unfinished">Move an object inside tree</translation>
     </message>
     <message>
-      <location filename="../../TaskMultiTransformParameters.cpp" line="292"/>
+      <location filename="../../TaskMultiTransformParameters.cpp" line="295"/>
       <source>Mirrored</source>
       <translation>Được phản chiếu</translation>
     </message>
     <message>
-      <location filename="../../TaskMultiTransformParameters.cpp" line="320"/>
+      <location filename="../../TaskMultiTransformParameters.cpp" line="323"/>
       <source>Make LinearPattern</source>
       <translation type="unfinished">Make LinearPattern</translation>
     </message>
     <message>
-      <location filename="../../TaskMultiTransformParameters.cpp" line="358"/>
+      <location filename="../../TaskMultiTransformParameters.cpp" line="361"/>
       <source>PolarPattern</source>
       <translation>Mẫu cực</translation>
     </message>
     <message>
-      <location filename="../../TaskMultiTransformParameters.cpp" line="386"/>
+      <location filename="../../TaskMultiTransformParameters.cpp" line="389"/>
       <source>Scaled</source>
       <translation>Có tỷ lệ</translation>
     </message>
@@ -1014,6 +1054,21 @@ so that self intersection is avoided.</translation>
       <location filename="../../../InvoluteGearFeature.ui" line="152"/>
       <source>External gear:</source>
       <translation>Thiết bị bên ngoài:</translation>
+    </message>
+    <message>
+      <location filename="../../../InvoluteGearFeature.ui" line="179"/>
+      <source>Addendum Coefficient</source>
+      <translation type="unfinished">Addendum Coefficient</translation>
+    </message>
+    <message>
+      <location filename="../../../InvoluteGearFeature.ui" line="199"/>
+      <source>Dedendum Coefficient</source>
+      <translation type="unfinished">Dedendum Coefficient</translation>
+    </message>
+    <message>
+      <location filename="../../../InvoluteGearFeature.ui" line="219"/>
+      <source>Root Fillet Coefficient</source>
+      <translation type="unfinished">Root Fillet Coefficient</translation>
     </message>
   </context>
   <context>
@@ -1438,39 +1493,39 @@ If zero, it is equal to Radius2</translation>
       <translation>Các tham số cơ bản</translation>
     </message>
     <message>
-      <location filename="../../TaskPrimitiveParameters.cpp" line="718"/>
+      <location filename="../../TaskPrimitiveParameters.cpp" line="760"/>
       <source>Cone radii are equal</source>
       <translation type="unfinished">Cone radii are equal</translation>
     </message>
     <message>
-      <location filename="../../TaskPrimitiveParameters.cpp" line="719"/>
+      <location filename="../../TaskPrimitiveParameters.cpp" line="761"/>
       <source>The radii for cones must not be equal!</source>
       <translation type="unfinished">The radii for cones must not be equal!</translation>
     </message>
     <message>
-      <location filename="../../TaskPrimitiveParameters.cpp" line="794"/>
-      <location filename="../../TaskPrimitiveParameters.cpp" line="799"/>
-      <location filename="../../TaskPrimitiveParameters.cpp" line="804"/>
+      <location filename="../../TaskPrimitiveParameters.cpp" line="836"/>
+      <location filename="../../TaskPrimitiveParameters.cpp" line="841"/>
+      <location filename="../../TaskPrimitiveParameters.cpp" line="846"/>
       <source>Invalid wedge parameters</source>
       <translation type="unfinished">Invalid wedge parameters</translation>
     </message>
     <message>
-      <location filename="../../TaskPrimitiveParameters.cpp" line="795"/>
+      <location filename="../../TaskPrimitiveParameters.cpp" line="837"/>
       <source>X min must not be equal to X max!</source>
       <translation type="unfinished">X min must not be equal to X max!</translation>
     </message>
     <message>
-      <location filename="../../TaskPrimitiveParameters.cpp" line="800"/>
+      <location filename="../../TaskPrimitiveParameters.cpp" line="842"/>
       <source>Y min must not be equal to Y max!</source>
       <translation type="unfinished">Y min must not be equal to Y max!</translation>
     </message>
     <message>
-      <location filename="../../TaskPrimitiveParameters.cpp" line="805"/>
+      <location filename="../../TaskPrimitiveParameters.cpp" line="847"/>
       <source>Z min must not be equal to Z max!</source>
       <translation type="unfinished">Z min must not be equal to Z max!</translation>
     </message>
     <message>
-      <location filename="../../TaskPrimitiveParameters.cpp" line="843"/>
+      <location filename="../../TaskPrimitiveParameters.cpp" line="885"/>
       <source>Create primitive</source>
       <translation>Tạo đối tượng cơ bản</translation>
     </message>
@@ -2166,12 +2221,12 @@ click again to end selection</translation>
       <translation>Cập nhật chế độ xem</translation>
     </message>
     <message>
-      <location filename="../../TaskLinearPatternParameters.cpp" line="105"/>
+      <location filename="../../TaskLinearPatternParameters.cpp" line="108"/>
       <source>Remove</source>
       <translation>Xóa bỏ</translation>
     </message>
     <message>
-      <location filename="../../TaskLinearPatternParameters.cpp" line="333"/>
+      <location filename="../../TaskLinearPatternParameters.cpp" line="336"/>
       <source>Error</source>
       <translation>Lỗi</translation>
     </message>
@@ -2315,52 +2370,52 @@ click again to end selection</translation>
       <translation>Cập nhật chế độ xem</translation>
     </message>
     <message>
-      <location filename="../../TaskMultiTransformParameters.cpp" line="73"/>
+      <location filename="../../TaskMultiTransformParameters.cpp" line="75"/>
       <source>Remove</source>
       <translation>Xóa bỏ</translation>
     </message>
     <message>
-      <location filename="../../TaskMultiTransformParameters.cpp" line="86"/>
+      <location filename="../../TaskMultiTransformParameters.cpp" line="89"/>
       <source>Edit</source>
       <translation>Chỉnh sửa</translation>
     </message>
     <message>
-      <location filename="../../TaskMultiTransformParameters.cpp" line="90"/>
+      <location filename="../../TaskMultiTransformParameters.cpp" line="93"/>
       <source>Delete</source>
       <translation>Xóa</translation>
     </message>
     <message>
-      <location filename="../../TaskMultiTransformParameters.cpp" line="94"/>
+      <location filename="../../TaskMultiTransformParameters.cpp" line="97"/>
       <source>Add mirrored transformation</source>
       <translation>Thêm phép biến đổi phản chiếu</translation>
     </message>
     <message>
-      <location filename="../../TaskMultiTransformParameters.cpp" line="98"/>
+      <location filename="../../TaskMultiTransformParameters.cpp" line="101"/>
       <source>Add linear pattern</source>
       <translation>Thêm mẫu tuyến tính</translation>
     </message>
     <message>
-      <location filename="../../TaskMultiTransformParameters.cpp" line="102"/>
+      <location filename="../../TaskMultiTransformParameters.cpp" line="105"/>
       <source>Add polar pattern</source>
       <translation>Thêm mẫu có cực</translation>
     </message>
     <message>
-      <location filename="../../TaskMultiTransformParameters.cpp" line="106"/>
+      <location filename="../../TaskMultiTransformParameters.cpp" line="109"/>
       <source>Add scaled transformation</source>
       <translation>Thêm chuyển đổi có tỷ lệ</translation>
     </message>
     <message>
-      <location filename="../../TaskMultiTransformParameters.cpp" line="110"/>
+      <location filename="../../TaskMultiTransformParameters.cpp" line="113"/>
       <source>Move up</source>
       <translation>Di chuyển lên</translation>
     </message>
     <message>
-      <location filename="../../TaskMultiTransformParameters.cpp" line="114"/>
+      <location filename="../../TaskMultiTransformParameters.cpp" line="117"/>
       <source>Move down</source>
       <translation>Di chuyển xuống</translation>
     </message>
     <message>
-      <location filename="../../TaskMultiTransformParameters.cpp" line="141"/>
+      <location filename="../../TaskMultiTransformParameters.cpp" line="144"/>
       <source>Right-click to add</source>
       <translation>Nhấp chuột phải để thêm</translation>
     </message>
@@ -2880,12 +2935,12 @@ measured along the specified direction</translation>
       <translation>Cập nhật chế độ xem</translation>
     </message>
     <message>
-      <location filename="../../TaskPolarPatternParameters.cpp" line="112"/>
+      <location filename="../../TaskPolarPatternParameters.cpp" line="114"/>
       <source>Remove</source>
       <translation>Xóa bỏ</translation>
     </message>
     <message>
-      <location filename="../../TaskPolarPatternParameters.cpp" line="333"/>
+      <location filename="../../TaskPolarPatternParameters.cpp" line="335"/>
       <source>Error</source>
       <translation>Lỗi</translation>
     </message>
@@ -2893,7 +2948,7 @@ measured along the specified direction</translation>
   <context>
     <name>PartDesignGui::TaskPrimitiveParameters</name>
     <message>
-      <location filename="../../TaskPrimitiveParameters.cpp" line="893"/>
+      <location filename="../../TaskPrimitiveParameters.cpp" line="935"/>
       <source>Attachment</source>
       <translation>Đính kèm</translation>
     </message>
@@ -4461,20 +4516,20 @@ Only available for holes without thread</translation>
     </message>
     <message>
       <location filename="../../TaskHoleParameters.ui" line="251"/>
-      <location filename="../../TaskHoleParameters.cpp" line="591"/>
+      <location filename="../../TaskHoleParameters.cpp" line="618"/>
       <source>Standard</source>
       <translation>Tiêu chuẩn</translation>
     </message>
     <message>
       <location filename="../../TaskHoleParameters.ui" line="256"/>
-      <location filename="../../TaskHoleParameters.cpp" line="592"/>
-      <location filename="../../TaskHoleParameters.cpp" line="603"/>
+      <location filename="../../TaskHoleParameters.cpp" line="619"/>
+      <location filename="../../TaskHoleParameters.cpp" line="630"/>
       <source>Close</source>
       <translation>Đóng</translation>
     </message>
     <message>
       <location filename="../../TaskHoleParameters.ui" line="261"/>
-      <location filename="../../TaskHoleParameters.cpp" line="593"/>
+      <location filename="../../TaskHoleParameters.cpp" line="620"/>
       <source>Wide</source>
       <translation type="unfinished">Wide</translation>
     </message>
@@ -4621,12 +4676,12 @@ over 90: larger hole radius at the bottom</translation>
       <translation type="unfinished">Reversed</translation>
     </message>
     <message>
-      <location filename="../../TaskHoleParameters.cpp" line="602"/>
+      <location filename="../../TaskHoleParameters.cpp" line="629"/>
       <source>Normal</source>
       <translation>Bình thường</translation>
     </message>
     <message>
-      <location filename="../../TaskHoleParameters.cpp" line="604"/>
+      <location filename="../../TaskHoleParameters.cpp" line="631"/>
       <source>Loose</source>
       <translation type="unfinished">Loose</translation>
     </message>
@@ -4725,12 +4780,12 @@ over 90: larger hole radius at the bottom</translation>
   <context>
     <name>PartDesign_InvoluteGear</name>
     <message>
-      <location filename="../../../InvoluteGearFeature.py" line="57"/>
+      <location filename="../../../InvoluteGearFeature.py" line="58"/>
       <source>Involute gear...</source>
       <translation type="unfinished">Involute gear...</translation>
     </message>
     <message>
-      <location filename="../../../InvoluteGearFeature.py" line="61"/>
+      <location filename="../../../InvoluteGearFeature.py" line="62"/>
       <source>Creates or edit the involute gear definition.</source>
       <translation type="unfinished">Creates or edit the involute gear definition.</translation>
     </message>

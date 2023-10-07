@@ -27,7 +27,7 @@ import re
 
 __title__ = "Generic property container to store some values."
 __author__ = "sliptonic (Brad Collette)"
-__url__ = "https://www.freecadweb.org"
+__url__ = "https://www.freecad.org"
 __doc__ = "A generic container for typed properties in arbitrary categories."
 
 if False:
@@ -76,10 +76,10 @@ class PropertyBag(object):
         )
         self.onDocumentRestored(obj)
 
-    def __getstate__(self):
+    def dumps(self):
         return None
 
-    def __setstate__(self, state):
+    def loads(self, state):
         return None
 
     def __sanitizePropertyName(self, name):

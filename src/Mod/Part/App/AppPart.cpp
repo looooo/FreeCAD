@@ -66,6 +66,7 @@
 #include "FeatureChamfer.h"
 #include "FeatureCompound.h"
 #include "FeatureExtrusion.h"
+#include "FeatureScale.h"
 #include "FeatureFace.h"
 #include "FeatureFillet.h"
 #include "FeatureGeometrySet.h"
@@ -126,6 +127,7 @@
 #include "OCCError.h"
 #include "PrismExtension.h"
 #include "PropertyGeometryList.h"
+#include "PropertyTopoShapeList.h"
 
 #include <BRepFeat/MakePrismPy.h>
 
@@ -396,6 +398,7 @@ PyMOD_INIT_FUNC(Part)
     Part::PropertyGeometryList  ::init();
     Part::PropertyShapeHistory  ::init();
     Part::PropertyFilletEdges   ::init();
+    Part::PropertyTopoShapeList ::init();
 
     Part::FaceMaker             ::init();
     Part::FaceMakerPublic       ::init();
@@ -438,6 +441,7 @@ PyMOD_INIT_FUNC(Part)
     Part::Compound              ::init();
     Part::Compound2             ::init();
     Part::Extrusion             ::init();
+    Part::Scale                 ::init();
     Part::Revolution            ::init();
     Part::Mirroring             ::init();
     Part::ImportStep            ::init();

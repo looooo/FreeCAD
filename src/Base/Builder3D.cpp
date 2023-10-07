@@ -918,9 +918,7 @@ InventorBuilder::InventorBuilder(std::ostream& output)
     result << "#Inventor V2.1 ascii \n\n";
 }
 
-InventorBuilder:: ~InventorBuilder()
-{
-}
+InventorBuilder:: ~InventorBuilder() = default;
 
 void InventorBuilder::increaseIndent()
 {
@@ -957,7 +955,8 @@ void InventorBuilder::endSeparator()
  * A more elaborate description of the constructor.
  */
 Builder3D::Builder3D()
-  : InventorBuilder(result)
+  : result{}
+  , builder{result}
 {
 }
 
@@ -987,7 +986,7 @@ void Builder3D::saveToLog()
 {
     ILogger* obs = Base::Console().Get("StatusBar");
     if (obs){
-        obs->SendLog(result.str().c_str(), Base::LogStyle::Log);
+        obs->SendLog("Builder3D",result.str().c_str(), Base::LogStyle::Log, Base::IntendedRecipient::Developer, Base::ContentType::Untranslatable);
     }
 }
 
@@ -1008,6 +1007,21 @@ void Builder3D::saveToFile(const char* FileName)
     }
 
     file << result.str();
+}
+
+void Builder3D::addNode(const NodeItem& item)
+{
+    builder.addNode(item);
+}
+
+void Builder3D::beginSeparator()
+{
+    builder.beginSeparator();
+}
+
+void Builder3D::endSeparator()
+{
+    builder.endSeparator();
 }
 
 // -----------------------------------------------------------------------------

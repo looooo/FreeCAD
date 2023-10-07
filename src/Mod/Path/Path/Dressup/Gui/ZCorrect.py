@@ -91,10 +91,10 @@ class ObjectDressup:
         obj.ArcInterpolate = 0.1
         obj.SegInterpolate = 1.0
 
-    def __getstate__(self):
+    def dumps(self):
         return None
 
-    def __setstate__(self, state):
+    def loads(self, state):
         return None
 
     def onChanged(self, fp, prop):
@@ -155,7 +155,7 @@ class ObjectDressup:
         curveD = obj.ArcInterpolate.Value
 
         if obj.interpSurface.isNull():  # No valid probe data.  return unchanged path
-            obj.Path = obj.Base.Path
+            obj.Path = PathUtils.getPathWithPlacement(obj.Base)
             return
 
         surface = obj.interpSurface.toNurbs().Faces[0].Surface
@@ -163,8 +163,9 @@ class ObjectDressup:
         if obj.Base:
             if obj.Base.isDerivedFrom("Path::Feature"):
                 if obj.Base.Path:
-                    if obj.Base.Path.Commands:
-                        pathlist = obj.Base.Path.Commands
+                    path = PathUtils.getPathWithPlacement(obj.Base)
+                    if path.Commands:
+                        pathlist = path.Commands
 
                         newcommandlist = []
                         currLocation = {"X": 0, "Y": 0, "Z": 0, "F": 0}
@@ -324,10 +325,10 @@ class ViewProviderDressup:
         panel.setupUi()
         return True
 
-    def __getstate__(self):
+    def dumps(self):
         return None
 
-    def __setstate__(self, state):
+    def loads(self, state):
         return None
 
     def onDelete(self, arg1=None, arg2=None):

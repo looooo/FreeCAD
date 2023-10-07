@@ -41,6 +41,7 @@
 
 
 using namespace TechDraw;
+using DU = DrawUtil;
 
 PROPERTY_SOURCE(TechDraw::DrawHatch, App::DocumentObject)
 
@@ -97,38 +98,29 @@ PyObject *DrawHatch::getPyObject(void)
 
 bool DrawHatch::faceIsHatched(int i, std::vector<TechDraw::DrawHatch*> hatchObjs)
 {
-    bool result = false;
-    bool found = false;
     for (auto& h:hatchObjs) {
         const std::vector<std::string> &sourceNames = h->Source.getSubValues();
         for (auto& s : sourceNames) {
             int fdx = TechDraw::DrawUtil::getIndexFromName(s);
             if (fdx == i) {
-                result = true;
-                found = true;
-                break;
+                return true;  // Found something
             }
         }
-        if (found) {
-            break;
-        }
     }
-    return result;
+    return false;  // Found nothing
 }
 
 //does this hatch affect face i
 bool DrawHatch::affectsFace(int i)
 {
-    bool result = false;
     const std::vector<std::string> &sourceNames = Source.getSubValues();
     for (auto& s : sourceNames) {
         int fdx = TechDraw::DrawUtil::getIndexFromName(s);
-            if (fdx == i) {
-                result = true;
-                break;
-            }
+        if (fdx == i) {
+            return true;  // Found something
+        }
     }
-    return result;
+    return false;  // Found nothing
 }
 
 //remove a subElement(Face) from Source PropertyLinkSub
@@ -200,30 +192,21 @@ void DrawHatch::unsetupObject(void)
 
 bool DrawHatch::isSvgHatch(void) const
 {
-    bool result = false;
     Base::FileInfo fi(HatchPattern.getValue());
-    if ((fi.extension() == "svg") ||
-        (fi.extension() == "SVG")) {
-        result = true;
-    }
-    return result;
+    return fi.hasExtension("svg");
 }
 
 bool DrawHatch::isBitmapHatch(void) const
 {
-    bool result = false;
     Base::FileInfo fi(HatchPattern.getValue());
-    if ((fi.extension() == "bmp") ||
-        (fi.extension() == "BMP") ||
-        (fi.extension() == "png") ||
-        (fi.extension() == "PNG") ||
-        (fi.extension() == "jpg") ||
-        (fi.extension() == "JPG") ||
-        (fi.extension() == "jpeg") ||
-        (fi.extension() == "JPEG") ) {
-        result = true;
-    }
-    return result;
+    return fi.hasExtension({"bmp", "png", "jpg", "jpeg"});
+}
+
+//! get a translated label string from the context (ex TaskActiveView), the base name (ex ActiveView) and
+//! the unique name within the document (ex ActiveView001), and use it to update the Label property.
+void DrawHatch::translateLabel(std::string context, std::string baseName, std::string uniqueName)
+{
+    Label.setValue(DU::translateArbitrary(context, baseName, uniqueName));
 }
 
 //standard preference getters
@@ -234,10 +217,8 @@ std::string DrawHatch::prefSvgHatch(void)
 
 App::Color DrawHatch::prefSvgHatchColor(void)
 {
-    Base::Reference<ParameterGrp> hGrp = App::GetApplication().GetUserParameter()
-        .GetGroup("BaseApp")->GetGroup("Preferences")->GetGroup("Mod/TechDraw/Colors");
     App::Color fcColor;
-    fcColor.setPackedValue(hGrp->GetUnsigned("Hatch", 0x00FF0000));
+    fcColor.setPackedValue(Preferences::getPreferenceGroup("Colors")->GetUnsigned("Hatch", 0x00FF0000));
     return fcColor;
 }
 

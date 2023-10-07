@@ -37,13 +37,13 @@ from .manager import init_doc
 
 def get_information():
     return {
-        "name": "Constraint Constact Shell Shell",
+        "name": "Constraint Contact Shell Shell",
         "meshtype": "face",
         "meshelement": "Tria3",
         "constraints": ["fixed", "force", "contact"],
         "solvers": ["calculix", "ccxtools"],
         "material": "solid",
-        "equation": "mechanical"
+        "equations": ["mechanical"]
     }
 
 
@@ -56,8 +56,8 @@ setup()
 
 
 See forum topic post:
-https://forum.freecadweb.org/viewtopic.php?f=18&t=42228
-based on https://forum.freecadweb.org/viewtopic.php?f=18&t=42228#p359488
+https://forum.freecad.org/viewtopic.php?f=18&t=42228
+based on https://forum.freecad.org/viewtopic.php?f=18&t=42228#p359488
 
 contact example shell to shell elements
 
@@ -143,7 +143,7 @@ def setup(doc=None, solvertype="ccxtools"):
         solver_obj.WorkingDir = u""
     else:
         FreeCAD.Console.PrintWarning(
-            "Not known or not supported solver type: {}. "
+            "Unknown or unsupported solver type: {}. "
             "No solver object was created.\n".format(solvertype)
         )
     if solvertype == "calculix" or solvertype == "ccxtools":
@@ -182,7 +182,7 @@ def setup(doc=None, solvertype="ccxtools"):
     con_force = ObjectsFem.makeConstraintForce(doc, "ConstraintForce")
     # TODO use point of tube boolean fragment
     con_force.References = [(force_point, "Vertex1")]
-    con_force.Force = 5000.0
+    con_force.Force = "5000.0 N"
     con_force.Direction = (load_line, ["Edge1"])
     con_force.Reversed = True
     analysis.addObject(con_force)

@@ -1,3 +1,4 @@
+// clang-format off
 // http://voxels.blogspot.de/2014/05/quadric-mesh-simplification-with-source.html
 // https://github.com/sp4cerat/Fast-Quadric-Mesh-Simplification
 //
@@ -264,7 +265,6 @@ bool Simplify::flipped(vec3f p, int i0, int i1,
                        std::vector<int> &deleted)
 {
     (void)i0; (void)v1;
-    int bordercount=0;
     for (int k=0;k<v0.tcount;++k)
     {
         Triangle &t=triangles[refs[v0.tstart+k].tid];
@@ -277,7 +277,6 @@ bool Simplify::flipped(vec3f p, int i0, int i1,
 
         if (id1==i1 || id2==i1) // delete ?
         {
-            bordercount++;
             deleted[k]=1;
             continue;
         }
@@ -540,3 +539,4 @@ double Simplify::calculate_error(int id_v1, int id_v2, vec3f &p_result)
 }
 
 ///////////////////////////////////////////
+// clang-format on

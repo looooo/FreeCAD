@@ -1,9 +1,3 @@
-if(MSVC)
-    add_definitions(-DFCAppMeshPart -DHAVE_ACOSH -DHAVE_ASINH -DHAVE_ATANH)
-else(MSVC)
-    add_definitions(-DHAVE_LIMITS_H -DHAVE_CONFIG_H)
-endif(MSVC)
-
 if (BUILD_SMESH)
     add_definitions(-DHAVE_SMESH -DHAVE_MEFISTO)
 endif(BUILD_SMESH)
@@ -78,12 +72,6 @@ endif()
 
 add_library(MeshPart SHARED ${MeshPart_SRCS} ${MeshPart_Scripts})
 target_link_libraries(MeshPart ${MeshPart_LIBS})
-
-# external SMESH doesn't support C++17 yet
-if(FREECAD_USE_EXTERNAL_SMESH)
-    set_target_properties(MeshPart PROPERTIES CXX_STANDARD_REQUIRED ON)
-    set_target_properties(MeshPart PROPERTIES CXX_STANDARD 14)
-endif()
 
 
 fc_target_copy_resource_flat(MeshPart

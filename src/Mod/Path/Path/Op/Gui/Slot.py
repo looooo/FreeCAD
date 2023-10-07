@@ -31,7 +31,7 @@ from PySide import QtCore
 
 __title__ = "Path Slot Operation UI"
 __author__ = "russ4262 (Russell Johnson)"
-__url__ = "http://www.freecadweb.org"
+__url__ = "http://www.freecad.org"
 __doc__ = "Slot operation page controller and command implementation."
 __contributors__ = ""
 
@@ -111,7 +111,7 @@ class TaskPanelOpPage(PathOpGui.TaskPanelPage):
         self.geo2Extension.updateSpinBox()
 
     def getFields(self, obj):
-        """getFields(obj) ... transfers values from UI to obj's proprties"""
+        """getFields(obj) ... transfers values from UI to obj's properties"""
         debugMsg("getFields()")
         self.updateToolController(obj, self.form.toolController)
         self.updateCoolant(obj, self.form.coolantController)

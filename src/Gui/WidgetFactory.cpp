@@ -210,9 +210,7 @@ PrefPageUiProducer::PrefPageUiProducer (const char* filename, const char* group)
     Gui::Dialog::DlgPreferencesImp::addPage(filename, group);
 }
 
-PrefPageUiProducer::~PrefPageUiProducer()
-{
-}
+PrefPageUiProducer::~PrefPageUiProducer() = default;
 
 void* PrefPageUiProducer::Produce () const
 {
@@ -377,14 +375,12 @@ ContainerDialog::ContainerDialog( QWidget* templChild )
     resize( QSize(307, 197).expandedTo(minimumSizeHint()) );
 
     // signals and slots connections
-    connect( buttonOk, SIGNAL( clicked() ), this, SLOT( accept() ) );
-    connect( buttonCancel, SIGNAL( clicked() ), this, SLOT( reject() ) );
+    connect( buttonOk, &QPushButton::clicked, this, &QDialog::accept);
+    connect( buttonCancel, &QPushButton::clicked, this, &QDialog::reject);
 }
 
 /** Destroys the object and frees any allocated resources */
-ContainerDialog::~ContainerDialog()
-{
-}
+ContainerDialog::~ContainerDialog() = default;
 
 // ----------------------------------------------------
 
@@ -409,8 +405,8 @@ PyResource::PyResource() : myDlg(nullptr)
 PyResource::~PyResource()
 {
     delete myDlg;
-    for (std::vector<SignalConnect*>::iterator it = mySignals.begin(); it != mySignals.end(); ++it) {
-        SignalConnect* sc = *it;
+    for (auto it : mySignals) {
+        SignalConnect* sc = it;
         delete sc;
     }
 }
@@ -461,11 +457,10 @@ void PyResource::load(const char* name)
 
     QWidget* w=nullptr;
     try {
-        UiLoader loader;
-        loader.setLanguageChangeEnabled(true);
+        auto loader = UiLoader::newInstance();
         QFile file(fn);
         if (file.open(QFile::ReadOnly))
-            w = loader.load(&file, QApplication::activeWindow());
+            w = loader->load(&file, QApplication::activeWindow());
         file.close();
     }
     catch (...) {
@@ -583,7 +578,7 @@ Py::Object PyResource::value(const Py::Tuple& args)
         item = Py::Float(v.toDouble());
         break;
     case QMetaType::Bool:
-        item = Py::Boolean(v.toBool() ? 1 : 0);
+        item = Py::Boolean(v.toBool());
         break;
     case QMetaType::UInt:
         item = Py::Long(static_cast<unsigned long>(v.toUInt()));

@@ -51,10 +51,10 @@ class ObjectPathCopy:
         )
         obj.Proxy = self
 
-    def __getstate__(self):
+    def dumps(self):
         return None
 
-    def __setstate__(self, state):
+    def loads(self, state):
         return None
 
     def execute(self, obj):
@@ -63,6 +63,8 @@ class ObjectPathCopy:
                 obj.ToolController = obj.Base.ToolController
             if obj.Base.Path:
                 obj.Path = obj.Base.Path.copy()
+            if obj.Base.Placement:
+                obj.Placement = obj.Base.Placement
 
 
 class ViewProviderPathCopy:
@@ -77,10 +79,10 @@ class ViewProviderPathCopy:
     def getIcon(self):
         return ":/icons/Path_Copy.svg"
 
-    def __getstate__(self):
+    def dumps(self):
         return None
 
-    def __setstate__(self, state):
+    def loads(self, state):
         return None
 
 

@@ -47,30 +47,30 @@
 
 #include "PreCompiled.h"
 #ifndef _PreComp_
-# include <cmath>
+#include <cmath>
 
-# include <QApplication>
-# include <QPainter>
-# include <QPushButton>
-# include <QColorDialog>
-# include <QGridLayout>
-# include <QtCore/QMap>
-# include <QLayout>
-# include <QStyle>
-# include <QtGui/QFocusEvent>
-# include <QtGui/QHideEvent>
-# include <QtGui/QKeyEvent>
-# include <QtGui/QMouseEvent>
-# include <QtGui/QPaintEvent>
-# include <QtGui/QPixmap>
-# include <QtGui/QShowEvent>
+#include <QApplication>
+#include <QColorDialog>
+#include <QGridLayout>
+#include <QLayout>
+#include <QPainter>
+#include <QPushButton>
+#include <QStyle>
+#include <QtCore/QMap>
+#include <QtGui/QFocusEvent>
+#include <QtGui/QHideEvent>
+#include <QtGui/QKeyEvent>
+#include <QtGui/QMouseEvent>
+#include <QtGui/QPaintEvent>
+#include <QtGui/QPixmap>
+#include <QtGui/QShowEvent>
 #endif
 
 #include <Gui/FileDialog.h>
 
 #include "qtcolorpicker.h"
 
-
+// clang-format off
 /*! \class QtColorPicker
 
     \brief The QtColorPicker class provides a widget for selecting
@@ -558,13 +558,14 @@ ColorPickerPopup::ColorPickerPopup(int width, bool withColorDialog,
     cols = width;
 
     if (withColorDialog) {
-    moreButton = new ColorPickerButton(this);
-    moreButton->setFixedWidth(24);
-    moreButton->setFixedHeight(21);
-    moreButton->setFrameRect(QRect(2, 2, 20, 17));
-    connect(moreButton, SIGNAL(clicked()), SLOT(getColorFromDialog()));
-    } else {
-    moreButton = nullptr;
+        moreButton = new ColorPickerButton(this);
+        moreButton->setFixedWidth(24);
+        moreButton->setFixedHeight(21);
+        moreButton->setFrameRect(QRect(2, 2, 20, 17));
+        connect(moreButton, &ColorPickerButton::clicked, this, &ColorPickerPopup::getColorFromDialog);
+    }
+    else {
+        moreButton = nullptr;
     }
 
     eventLoop = nullptr;
@@ -628,10 +629,10 @@ void ColorPickerPopup::insertColor(const QColor &col, const QString &text, int i
     }
     item->setFocus();
 
-    connect(item, SIGNAL(selected()), SLOT(updateSelected()));
+    connect(item, &ColorPickerItem::selected, this, &ColorPickerPopup::updateSelected);
 
     if (index == -1)
-    index = items.count();
+        index = items.count();
 
     items.insert((unsigned int)index, item);
     regenerateGrid();
@@ -1163,6 +1164,6 @@ void ColorPickerButton::paintEvent(QPaintEvent *e)
     p.end();
 
 }
-
+// clang-format on
 #include "moc_qtcolorpicker.cpp"
 #include <moc_qtcolorpicker-internal.cpp>

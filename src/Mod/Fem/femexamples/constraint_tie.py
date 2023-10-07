@@ -44,7 +44,7 @@ def get_information():
         "constraints": ["fixed", "force", "tie"],
         "solvers": ["calculix", "ccxtools"],
         "material": "solid",
-        "equation": "mechanical"
+        "equations": ["mechanical"]
     }
 
 
@@ -57,7 +57,7 @@ setup()
 
 
 See forum topic post:
-https://forum.freecadweb.org/viewtopic.php?f=18&t=42783
+https://forum.freecad.org/viewtopic.php?f=18&t=42783
 
 constraint tie, bond two surfaces together (solid mesh only)
 
@@ -113,7 +113,7 @@ def setup(doc=None, solvertype="ccxtools"):
         solver_obj.WorkingDir = u""
     else:
         FreeCAD.Console.PrintWarning(
-            "Not known or not supported solver type: {}. "
+            "Unknown or unsupported solver type: {}. "
             "No solver object was created.\n".format(solvertype)
         )
     if solvertype == "calculix" or solvertype == "ccxtools":
@@ -142,7 +142,7 @@ def setup(doc=None, solvertype="ccxtools"):
     # constraint force
     con_force = ObjectsFem.makeConstraintForce(doc, "ConstraintForce")
     con_force.References = [(geom_obj, "Edge2")]
-    con_force.Force = 10000.0  # 10000 N = 10 kN
+    con_force.Force = "10000.0 N"  # 10 kN
     con_force.Direction = (geom_obj, ["Edge2"])
     con_force.Reversed = False
     analysis.addObject(con_force)

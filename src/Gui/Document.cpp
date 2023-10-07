@@ -30,20 +30,23 @@
 # include <QMessageBox>
 # include <QTextStream>
 # include <QTimer>
+# include <QStatusBar>
 # include <Inventor/actions/SoSearchAction.h>
 # include <Inventor/nodes/SoSeparator.h>
+# include <xercesc/dom/DOM.hpp>
 #endif
 
 #include <App/AutoTransaction.h>
-#include <App/ComplexGeoData.h>
 #include <App/Document.h>
 #include <App/DocumentObject.h>
 #include <App/DocumentObjectGroup.h>
 #include <App/Transactions.h>
+#include <App/ElementNamingUtils.h>
 #include <Base/Console.h>
 #include <Base/Exception.h>
 #include <Base/Matrix.h>
 #include <Base/Reader.h>
+#include <Base/DocumentReader.h>
 #include <Base/Writer.h>
 #include <Base/Tools.h>
 
@@ -55,6 +58,7 @@
 #include "FileDialog.h"
 #include "MainWindow.h"
 #include "MDIView.h"
+#include "NotificationArea.h"
 #include "Selection.h"
 #include "Thumbnail.h"
 #include "Tree.h"
@@ -64,182 +68,12 @@
 #include "ViewProviderDocumentObjectGroup.h"
 #include "WaitCursor.h"
 
-
 FC_LOG_LEVEL_INIT("Gui", true, true)
 
 using namespace Gui;
-namespace bp = boost::placeholders;
+namespace sp = std::placeholders;
 
 namespace Gui {
-
-/** This class is an implementation only class to handle user notifications offered by App::Document.
- *
- * It provides a mechanism requiring confirmation for critical notifications only during User initiated restore/document loading ( it
- * does not require confirmation for macro/Python initiated restore, not to interfere with automations).
- *
- * Additionally, it provides a mechanism to show autoclosing non-modal user notifications in a non-intrusive way.
- **/
-class MessageManager {
-public:
-    MessageManager() = default;
-    ~MessageManager();
-
-    void setDocument(Gui::Document * pDocument);
-    void slotUserMessage(const App::DocumentObject&, const QString &, App::Document::NotificationType);
-
-
-private:
-    void reorderAutoClosingMessages();
-    QMessageBox* createNonModalMessage(const QString & msg, App::Document::NotificationType notificationtype);
-    void pushAutoClosingMessage(const QString & msg, App::Document::NotificationType notificationtype);
-    void pushAutoClosingMessageTooManyMessages();
-
-private:
-    using Connection = boost::signals2::connection;
-    Gui::Document * pDoc;
-    Connection connectUserMessage;
-    bool requireConfirmationCriticalMessageDuringRestoring = true;
-    std::vector<QMessageBox*> openAutoClosingMessages;
-    std::mutex mutexAutoClosingMessages;
-    const int autoClosingTimeout = 5000; // ms
-    const int autoClosingMessageStackingOffset = 10;
-    const unsigned int maxNumberOfOpenAutoClosingMessages = 3;
-    bool maxNumberOfOpenAutoClosingMessagesLimitReached = false;
-};
-
-MessageManager::~MessageManager(){
-    connectUserMessage.disconnect();
-}
-
-void MessageManager::setDocument(Gui::Document * pDocument)
-{
-
-    pDoc = pDocument;
-
-    connectUserMessage = pDoc->getDocument()->signalUserMessage.connect
-        (boost::bind(&Gui::MessageManager::slotUserMessage, this, bp::_1, bp::_2, bp::_3));
-
-}
-
-void MessageManager::slotUserMessage(const App::DocumentObject& obj, const QString & msg, App::Document::NotificationType notificationtype)
-{
-    (void) obj;
-
-    auto userInitiatedRestore = Application::Instance->testStatus(Gui::Application::UserInitiatedOpenDocument);
-
-    if(notificationtype == App::Document::NotificationType::Critical && userInitiatedRestore && requireConfirmationCriticalMessageDuringRestoring) {
-        auto confirmMsg = msg + QStringLiteral("\n\n") + QObject::tr("Do you want to skip confirmation of further critical message notifications while loading the file?");
-        auto button = QMessageBox::critical(pDoc->getActiveView(), QObject::tr("Critical Message"), confirmMsg, QMessageBox::Yes | QMessageBox::No, QMessageBox::No );
-
-        if(button == QMessageBox::Yes)
-            requireConfirmationCriticalMessageDuringRestoring = false;
-    }
-    else { // Non-critical errors and warnings - auto-closing non-blocking message box
-
-        auto messageNumber =  openAutoClosingMessages.size();
-
-        // Not opening more than the number of maximum autoclosing messages
-        // If maximum reached, the mechanism only resets after all present messages are auto-closed
-        if( messageNumber < maxNumberOfOpenAutoClosingMessages) {
-            if(messageNumber == 0 && maxNumberOfOpenAutoClosingMessagesLimitReached) {
-                maxNumberOfOpenAutoClosingMessagesLimitReached = false;
-            }
-
-            if(!maxNumberOfOpenAutoClosingMessagesLimitReached) {
-                pushAutoClosingMessage(msg, notificationtype);
-            }
-        }
-        else {
-            if(!maxNumberOfOpenAutoClosingMessagesLimitReached)
-                pushAutoClosingMessageTooManyMessages();
-
-            maxNumberOfOpenAutoClosingMessagesLimitReached = true;
-        }
-    }
-}
-
-void MessageManager::pushAutoClosingMessage(const QString & msg, App::Document::NotificationType notificationtype)
-{
-    std::lock_guard<std::mutex> g(mutexAutoClosingMessages); // guard to avoid creating new messages while closing old messages (via timer)
-
-    auto msgBox = createNonModalMessage(msg, notificationtype);
-
-    msgBox->show();
-
-    int numberOpenAutoClosingMessages = openAutoClosingMessages.size();
-
-    openAutoClosingMessages.push_back(msgBox);
-
-    reorderAutoClosingMessages();
-
-    QTimer::singleShot(autoClosingTimeout*numberOpenAutoClosingMessages, [msgBox, this](){
-        std::lock_guard<std::mutex> g(mutexAutoClosingMessages); // guard to avoid closing old messages while creating new ones
-        if(msgBox) {
-            msgBox->done(0);
-            openAutoClosingMessages.erase(
-                std::remove(openAutoClosingMessages.begin(), openAutoClosingMessages.end(), msgBox),
-                openAutoClosingMessages.end());
-
-            reorderAutoClosingMessages();
-        }
-    });
-}
-
-void MessageManager::pushAutoClosingMessageTooManyMessages()
-{
-    pushAutoClosingMessage(QObject::tr("Too many message notifications. Notification temporarily stopped. Look at the report view for more information."), App::Document::NotificationType::Warning);
-}
-
-
-QMessageBox* MessageManager::createNonModalMessage(const QString & msg, App::Document::NotificationType notificationtype)
-{
-        auto parent = pDoc->getActiveView();
-
-        QMessageBox* msgBox = new QMessageBox(parent);
-        msgBox->setAttribute(Qt::WA_DeleteOnClose); // msgbox deleted automatically upon closed
-        msgBox->setStandardButtons(QMessageBox::NoButton);
-        msgBox->setWindowFlag(Qt::FramelessWindowHint,true);
-        msgBox->setText(msg);
-
-        if(notificationtype == App::Document::NotificationType::Error) {
-            msgBox->setWindowTitle(QObject::tr("Error"));
-            msgBox->setIcon(QMessageBox::Critical);
-        }
-        else if(notificationtype == App::Document::NotificationType::Warning) {
-            msgBox->setWindowTitle(QObject::tr("Warning"));
-            msgBox->setIcon(QMessageBox::Warning);
-        }
-        else if(notificationtype == App::Document::NotificationType::Information) {
-            msgBox->setWindowTitle(QObject::tr("Information"));
-            msgBox->setIcon(QMessageBox::Information);
-        }
-        else if(notificationtype == App::Document::NotificationType::Critical) {
-            msgBox->setWindowTitle(QObject::tr("Critical"));
-            msgBox->setIcon(QMessageBox::Critical);
-        }
-
-        msgBox->setModal( false ); // if you want it non-modal
-
-        return msgBox;
-}
-
-void MessageManager::reorderAutoClosingMessages()
-{
-    auto parent = pDoc->getActiveView();
-
-    int numberOpenAutoClosingMessages = openAutoClosingMessages.size();
-
-    auto x = parent->width() / 2;
-    auto y = parent->height() / 7;
-
-    int posindex = numberOpenAutoClosingMessages - 1;
-    for (auto rit = openAutoClosingMessages.rbegin(); rit != openAutoClosingMessages.rend(); ++rit, posindex--) {
-        int xw = x - (*rit)->width() / 2 + autoClosingMessageStackingOffset*posindex;;
-        int yw = y + autoClosingMessageStackingOffset*posindex;
-        (*rit)->move(xw, yw);
-        (*rit)->raise();
-    }
-}
 
 // Pimpl class
 struct DocumentP
@@ -272,6 +106,9 @@ struct DocumentP
     std::map<SoSeparator *,ViewProviderDocumentObject*> _CoinMap;
     std::map<std::string,ViewProvider*> _ViewProviderMapAnnotation;
     std::list<ViewProviderDocumentObject*> _redoViewProviders;
+    
+    int projectUnitSystem=-1;
+    bool projectUnitSystemIgnore;
 
     using Connection = boost::signals2::connection;
     Connection connectNewObject;
@@ -301,8 +138,6 @@ struct DocumentP
     using ConnectionBlock = boost::signals2::shared_connection_block;
     ConnectionBlock connectActObjectBlocker;
     ConnectionBlock connectChangeDocumentBlocker;
-
-    MessageManager messageManager;
 };
 } // namespace Gui
 
@@ -329,62 +164,63 @@ Document::Document(App::Document* pcDocument,Application * app)
     d->_editingViewer = nullptr;
     d->_editMode = 0;
 
+    //NOLINTBEGIN
     // Setup the connections
     d->connectNewObject = pcDocument->signalNewObject.connect
-        (boost::bind(&Gui::Document::slotNewObject, this, bp::_1));
+        (std::bind(&Gui::Document::slotNewObject, this, sp::_1));
     d->connectDelObject = pcDocument->signalDeletedObject.connect
-        (boost::bind(&Gui::Document::slotDeletedObject, this, bp::_1));
+        (std::bind(&Gui::Document::slotDeletedObject, this, sp::_1));
     d->connectCngObject = pcDocument->signalChangedObject.connect
-        (boost::bind(&Gui::Document::slotChangedObject, this, bp::_1, bp::_2));
+        (std::bind(&Gui::Document::slotChangedObject, this, sp::_1, sp::_2));
     d->connectRenObject = pcDocument->signalRelabelObject.connect
-        (boost::bind(&Gui::Document::slotRelabelObject, this, bp::_1));
+        (std::bind(&Gui::Document::slotRelabelObject, this, sp::_1));
     d->connectActObject = pcDocument->signalActivatedObject.connect
-        (boost::bind(&Gui::Document::slotActivatedObject, this, bp::_1));
+        (std::bind(&Gui::Document::slotActivatedObject, this, sp::_1));
     d->connectActObjectBlocker = boost::signals2::shared_connection_block
         (d->connectActObject, false);
     d->connectSaveDocument = pcDocument->signalSaveDocument.connect
-        (boost::bind(&Gui::Document::Save, this, bp::_1));
+        (std::bind(&Gui::Document::Save, this, sp::_1));
     d->connectRestDocument = pcDocument->signalRestoreDocument.connect
-        (boost::bind(&Gui::Document::Restore, this, bp::_1));
+        (std::bind(&Gui::Document::Restore, this, sp::_1));
     d->connectStartLoadDocument = App::GetApplication().signalStartRestoreDocument.connect
-        (boost::bind(&Gui::Document::slotStartRestoreDocument, this, bp::_1));
+        (std::bind(&Gui::Document::slotStartRestoreDocument, this, sp::_1));
     d->connectFinishLoadDocument = App::GetApplication().signalFinishRestoreDocument.connect
-        (boost::bind(&Gui::Document::slotFinishRestoreDocument, this, bp::_1));
+        (std::bind(&Gui::Document::slotFinishRestoreDocument, this, sp::_1));
     d->connectShowHidden = App::GetApplication().signalShowHidden.connect
-        (boost::bind(&Gui::Document::slotShowHidden, this, bp::_1));
+        (std::bind(&Gui::Document::slotShowHidden, this, sp::_1));
 
     d->connectChangePropertyEditor = pcDocument->signalChangePropertyEditor.connect
-        (boost::bind(&Gui::Document::slotChangePropertyEditor, this, bp::_1, bp::_2));
+        (std::bind(&Gui::Document::slotChangePropertyEditor, this, sp::_1, sp::_2));
     d->connectChangeDocument = d->_pcDocument->signalChanged.connect // use the same slot function
-        (boost::bind(&Gui::Document::slotChangePropertyEditor, this, bp::_1, bp::_2));
+        (std::bind(&Gui::Document::slotChangePropertyEditor, this, sp::_1, sp::_2));
     d->connectChangeDocumentBlocker = boost::signals2::shared_connection_block
         (d->connectChangeDocument, true);
     d->connectFinishRestoreObject = pcDocument->signalFinishRestoreObject.connect
-        (boost::bind(&Gui::Document::slotFinishRestoreObject, this, bp::_1));
+        (std::bind(&Gui::Document::slotFinishRestoreObject, this, sp::_1));
     d->connectExportObjects = pcDocument->signalExportViewObjects.connect
-        (boost::bind(&Gui::Document::exportObjects, this, bp::_1, bp::_2));
+        (std::bind(&Gui::Document::exportObjects, this, sp::_1, sp::_2));
     d->connectImportObjects = pcDocument->signalImportViewObjects.connect
-        (boost::bind(&Gui::Document::importObjects, this, bp::_1, bp::_2, bp::_3));
+        (std::bind(&Gui::Document::importObjects, this, sp::_1, sp::_2, sp::_3));
     d->connectFinishImportObjects = pcDocument->signalFinishImportObjects.connect
-        (boost::bind(&Gui::Document::slotFinishImportObjects, this, bp::_1));
+        (std::bind(&Gui::Document::slotFinishImportObjects, this, sp::_1));
 
     d->connectUndoDocument = pcDocument->signalUndo.connect
-        (boost::bind(&Gui::Document::slotUndoDocument, this, bp::_1));
+        (std::bind(&Gui::Document::slotUndoDocument, this, sp::_1));
     d->connectRedoDocument = pcDocument->signalRedo.connect
-        (boost::bind(&Gui::Document::slotRedoDocument, this, bp::_1));
+        (std::bind(&Gui::Document::slotRedoDocument, this, sp::_1));
     d->connectRecomputed = pcDocument->signalRecomputed.connect
-        (boost::bind(&Gui::Document::slotRecomputed, this, bp::_1));
+        (std::bind(&Gui::Document::slotRecomputed, this, sp::_1));
     d->connectSkipRecompute = pcDocument->signalSkipRecompute.connect
-        (boost::bind(&Gui::Document::slotSkipRecompute, this, bp::_1, bp::_2));
+        (std::bind(&Gui::Document::slotSkipRecompute, this, sp::_1, sp::_2));
     d->connectTouchedObject = pcDocument->signalTouchedObject.connect
-        (boost::bind(&Gui::Document::slotTouchedObject, this, bp::_1));
+        (std::bind(&Gui::Document::slotTouchedObject, this, sp::_1));
 
     d->connectTransactionAppend = pcDocument->signalTransactionAppend.connect
-        (boost::bind(&Gui::Document::slotTransactionAppend, this, bp::_1, bp::_2));
+        (std::bind(&Gui::Document::slotTransactionAppend, this, sp::_1, sp::_2));
     d->connectTransactionRemove = pcDocument->signalTransactionRemove.connect
-        (boost::bind(&Gui::Document::slotTransactionRemove, this, bp::_1, bp::_2));
+        (std::bind(&Gui::Document::slotTransactionRemove, this, sp::_1, sp::_2));
+    //NOLINTEND
 
-    d->messageManager.setDocument(this);
     // pointer to the python class
     // NOTE: As this Python object doesn't get returned to the interpreter we
     // mustn't increment it (Werner Jan-12-2006)
@@ -461,7 +297,7 @@ bool Document::setEdit(Gui::ViewProvider* p, int ModNum, const char *subname)
         return false;
     }
 
-    // Fix regression: https://forum.freecadweb.org/viewtopic.php?f=19&t=43629&p=371972#p371972
+    // Fix regression: https://forum.freecad.org/viewtopic.php?f=19&t=43629&p=371972#p371972
     // When an object is already in edit mode a subsequent call for editing is only possible
     // when resetting the currently edited object.
     if (d->_editViewProvider) {
@@ -578,7 +414,7 @@ bool Document::setEdit(Gui::ViewProvider* p, int ModNum, const char *subname)
     d->_editSubname.clear();
 
     if (subname) {
-        const char *element = Data::ComplexGeoData::findElementName(subname);
+        const char *element = Data::findElementName(subname);
         if (element) {
             d->_editSubname = std::string(subname,element-subname);
             d->_editSubElement = element;
@@ -816,6 +652,30 @@ void Document::setPos(const char* name, const Base::Matrix4D& rclMtrx)
 
 }
 
+void Document::setProjectUnitSystem(int pUS)
+{
+	if(pUS != d->projectUnitSystem && pUS >= 0){
+		d->projectUnitSystem = pUS;
+        setModified(true);
+	}
+}
+
+int Document::getProjectUnitSystem() const
+{
+    return d->projectUnitSystem;
+}
+
+void Document::setProjectUnitSystemIgnore(bool ignore)
+{
+	d->projectUnitSystemIgnore = ignore;
+	setModified(true);
+}
+
+bool Document::getProjectUnitSystemIgnore() const
+{
+    return d->projectUnitSystemIgnore;
+}
+
 //*****************************************************************************************************
 // Document
 //*****************************************************************************************************
@@ -823,7 +683,6 @@ void Document::slotNewObject(const App::DocumentObject& Obj)
 {
     auto pcProvider = static_cast<ViewProviderDocumentObject*>(getViewProvider(&Obj));
     if (!pcProvider) {
-        //Base::Console().Log("Document::slotNewObject() called\n");
         std::string cName = Obj.getViewProviderNameStored();
         for(;;) {
             if (cName.empty()) {
@@ -841,10 +700,11 @@ void Document::slotNewObject(const App::DocumentObject& Obj)
             }
             else if (cName!=Obj.getViewProviderName() && !pcProvider->allowOverride(Obj)) {
                 FC_WARN("View provider type '" << cName << "' does not support " << Obj.getFullName());
+                delete pcProvider;
                 pcProvider = nullptr;
                 cName = Obj.getViewProviderName();
             }
-             else {
+            else {
                 break;
             }
         }
@@ -905,7 +765,6 @@ void Document::slotDeletedObject(const App::DocumentObject& Obj)
 {
     std::list<Gui::BaseView*>::iterator vIt;
     setModified(true);
-    //Base::Console().Log("Document::slotDeleteObject() called\n");
 
     // cycling to all views of the document
     ViewProvider* viewProvider = getViewProvider(&Obj);
@@ -1520,8 +1379,8 @@ void Document::Save (Base::Writer &writer) const
         writer.addFile("GuiDocument.xml", this);
 
         ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath("User parameter:BaseApp/Preferences/Document");
-        if (hGrp->GetBool("SaveThumbnail", false)) {
-            int size = hGrp->GetInt("ThumbnailSize", 128);
+        if (hGrp->GetBool("SaveThumbnail", true)) {
+            int size = hGrp->GetInt("ThumbnailSize", 256);
             size = Base::clamp<int>(size, 64, 512);
             std::list<MDIView*> mdi = getMDIViews();
             for (const auto & it : mdi) {
@@ -1544,6 +1403,7 @@ void Document::Save (Base::Writer &writer) const
 void Document::Restore(Base::XMLReader &reader)
 {
     reader.addFile("GuiDocument.xml",this);
+    
     // hide all elements to avoid to update the 3d view when loading data files
     // RestoreDocFile then restores the visibility status again
     std::map<const App::DocumentObject*,ViewProviderDocumentObject*>::iterator it;
@@ -1558,13 +1418,20 @@ void Document::Restore(Base::XMLReader &reader)
  */
 void Document::RestoreDocFile(Base::Reader &reader)
 {
+	
+	readUsing_DocumentReader(reader);
+	//readUsing_XMLReader(reader);
+    setModified(false);
+}
+
+void Document::readUsing_XMLReader(Base::Reader &reader){
     // We must create an XML parser to read from the input stream
     std::shared_ptr<Base::XMLReader> localreader = std::make_shared<Base::XMLReader>("GuiDocument.xml", reader);
-    localreader->FileVersion = reader.getFileVersion();
+    //localreader->FileVersion = reader.getFileVersion();
 
     localreader->readElement("Document");
     long scheme = localreader->getAttributeAsInteger("SchemaVersion");
-    localreader->DocumentSchema = scheme;
+    //localreader->DocumentSchema = scheme;
 
     bool hasExpansion = localreader->hasAttribute("HasExpansion");
     if(hasExpansion) {
@@ -1581,29 +1448,37 @@ void Document::RestoreDocFile(Base::Reader &reader)
     //
     // SchemeVersion "1"
     if (scheme == 1) {
+
         // read the viewproviders itself
+        
         localreader->readElement("ViewProviderData");
         int Cnt = localreader->getAttributeAsInteger("Count");
+        
         for (int i=0; i<Cnt; i++) {
             localreader->readElement("ViewProvider");
             std::string name = localreader->getAttribute("name");
             bool expanded = false;
             if (!hasExpansion && localreader->hasAttribute("expanded")) {
+
                 const char* attr = localreader->getAttribute("expanded");
                 if (strcmp(attr,"1") == 0) {
                     expanded = true;
                 }
             }
             ViewProvider* pObj = getViewProviderByName(name.c_str());
-            if (pObj) // check if this feature has been registered
+            if (pObj){// check if this feature has been registered
                 pObj->Restore(*localreader);
+            }
+
             if (pObj && expanded) {
                 auto vp = static_cast<Gui::ViewProviderDocumentObject*>(pObj);
                 this->signalExpandObject(*vp, TreeItemMode::ExpandItem,0,0);
             }
             localreader->readEndElement("ViewProvider");
         }
+        
         localreader->readEndElement("ViewProviderData");
+        
 
         // read camera settings
         localreader->readElement("Camera");
@@ -1619,17 +1494,119 @@ void Document::RestoreDocFile(Base::Reader &reader)
                         it->onMsg(cameraSettings.c_str(), pReturnIgnore);
                 }
             }
+
             catch (const Base::Exception& e) {
                 Base::Console().Error("%s\n", e.what());
             }
         }
     }
-
     localreader->readEndElement("Document");
-
-    // reset modified flag
     reader.initLocalReader(localreader);
-    setModified(false);
+}
+
+void Document::readUsing_DocumentReader(Base::Reader &reader){
+    std::shared_ptr<Base::DocumentReader> docReader = std::make_shared<Base::DocumentReader>();
+	docReader->LoadDocument(reader);
+	//docReader->GetRootElement()//can be used to get Document XMLElement, but not needed.
+	const char* SchemaVersion_cstr = docReader->GetAttribute("SchemaVersion");
+	long SchemaVersion = docReader->ContentToInt( SchemaVersion_cstr );
+	const char* HasExpansion_cstr = docReader->GetAttribute("HasExpansion");
+	if(HasExpansion_cstr){
+		auto tree = TreeWidget::instance();
+	    if(tree) {
+	        auto docItem = tree->getDocumentItem(this);
+	        if(docItem)
+	            docItem->Restore(*docReader);
+	    }
+	}
+	
+	// At this stage all the document objects and their associated view providers exist.
+	// Now we must restore the properties of the view providers only.
+	if (SchemaVersion == 1) {
+		auto VProviderDataDOM = docReader->FindElement("ViewProviderData");
+		if(VProviderDataDOM){
+			const char* vpd_count_cstr = docReader->GetAttribute(VProviderDataDOM,"Count");
+			if(vpd_count_cstr){
+				long Cnt = docReader->ContentToInt( vpd_count_cstr );
+				auto prev_ViewProviderDOM = docReader->FindElement(VProviderDataDOM,"ViewProvider");
+				if(prev_ViewProviderDOM){
+					const char* name_cstr = docReader->GetAttribute(prev_ViewProviderDOM,"name");
+					const char* expanded_cstr = docReader->GetAttribute(prev_ViewProviderDOM,"expanded");
+					bool expanded = false;
+					if (!HasExpansion_cstr && expanded_cstr) {
+						if (strcmp(expanded_cstr,"1") == 0) {
+							expanded = true;
+						}
+					}
+					ViewProvider* pObj = getViewProviderByName(name_cstr);
+					if (pObj){
+						pObj->Restore(*docReader,prev_ViewProviderDOM);
+					}
+					if (pObj && expanded) {
+						auto vp = static_cast<Gui::ViewProviderDocumentObject*>(pObj);
+						this->signalExpandObject(*vp, TreeItemMode::ExpandItem,0,0);
+					}
+					for (int i=1; i<Cnt; i++) {
+						auto ViewProviderDOM_i = docReader->FindNextElement(prev_ViewProviderDOM,"ViewProvider");
+						if(ViewProviderDOM_i){
+							const char* name_cstr_i = docReader->GetAttribute(ViewProviderDOM_i,"name");
+							const char* expanded_cstr_i = docReader->GetAttribute(ViewProviderDOM_i,"expanded");
+							bool expanded = false;
+							if (!HasExpansion_cstr && expanded_cstr_i) {
+								if (strcmp(expanded_cstr_i,"1") == 0) {
+									expanded = true;
+								}
+							}
+							ViewProvider* pObj = getViewProviderByName(name_cstr_i);
+							if (pObj){
+								pObj->Restore(*docReader,ViewProviderDOM_i);
+							}
+							
+							if (pObj && expanded) {
+								auto vp = static_cast<Gui::ViewProviderDocumentObject*>(pObj);
+								this->signalExpandObject(*vp, TreeItemMode::ExpandItem,0,0);
+							}
+							prev_ViewProviderDOM = ViewProviderDOM_i;
+						}
+					}
+					
+				}
+				
+				
+			}
+		}
+		// read camera settings
+		auto CameraDOM = docReader->FindElement("Camera");
+		if(CameraDOM){
+			const char* ppReturn = docReader->GetAttribute(CameraDOM,"settings");
+			cameraSettings.clear();
+			if(ppReturn && ppReturn[0]) {
+			    saveCameraSettings(ppReturn);
+			    try {
+			        const char** pReturnIgnore=nullptr;
+			        std::list<MDIView*> mdi = getMDIViews();
+			        for (const auto & it : mdi) {
+			            if (it->onHasMsg("SetCamera"))
+			                it->onMsg(cameraSettings.c_str(), pReturnIgnore);
+			        }
+			    }
+			    catch (const Base::Exception& e) {
+			        Base::Console().Error("%s\n", e.what());
+			    }
+			}
+		}
+		
+		auto ProjectUnitSysDOM = docReader->FindElement("ProjectUnitSystem");
+		if(ProjectUnitSysDOM){
+			const char* US_cstr = docReader->GetAttribute(ProjectUnitSysDOM,"US");
+			const char* ignore_cstr = docReader->GetAttribute(ProjectUnitSysDOM,"ignore");
+			
+			d->projectUnitSystem = docReader->ContentToInt( US_cstr );
+			d->projectUnitSystemIgnore = docReader->ContentToInt( ignore_cstr );
+		}
+		
+	}
+	reader.initLocalDocReader(docReader);
 }
 
 void Document::slotStartRestoreDocument(const App::Document& doc)
@@ -1682,7 +1659,7 @@ void Document::SaveDocFile (Base::Writer &writer) const
 {
     writer.Stream() << "<?xml version='1.0' encoding='utf-8'?>" << std::endl
                     << "<!--" << std::endl
-                    << " FreeCAD Document, see http://www.freecadweb.org for more information..."
+                    << " FreeCAD Document, see http://www.freecad.org for more information..."
                     << std::endl << "-->" << std::endl;
 
     writer.Stream() << "<Document SchemaVersion=\"1\"";
@@ -1745,6 +1722,15 @@ void Document::SaveDocFile (Base::Writer &writer) const
     writer.Stream() << writer.ind() << "<Camera settings=\""
         << encodeAttribute(getCameraSettings()) << "\"/>\n";
     writer.decInd(); // indentation for camera settings
+    
+    if( d->projectUnitSystem >= 0 ){
+    	writer.incInd(); // indentation for ProjectUnitSystem
+    	writer.Stream() << writer.ind() << "<ProjectUnitSystem US=\""
+        << d->projectUnitSystem << "\" ignore=\""
+        << d->projectUnitSystemIgnore << "\"/>\n";
+    	writer.decInd(); // indentation for ProjectUnitSystem
+    }
+    
     writer.Stream() << "</Document>" << std::endl;
 }
 
@@ -1945,7 +1931,6 @@ MDIView *Document::createView(const Base::Type& typeId)
         view3D->setWindowModified(this->isModified());
         view3D->setWindowIcon(QApplication::windowIcon());
         view3D->resize(400, 300);
-        view3D->getViewer()->redraw();
 
         if (!cameraSettings.empty()) {
             const char *ppReturn = nullptr;
@@ -1953,6 +1938,7 @@ MDIView *Document::createView(const Base::Type& typeId)
         }
 
         getMainWindow()->addWindow(view3D);
+        view3D->getViewer()->redraw();
         return view3D;
     }
     return nullptr;
@@ -2606,8 +2592,8 @@ void Document::handleChildren3D(ViewProvider* viewProvider, bool deleting)
                             backGroup->addChild(childBackNode);
 
                         // cycling to all views of the document to remove the viewprovider from the viewer itself
-                        for (std::list<Gui::BaseView*>::iterator vIt = d->baseViews.begin();vIt != d->baseViews.end();++vIt) {
-                            auto activeView = dynamic_cast<View3DInventor *>(*vIt);
+                        for (Gui::BaseView* vIt : d->baseViews) {
+                            auto activeView = dynamic_cast<View3DInventor *>(vIt);
                             if (activeView && activeView->getViewer()->hasViewProvider(ChildViewProvider)) {
                                 // @Note hasViewProvider()
                                 // remove the viewprovider serves the purpose of detaching the inventor nodes from the

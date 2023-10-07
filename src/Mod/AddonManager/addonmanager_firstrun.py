@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
 # ***************************************************************************
 # *                                                                         *
 # *   Copyright (c) 2022 FreeCAD Project Association                        *
@@ -37,7 +38,7 @@ import addonmanager_utilities as utils
 class FirstRunDialog:
     """Manage the display of the Addon Manager's first-run dialog, setting up some user
     preferences and making sure they are aware that this connects to the internet, downloads
-    data, and possiibly installs things that run code not affiliated with FreeCAD itself."""
+    data, and possibly installs things that run code not affiliated with FreeCAD itself."""
 
     def __init__(self):
         self.pref = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Addons")
@@ -83,9 +84,7 @@ class FirstRunDialog:
             if warning_dialog.exec() == QtWidgets.QDialog.Accepted:
                 self.readWarning = True
                 self.pref.SetBool("readWarning2022", True)
-                self.pref.SetBool(
-                    "AutoCheck", warning_dialog.checkBoxAutoCheck.isChecked()
-                )
+                self.pref.SetBool("AutoCheck", warning_dialog.checkBoxAutoCheck.isChecked())
                 self.pref.SetBool(
                     "DownloadMacros",
                     warning_dialog.checkBoxDownloadMacroMetadata.isChecked(),

@@ -44,7 +44,7 @@ def get_information():
         "constraints": ["fixed", "force", "displacement"],
         "solvers": ["calculix", "ccxtools"],
         "material": "reinforced",
-        "equation": "mechanical"
+        "equations": ["mechanical"]
     }
 
 
@@ -57,7 +57,7 @@ setup()
 
 
 See forum topic post:
-https://forum.freecadweb.org/viewtopic.php?f=18&t=33106&start=80#p296469
+https://forum.freecad.org/viewtopic.php?f=18&t=33106&start=80#p296469
 
 example from Harry's epic topic: Concrete branch ready for testing
 
@@ -109,7 +109,7 @@ def setup(doc=None, solvertype="ccxtools"):
         solver_obj.WorkingDir = u""
     else:
         FreeCAD.Console.PrintWarning(
-            "Not known or not supported solver type: {}. "
+            "Unknown or unsupported solver type: {}. "
             "No solver object was created.\n".format(solvertype)
         )
     if solvertype == "calculix" or solvertype == "ccxtools":
@@ -151,7 +151,7 @@ def setup(doc=None, solvertype="ccxtools"):
     # constraint force
     con_force = ObjectsFem.makeConstraintForce(doc, "ConstraintForce")
     con_force.References = [(geom_obj, "Edge7")]
-    con_force.Force = 1000000.0
+    con_force.Force = "1000000.0 N"
     con_force.Direction = (geom_obj, ["Edge8"])
     con_force.Reversed = False
     analysis.addObject(con_force)

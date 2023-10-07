@@ -33,17 +33,15 @@
 # include <Inventor/events/SoMouseButtonEvent.h>
 # include <Inventor/nodes/SoCamera.h>
 #endif
-
+#include <Gui/View3DInventor.h>
+#include <Gui/View3DInventorViewer.h>
 #include <App/Document.h>
 #include <App/DocumentObject.h>
 #include <Gui/Application.h>
 #include <Gui/MainWindow.h>
 #include <Gui/Selection.h>
 #include <Gui/SelectionFilter.h>
-#include <Gui/SoFCUnifiedSelection.h>
 #include <Gui/Utilities.h>
-#include <Gui/View3DInventor.h>
-#include <Gui/View3DInventorViewer.h>
 
 #include "BoxSelection.h"
 #include "ViewProviderExt.h"
@@ -58,9 +56,7 @@ public:
         : Gui::SelectionFilterGate()
     {
     }
-    ~FaceSelectionGate() override
-    {
-    }
+    ~FaceSelectionGate() override = default;
     bool allow(App::Document*, App::DocumentObject*, const char*sSubName) override
     {
         if (!sSubName || sSubName[0] == '\0')
@@ -70,17 +66,9 @@ public:
     }
 };
 
-BoxSelection::BoxSelection()
-    : autodelete(false)
-    , shapeEnum(TopAbs_SHAPE)
-{
+BoxSelection::BoxSelection() = default;
 
-}
-
-BoxSelection::~BoxSelection()
-{
-
-}
+BoxSelection::~BoxSelection() = default;
 
 void BoxSelection::setAutoDelete(bool on)
 {
@@ -96,8 +84,7 @@ void BoxSelection::selectionCallback(void * ud, SoEventCallback * cb)
 {
     Gui::View3DInventorViewer* view  = static_cast<Gui::View3DInventorViewer*>(cb->getUserData());
     view->removeEventCallback(SoMouseButtonEvent::getClassTypeId(), selectionCallback, ud);
-    SoNode* root = view->getSceneGraph();
-    static_cast<Gui::SoFCUnifiedSelection*>(root)->selectionRole.setValue(true);
+    view->setSelectionEnabled(true);
 
     std::vector<SbVec2f> picked = view->getGLPolygon();
     SoCamera* cam = view->getSoRenderManager()->getCamera();
@@ -113,8 +100,8 @@ void BoxSelection::selectionCallback(void * ud, SoEventCallback * cb)
         polygon.Add(Base::Vector2d(pt2[0], pt1[1]));
     }
     else {
-        for (std::vector<SbVec2f>::const_iterator it = picked.begin(); it != picked.end(); ++it)
-            polygon.Add(Base::Vector2d((*it)[0],(*it)[1]));
+        for (const auto& it : picked)
+            polygon.Add(Base::Vector2d(it[0],it[1]));
     }
 
     BoxSelection* self = static_cast<BoxSelection*>(ud);
@@ -204,8 +191,7 @@ void BoxSelection::start(TopAbs_ShapeEnum shape)
             viewer->addEventCallback(SoMouseButtonEvent::getClassTypeId(), selectionCallback, this);
             // avoid that the selection node handles the event otherwise the callback function won't be
             // called immediately
-            SoNode* root = viewer->getSceneGraph();
-            static_cast<Gui::SoFCUnifiedSelection*>(root)->selectionRole.setValue(false);
+            viewer->setSelectionEnabled(false);
             shapeEnum = shape;
         }
     }

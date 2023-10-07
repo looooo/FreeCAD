@@ -1,20 +1,27 @@
-
-add_executable(
-    Tests_Tools_run
-    tst_Tools.cpp
+target_sources(
+    Tests_run
+        PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/Axis.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/Bitmask.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/BoundBox.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/Builder3D.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/CoordinateSystem.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/DualNumber.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/DualQuaternion.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/Handle.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/Matrix.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/Placement.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/Quantity.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/Reader.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/Rotation.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/TimeInfo.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/Tools.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/Tools2D.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/Tools3D.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/Unit.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/Vector3D.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/ViewProj.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/Writer.cpp
 )
 
-set (Tests_Tools_LIBS
-    gtest
-    gtest_main
-    ${Google_Tests_LIBS}
-    FreeCADBase
-)
-
-if(NOT BUILD_DYNAMIC_LINK_PYTHON)
-    list(APPEND Tests_Tools_LIBS
-        ${PYTHON_LIBRARIES}
-    )
-endif()
-
-target_link_libraries(Tests_Tools_run ${Tests_Tools_LIBS})
+setup_qt_test(InventorBuilder)

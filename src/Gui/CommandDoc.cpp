@@ -411,8 +411,8 @@ void StdCmdExport::activated(int iMsg)
     auto selection = Gui::Selection().getObjectsOfType(App::DocumentObject::getClassTypeId());
     if (selection.empty()) {
         QMessageBox::warning(Gui::getMainWindow(),
-            QString::fromUtf8(QT_TR_NOOP("No selection")),
-            QString::fromUtf8(QT_TR_NOOP("Select the objects to export before choosing Export.")));
+            QCoreApplication::translate("StdCmdExport", "No selection"),
+            QCoreApplication::translate("StdCmdExport", "Select the objects to export before choosing Export."));
         return;
     }
 
@@ -588,6 +588,47 @@ void StdCmdDependencyGraph::activated(int iMsg)
 }
 
 bool StdCmdDependencyGraph::isActive()
+{
+    return (getActiveGuiDocument() ? true : false);
+}
+
+//===========================================================================
+// Std_ExportDependencyGraph
+//===========================================================================
+
+DEF_STD_CMD_A(StdCmdExportDependencyGraph)
+
+StdCmdExportDependencyGraph::StdCmdExportDependencyGraph()
+  : Command("Std_ExportDependencyGraph")
+{
+    sGroup        = "Tools";
+    sMenuText     = QT_TR_NOOP("Export dependency graph...");
+    sToolTipText  = QT_TR_NOOP("Export the dependency graph to a file");
+    sStatusTip    = QT_TR_NOOP("Export the dependency graph to a file");
+    sWhatsThis    = "Std_ExportDependencyGraph";
+    eType         = 0;
+  //sPixmap       = "Std_ExportDependencyGraph";
+}
+
+void StdCmdExportDependencyGraph::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+    App::Document* doc = App::GetApplication().getActiveDocument();
+    QString format = QString::fromLatin1("%1 (*.gv)").arg(Gui::GraphvizView::tr("Graphviz format"));
+    QString fn = Gui::FileDialog::getSaveFileName(Gui::getMainWindow(), Gui::GraphvizView::tr("Export graph"), QString(), format);
+    if (!fn.isEmpty()) {
+        QFile file(fn);
+        if (file.open(QFile::WriteOnly)) {
+            std::stringstream str;
+            doc->exportGraphviz(str);
+            QByteArray buffer = QByteArray::fromStdString(str.str());
+            file.write(buffer);
+            file.close();
+        }
+    }
+}
+
+bool StdCmdExportDependencyGraph::isActive()
 {
     return (getActiveGuiDocument() ? true : false);
 }
@@ -1586,8 +1627,8 @@ void StdCmdAlignment::activated(int iMsg)
     std::vector<App::DocumentObject*> sel = Gui::Selection().getObjectsOfType
         (App::GeoFeature::getClassTypeId());
     ManualAlignment* align = ManualAlignment::instance();
-    QObject::connect(align, SIGNAL(emitCanceled()), align, SLOT(deleteLater()));
-    QObject::connect(align, SIGNAL(emitFinished()), align, SLOT(deleteLater()));
+    QObject::connect(align, &ManualAlignment::emitCanceled, align, &QObject::deleteLater);
+    QObject::connect(align, &ManualAlignment::emitFinished, align, &QObject::deleteLater);
 
     // Get the fixed and moving meshes
     FixedGroup fixedGroup;
@@ -1681,16 +1722,12 @@ class StdCmdExpression : public Gui::Command
 {
 public:
     StdCmdExpression() : Command("Std_Expressions")
-                       , pcActionCopyAll(nullptr)
-                       , pcActionCopySel(nullptr)
-                       , pcActionCopyActive(nullptr)
-                       , pcActionPaste(nullptr)
     {
         sGroup        = "Edit";
         sMenuText     = QT_TR_NOOP("Expression actions");
-        sToolTipText  = QT_TR_NOOP("Expression actions");
+        sToolTipText  = QT_TR_NOOP("Actions that apply to expressions");
         sWhatsThis    = "Std_Expressions";
-        sStatusTip    = QT_TR_NOOP("Expression actions");
+        sStatusTip    = QT_TR_NOOP("Actions that apply to expressions");
         eType         = ForEdit;
     }
 
@@ -1887,10 +1924,10 @@ protected:
         return true;
     }
 
-    QAction *pcActionCopyAll;
-    QAction *pcActionCopySel;
-    QAction *pcActionCopyActive;
-    QAction *pcActionPaste;
+    QAction *pcActionCopyAll{nullptr};
+    QAction *pcActionCopySel{nullptr};
+    QAction *pcActionCopyActive{nullptr};
+    QAction *pcActionPaste{nullptr};
 };
 
 namespace Gui {
@@ -1905,6 +1942,7 @@ void CreateDocCommands()
     rcCmdMgr.addCommand(new StdCmdExport());
     rcCmdMgr.addCommand(new StdCmdMergeProjects());
     rcCmdMgr.addCommand(new StdCmdDependencyGraph());
+    rcCmdMgr.addCommand(new StdCmdExportDependencyGraph());
 
     rcCmdMgr.addCommand(new StdCmdSave());
     rcCmdMgr.addCommand(new StdCmdSaveAs());

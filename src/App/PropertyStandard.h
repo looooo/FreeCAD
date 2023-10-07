@@ -36,6 +36,12 @@
 #include "Enumeration.h"
 #include "Material.h"
 
+#include <xercesc/util/XercesDefs.hpp>
+
+XERCES_CPP_NAMESPACE_BEGIN
+	class DOMElement;
+XERCES_CPP_NAMESPACE_END
+
 
 namespace Base {
 class Writer;
@@ -70,6 +76,7 @@ public:
 
     void Save (Base::Writer &writer) const override;
     void Restore(Base::XMLReader &reader) override;
+    void Restore(Base::DocumentReader &reader,XERCES_CPP_NAMESPACE_QUALIFIER DOMElement *ContainerDOM) override;
 
     Property *Copy() const override;
     void Paste(const Property &from) override;
@@ -121,6 +128,7 @@ public:
 
     void Save (Base::Writer &writer) const override;
     void Restore(Base::XMLReader &reader) override;
+    void Restore(Base::DocumentReader &reader,XERCES_CPP_NAMESPACE_QUALIFIER DOMElement *ContainerDOM) override;
 
     Property *Copy() const override;
     void Paste(const Property &from) override;
@@ -158,7 +166,7 @@ public:
      * These all function as per documentation in Enumeration
      */
     //@{
-    /** setting the enumaration string list
+    /** setting the enumeration string list
      * The list is a NULL terminated array of pointers to a const char* string
      * \code
      * const char enums[] = {"Black","White","Other",NULL}
@@ -166,7 +174,7 @@ public:
      */
     void setEnums(const char** plEnums);
 
-    /** setting the enumaration string as vector of strings
+    /** setting the enumeration string as vector of strings
      * This makes the enumeration custom.
      */
     void setEnums(const std::vector<std::string> &Enums);
@@ -220,6 +228,7 @@ public:
 
     void Save(Base::Writer &writer) const override;
     void Restore(Base::XMLReader &reader) override;
+    void Restore(Base::DocumentReader &reader,XERCES_CPP_NAMESPACE_QUALIFIER DOMElement *ContainerDOM) override;
 
     Property * Copy() const override;
     void Paste(const Property &from) override;
@@ -310,7 +319,7 @@ public:
     void setPyObject(PyObject *) override;
 
 protected:
-    const Constraints* _ConstStruct;
+    const Constraints* _ConstStruct{nullptr};
 };
 
 /** Percent property
@@ -358,6 +367,7 @@ public:
 
     void Save (Base::Writer &writer) const override;
     void Restore(Base::XMLReader &reader) override;
+    void Restore(Base::DocumentReader &reader,XERCES_CPP_NAMESPACE_QUALIFIER DOMElement *ContainerDOM) override;
 
     Property *Copy() const override;
     void Paste(const Property &from) override;
@@ -403,6 +413,7 @@ public:
 
     void Save (Base::Writer &writer) const override;
     void Restore(Base::XMLReader &reader) override;
+    void Restore(Base::DocumentReader &reader,XERCES_CPP_NAMESPACE_QUALIFIER DOMElement *ContainerDOM) override;
 
     Property *Copy() const override;
     void Paste(const Property &from) override;
@@ -462,6 +473,7 @@ public:
 
     void Save (Base::Writer &writer) const override;
     void Restore(Base::XMLReader &reader) override;
+    void Restore(Base::DocumentReader &reader,XERCES_CPP_NAMESPACE_QUALIFIER DOMElement *ContainerDOM) override;
 
     Property *Copy() const override;
     void Paste(const Property &from) override;
@@ -515,6 +527,7 @@ public:
 
     void Save (Base::Writer &writer) const override;
     void Restore(Base::XMLReader &reader) override;
+    void Restore(Base::DocumentReader &reader,XERCES_CPP_NAMESPACE_QUALIFIER DOMElement *ContainerDOM) override;
 
     Property *Copy() const override;
     void Paste(const Property &from) override;
@@ -613,7 +626,7 @@ public:
     void setPyObject(PyObject *) override;
 
 protected:
-    const Constraints* _ConstStruct;
+    const Constraints* _ConstStruct{nullptr};
 };
 
 
@@ -658,6 +671,7 @@ public:
 
     void Save (Base::Writer &writer) const override;
     void Restore(Base::XMLReader &reader) override;
+    void Restore(Base::DocumentReader &reader,XERCES_CPP_NAMESPACE_QUALIFIER DOMElement *ContainerDOM) override;
 
     void SaveDocFile (Base::Writer &writer) const override;
     void RestoreDocFile(Base::Reader &reader) override;
@@ -705,6 +719,7 @@ public:
 
     void Save (Base::Writer &writer) const override;
     void Restore(Base::XMLReader &reader) override;
+    void Restore(Base::DocumentReader &reader,XERCES_CPP_NAMESPACE_QUALIFIER DOMElement *ContainerDOM) override;
 
     Property *Copy() const override;
     void Paste(const Property &from) override;
@@ -725,7 +740,7 @@ protected:
 };
 
 /** UUID properties
- * This property handles unique identifieers
+ * This property handles unique identifiers
  */
 class AppExport PropertyUUID: public Property
 {
@@ -758,6 +773,7 @@ public:
 
     void Save (Base::Writer &writer) const override;
     void Restore(Base::XMLReader &reader) override;
+    void Restore(Base::DocumentReader &reader,XERCES_CPP_NAMESPACE_QUALIFIER DOMElement *ContainerDOM) override;
 
     Property *Copy() const override;
     void Paste(const Property &from) override;
@@ -824,6 +840,7 @@ public:
 
     void Save (Base::Writer &writer) const override;
     void Restore(Base::XMLReader &reader) override;
+    void Restore(Base::DocumentReader &reader,XERCES_CPP_NAMESPACE_QUALIFIER DOMElement *ContainerDOM) override;
 
     Property *Copy() const override;
     void Paste(const Property &from) override;
@@ -865,6 +882,7 @@ public:
 
     void Save (Base::Writer &writer) const override;
     void Restore(Base::XMLReader &reader) override;
+    void Restore(Base::DocumentReader &reader,XERCES_CPP_NAMESPACE_QUALIFIER DOMElement *ContainerDOM) override;
 
     Property *Copy() const override;
     void Paste(const Property &from) override;
@@ -902,6 +920,7 @@ public:
 
     void Save (Base::Writer &writer) const override;
     void Restore(Base::XMLReader &reader) override;
+    void Restore(Base::DocumentReader &reader,XERCES_CPP_NAMESPACE_QUALIFIER DOMElement *ContainerDOM) override;
 
     Property *Copy() const override;
     void Paste(const Property &from) override;
@@ -949,6 +968,7 @@ public:
 
     void Save (Base::Writer &writer) const override;
     void Restore(Base::XMLReader &reader) override;
+    void Restore(Base::DocumentReader &reader,XERCES_CPP_NAMESPACE_QUALIFIER DOMElement *ContainerDOM) override;
 
     Property *Copy() const override;
     void Paste(const Property &from) override;
@@ -988,6 +1008,7 @@ public:
 
     void Save (Base::Writer &writer) const override;
     void Restore(Base::XMLReader &reader) override;
+    void Restore(Base::DocumentReader &reader,XERCES_CPP_NAMESPACE_QUALIFIER DOMElement *ContainerDOM) override;
 
     void SaveDocFile (Base::Writer &writer) const override;
     void RestoreDocFile(Base::Reader &reader) override;
@@ -1040,6 +1061,7 @@ public:
 
     void Save (Base::Writer &writer) const override;
     void Restore(Base::XMLReader &reader) override;
+    void Restore(Base::DocumentReader &reader,XERCES_CPP_NAMESPACE_QUALIFIER DOMElement *ContainerDOM) override;
 
     const char* getEditorName() const override;
 
@@ -1083,6 +1105,7 @@ public:
 
     void Save(Base::Writer &writer) const override;
     void Restore(Base::XMLReader &reader) override;
+    void Restore(Base::DocumentReader &reader,XERCES_CPP_NAMESPACE_QUALIFIER DOMElement *ContainerDOM) override;
 
     void SaveDocFile(Base::Writer &writer) const override;
     void RestoreDocFile(Base::Reader &reader) override;
@@ -1112,6 +1135,7 @@ public:
 
     void Save (Base::Writer &writer) const override;
     void Restore(Base::XMLReader &reader) override;
+    void Restore(Base::DocumentReader &reader,XERCES_CPP_NAMESPACE_QUALIFIER DOMElement *ContainerDOM) override;
 
     Property *Copy() const override;
     void Paste(const Property &from) override;

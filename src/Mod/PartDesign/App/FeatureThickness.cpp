@@ -45,7 +45,7 @@ Thickness::Thickness()
     Mode.setEnums(ModeEnums);
     ADD_PROPERTY_TYPE(Join, (long(0)), "Thickness", App::Prop_None, "Join type");
     Join.setEnums(JoinEnums);
-    ADD_PROPERTY_TYPE(Reversed, (false), "Thickness", App::Prop_None,
+    ADD_PROPERTY_TYPE(Reversed, (true), "Thickness", App::Prop_None,
                       "Apply the thickness towards the solids interior");
     ADD_PROPERTY_TYPE(Intersection, (false), "Thickness", App::Prop_None,
                       "Enable intersection-handling");
@@ -72,10 +72,24 @@ App::DocumentObjectExecReturn *Thickness::execute()
         return new App::DocumentObjectExecReturn(e.what());
     }
 
-    TopTools_ListOfShape closingFaces;
     const std::vector<std::string>& subStrings = Base.getSubValues();
-    for (std::vector<std::string>::const_iterator it = subStrings.begin(); it != subStrings.end(); ++it) {
-        TopoDS_Face face = TopoDS::Face(TopShape.getSubShape(it->c_str()));
+
+    //If no element is selected, then we use a copy of previous feature.
+    if (subStrings.empty()) {
+        //We must set the placement of the feature in case it's empty.
+        this->positionByBaseFeature();
+        this->Shape.setValue(TopShape);
+        return App::DocumentObject::StdReturn;
+    }
+
+    /* If the feature was empty at some point, then Placement was set by positionByBaseFeature.
+    *  However makeThickSolid apparently requires the placement to be empty, so we have to clear it*/
+    this->Placement.setValue(Base::Placement());
+
+    TopTools_ListOfShape closingFaces;
+
+    for (const auto & it : subStrings) {
+        TopoDS_Face face = TopoDS::Face(TopShape.getSubShape(it.c_str()));
         closingFaces.Append(face);
     }
 

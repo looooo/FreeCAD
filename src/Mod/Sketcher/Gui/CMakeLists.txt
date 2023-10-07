@@ -1,9 +1,3 @@
-if(MSVC)
-    add_definitions(-DHAVE_ACOSH -DHAVE_ATANH -DHAVE_ASINH)
-else(MSVC)
-    add_definitions(-DHAVE_LIMITS_H -DHAVE_CONFIG_H)
-endif(MSVC)
-
 include_directories(
     ${CMAKE_BINARY_DIR}
     ${CMAKE_SOURCE_DIR}/src
@@ -25,12 +19,17 @@ set(SketcherGui_LIBS
     FreeCADGui
 )
 
-qt_add_resources(SketcherGui_SRCS Resources/Sketcher.qrc)
+set (Sketcher_TR_QRC ${CMAKE_CURRENT_BINARY_DIR}/Resources/Sketcher_translation.qrc)
+qt_find_and_add_translation(QM_SRCS "Resources/translations/*_*.ts"
+    ${CMAKE_CURRENT_BINARY_DIR}/Resources/translations)
+qt_create_resource_file(${Sketcher_TR_QRC} ${QM_SRCS})
+qt_add_resources(SketcherGui_SRCS Resources/Sketcher.qrc ${Sketcher_TR_QRC})
+
+generate_from_xml(ViewProviderSketchGeometryExtensionPy)
 
 set(SketcherGui_UIC_SRCS
     TaskSketcherConstraints.ui
     TaskSketcherElements.ui
-    TaskSketcherGeneral.ui
     TaskSketcherMessages.ui
     TaskSketcherSolverAdvanced.ui
     TaskSketcherValidation.ui
@@ -38,6 +37,7 @@ set(SketcherGui_UIC_SRCS
     SketchOrientationDialog.ui
     SketchMirrorDialog.ui
     SketcherSettings.ui
+    SketcherSettingsGrid.ui
     SketcherSettingsColors.ui
     SketcherSettingsDisplay.ui
     SketchRectangularArrayDialog.ui
@@ -64,6 +64,7 @@ SET(SketcherGui_SRCS
     DrawSketchHandlerArcOfHyperbola.h
     DrawSketchHandlerArcOfParabola.h
     DrawSketchHandlerBSpline.h
+    DrawSketchHandlerBSplineByInterpolation.h
     DrawSketchHandlerPoint.h
     DrawSketchHandlerFillet.h
     DrawSketchHandlerTrimming.h
@@ -77,6 +78,7 @@ SET(SketcherGui_SRCS
     CommandConstraints.cpp
     CommandSketcherTools.cpp
     CommandSketcherBSpline.cpp
+    CommandSketcherOverlay.cpp
     CommandSketcherVirtualSpace.cpp
     CommandAlterGeometry.cpp
     Resources/Sketcher.qrc
@@ -84,8 +86,6 @@ SET(SketcherGui_SRCS
     PreCompiled.h
     SoZoomTranslation.cpp
     SoZoomTranslation.h
-    SoDatumLabel.cpp
-    SoDatumLabel.h
     PropertyConstraintListItem.h
     PropertyConstraintListItem.cpp
     TaskSketcherConstraints.ui
@@ -97,9 +97,6 @@ SET(SketcherGui_SRCS
     TaskSketcherElements.h
     TaskSketcherCreateCommands.cpp
     TaskSketcherCreateCommands.h
-    TaskSketcherGeneral.ui
-    TaskSketcherGeneral.cpp
-    TaskSketcherGeneral.h
     TaskSketcherMessages.ui
     TaskSketcherMessages.cpp
     TaskSketcherMessages.h
@@ -133,6 +130,8 @@ SET(SketcherGui_SRCS
     Workbench.h
     EditDatumDialog.cpp
     EditDatumDialog.h
+    PropertyVisualLayerList.cpp
+    PropertyVisualLayerList.h
     SketchOrientationDialog.cpp
     SketchOrientationDialog.h
     SketchMirrorDialog.cpp
@@ -143,12 +142,27 @@ SET(SketcherGui_SRCS
     SketchRectangularArrayDialog.cpp
     SketcherRegularPolygonDialog.h
     SketcherRegularPolygonDialog.cpp
+    SnapManager.cpp
+    SnapManager.h
     TaskDlgEditSketch.cpp
     TaskDlgEditSketch.h
     ViewProviderPython.cpp
     ViewProviderPython.h
     ViewProviderSketchGeometryExtension.h
     ViewProviderSketchGeometryExtension.cpp
+    VisualLayer.cpp
+    VisualLayer.h
+)
+
+SET(Python_SRCS
+    ViewProviderSketchGeometryExtensionPy.xml
+    ViewProviderSketchGeometryExtensionPyImp.cpp
+)
+SOURCE_GROUP("Python" FILES ${Python_SRCS})
+
+SET(SketcherGui_SRCS
+    ${SketcherGui_SRCS}
+    ${Python_SRCS}
 )
 
 if(FREECAD_USE_PCH)

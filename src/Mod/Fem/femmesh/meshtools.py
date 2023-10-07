@@ -22,7 +22,7 @@
 
 __title__ = "Tools for the work with finite element meshes"
 __author__ = "Bernd Hahnebach"
-__url__ = "https://www.freecadweb.org"
+__url__ = "https://www.freecad.org"
 
 ## \addtogroup FEM
 #  @{
@@ -260,7 +260,7 @@ def get_bit_pattern_dict(
     """Now we are looking for nodes inside of the Faces = filling the bit_pattern_dict
     {eleID : [lenEleNodes, binary_position]}
     see forum post for a very good explanation of what"s really happening
-    https://forum.freecadweb.org/viewtopic.php?f=18&t=17318&start=50#p141108
+    https://forum.freecad.org/viewtopic.php?f=18&t=17318&start=50#p141108
     The bit_pattern_dict holds later an integer (bit array) for each element, which gives us
     the information we are searching for:
     Is this element part of the node list (searching for elements)
@@ -291,10 +291,10 @@ def get_ccxelement_faces_from_binary_search(
     """get the CalculiX element face numbers
     """
     # the forum topic discussion with ulrich1a and others ... Better mesh last instead of mesh first
-    # https://forum.freecadweb.org/viewtopic.php?f=18&t=17318#p137171
-    # https://forum.freecadweb.org/viewtopic.php?f=18&t=17318&start=60#p141484
-    # https://forum.freecadweb.org/viewtopic.php?f=18&t=17318&start=50#p141108
-    # https://forum.freecadweb.org/viewtopic.php?f=18&t=17318&start=40#p140371
+    # https://forum.freecad.org/viewtopic.php?f=18&t=17318#p137171
+    # https://forum.freecad.org/viewtopic.php?f=18&t=17318&start=60#p141484
+    # https://forum.freecad.org/viewtopic.php?f=18&t=17318&start=50#p141108
+    # https://forum.freecad.org/viewtopic.php?f=18&t=17318&start=40#p140371
     tet10_mask = {
         119: 1,
         411: 2,
@@ -518,7 +518,7 @@ def get_femelement_sets(
     # get remaining femelements for the fem_objects
     if has_remaining_femelements:
         femelement_table_array = np.zeros_like(referenced_femelements)
-        femelement_table_array[list(femelement_table.keys())] = 1
+        femelement_table_array[list(femelement_table)] = 1
         remaining_femelements_array = femelement_table_array > referenced_femelements
         remaining_femelements = [
             i.item() for i in np.nditer(remaining_femelements_array.nonzero())
@@ -610,7 +610,7 @@ def get_femelement_directions_theshape(femmesh, femelement_table, theshape):
         the_edge["ids"] = get_femelements_by_femnodes_std(femelement_table, edge_femnodes)
         for rot in rotations_ids:
             # tolerance will be managed by FreeCAD
-            # see https://forum.freecadweb.org/viewtopic.php?f=22&t=14179
+            # see https://forum.freecad.org/viewtopic.php?f=22&t=14179
             if rot["direction"] == the_edge["direction"]:
                 rot["ids"] += the_edge["ids"]
                 break
@@ -623,13 +623,13 @@ def get_femelement_directions_theshape(femmesh, femelement_table, theshape):
 def get_beam_main_axis_m(beam_direction, defined_angle):
 
     # former name was get_beam_normal
-    # see forum topic https://forum.freecadweb.org/viewtopic.php?f=18&t=24878
+    # see forum topic https://forum.freecad.org/viewtopic.php?f=18&t=24878
     # beam_direction ... FreeCAD vector
     # defined_angle ... degree
     # base for the rotation:
     # a beam_direction = (1, 0, 0) and angle = 0, returns (-0, 1, 0)
-    # https://forum.freecadweb.org/viewtopic.php?f=18&t=24878&start=30#p195567
-    # https://forum.freecadweb.org/viewtopic.php?f=13&t=59239&start=140#p521999
+    # https://forum.freecad.org/viewtopic.php?f=18&t=24878&start=30#p195567
+    # https://forum.freecad.org/viewtopic.php?f=13&t=59239&start=140#p521999
     # changing the angle, changes the normal accordingly, 360 would again return (0,1,0)
 
     # CalxuliX uses negative z axis as base, if nothing is given in input file
@@ -803,7 +803,8 @@ def get_force_obj_vertex_nodeload_table(
     #         ("refshape_name.elemname", node_load_table)
     #     ]
     force_obj_node_load_table = []
-    node_load = frc_obj.Force / len(frc_obj.References)
+    force_quantity = FreeCAD.Units.Quantity(frc_obj.Force.getValueAs("N"))
+    node_load = force_quantity / len(frc_obj.References)
     for o, elem_tup in frc_obj.References:
         node_count = len(elem_tup)
         for elem in elem_tup:
@@ -863,7 +864,8 @@ def get_force_obj_edge_nodeload_table(
             )
             sum_ref_edge_length += ref_edge.Length
     if sum_ref_edge_length != 0:
-        force_per_sum_ref_edge_length = frc_obj.Force / sum_ref_edge_length
+        force_quantity = FreeCAD.Units.Quantity(frc_obj.Force.getValueAs("N"))
+        force_per_sum_ref_edge_length = force_quantity / sum_ref_edge_length
     for o, elem_tup in frc_obj.References:
         for elem in elem_tup:
             ref_edge = o.Shape.getElement(elem)
@@ -907,7 +909,8 @@ def get_force_obj_edge_nodeload_table(
         for node in ref_shape[1]:
             sum_node_load += ref_shape[1][node]  # for debugging
 
-    ratio = sum_node_load / frc_obj.Force
+    force_quantity = FreeCAD.Units.Quantity(frc_obj.Force.getValueAs("N"))
+    ratio = sum_node_load / force_quantity
     if ratio < 0.99 or ratio > 1.01:
         FreeCAD.Console.PrintMessage(
             "Deviation  sum_node_load to frc_obj.Force is more than 1% : {}\n"
@@ -927,7 +930,7 @@ def get_force_obj_edge_nodeload_table(
         )
         FreeCAD.Console.PrintMessage(
             "  frc_obj.Force:            {}\n"
-            .format(frc_obj.Force)
+            .format(force_quantity)
         )
         FreeCAD.Console.PrintMessage(
             "  the reason could be simply a circle length --> "
@@ -1135,7 +1138,8 @@ def get_force_obj_face_nodeload_table(
             )
             sum_ref_face_area += ref_face.Area
     if sum_ref_face_area != 0:
-        force_per_sum_ref_face_area = frc_obj.Force / sum_ref_face_area
+        force_quantity = FreeCAD.Units.Quantity(frc_obj.Force.getValueAs("N"))
+        force_per_sum_ref_face_area = force_quantity / sum_ref_face_area
     for o, elem_tup in frc_obj.References:
         for elem in elem_tup:
             ref_face = o.Shape.getElement(elem)
@@ -1178,7 +1182,8 @@ def get_force_obj_face_nodeload_table(
         for node in ref_shape[1]:
             sum_node_load += ref_shape[1][node]  # for debugging
 
-    ratio = sum_node_load / frc_obj.Force
+    force_quantity = FreeCAD.Units.Quantity(frc_obj.Force.getValueAs("N"))
+    ratio = sum_node_load / force_quantity
     if ratio < 0.99 or ratio > 1.01:
         FreeCAD.Console.PrintMessage(
             "Deviation sum_node_load to frc_obj.Force is more than 1% :  {}\n"
@@ -1198,7 +1203,7 @@ def get_force_obj_face_nodeload_table(
         )
         FreeCAD.Console.PrintMessage(
             "  frc_obj.Force:          {}\n"
-            .format(frc_obj.Force)
+            .format(force_quantity)
         )
         FreeCAD.Console.PrintMessage(
             "  the reason could be simply a circle area --> "
@@ -1292,7 +1297,7 @@ def get_ref_facenodes_areas(
     # G. Lakshmi Narasaiah, Finite Element Analysis, p206ff
     # FIXME: only gives exact results in case of a real triangle. If for S6 or C3D10 elements
     # the midnodes are not on the line between the end nodes the area will not be a triangle
-    # see http://forum.freecadweb.org/viewtopic.php?f=18&t=10939&start=40#p91355  and ff
+    # see http://forum.freecad.org/viewtopic.php?f=18&t=10939&start=40#p91355  and ff
     # same applies for the quads
     # results are exact only if mid nodes are on the line between corner nodes
 
@@ -1659,7 +1664,7 @@ def get_pressure_obj_faces(
                     # easy on plane faces, but on a half sphere ... ?!?
                     # might be useful to add ...
                     # How to find the orientation of a FEM mesh face?
-                    # https://forum.freecadweb.org/viewtopic.php?f=18&t=51898
+                    # https://forum.freecad.org/viewtopic.php?f=18&t=51898
         else:
             FreeCAD.Console.PrintError(
                 "Pressure on shell mesh at the moment only "
@@ -1975,7 +1980,7 @@ def get_reference_group_elements(
     whereas "Solid1" == aPart.Shape.Solids[0]
     !!! It is strongly recommended to use as reference shapes the Solids of a CompSolid
     and not the Solids the CompSolid is made of !!!
-    see https://forum.freecadweb.org/viewtopic.php?f=18&t=12212&p=175777#p175777
+    see https://forum.freecad.org/viewtopic.php?f=18&t=12212&p=175777#p175777
     and following posts
     Occt might change the Solids a CompSolid is made of during
     creation of the CompSolid by adding Edges and vertices
@@ -2469,7 +2474,7 @@ def compact_mesh(
     # thus should not start with 0 for each element type
     # because this will give an error for mixed meshes
     # because the id is used already
-    # https://forum.freecadweb.org/viewtopic.php?t=48215
+    # https://forum.freecad.org/viewtopic.php?t=48215
     ele_id = 1
     if old_femmesh.Edges:
         for ed in old_femmesh.Edges:

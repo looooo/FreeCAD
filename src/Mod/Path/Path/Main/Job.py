@@ -112,7 +112,7 @@ class ObjectJob:
             "App::PropertyFile",
             "PostProcessorOutputFile",
             "Output",
-            QT_TRANSLATE_NOOP("App::Property", "The NC output file for this project"),
+            QT_TRANSLATE_NOOP("App::Property", "The G-code output file for this project"),
         )
         obj.addProperty(
             "App::PropertyEnumeration",
@@ -133,14 +133,14 @@ class ObjectJob:
             "App::PropertyString",
             "LastPostProcessDate",
             "Output",
-            QT_TRANSLATE_NOOP("App::Property", "Last Time the Job was post-processed"),
+            QT_TRANSLATE_NOOP("App::Property", "Last Time the Job was post processed"),
         )
         obj.setEditorMode("LastPostProcessDate", 2)  # Hide
         obj.addProperty(
             "App::PropertyString",
             "LastPostProcessOutput",
             "Output",
-            QT_TRANSLATE_NOOP("App::Property", "Last Time the Job was post-processed"),
+            QT_TRANSLATE_NOOP("App::Property", "Last Time the Job was post processed"),
         )
         obj.setEditorMode("LastPostProcessOutput", 2)  # Hide
 
@@ -196,7 +196,7 @@ class ObjectJob:
             "SplitOutput",
             "Output",
             QT_TRANSLATE_NOOP(
-                "App::Property", "Split output into multiple gcode files"
+                "App::Property", "Split output into multiple G-code files"
             ),
         )
         obj.addProperty(
@@ -530,7 +530,7 @@ class ObjectJob:
                 "SplitOutput",
                 "Output",
                 QT_TRANSLATE_NOOP(
-                    "App::Property", "Split output into multiple gcode files"
+                    "App::Property", "Split output into multiple G-code files"
                 ),
             )
             obj.SplitOutput = False
@@ -540,7 +540,7 @@ class ObjectJob:
                 "App::PropertyEnumeration",
                 "JobType",
                 "Base",
-                QT_TRANSLATE_NOOP("App::Property", "Select the Type of Job"),
+                QT_TRANSLATE_NOOP("App::Property", "Select the type of Job"),
             )
             obj.setEditorMode("JobType", 2)  # Hide
 
@@ -577,7 +577,7 @@ class ObjectJob:
         This will also create any TCs stored in the template."""
         tcs = []
         if template:
-            with open(PathUtil.toUnicode(template), "rb") as fp:
+            with open(str(template), "rb") as fp:
                 attrs = json.load(fp)
 
             if attrs.get(JobTemplate.Version) and 1 == int(attrs[JobTemplate.Version]):
@@ -655,10 +655,10 @@ class ObjectJob:
             attrs[JobTemplate.Description] = obj.Description
         return attrs
 
-    def __getstate__(self):
+    def dumps(self):
         return None
 
-    def __setstate__(self, state):
+    def loads(self, state):
         for obj in FreeCAD.ActiveDocument.Objects:
             if hasattr(obj, "Proxy") and obj.Proxy == self:
                 self.obj = obj

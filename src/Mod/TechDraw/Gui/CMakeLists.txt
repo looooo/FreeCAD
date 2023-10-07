@@ -1,7 +1,5 @@
 if(MSVC)
-    add_definitions(-DHAVE_ATANH -DHAVE_ASINH -DHAVE_ACOSH)
-else(MSVC)
-    add_definitions(-DHAVE_LIMITS_H -DHAVE_CONFIG_H)
+    add_compile_options(/utf-8)
 endif(MSVC)
 
 # In previous versions this target copied mtextedit.h to the binary directory that causes
@@ -30,9 +28,6 @@ if(FREECAD_QT_MAJOR_VERSION EQUAL 5)
     include_directories(
         ${QtXmlPatterns_INCLUDE_DIRS}
     )
-else()
-    # This is deprecated as of Qt 5.13, and removed in Qt 6
-    message(WARNING "TechDraw relies on the now-removed Qt XMLPatterns package, and must be refactored to compile against Qt6.")
 endif()
 
 # The XML files
@@ -46,7 +41,11 @@ set(TechDrawGui_LIBS
     FreeCADGui
 )
 
-qt_add_resources(TechDrawGui_SRCS Resources/TechDraw.qrc)
+set (TechDraw_TR_QRC ${CMAKE_CURRENT_BINARY_DIR}/Resources/TechDraw_translation.qrc)
+qt_find_and_add_translation(QM_SRCS "Resources/translations/*_*.ts"
+    ${CMAKE_CURRENT_BINARY_DIR}/Resources/translations)
+qt_create_resource_file(${TechDraw_TR_QRC} ${QM_SRCS})
+qt_add_resources(TechDrawGui_SRCS Resources/TechDraw.qrc ${TechDraw_TR_QRC})
 
 set(TechDrawGui_UIC_SRCS
     DlgStringListEditor.ui
@@ -85,6 +84,7 @@ set(TechDrawGui_UIC_SRCS
     TaskProjection.ui
     TaskComplexSection.ui
     TaskDimRepair.ui
+    TaskCosmeticCircle.ui
 
 )
 
@@ -226,6 +226,9 @@ SET(TechDrawGui_SRCS
     TaskDimRepair.cpp
     TaskDimRepair.h
     TaskDimRepair.ui
+    TaskCosmeticCircle.cpp
+    TaskCosmeticCircle.h
+    TaskCosmeticCircle.ui
     Widgets/CompassDialWidget.cpp
     Widgets/CompassDialWidget.h
     Widgets/CompassWidget.cpp
@@ -237,6 +240,8 @@ SET(TechDrawGui_SRCS
 SET(TechDrawGuiView_SRCS
     MDIViewPage.cpp
     MDIViewPage.h
+    PagePrinter.cpp
+    PagePrinter.h
     QGVPage.cpp
     QGVPage.h
     QGSPage.cpp
@@ -332,6 +337,8 @@ SET(TechDrawGuiView_SRCS
     ZVALUE.h
     QGIGhostHighlight.cpp
     QGIGhostHighlight.h
+    PathBuilder.cpp
+    PathBuilder.h
 )
 
 SET(TechDrawGuiNav_SRCS
@@ -453,7 +460,11 @@ SET(TechDrawGuiIcon_SVG
 ##install OSIFONT
 SET(TechDrawGuiFonts
     Resources/fonts/osifont-lgpl3fe.ttf
+    Resources/fonts/osifont-italic.ttf
     Resources/fonts/osifont.license
+    Resources/fonts/Y14.5-2018.ttf
+    Resources/fonts/Y14.5Font.license
+    Resources/fonts/Y14.5-FreeCAD.ttf
 )
 
 if(FREECAD_USE_PCH)

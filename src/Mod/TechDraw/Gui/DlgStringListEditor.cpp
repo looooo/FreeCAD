@@ -46,13 +46,13 @@ DlgStringListEditor::DlgStringListEditor(const std::vector<std::string> texts, Q
     fillList(texts);
 
     connect(ui->lwTexts,
-            SIGNAL(itemActivated(QListWidgetItem*)),
+            &QListWidget::itemActivated,
             this,
-            SLOT(slotItemActivated(QListWidgetItem*)));
-    connect(ui->pbAdd, SIGNAL(clicked()), this, SLOT(slotAddItem()));
-    connect(ui->pbRemove, SIGNAL(clicked()), this, SLOT(slotRemoveItem()));
-    connect(ui->bbButtons, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(ui->bbButtons, SIGNAL(rejected()), this, SLOT(reject()));
+            &DlgStringListEditor::slotItemActivated);
+    connect(ui->pbAdd, &QPushButton::clicked, this, &DlgStringListEditor::slotAddItem);
+    connect(ui->pbRemove, &QPushButton::clicked, this, &DlgStringListEditor::slotRemoveItem);
+    connect(ui->bbButtons, &QDialogButtonBox::accepted, this, &DlgStringListEditor::accept);
+    connect(ui->bbButtons, &QDialogButtonBox::rejected, this, &DlgStringListEditor::reject);
 }
 
 /**
@@ -106,6 +106,9 @@ void DlgStringListEditor::slotAddItem()
 
 void DlgStringListEditor::slotRemoveItem()
 {
+    if (ui->lwTexts->count() < 1) {
+        return;
+    }
     int row = ui->lwTexts->currentRow();
     if (row >= 0) {
         auto item = ui->lwTexts->takeItem(row);
@@ -116,6 +119,10 @@ void DlgStringListEditor::slotRemoveItem()
 std::vector<std::string> DlgStringListEditor::getTexts() const
 {
     std::vector<std::string> outTexts;
+    if (ui->lwTexts->count() < 1) {
+        return outTexts;
+    }
+
     for (int iRow = 0; iRow < ui->lwTexts->count(); iRow++) {
         QString itemText = ui->lwTexts->item(iRow)->text();
         outTexts.push_back(Base::Tools::toStdString(itemText));

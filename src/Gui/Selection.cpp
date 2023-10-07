@@ -38,6 +38,7 @@
 #include <Base/Interpreter.h>
 #include <Base/Tools.h>
 #include <Base/UnitsApi.h>
+#include <Base/PyWrapParseTupleAndKeywords.h>
 
 #include "Selection.h"
 #include "SelectionObject.h"
@@ -47,6 +48,7 @@
 #include "MainWindow.h"
 #include "MDIView.h"
 #include "SelectionFilter.h"
+#include "SelectionFilterPy.h"
 #include "SelectionObserverPython.h"
 #include "Tree.h"
 #include "ViewProviderDocumentObject.h"
@@ -56,7 +58,7 @@ FC_LOG_LEVEL_INIT("Selection",false,true,true)
 
 using namespace Gui;
 using namespace std;
-namespace bp = boost::placeholders;
+namespace sp = std::placeholders;
 
 SelectionGateFilterExternal::SelectionGateFilterExternal(const char *docName, const char *objName) {
     if(docName) {
@@ -131,8 +133,10 @@ void SelectionObserver::attachSelection()
         auto &signal = newStyle ? Selection().signalSelectionChanged3 :
                        oldStyle ? Selection().signalSelectionChanged2 :
                                   Selection().signalSelectionChanged  ;
-        connectSelection = signal.connect(boost::bind
-            (&SelectionObserver::_onSelectionChanged, this, bp::_1));
+        //NOLINTBEGIN
+        connectSelection = signal.connect(std::bind
+            (&SelectionObserver::_onSelectionChanged, this, sp::_1));
+        //NOLINTEND
 
         if (!filterDocName.empty()) {
             Selection().addSelectionGate(
@@ -515,7 +519,7 @@ std::vector<App::DocumentObject*> SelectionSingleton::getObjectsOfType(const cha
 {
     Base::Type typeId = Base::Type::fromName(typeName);
     if (typeId == Base::Type::badType())
-        return std::vector<App::DocumentObject*>();
+        return {};
     return getObjectsOfType(typeId, pDocName, resolve);
 }
 
@@ -1011,7 +1015,7 @@ void SelectionSingleton::selStackGoForward(int count) {
     }
     std::deque<SelStackItem> tmpStack;
     _SelStackForward.swap(tmpStack);
-    while(1) {
+    while(true) {
         bool found = false;
         for(auto &sobjT : _SelStackBack.back()) {
             if(sobjT.getSubObject()) {
@@ -1148,8 +1152,7 @@ bool SelectionSingleton::addSelection(const SelectionObject& obj, bool clearPres
     }
     else if (!subNames.empty()) {
         bool ok = true;
-        for (std::size_t i=0; i<subNames.size(); i++) {
-            const std::string& name = subNames[i];
+        for (const std::string& name : subNames) {
             ok &= addSelection(obj.getDocName(), obj.getFeatName(), name.c_str());
         }
         return ok;
@@ -1596,6 +1599,15 @@ void SelectionSingleton::slotDeletedObject(const App::DocumentObject& Obj)
     }
 }
 
+void SelectionSingleton::setSelectionStyle(SelectionStyle selStyle)
+{
+    selectionStyle = selStyle;
+}
+
+SelectionSingleton::SelectionStyle SelectionSingleton::getSelectionStyle()
+{
+    return selectionStyle;
+}
 
 //**************************************************************************
 // Construction/Destruction
@@ -1604,26 +1616,26 @@ void SelectionSingleton::slotDeletedObject(const App::DocumentObject& Obj)
  * A constructor.
  * A more elaborate description of the constructor.
  */
-SelectionSingleton::SelectionSingleton()
-    :CurrentPreselection(SelectionChanges::ClrSelection)
-    ,_needPickedList(false)
+SelectionSingleton::SelectionSingleton() :
+    CurrentPreselection(SelectionChanges::ClrSelection),
+    selectionStyle(SelectionStyle::NormalSelection)
 {
     hx = 0;
     hy = 0;
     hz = 0;
     ActiveGate = nullptr;
     gateResolve = ResolveMode::OldStyleElement;
-    App::GetApplication().signalDeletedObject.connect(boost::bind(&Gui::SelectionSingleton::slotDeletedObject, this, bp::_1));
-    signalSelectionChanged.connect(boost::bind(&Gui::SelectionSingleton::slotSelectionChanged, this, bp::_1));
+    //NOLINTBEGIN
+    App::GetApplication().signalDeletedObject.connect(std::bind(&Gui::SelectionSingleton::slotDeletedObject, this, sp::_1));
+    signalSelectionChanged.connect(std::bind(&Gui::SelectionSingleton::slotSelectionChanged, this, sp::_1));
+    //NOLINTEND
 }
 
 /**
  * A destructor.
  * A more elaborate description of the destructor.
  */
-SelectionSingleton::~SelectionSingleton()
-{
-}
+SelectionSingleton::~SelectionSingleton() = default;
 
 SelectionSingleton* SelectionSingleton::_pcSingleton = nullptr;
 
@@ -1776,6 +1788,12 @@ PyMethodDef SelectionSingleton::Methods[] = {
      "objName : str\n    Name of the `App.DocumentObject` to select.\n"
      "subName : str\n    Subelement name.\n"
      "point : tuple\n    Coordinates of the point to pick."},
+    {"setSelectionStyle",         (PyCFunction) SelectionSingleton::sSetSelectionStyle, METH_VARARGS,
+     "setSelectionStyle(selectionStyle) -> None\n"
+     "\n"
+     "Change the selection style. 0 for normal selection, 1 for greedy selection\n"
+     "\n"
+     "selectionStyle : int"},
     {"addObserver",         (PyCFunction) SelectionSingleton::sAddSelObserver, METH_VARARGS,
      "addObserver(object, resolve=ResolveMode.OldStyleElement) -> None\n"
      "\n"
@@ -2101,9 +2119,9 @@ PyObject *SelectionSingleton::sSetPreselection(PyObject * /*self*/, PyObject *ar
     char* subname = nullptr;
     float x = 0, y = 0, z = 0;
     int type = 1;
-    static char *kwlist[] = {"obj","subname","x","y","z","tp",nullptr};
-    if (PyArg_ParseTupleAndKeywords(args, kwd, "O!|sfffi", kwlist,
-                &(App::DocumentObjectPy::Type),&object,&subname,&x,&y,&z,&type)) {
+    static const std::array<const char *, 7> kwlist{"obj", "subname", "x", "y", "z", "tp", nullptr};
+    if (Base::Wrapped_ParseTupleAndKeywords(args, kwd, "O!|sfffi", kwlist, &(App::DocumentObjectPy::Type), &object,
+                                            &subname, &x, &y, &z, &type)) {
         auto docObjPy = static_cast<App::DocumentObjectPy*>(object);
         App::DocumentObject* docObj = docObjPy->getDocumentObjectPtr();
         if (!docObj || !docObj->getNameInDocument()) {
@@ -2257,6 +2275,19 @@ PyObject *SelectionSingleton::sGetSelectionObject(PyObject * /*self*/, PyObject 
     }
 }
 
+PyObject *SelectionSingleton::sSetSelectionStyle(PyObject * /*self*/, PyObject *args)
+{
+    int selStyle = 0;
+    if (!PyArg_ParseTuple(args, "i", &selStyle))
+        return nullptr;
+
+    PY_TRY {
+        Selection().setSelectionStyle(selStyle == 0 ? SelectionStyle::NormalSelection : SelectionStyle::GreedySelection);
+        Py_Return;
+    }
+    PY_CATCH;
+}
+
 PyObject *SelectionSingleton::sAddSelObserver(PyObject * /*self*/, PyObject *args)
 {
     PyObject* o;
@@ -2301,7 +2332,7 @@ PyObject *SelectionSingleton::sAddSelectionGate(PyObject * /*self*/, PyObject *a
     if (PyArg_ParseTuple(args, "O!|i",SelectionFilterPy::type_object(),&filterPy,resolve)) {
         PY_TRY {
             Selection().addSelectionGate(new SelectionFilterGatePython(
-                        static_cast<SelectionFilterPy*>(filterPy)), toEnum(resolve));
+                        SelectionFilterPy::cast(filterPy)), toEnum(resolve));
             Py_Return;
         }
         PY_CATCH;

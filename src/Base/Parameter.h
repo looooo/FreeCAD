@@ -53,6 +53,7 @@ using PyObject = struct _object;
 #include <vector>
 #include <boost_signals2.hpp>
 #include <xercesc/util/XercesDefs.hpp>
+#include <xercesc/sax/ErrorHandler.hpp>
 
 #include "Handle.h"
 #include "Observer.h"
@@ -64,7 +65,6 @@ using PyObject = struct _object;
 #	pragma warning( disable : 4290 )  // not implemented throw specification
 #	pragma warning( disable : 4275 )
 #endif
-
 
 XERCES_CPP_NAMESPACE_BEGIN
 class DOMNode;
@@ -153,13 +153,13 @@ public:
                              std::string &Value,
                              const char *Default) const;
     std::vector<std::pair<std::string, std::string>>
-        GetAttributeMap(ParamType Type, const char * sFilter = NULL) const;
+        GetAttributeMap(ParamType Type, const char * sFilter = nullptr) const;
     /** Return the type and name of all parameters with optional filter
      *  @param sFilter only strings which name includes sFilter are put in the vector
      *  @return std::vector of pair(type, name)
      */
     std::vector<std::pair<ParamType,std::string>>
-        GetParameterNames(const char * sFilter = NULL) const;
+        GetParameterNames(const char * sFilter = nullptr) const;
     //@}
 
     /** @name methods for bool handling */
@@ -220,16 +220,6 @@ public:
     //@}
 
 
-    /** @name methods for Blob handling (not implemented yet) */
-    //@{
-    /// set a blob value
-    void  SetBlob(const char* Name, void *pValue, long lLength);
-    /// read blob values or give default
-    void GetBlob(const char* Name, void * pBuf, long lMaxLength, void* pPreset=nullptr) const;
-    /// remove a blob value from this group
-    void RemoveBlob(const char* Name);
-    //@}
-
 
 
     /** @name methods for String handling */
@@ -279,6 +269,7 @@ protected:
     ~ParameterGrp() override;
     /// helper function for GetGroup
     Base::Reference<ParameterGrp> _GetGroup(const char* Name);
+
     bool ShouldRemove() const;
 
     void _Reset();
@@ -414,8 +405,8 @@ public:
 
 private:
 
-    XERCES_CPP_NAMESPACE_QUALIFIER DOMDocument   *_pDocument;
-    ParameterSerializer * paramSerializer;
+    XERCES_CPP_NAMESPACE_QUALIFIER DOMDocument   *_pDocument{nullptr};
+    ParameterSerializer * paramSerializer{nullptr};
 
     bool          gDoNamespaces         ;
     bool          gDoSchema             ;
@@ -431,10 +422,42 @@ private:
     bool          gUseFilter            ;
     bool          gFormatPrettyPrint    ;
 
-private:
     ParameterManager();
     ~ParameterManager() override;
 };
+
+XERCES_CPP_NAMESPACE_USE
+
+class DOMTreeErrorReporter : public ErrorHandler
+{
+public:
+    // -----------------------------------------------------------------------
+    //  Constructors and Destructor
+    // -----------------------------------------------------------------------
+	DOMTreeErrorReporter();
+    // -----------------------------------------------------------------------
+    //  Implementation of the error handler interface
+    // -----------------------------------------------------------------------
+    void warning(const SAXParseException& toCatch) override;
+    void error(const SAXParseException& toCatch) override;
+    void fatalError(const SAXParseException& toCatch) override;
+    void resetErrors() override;
+    // -----------------------------------------------------------------------
+    //  Getter methods
+    // -----------------------------------------------------------------------
+    bool getSawErrors() const;
+private:
+	// -----------------------------------------------------------------------
+    //  Private data members
+    //
+    //  fSawErrors
+    //      This is set if we get any errors, and is queryable via a getter
+    //      method. Its used by the main code to suppress output if there are
+    //      errors.
+    // -----------------------------------------------------------------------
+	bool fSawErrors;
+};
+
 
 /** python wrapper function
 */
