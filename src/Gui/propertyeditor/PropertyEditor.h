@@ -100,6 +100,7 @@ protected Q_SLOTS:
     void onRowsRemoved(const QModelIndex &parent, int start, int end);
 
 protected:
+    bool eventFilter(QObject* object, QEvent* event) override;
     void closeEditor (QWidget * editor, QAbstractItemDelegate::EndEditHint hint) override;
     void commitData (QWidget * editor) override;
     void editorDestroyed (QObject * editor) override;
@@ -107,6 +108,7 @@ protected:
     void rowsInserted (const QModelIndex & parent, int start, int end) override;
     void rowsAboutToBeRemoved (const QModelIndex & parent, int start, int end) override;
     void drawBranches(QPainter *painter, const QRect &rect, const QModelIndex &index) const override;
+    void drawRow(QPainter *painter, const QStyleOptionViewItem &options, const QModelIndex &index) const override;
 #if QT_VERSION < QT_VERSION_CHECK(6,0,0)
     QStyleOptionViewItem viewOptions() const override;
 #else
@@ -119,6 +121,10 @@ private:
     void setEditorMode(const QModelIndex & parent, int start, int end);
     void closeTransaction();
     void recomputeDocument(App::Document*);
+
+    // check if mouse_pos is around right or bottom side of a cell 
+    // and return the index of that cell if found
+    QModelIndex indexResizable(QPoint mouse_pos);
 
 private:
     PropertyItemDelegate *delegate;
@@ -133,6 +139,12 @@ private:
     bool binding;
     bool checkDocument;
     bool closingEditor;
+    bool dragInProgress;
+
+    //max distance between mouse and a cell, small enough to trigger resize
+    int dragSensibility = 5; // NOLINT
+    int dragSection = 0;
+    int dragPreviousPos = 0;
 
     int transactionID = 0;
 

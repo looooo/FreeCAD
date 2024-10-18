@@ -81,7 +81,7 @@ class Trimex(gui_base_original.Modifier):
 
     def Activated(self):
         """Execute when the command is called."""
-        super(Trimex, self).Activated(name="Trimex")
+        super().Activated(name="Trimex")
         self.edges = []
         self.placement = None
         self.ghost = []
@@ -115,6 +115,9 @@ class Trimex(gui_base_original.Modifier):
         import Part
 
         if "Shape" not in self.obj.PropertiesList:
+            self.obj = None
+            self.finish()
+            _err(translate("draft", "This object is not supported."))
             return
         if "Placement" in self.obj.PropertiesList:
             self.placement = self.obj.Placement
@@ -127,14 +130,18 @@ class Trimex(gui_base_original.Modifier):
         elif len(self.obj.Shape.Faces) > 1:
             # face extrude mode, a new object is created
             ss = Gui.Selection.getSelectionEx()[0]
-            if len(ss.SubObjects) == 1:
-                if ss.SubObjects[0].ShapeType == "Face":
-                    self.obj = self.doc.addObject("Part::Feature", "Face")
-                    self.obj.Shape = ss.SubObjects[0]
-                    self.extrudeMode = True
-                    self.ghost = [trackers.ghostTracker([self.obj])]
-                    self.normal = self.obj.Shape.Faces[0].normalAt(0.5, 0.5)
-                    self.ghost += [trackers.lineTracker() for _ in self.obj.Shape.Vertexes]
+            if len(ss.SubObjects) == 1 and ss.SubObjects[0].ShapeType == "Face":
+                self.obj = self.doc.addObject("Part::Feature", "Face")
+                self.obj.Shape = ss.SubObjects[0]
+                self.extrudeMode = True
+                self.ghost = [trackers.ghostTracker([self.obj])]
+                self.normal = self.obj.Shape.Faces[0].normalAt(0.5, 0.5)
+                self.ghost += [trackers.lineTracker() for _ in self.obj.Shape.Vertexes]
+            else:
+                self.obj = None
+                self.finish()
+                _err(translate("draft", "Only a single face can be extruded."))
+                return
         else:
             # normal wire trimex mode
             self.color = self.obj.ViewObject.LineColor
@@ -160,7 +167,9 @@ class Trimex(gui_base_original.Modifier):
                     self.ghost.append(trackers.arcTracker(scolor=sc,
                                                           swidth=sw))
         if not self.ghost:
+            self.obj = None
             self.finish()
+            return
         for g in self.ghost:
             g.on()
         self.activePoint = 0
@@ -545,7 +554,7 @@ class Trimex(gui_base_original.Modifier):
 
     def finish(self, cont=False):
         """Terminate the operation of the Trimex tool."""
-        super(Trimex, self).finish()
+        self.end_callbacks(self.call)
         self.force = None
         if self.ui:
             if self.linetrack:
@@ -559,7 +568,8 @@ class Trimex(gui_base_original.Modifier):
                     self.obj.ViewObject.LineColor = self.color
                 if self.width:
                     self.obj.ViewObject.LineWidth = self.width
-            gui_utils.select(self.obj)
+                gui_utils.select(self.obj)
+        super().finish()
 
     def numericRadius(self, dist):
         """Validate the entry fields in the user interface.

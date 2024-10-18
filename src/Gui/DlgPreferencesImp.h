@@ -130,6 +130,9 @@ class GuiExport DlgPreferencesImp : public QDialog
 {
     Q_OBJECT
 
+    static constexpr double maxScreenWidthCoveragePercent = 0.8; // maximum % of screen width taken by the dialog
+    static constexpr int minVerticalEmptySpace = 100;            // px of vertical space to leave
+
 public:
     static void addPage(const std::string& className, const std::string& group);
     static void removePage(const std::string& className, const std::string& group);
@@ -178,9 +181,14 @@ private:
     void restorePageDefaults(PreferencesPageItem* item);
     void restartIfRequired();
 
-    void updatePageDependentLabels();
+    void updatePageDependentWidgets();
 
     QPixmap loadIconForGroup(const std::string& name) const;
+
+    void addSizeHint(QWidget*);
+    int minimumPageWidth() const;
+    int minimumDialogWidth(int) const;
+    void expandToMinimumDialogWidth();
     //@}
 
 private:
@@ -189,6 +197,7 @@ private:
     static std::list<TGroupPages> _pages; /**< Name of all registered preference pages */
 
     QStandardItemModel _model;
+    QSize _sizeHintOfPages;
 
     struct Group {
         std::string iconName;

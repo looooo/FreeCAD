@@ -41,6 +41,7 @@ import math
 import pivy.coin as coin
 import PySide.QtCore as QtCore
 import PySide.QtGui as QtGui
+import PySide.QtWidgets as QtWidgets
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -49,6 +50,7 @@ import Draft
 import DraftVecUtils
 import DraftGeomUtils
 from draftguitools import gui_trackers as trackers
+from draftutils import gui_utils
 from draftutils import params
 from draftutils.init_tools import get_draft_snap_commands
 from draftutils.messages import _wrn
@@ -431,7 +433,7 @@ class Snapper:
                         # or vertices.
                         snaps.extend(self.snapToNearUnprojected(point))
 
-            elif Draft.getType(obj) == "Dimension":
+            elif Draft.getType(obj) in ("LinearDimension", "AngularDimension"):
                 # for dimensions we snap to their 2 points:
                 snaps.extend(self.snapToDim(obj))
 
@@ -535,10 +537,12 @@ class Snapper:
 
     def snapToDim(self, obj):
         snaps = []
-        if obj.ViewObject:
-            if hasattr(obj.ViewObject.Proxy, "p2") and hasattr(obj.ViewObject.Proxy, "p3"):
-                snaps.append([obj.ViewObject.Proxy.p2, 'endpoint', self.toWP(obj.ViewObject.Proxy.p2)])
-                snaps.append([obj.ViewObject.Proxy.p3, 'endpoint', self.toWP(obj.ViewObject.Proxy.p3)])
+        if self.isEnabled("Endpoint") \
+                and obj.ViewObject \
+                and hasattr(obj.ViewObject.Proxy, "p2") \
+                and hasattr(obj.ViewObject.Proxy, "p3"):
+            snaps.append([obj.ViewObject.Proxy.p2, 'endpoint', self.toWP(obj.ViewObject.Proxy.p2)])
+            snaps.append([obj.ViewObject.Proxy.p3, 'endpoint', self.toWP(obj.ViewObject.Proxy.p3)])
         return snaps
 
 
@@ -1131,15 +1135,9 @@ class Snapper:
             if self.dim2.Distance:
                 self.dim2.on()
 
-    def get_cursor_size(self):
-        # TODO Unfortunately, there's no way to get the cursor size in Qt
-        # Either provide platform-specific implementation or make it a user preference
-        # This should be in device-independent pixels
-        return 32
-
     def get_quarter_widget(self, mw):
         views = []
-        for w in mw.findChild(QtGui.QMdiArea).findChildren(QtGui.QWidget):
+        for w in mw.findChild(QtWidgets.QMdiArea).findChildren(QtWidgets.QWidget):
             if w.inherits("SIM::Coin3D::Quarter::QuarterWidget"):
                 views.append(w)
         return views
@@ -1151,28 +1149,41 @@ class Snapper:
         return device_pixel_ratio
 
     def get_cursor_with_tail(self, base_icon_name, tail_icon_name=None):
-        base_icon = QtGui.QPixmap(base_icon_name)
-        device_pixel_ratio = self.device_pixel_ratio()
-        full_icon_size = self.get_cursor_size()
-        new_icon_width = full_icon_size * device_pixel_ratio
-        new_icon_height = 0.75 * full_icon_size * device_pixel_ratio
-        new_icon = QtGui.QPixmap(new_icon_width, new_icon_height)
+        # Other cursor code in scr:
+        # src/Gui/CommandView.cpp
+        # src/Mod/Mesh/Gui/MeshSelection.cpp
+        # src/Mod/Sketcher/Gui/CommandConstraints.cpp
+
+        # The code below follows the Sketcher example.
+
+        #   +--------+
+        #   |  base  |          vertical offset = 0.5*w
+        # w |        +--------+
+        #   |   w    |  tail  |
+        #   +--------+        | w = width = 16
+        #            |   w    |
+        #            +--------+
+
+        dpr = self.device_pixel_ratio()
+        width = 16 * dpr
+        new_icon = QtGui.QPixmap(2 * width, 1.5 * width)
         new_icon.fill(QtCore.Qt.transparent)
+        base_icon = QtGui.QPixmap(base_icon_name).scaledToWidth(width)
         qp = QtGui.QPainter()
         qp.begin(new_icon)
-        base_icon = base_icon.scaledToWidth(0.5 * full_icon_size * device_pixel_ratio)
         qp.drawPixmap(0, 0, base_icon)
-        if tail_icon_name:
-            tail_icon_width = 0.5 * full_icon_size * device_pixel_ratio
-            tail_icon_x = 0.5 * full_icon_size * device_pixel_ratio
-            tail_icon_y = 0.25 * full_icon_size * device_pixel_ratio
-            tail_pixmap = QtGui.QPixmap(tail_icon_name).scaledToWidth(tail_icon_width)
-            qp.drawPixmap(QtCore.QPoint(tail_icon_x, tail_icon_y), tail_pixmap)
+        if tail_icon_name is not None:
+            tail_icon = QtGui.QPixmap(tail_icon_name).scaledToWidth(width)
+            qp.drawPixmap(width, 0.5 * width, tail_icon)
         qp.end()
-        cur_hot_x = 0.25 * full_icon_size * device_pixel_ratio
-        cur_hot_y = 0.25 * full_icon_size * device_pixel_ratio
-        cur = QtGui.QCursor(new_icon, cur_hot_x, cur_hot_y)
-        return cur
+        hot_x = 8
+        hot_y = 8
+        new_icon.setDevicePixelRatio(dpr)
+        # Only X11 needs hot point coordinates to be scaled:
+        if QtGui.QGuiApplication.platformName() == "xcb":
+            hot_x *= dpr
+            hot_x *= dpr
+        return QtGui.QCursor(new_icon, hot_x, hot_y)
 
     def setCursor(self, mode=None):
         """Set or reset the cursor to the given mode or resets."""
@@ -1217,24 +1228,27 @@ class Snapper:
             self.dim1.off()
         if self.dim2:
             self.dim2.off()
-        if self.grid:
-            if self.grid.show_always is False:
-                self.grid.off()
         if self.holdTracker:
             self.holdTracker.clear()
             self.holdTracker.off()
         self.unconstrain()
         self.radius = 0
         self.setCursor()
-        if params.get_param("SnapBarShowOnlyDuringCommands"):
-            toolbar = self.get_snap_toolbar()
-            if toolbar:
-                toolbar.hide()
         self.mask = None
         self.selectMode = False
         self.running = False
         self.holdPoints = []
         self.lastObj = []
+
+        if hasattr(App, "activeDraftCommand") and App.activeDraftCommand:
+            return
+        if self.grid:
+            if self.grid.show_always is False:
+                self.grid.off()
+        if params.get_param("SnapBarShowOnlyDuringCommands"):
+            toolbar = self.get_snap_toolbar()
+            if toolbar:
+                toolbar.hide()
 
 
     def setSelectMode(self, mode):
@@ -1383,6 +1397,9 @@ class Snapper:
             self.view.removeEventCallbackPivy(coin.SoMouseButtonEvent.getClassTypeId(), self.callbackClick)
         if self.callbackMove:
             self.view.removeEventCallbackPivy(coin.SoLocation2Event.getClassTypeId(), self.callbackMove)
+        if self.callbackClick or self.callbackMove:
+            # Next line fixes https://github.com/FreeCAD/FreeCAD/issues/10469:
+            gui_utils.end_all_events()
         self.callbackClick = None
         self.callbackMove = None
 
@@ -1423,6 +1440,9 @@ class Snapper:
                 self.view.removeEventCallbackPivy(coin.SoMouseButtonEvent.getClassTypeId(), self.callbackClick)
             if self.callbackMove:
                 self.view.removeEventCallbackPivy(coin.SoLocation2Event.getClassTypeId(), self.callbackMove)
+            if self.callbackClick or self.callbackMove:
+                # Next line fixes https://github.com/FreeCAD/FreeCAD/issues/10469:
+                gui_utils.end_all_events()
             self.callbackClick = None
             self.callbackMove = None
             Gui.Snapper.off()
@@ -1442,6 +1462,9 @@ class Snapper:
                 self.view.removeEventCallbackPivy(coin.SoMouseButtonEvent.getClassTypeId(), self.callbackClick)
             if self.callbackMove:
                 self.view.removeEventCallbackPivy(coin.SoLocation2Event.getClassTypeId(), self.callbackMove)
+            if self.callbackClick or self.callbackMove:
+                # Next line fixes https://github.com/FreeCAD/FreeCAD/issues/10469:
+                gui_utils.end_all_events()
             self.callbackClick = None
             self.callbackMove = None
             Gui.Snapper.off()
@@ -1473,7 +1496,7 @@ class Snapper:
         """Get the snap toolbar."""
         if not (hasattr(self, "toolbar") and self.toolbar):
             mw = Gui.getMainWindow()
-            self.toolbar = mw.findChild(QtGui.QToolBar, "Draft snap")
+            self.toolbar = mw.findChild(QtWidgets.QToolBar, "Draft snap")
         if self.toolbar:
             return self.toolbar
 
@@ -1569,14 +1592,15 @@ class Snapper:
     def setGrid(self):
         """Set the grid, if visible."""
         self.setTrackers()
-        if self.grid.Visible:
-            self.grid.set()
 
 
     def setTrackers(self, update_grid=True):
         """Set the trackers."""
         v = Draft.get3DView()
-        if v and (v != self.activeview):
+        if v is None:
+            return
+
+        if v != self.activeview:
             if v in self.trackers[0]:
                 i = self.trackers[0].index(v)
                 self.grid = self.trackers[1][i]

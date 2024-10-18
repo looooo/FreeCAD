@@ -24,7 +24,7 @@
 #define FEM_ViewProviderAnalysis_H
 
 #include <Gui/ViewProviderDocumentObjectGroup.h>
-#include <Gui/ViewProviderPythonFeature.h>
+#include <Gui/ViewProviderFeaturePython.h>
 #include <Mod/Fem/FemGlobal.h>
 #include <QCoreApplication>
 
@@ -41,6 +41,7 @@ public:
 
     void attach(ViewProviderFemAnalysis*);
     void highlightView(Gui::ViewProviderDocumentObject*);
+    void removeView(Gui::ViewProviderDocumentObject*);
 
 private:
     SoSeparator* annotate;
@@ -49,7 +50,7 @@ private:
 class FemGuiExport ViewProviderFemAnalysis: public Gui::ViewProviderDocumentObjectGroup
 {
     Q_DECLARE_TR_FUNCTIONS(FemGui::ViewProviderFemAnalysis)
-    PROPERTY_HEADER_WITH_OVERRIDE(FemGui::ViewProviderAnalysis);
+    PROPERTY_HEADER_WITH_OVERRIDE(FemGui::ViewProviderFemAnalysis);
 
 public:
     /// constructor
@@ -88,6 +89,8 @@ public:
 
     void highlightView(Gui::ViewProviderDocumentObject*);
 
+    void removeView(Gui::ViewProviderDocumentObject*);
+
     /** @name Drag and drop */
     //@{
     /// Returns true if the view provider generally supports dragging objects
@@ -112,7 +115,7 @@ private:
     ViewProviderFemHighlighter extension;
 };
 
-using ViewProviderFemAnalysisPython = Gui::ViewProviderPythonFeatureT<ViewProviderFemAnalysis>;
+using ViewProviderFemAnalysisPython = Gui::ViewProviderFeaturePythonT<ViewProviderFemAnalysis>;
 
 }  // namespace FemGui
 

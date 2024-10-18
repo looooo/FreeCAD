@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
-# /****************************************************************************
+# /**************************************************************************
 #                                                                           *
 #    Copyright (c) 2023 Ondsel <development@ondsel.com>                     *
 #                                                                           *
@@ -19,7 +19,7 @@
 #    License along with FreeCAD. If not, see                                *
 #    <https://www.gnu.org/licenses/>.                                       *
 #                                                                           *
-# ***************************************************************************/
+# **************************************************************************/
 
 import FreeCAD as App
 
@@ -27,6 +27,9 @@ from PySide.QtCore import QT_TRANSLATE_NOOP
 
 if App.GuiUp:
     import FreeCADGui as Gui
+
+import UtilsAssembly
+import Preferences
 
 # translate = App.Qt.translate
 
@@ -46,20 +49,45 @@ class CommandCreateAssembly:
             "Accel": "A",
             "ToolTip": QT_TRANSLATE_NOOP(
                 "Assembly_CreateAssembly",
-                "Create an assembly object in the current document.",
+                "Create an assembly object in the current document, or in the current active assembly (if any). Limit of one root assembly per file.",
             ),
             "CmdType": "ForEdit",
         }
 
     def IsActive(self):
+        if Gui.Control.activeDialog():
+            return False
+
+        if Preferences.preferences().GetBool("EnforceOneAssemblyRule", True):
+            activeAssembly = UtilsAssembly.activeAssembly()
+
+            if UtilsAssembly.isThereOneRootAssembly() and not activeAssembly:
+                return False
+
         return App.ActiveDocument is not None
 
     def Activated(self):
         App.setActiveTransaction("Create assembly")
-        assembly = App.ActiveDocument.addObject("App::Part", "Assembly")
-        assembly.Type = "Assembly"
-        Gui.ActiveDocument.ActiveView.setActiveObject("part", assembly)
-        assembly.newObject("App::DocumentObjectGroup", "Joints")
+
+        activeAssembly = UtilsAssembly.activeAssembly()
+        Gui.addModule("UtilsAssembly")
+        if activeAssembly:
+            commands = (
+                "activeAssembly = UtilsAssembly.activeAssembly()\n"
+                'assembly = activeAssembly.newObject("Assembly::AssemblyObject", "Assembly")\n'
+            )
+        else:
+            commands = (
+                'assembly = App.ActiveDocument.addObject("Assembly::AssemblyObject", "Assembly")\n'
+            )
+
+        commands = commands + 'assembly.Type = "Assembly"\n'
+        commands = commands + 'assembly.newObject("Assembly::JointGroup", "Joints")'
+
+        Gui.doCommand(commands)
+        if not activeAssembly:
+            Gui.doCommandGui("Gui.ActiveDocument.setEdit(assembly)")
+
         App.closeActiveTransaction()
 
 

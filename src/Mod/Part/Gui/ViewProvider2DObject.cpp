@@ -25,7 +25,6 @@
 #ifndef _PreComp_
 # include <cfloat>
 
-# include <Standard_math.hxx>
 
 # include <Inventor/nodes/SoAnnotation.h>
 # include <Inventor/nodes/SoBaseColor.h>
@@ -347,5 +346,5 @@ PROPERTY_SOURCE_TEMPLATE(PartGui::ViewProvider2DObjectPython, PartGui::ViewProvi
 /// @endcond
 
 // explicit template instantiation
-template class PartGuiExport ViewProviderPythonFeatureT<PartGui::ViewProvider2DObject>;
+template class PartGuiExport ViewProviderFeaturePythonT<PartGui::ViewProvider2DObject>;
 }

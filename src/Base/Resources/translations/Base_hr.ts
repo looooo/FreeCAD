@@ -5,13 +5,13 @@
     <name>UnitsApi</name>
     <message>
       <location filename="../../UnitsApi.cpp" line="69"/>
-      <source>Standard (mm, kg, s, degree)</source>
-      <translation>Standard (mm, kg, s, stupnjeva)</translation>
+      <source>Standard (mm, kg, s, °)</source>
+      <translation>Standard (mm, kg, s, °)</translation>
     </message>
     <message>
       <location filename="../../UnitsApi.cpp" line="71"/>
-      <source>MKS (m, kg, s, degree)</source>
-      <translation>MKS (m, kg, s, stupnjeva)</translation>
+      <source>MKS (m, kg, s, °)</source>
+      <translation>MKS (m, kg, s, °)</translation>
     </message>
     <message>
       <location filename="../../UnitsApi.cpp" line="73"/>
@@ -35,13 +35,13 @@
     </message>
     <message>
       <location filename="../../UnitsApi.cpp" line="81"/>
-      <source>Metric small parts &amp; CNC(mm, mm/min)</source>
+      <source>Metric small parts &amp; CNC (mm, mm/min)</source>
       <translation>Metrički mali dijelovi &amp; CNC (mm, mm/min)</translation>
     </message>
     <message>
       <location filename="../../UnitsApi.cpp" line="83"/>
-      <source>Imperial for Civil Eng (ft, ft/sec)</source>
-      <translation>Angloamerikanska gradnja (ft, ft/sec)</translation>
+      <source>Imperial for Civil Eng (ft, ft/s)</source>
+      <translation>Imperijal za civilno Eng (ft, ft/s)</translation>
     </message>
     <message>
       <location filename="../../UnitsApi.cpp" line="85"/>

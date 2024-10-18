@@ -44,6 +44,7 @@
 #include <Mod/TechDraw/App/DrawView.h>
 #include <Mod/TechDraw/App/DrawViewAnnotation.h>
 #include <Mod/TechDraw/App/DrawViewPart.h>
+#include <Mod/TechDraw/App/DrawViewSymbol.h>
 #include <Mod/TechDraw/App/DrawWeldSymbol.h>
 #include <Mod/TechDraw/App/DrawUtil.h>
 
@@ -1261,7 +1262,7 @@ void execCosmeticCircle(Gui::Command* cmd)
     }
 
     Gui::Control().showDialog(new TaskDlgCosmeticCircle(baseFeat,
-                                                      points.front(),
+                                                      points,
                                                       centerIs3d));
 }
 
@@ -1618,19 +1619,41 @@ CmdTechDrawSurfaceFinishSymbols::CmdTechDrawSurfaceFinishSymbols()
 void CmdTechDrawSurfaceFinishSymbols::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
+
+    std::string ownerName;
     std::vector<Gui::SelectionObject> selection = this->getSelection().getSelectionEx();
     if (selection.empty())
     {
-        QMessageBox::warning(Gui::getMainWindow(), QObject::tr("SurfaceFinishSymbols"), QObject::tr("Selection is empty"));
-        return;
+        TechDraw::DrawPage *page = DrawGuiUtil::findPage(this);
+        if (!page) {
+            return;
+        }
+
+        ownerName = page->getNameInDocument();
     }
-    TechDraw::DrawViewPart* objFeat = dynamic_cast<TechDraw::DrawViewPart*> (selection[0].getObject());
-    if(!objFeat)
-    {
-        QMessageBox::warning(Gui::getMainWindow(), QObject::tr("SurfaceFinishSymbols"), QObject::tr("No object selected"));
-        return;
+    else {
+        auto objFeat = dynamic_cast<TechDraw::DrawView *>(selection.front().getObject());
+        if ( !objFeat ||
+             !(objFeat->isDerivedFrom(TechDraw::DrawViewPart::getClassTypeId()) ||
+               objFeat->isDerivedFrom(TechDraw::DrawLeaderLine::getClassTypeId())) ) {
+            QMessageBox::warning(Gui::getMainWindow(), QObject::tr("SurfaceFinishSymbols"),
+                                 QObject::tr("Selected object is not a part view, nor a leader line"));
+            return;
+        }
+
+        ownerName = objFeat->getNameInDocument();
+
+        const std::vector<std::string> &subNames = selection.front().getSubNames();
+        if (!subNames.empty()) {
+            ownerName += '.';
+            ownerName += subNames.front();
+        }
     }
-    Gui::Control().showDialog(new TechDrawGui::TaskDlgSurfaceFinishSymbols(objFeat));
+
+    Gui::Control().showDialog(new TechDrawGui::TaskDlgSurfaceFinishSymbols(ownerName));
+
+    updateActive();
+    Gui::Selection().clearSelection();
 }
 
 bool CmdTechDrawSurfaceFinishSymbols::isActive()
