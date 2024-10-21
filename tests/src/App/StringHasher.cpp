@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 
 #include "App/MappedName.h"
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 
 #include <App/StringHasher.h>
 #include <App/StringHasherPy.h>
@@ -1006,6 +1006,7 @@ TEST_F(StringIDRefTest, toBytes)  // NOLINT
 
 TEST_F(StringIDRefTest, getPyObject)  // NOLINT
 {
+    Py_Initialize();
     // Arrange
     auto ref = App::StringIDRef(createStringID());
     auto empty = App::StringIDRef();
@@ -1106,7 +1107,10 @@ protected:
         const std::string postfix {";:M;FUS;:Hb:7,F"};
         auto mappedName = givenMappedName(prefix.c_str(), postfix.c_str());
         QVector<App::StringIDRef> sids;
-        return Hasher()->getID(mappedName, sids);
+        auto ID = Hasher()->getID(mappedName, sids);
+        ID.mark();  // For this to be included in the count, and thus the memsize in needs to be
+                    // marked.
+        return ID;
     }
 
 private:

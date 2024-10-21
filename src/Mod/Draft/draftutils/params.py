@@ -35,7 +35,7 @@ from draftutils.translate import translate
 
 if App.GuiUp:
     import FreeCADGui as Gui
-    from PySide import QtGui
+    from PySide import QtWidgets
 
 class ParamObserverDraft:
 
@@ -76,7 +76,9 @@ class ParamObserverView:
         if entry in ("DefaultShapeColor", "DefaultShapeLineColor", "DefaultShapeLineWidth"):
             _param_observer_callback_tray()
             return
-
+        if entry == "MarkerSize":
+            _param_observer_callback_snaptextsize()
+            return
 
 def _param_observer_callback_tray():
     if not hasattr(Gui, "draftToolBar"):
@@ -93,7 +95,7 @@ def _param_observer_callback_scalemultiplier(value):
         return
     mw = Gui.getMainWindow()
     sb = mw.statusBar()
-    scale_widget = sb.findChild(QtGui.QToolBar,"draft_scale_widget")
+    scale_widget = sb.findChild(QtWidgets.QToolBar,"draft_scale_widget")
     if scale_widget is not None:
         scale_label = init_draft_statusbar.scale_to_label(1 / value)
         scale_widget.scaleLabel.setText(scale_label)
@@ -144,8 +146,18 @@ def _param_observer_callback_snapstyle():
 
 def _param_observer_callback_snapcolor():
     if hasattr(Gui, "Snapper"):
-        for snap_track in Gui.Snapper.trackers[2]:
-            snap_track.setColor()
+        tracker_list = [2, 5, 6]
+        for each_tracker in tracker_list:
+            for snap_track in Gui.Snapper.trackers[each_tracker]:
+                snap_track.setColor()
+
+
+def _param_observer_callback_snaptextsize():
+    if hasattr(Gui, "Snapper"):
+        tracker_list = [5, 6]
+        for each_tracker in tracker_list:
+            for snap_track in Gui.Snapper.trackers[each_tracker]:
+                snap_track.setSize()
 
 
 def _param_observer_callback_svg_pattern():
@@ -179,10 +191,10 @@ def _param_observer_callback_svg_pattern():
     msg = translate("draft",
 """Do you want to update the SVG pattern options
 of existing objects in all opened documents?""")
-    res = QtGui.QMessageBox.question(None, "Update SVG patterns", msg,
-                                     QtGui.QMessageBox.Yes | QtGui.QMessageBox.No,
-                                     QtGui.QMessageBox.No)
-    if res == QtGui.QMessageBox.No:
+    res = QtWidgets.QMessageBox.question(None, "Update SVG patterns", msg,
+                                     QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+                                     QtWidgets.QMessageBox.No)
+    if res == QtWidgets.QMessageBox.No:
         return
 
     for doc, vobjs in data:
@@ -393,25 +405,81 @@ def _get_param_dictionary():
 
     # Arch parameters that are not in the preferences:
     param_dict["Mod/Arch"] = {
-
-
+        "applyConstructionStyle":      ("bool",      True),
+        "ClaimHosted":                 ("bool",      True),
+        "CustomIfcSchema":             ("string",    ""),     # importIFClegacy.py
+        "createIfcGroups":             ("bool",      False),  # importIFClegacy.py
+        "DoorHeight":                  ("float",     2100.0),
+        "DoorPreset":                  ("int",       5),
+        "DoorSill":                    ("float",     0.0),
+        "DoorWidth":                   ("float",     1000.0),
+        "FreeLinking":                 ("bool",      False),
+        "forceIfcPythonParser":        ("bool",      False),  # importIFClegacy.py
+        "getStandardType":             ("bool",      False),
+        "ifcAggregateWindows":         ("bool",      False),  # importIFClegacy.py
+        "ifcAsMesh":                   ("string",    ""),     # importIFClegacy.py
+        "IfcExportList":               ("bool",      False),  # importIFClegacy.py
+        "ifcImportLayer":              ("bool",      True),
+        "ifcJoinSolids":               ("bool",      False),  # importIFClegacy.py
+        "ifcMergeProfiles":            ("bool",      False),
+        "IfcScalingFactor":            ("float",     1.0),    # importIFClegacy.py
+        "ifcSeparatePlacements":       ("bool",      False),  # importIFClegacy.py
+        "MultiMaterialColumnWidth0":   ("int",       60),
+        "MultiMaterialColumnWidth1":   ("int",       60),
+        "PanelLength":                 ("float",     1000.0),
+        "PanelThickness":              ("float",     10.0),
+        "PanelWidth":                  ("float",     1000.0),
+        "PrecastBase":                 ("float",     0.0),
+        "PrecastChamfer":              ("float",     0.0),
+        "PrecastDentHeight":           ("float",     0.0),
+        "PrecastDentLength":           ("float",     0.0),
+        "PrecastDentWidth":            ("float",     0.0),
+        "PrecastDownLength":           ("float",     0.0),
+        "PrecastGrooveDepth":          ("float",     0.0),
+        "PrecastGrooveHeight":         ("float",     0.0),
+        "PrecastGrooveSpacing":        ("float",     0.0),
+        "PrecastHoleMajor":            ("float",     0.0),
+        "PrecastHoleMinor":            ("float",     0.0),
+        "PrecastHoleSpacing":          ("float",     0.0),
+        "PrecastRiser":                ("float",     0.0),
+        "PrecastTread":                ("float",     0.0),
+        "ScheduleColumnWidth0":        ("int",       100),
+        "ScheduleColumnWidth1":        ("int",       100),
+        "ScheduleColumnWidth2":        ("int",       50),
+        "ScheduleColumnWidth3":        ("int",       100),
+        "ScheduleDialogHeight":        ("int",       200),
+        "ScheduleDialogWidth":         ("int",       300),
+        "StructureHeight":             ("float",     1000.0),
+        "StructureLength":             ("float",     100.0),
+        "StructurePreset":             ("string",    ""),
+        "StructureWidth":              ("float",     100.0),
+        "swallowAdditions":            ("bool",      True),
+        "swallowSubtractions":         ("bool",      True),
+        "WallAlignment":               ("int",       0),
+        "WallHeight":                  ("float",     3000.0),
+        "WallWidth":                   ("float",     200.0),
+        "WindowH1":                    ("float",     50.0),
+        "WindowH2":                    ("float",     50.0),
+        "WindowH3":                    ("float",     50.0),
+        "WindowHeight":                ("float",     1000.0),
+        "WindowO1":                    ("float",     0.0),
+        "WindowO2":                    ("float",     50.0),
+        "WindowPreset":                ("int",       0),
+        "WindowSill":                  ("float",     0.0),
+        "WindowW1":                    ("float",     100.0),
+        "WindowW2":                    ("float",     50.0),
+        "WindowWidth":                 ("float",     1000.0),
     }
 
-    # For the View parameters we do not check the preferences:
-    param_dict["View"] = {
-        "BackgroundColor":             ("unsigned",  336897023),
-        "BackgroundColor2":            ("unsigned",  859006463),
-        "BackgroundColor3":            ("unsigned",  2543299327),
-        "DefaultShapeColor":           ("unsigned",  3435973887),
-        "DefaultShapeLineColor":       ("unsigned",  421075455),
-        "DefaultShapeLineWidth":       ("int",       2),
-        "DefaultShapePointSize":       ("int",       2),
-        "DefaultShapeTransparency":    ("int",       0),
-        "DefaultShapeVertexColor":     ("unsigned",  421075455),
-        "EnableSelection":             ("bool",      True),
-        "Gradient":                    ("bool",      True),
-        "MarkerSize":                  ("int",       9),
-        "NewDocumentCameraScale":      ("float",     100.0),
+    # For the Mod/Mesh parameters we do not check the preferences:
+    param_dict["Mod/Mesh"] = {
+        "MaxDeviationExport":          ("float",     0.1),
+    }
+
+    # For the Mod/TechDraw/PAT parameters we do not check the preferences:
+    param_dict["Mod/TechDraw/PAT"] = {
+        "FilePattern":                 ("string",    ""),
+        "NamePattern":                 ("string",    "Diamant"),
     }
 
     # For the General parameters we do not check the preferences:
@@ -425,10 +493,25 @@ def _get_param_dictionary():
         "UserSchema":                  ("int",       0),
     }
 
-    # For the Mod/TechDraw/PAT parameters we do not check the preferences:
-    param_dict["Mod/TechDraw/PAT"] = {
-        "FilePattern":                 ("string",    ""),
-        "NamePattern":                 ("string",    "Diamant"),
+    # For the View parameters we do not check the preferences:
+    param_dict["View"] = {
+        "BackgroundColor":             ("unsigned",  336897023),
+        "BackgroundColor2":            ("unsigned",  859006463),
+        "BackgroundColor3":            ("unsigned",  2543299327),
+        "DefaultAmbientColor":         ("unsigned",  1431655935),
+        "DefaultEmissiveColor":        ("unsigned",  255),
+        "DefaultShapeColor":           ("unsigned",  3435980543),
+        "DefaultShapeLineColor":       ("unsigned",  421075455),
+        "DefaultShapeLineWidth":       ("int",       2),
+        "DefaultShapePointSize":       ("int",       2),
+        "DefaultShapeShininess":       ("int",       90),
+        "DefaultShapeTransparency":    ("int",       0),
+        "DefaultShapeVertexColor":     ("unsigned",  421075455),
+        "DefaultSpecularColor":        ("unsigned",  2290649343),
+        "EnableSelection":             ("bool",      True),
+        "Gradient":                    ("bool",      True),
+        "MarkerSize":                  ("int",       9),
+        "NewDocumentCameraScale":      ("float",     100.0),
     }
 
 
@@ -513,7 +596,7 @@ def _get_param_dictionary():
 PARAM_DICT = _get_param_dictionary()
 
 
-def get_param(entry, path="Mod/Draft"):
+def get_param(entry, path="Mod/Draft", ret_default=False):
     """Return a stored parameter value or its default.
 
     Parameters
@@ -524,6 +607,9 @@ def get_param(entry, path="Mod/Draft"):
         Defaults to "Mod/Draft".
         The path where the parameter can be found.
         This string is appended to "User parameter:BaseApp/Preferences/".
+    ret_default: bool, optional
+        Defaults to `False`.
+        If `True`, always return the default value even if a stored value is available.
 
     Returns
     -------
@@ -534,6 +620,8 @@ def get_param(entry, path="Mod/Draft"):
         return None
     param_grp = App.ParamGet("User parameter:BaseApp/Preferences/" + path)
     typ, default = PARAM_DICT[path][entry]
+    if ret_default:
+        return default
     if typ == "bool":
         return param_grp.GetBool(entry, default)
     if typ == "float":
@@ -547,12 +635,12 @@ def get_param(entry, path="Mod/Draft"):
     return None
 
 
-def get_param_arch(entry):
-    return get_param(entry, path="Mod/Arch")
+def get_param_arch(entry, ret_default=False):
+    return get_param(entry, path="Mod/Arch", ret_default=ret_default)
 
 
-def get_param_view(entry):
-    return get_param(entry, path="View")
+def get_param_view(entry, ret_default=False):
+    return get_param(entry, path="View", ret_default=ret_default)
 
 
 def set_param(entry, value, path="Mod/Draft"):

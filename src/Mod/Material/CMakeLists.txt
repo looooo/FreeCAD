@@ -4,17 +4,13 @@ if(BUILD_GUI)
     add_subdirectory(Gui)
 endif(BUILD_GUI)
 
-IF(BUILD_GUI)
-    PYSIDE_WRAP_RC(Material_QRC_SRCS Resources/Material.qrc)
-ENDIF(BUILD_GUI)
-
 SET(MaterialScripts_Files
     Init.py
     InitGui.py
     importFCMat.py
     MaterialEditor.py
     TestMaterialsApp.py
-    Resources/ui/materials-editor.ui
+    TestMaterialsGui.py
     Templatematerial.yml
 )
 
@@ -24,13 +20,10 @@ SET(MaterialTools_Files
     materialtools/cardutils.py
     materialtools/MaterialModels.py
 )
-SET(Material_Icon_Files
-    Resources/icons/preview-rendered.svg
-    Resources/icons/preview-vector.svg
-)
 
 # collect all the material cards:
 SET(MaterialLib_Files
+    Resources/Materials/Standard/Default.FCMat
     Resources/Materials/Standard/Aggregate/Concrete-EN-C35_45.FCMat
     Resources/Materials/Standard/Aggregate/Concrete-Generic.FCMat
     Resources/Materials/Standard/Aggregate/Reinforcement-FIB-B500.FCMat
@@ -155,7 +148,7 @@ SET(FluidMaterial_Files
     Resources/Materials/Fluid/None.FCMat
     Resources/Materials/Fluid/Air.FCMat
     Resources/Materials/Fluid/Argon.FCMat
-    Resources/Materials/Fluid/Carbon_dioxide.FCMat
+    "Resources/Materials/Fluid/Carbon Dioxide.FCMat"
     Resources/Materials/Fluid/Nitrogen.FCMat
     Resources/Materials/Fluid/Water.FCMat
 )
@@ -166,23 +159,75 @@ SET(AppearanceLib_Files
     Resources/Materials/Appearance/Bronze.FCMat
     Resources/Materials/Appearance/Chrome.FCMat
     Resources/Materials/Appearance/Copper.FCMat
-    Resources/Materials/Appearance/DefaultAppearance.FCMat
+    Resources/Materials/Appearance/Default.FCMat
     Resources/Materials/Appearance/Emerald.FCMat
     Resources/Materials/Appearance/Gold.FCMat
     Resources/Materials/Appearance/Jade.FCMat
     Resources/Materials/Appearance/Metalized.FCMat
-    Resources/Materials/Appearance/NeonGNC.FCMat
-    Resources/Materials/Appearance/NeonPHC.FCMat
+    "Resources/Materials/Appearance/Neon GNC.FCMat"
+    "Resources/Materials/Appearance/Neon PHC.FCMat"
     Resources/Materials/Appearance/Obsidian.FCMat
     Resources/Materials/Appearance/Pewter.FCMat
     Resources/Materials/Appearance/Plaster.FCMat
     Resources/Materials/Appearance/Plastic.FCMat
     Resources/Materials/Appearance/Ruby.FCMat
     Resources/Materials/Appearance/Satin.FCMat
-    Resources/Materials/Appearance/ShinyPlastic.FCMat
+    "Resources/Materials/Appearance/Shiny Plastic.FCMat"
     Resources/Materials/Appearance/Silver.FCMat
     Resources/Materials/Appearance/Steel.FCMat
     Resources/Materials/Appearance/Stone.FCMat
+    Resources/Materials/Appearance/Wood.FCMat
+)
+
+SET(PatternLib_Files
+    Resources/Materials/Patterns/PAT/Diagonal4.FCMat
+    Resources/Materials/Patterns/PAT/Diagonal5.FCMat
+    Resources/Materials/Patterns/PAT/Diamond.FCMat
+    Resources/Materials/Patterns/PAT/Diamond2.FCMat
+    Resources/Materials/Patterns/PAT/Diamond4.FCMat
+    Resources/Materials/Patterns/PAT/Horizontal5.FCMat
+    Resources/Materials/Patterns/PAT/Square.FCMat
+    Resources/Materials/Patterns/PAT/Vertical5.FCMat
+    "Resources/Materials/Patterns/Pattern Files/aluminum.FCMat"
+    "Resources/Materials/Patterns/Pattern Files/brick01.FCMat"
+    "Resources/Materials/Patterns/Pattern Files/concrete.FCMat"
+    "Resources/Materials/Patterns/Pattern Files/cross.FCMat"
+    "Resources/Materials/Patterns/Pattern Files/cuprous.FCMat"
+    "Resources/Materials/Patterns/Pattern Files/diagonal1.FCMat"
+    "Resources/Materials/Patterns/Pattern Files/diagonal2.FCMat"
+    "Resources/Materials/Patterns/Pattern Files/earth.FCMat"
+    "Resources/Materials/Patterns/Pattern Files/general_steel.FCMat"
+    "Resources/Materials/Patterns/Pattern Files/glass.FCMat"
+    "Resources/Materials/Patterns/Pattern Files/hatch45L.FCMat"
+    "Resources/Materials/Patterns/Pattern Files/hatch45R.FCMat"
+    "Resources/Materials/Patterns/Pattern Files/hbone.FCMat"
+    "Resources/Materials/Patterns/Pattern Files/line.FCMat"
+    "Resources/Materials/Patterns/Pattern Files/plastic.FCMat"
+    "Resources/Materials/Patterns/Pattern Files/plus.FCMat"
+    "Resources/Materials/Patterns/Pattern Files/simple.FCMat"
+    "Resources/Materials/Patterns/Pattern Files/solid.FCMat"
+    "Resources/Materials/Patterns/Pattern Files/square.FCMat"
+    "Resources/Materials/Patterns/Pattern Files/steel.FCMat"
+    "Resources/Materials/Patterns/Pattern Files/titanium.FCMat"
+    "Resources/Materials/Patterns/Pattern Files/wood.FCMat"
+    "Resources/Materials/Patterns/Pattern Files/woodgrain.FCMat"
+    "Resources/Materials/Patterns/Pattern Files/zinc.FCMat"
+)
+
+SET(MachiningLib_Files
+    Resources/Materials/Machining/AluminumCastAlloy.FCMat
+    Resources/Materials/Machining/AluminumWroughtAlloy.FCMat
+    Resources/Materials/Machining/AusteniticStainlessSteel.FCMat
+    Resources/Materials/Machining/BalsaWood.FCMat
+    Resources/Materials/Machining/GrayCastIron.FCMat
+    Resources/Materials/Machining/HardWood.FCMat
+    Resources/Materials/Machining/LowAlloySteel.FCMat
+    Resources/Materials/Machining/MalleableCastIron.FCMat
+    Resources/Materials/Machining/MildSteel.FCMat
+    Resources/Materials/Machining/MDF.FCMat
+    Resources/Materials/Machining/ParticleBoard.FCMat
+    Resources/Materials/Machining/SoftWood.FCMat
+    Resources/Materials/Machining/ToolSteel.FCMat
 )
 
 SET(MaterialTestLib_Files
@@ -197,11 +242,44 @@ SET(MaterialModel_Files
     Resources/Models/Fluid/Fluid.yml
     Resources/Models/Legacy/Father.yml
     Resources/Models/Legacy/MaterialStandard.yml
+    Resources/Models/Machining/Machinability.yml
+    Resources/Models/Mechanical/ArrudaBoyce.yml
     Resources/Models/Mechanical/Density.yml
+    Resources/Models/Mechanical/Hardness.yml
     Resources/Models/Mechanical/IsotropicLinearElastic.yml
     Resources/Models/Mechanical/LinearElastic.yml
+    Resources/Models/Mechanical/MooneyRivlin.yml
+    Resources/Models/Mechanical/NeoHooke.yml
+    Resources/Models/Mechanical/OgdenN1.yml
+    Resources/Models/Mechanical/OgdenN2.yml
+    Resources/Models/Mechanical/OgdenN3.yml
     Resources/Models/Mechanical/OgdenYld2004p18.yml
     Resources/Models/Mechanical/OrthotropicLinearElastic.yml
+    Resources/Models/Mechanical/PolynomialN1.yml
+    Resources/Models/Mechanical/PolynomialN2.yml
+    Resources/Models/Mechanical/PolynomialN3.yml
+    Resources/Models/Mechanical/ReducedPolynomialN1.yml
+    Resources/Models/Mechanical/ReducedPolynomialN2.yml
+    Resources/Models/Mechanical/ReducedPolynomialN3.yml
+    Resources/Models/Mechanical/Yeoh.yml
+    Resources/Models/Patterns/PAT.yml
+    "Resources/Models/Patterns/Pattern File.yml"
+    "Resources/Models/Render Workbench/RenderAppleseed.yml"
+    "Resources/Models/Render Workbench/RenderCarpaint.yml"
+    "Resources/Models/Render Workbench/RenderCycles.yml"
+    "Resources/Models/Render Workbench/RenderDiffuse.yml"
+    "Resources/Models/Render Workbench/RenderDisney.yml"
+    "Resources/Models/Render Workbench/RenderEmission.yml"
+    "Resources/Models/Render Workbench/RenderGlass.yml"
+    "Resources/Models/Render Workbench/RenderLuxcore.yml"
+    "Resources/Models/Render Workbench/RenderLuxrender.yml"
+    "Resources/Models/Render Workbench/RenderMixed.yml"
+    "Resources/Models/Render Workbench/RenderOspray.yml"
+    "Resources/Models/Render Workbench/RenderPbrt.yml"
+    "Resources/Models/Render Workbench/RenderPovray.yml"
+    "Resources/Models/Render Workbench/RenderSubstancePBR.yml"
+    "Resources/Models/Render Workbench/RenderTexture.yml"
+    "Resources/Models/Render Workbench/RenderWB.yml"
     Resources/Models/Rendering/AdvancedRendering.yml
     Resources/Models/Rendering/BasicRendering.yml
     Resources/Models/Rendering/TextureRendering.yml
@@ -214,16 +292,36 @@ set(MaterialTest_Files
     materialtests/__init__.py
     materialtests/TestModels.py
     materialtests/TestMaterials.py
+    materialtests/TestMaterialCreation.py
+    materialtests/TestMaterialDocument.py
+    materialtests/TestMaterialFilter.py
 )
 
-ADD_CUSTOM_TARGET(MateriaTestLib ALL
+ADD_CUSTOM_TARGET(MaterialTest ALL
     SOURCES ${MaterialTest_Files}
 )
 
-fc_target_copy_resource(MateriaTestLib
+fc_target_copy_resource(MaterialTest
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_BINARY_DIR}/Mod/Material
     ${MaterialTest_Files})
+
+set(MaterialPythonTestData_Files
+    materialtests/Materials/TestAcrylicLegacy.FCMat
+    materialtests/Materials/TestAluminumAppearance.FCMat
+    materialtests/Materials/TestAluminumMixed.FCMat
+    materialtests/Materials/TestAluminumPhysical.FCMat
+    materialtests/Materials/TestBrassAppearance.FCMat
+)
+
+ADD_CUSTOM_TARGET(MaterialPythonTestData ALL
+    SOURCES ${MaterialPythonTestData_Files}
+)
+
+fc_target_copy_resource(MaterialPythonTestData
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_BINARY_DIR}/Mod/Material
+    ${MaterialPythonTestData_Files})
 
 ADD_CUSTOM_TARGET(MaterialScripts ALL
     SOURCES ${MaterialScripts_Files} ${Material_QRC_SRCS}
@@ -240,22 +338,12 @@ ADD_CUSTOM_TARGET(MaterialToolsLib ALL
     SOURCES ${MaterialTools_Files}
 )
 
-ADD_CUSTOM_TARGET(MaterialIconsLib ALL
-    SOURCES ${Material_Icon_Files}
-)
-
 fc_target_copy_resource(MaterialToolsLib
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_BINARY_DIR}/Mod/Material
     ${MaterialTools_Files})
 
-fc_target_copy_resource(MaterialIconsLib
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_BINARY_DIR}/Mod/Material
-    ${Material_Icon_Files})
-
 INSTALL(FILES ${MaterialTools_Files} DESTINATION Mod/Material/materialtools)
-INSTALL(FILES ${Material_Icon_Files} DESTINATION Mod/Material/Resources/icons)
 
 ADD_CUSTOM_TARGET(MaterialLib ALL
     SOURCES ${MaterialLib_Files}
@@ -266,8 +354,14 @@ ADD_CUSTOM_TARGET(FluidMaterialLib ALL
 ADD_CUSTOM_TARGET(AppearanceLib ALL
     SOURCES ${AppearanceLib_Files}
 )
+ADD_CUSTOM_TARGET(PatternLib ALL
+    SOURCES ${PatternLib_Files}
+)
 ADD_CUSTOM_TARGET(MaterialTestLib ALL
     SOURCES ${MaterialTestLib_Files}
+)
+ADD_CUSTOM_TARGET(MachiningLib ALL
+    SOURCES ${MachiningLib_Files}
 )
 ADD_CUSTOM_TARGET(MaterialModelLib ALL
     SOURCES ${MaterialModel_Files}
@@ -287,6 +381,14 @@ fc_target_copy_resource(AppearanceLib
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_DATADIR}/Mod/Material/
     ${AppearanceLib_Files})
+fc_target_copy_resource(PatternLib
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_DATADIR}/Mod/Material/
+    ${PatternLib_Files})
+fc_target_copy_resource(MachiningLib
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_DATADIR}/Mod/Material/
+    ${MachiningLib_Files})
 fc_target_copy_resource(MaterialTestLib
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_DATADIR}/Mod/Material/
@@ -297,16 +399,16 @@ fc_target_copy_resource(MaterialModelLib
     ${MaterialModel_Files})
 
 INSTALL(
-    FILES ${Material_SRCS} ${Material_QRC_SRCS}
-    DESTINATION Mod/Material
-)
-
-INSTALL(
     FILES ${MaterialTest_Files}
     DESTINATION Mod/Material/materialtests
 )
 
-foreach(file ${MaterialLib_Files} ${FluidMaterial_Files} ${AppearanceLib_Files} ${MaterialTestLib_Files} ${MaterialModel_Files})
+INSTALL(
+    FILES ${MaterialPythonTestData_Files}
+    DESTINATION Mod/Material/materialtests/Materials
+)
+
+foreach(file ${MaterialLib_Files} ${FluidMaterial_Files} ${AppearanceLib_Files} ${PatternLib_Files} ${MachiningLib_Files} ${MaterialTestLib_Files} ${MaterialModel_Files})
     get_filename_component(filepath ${file} DIRECTORY)
     INSTALL(
         FILES ${file}

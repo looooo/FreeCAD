@@ -461,8 +461,8 @@ bool ObjectIdentifier::replaceObject(ObjectIdentifier &res, const App::DocumentO
     }
     res.subObjectName = String(r.second,true);
     res._cache.clear();
-    res.shadowSub.first.clear();
-    res.shadowSub.second.clear();
+    res.shadowSub.newName.clear();
+    res.shadowSub.oldName.clear();
     return true;
 }
 
@@ -1725,8 +1725,6 @@ Py::Object ObjectIdentifier::access(const ResolveResults &result,
         else if(lastObj) {
             const char *attr = components[idx].getName().c_str();
             auto prop = lastObj->getPropertyByName(attr);
-            if(!prop && !pyobj.hasAttr(attr))
-                attr = nullptr;
             setPropDep(lastObj,prop,attr);
             lastObj = nullptr;
         }
@@ -1835,10 +1833,10 @@ void ObjectIdentifier::setValue(const App::any &value) const
 }
 
 const std::string &ObjectIdentifier::getSubObjectName(bool newStyle) const {
-    if(newStyle && !shadowSub.first.empty())
-        return shadowSub.first;
-    if(!shadowSub.second.empty())
-        return shadowSub.second;
+    if(newStyle && !shadowSub.newName.empty())
+        return shadowSub.newName;
+    if(!shadowSub.oldName.empty())
+        return shadowSub.oldName;
     return subObjectName.getString();
 }
 
@@ -1875,8 +1873,8 @@ void ObjectIdentifier::importSubNames(const ObjectIdentifier::SubNameMap &subNam
         return;
     subObjectName = String(it->second,true);
     _cache.clear();
-    shadowSub.first.clear();
-    shadowSub.second.clear();
+    shadowSub.newName.clear();
+    shadowSub.oldName.clear();
 }
 
 bool ObjectIdentifier::updateElementReference(ExpressionVisitor &v,

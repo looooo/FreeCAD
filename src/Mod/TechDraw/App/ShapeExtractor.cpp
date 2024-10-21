@@ -25,7 +25,7 @@
 #ifndef _PreComp_
 # include <sstream>
 # include <BRep_Builder.hxx>
-# include <BRepAlgoAPI_Fuse.hxx>
+# include <Mod/Part/App/FCBRepAlgoAPI_Fuse.h>
 # include <BRepTools.hxx>
 # include <TopoDS.hxx>
 # include <TopoDS_Iterator.hxx>
@@ -35,6 +35,8 @@
 
 #include <App/Document.h>
 #include <App/GroupExtension.h>
+#include <App/FeaturePythonPyImp.h>
+#include <App/PropertyPythonObject.h>
 #include <App/Link.h>
 #include <App/Part.h>
 #include <Base/Console.h>
@@ -43,6 +45,7 @@
 #include <Mod/Part/App/PartFeature.h>
 #include <Mod/Part/App/PrimitiveFeature.h>
 #include <Mod/Part/App/FeaturePartCircle.h>
+#include <Mod/Part/App/TopoShapePy.h>
 //#include <Mod/Sketcher/App/SketchObject.h>
 
 #include "ShapeExtractor.h"
@@ -55,7 +58,7 @@ using DU = DrawUtil;
 using SU = ShapeUtils;
 
 
-//! pick out the 2d document objects objects in the list of links and return a vector of their shapes
+//! pick out the 2d document objects in the list of links and return a vector of their shapes
 //! Note that point objects will not make it through the hlr/projection process.
 std::vector<TopoDS_Shape> ShapeExtractor::getShapes2d(const std::vector<App::DocumentObject*> links)
 {
@@ -64,28 +67,13 @@ std::vector<TopoDS_Shape> ShapeExtractor::getShapes2d(const std::vector<App::Doc
     std::vector<TopoDS_Shape> shapes2d;
 
     for (auto& l:links) {
-        const App::GroupExtension* gex = dynamic_cast<const App::GroupExtension*>(l);
-        if (gex) {
-            std::vector<App::DocumentObject*> groupAll = gex->Group.getValues();
-            for (auto& item : groupAll) {
-                if (is2dObject(item)) {
-                    if (item->getTypeId().isDerivedFrom(Part::Feature::getClassTypeId())) {
-                        TopoDS_Shape temp = getLocatedShape(item);
-                        if (!temp.IsNull()) {
-                            shapes2d.push_back(temp);
-                        }
-                    }
+        if (is2dObject(l)) {
+            if (l->getTypeId().isDerivedFrom(Part::Feature::getClassTypeId())) {
+                TopoDS_Shape temp = getLocatedShape(l);
+                if (!temp.IsNull()) {
+                    shapes2d.push_back(temp);
                 }
-            }
-        } else {
-            if (is2dObject(l)) {
-                if (l->getTypeId().isDerivedFrom(Part::Feature::getClassTypeId())) {
-                    TopoDS_Shape temp = getLocatedShape(l);
-                    if (!temp.IsNull()) {
-                        shapes2d.push_back(temp);
-                    }
-                }  // other 2d objects would go here - Draft objects? Arch Axis?
-            }
+            }  // other 2d objects would go here - Draft objects? Arch Axis?
         }
     }
     return shapes2d;
@@ -95,27 +83,76 @@ std::vector<TopoDS_Shape> ShapeExtractor::getShapes2d(const std::vector<App::Doc
 //! fused, include2d should be false as 2d & 3d shapes may not fuse.
 TopoDS_Shape ShapeExtractor::getShapes(const std::vector<App::DocumentObject*> links, bool include2d)
 {
-//    Base::Console().Message("SE::getShapes() - links in: %d\n", links.size());
+    // Base::Console().Message("SE::getShapes() - links in: %d\n", links.size());
     std::vector<TopoDS_Shape> sourceShapes;
 
     for (auto& l:links) {
         if (is2dObject(l) && !include2d) {
+            // Base::Console().Message("SE::getShapes - skipping 2d link: %s\n", l->Label.getValue());
             continue;
         }
-        if (l->isDerivedFrom<App::Link>()) {
-            App::Link* xLink = dynamic_cast<App::Link*>(l);
+
+        // Copy the pointer as not const so it can be changed if needed.
+        App::DocumentObject* obj = l;
+
+        bool isExplodedView = false;
+        auto proxy = dynamic_cast<App::PropertyPythonObject*>(l->getPropertyByName("Proxy"));
+        Base::PyGILStateLocker lock;
+        if (proxy && proxy->getValue().hasAttr("saveAssemblyAndExplode")) {
+            isExplodedView = true;
+
+            Py::Object explodedViewPy = proxy->getValue();
+            Py::Object attr = explodedViewPy.getAttr("saveAssemblyAndExplode");
+
+            if (attr.ptr() && attr.isCallable()) {
+                Py::Tuple args(1);
+                args.setItem(0, Py::asObject(l->getPyObject()));
+                Py::Callable methode(attr);
+                Py::Object pyResult = methode.apply(args);
+
+                if (PyObject_TypeCheck(pyResult.ptr(), &(Part::TopoShapePy::Type))) {
+                    auto* shapepy = static_cast<Part::TopoShapePy*>(pyResult.ptr());
+                    const TopoDS_Shape& shape = shapepy->getTopoShapePtr()->getShape();
+                    sourceShapes.push_back(shape);
+                }
+            }
+
+            for (auto* inObj : l->getInList()) {
+                if (inObj->isDerivedFrom(App::Part::getClassTypeId())) {
+                    // we replace obj by the assembly
+                    obj = inObj;
+                    break;
+                }
+            }
+        }
+
+        if (obj->isDerivedFrom<App::Link>()) {
+            App::Link* xLink = dynamic_cast<App::Link*>(obj);
             std::vector<TopoDS_Shape> xShapes = getXShapes(xLink);
             if (!xShapes.empty()) {
                 sourceShapes.insert(sourceShapes.end(), xShapes.begin(), xShapes.end());
                 continue;
             }
-        } else {
-            auto shape = Part::Feature::getShape(l);
+        }
+        else {
+            auto shape = Part::Feature::getShape(obj);
+            // if link obj has a shape, we use that shape.
             if(!SU::isShapeReallyNull((shape))) {
-                sourceShapes.push_back(getLocatedShape(l));
+                sourceShapes.push_back(getLocatedShape(obj));
             } else {
-                std::vector<TopoDS_Shape> shapeList = getShapesFromObject(l);
+                std::vector<TopoDS_Shape> shapeList = getShapesFromObject(obj);
                 sourceShapes.insert(sourceShapes.end(), shapeList.begin(), shapeList.end());
+            }
+        }
+
+        if (isExplodedView) {
+            Py::Object explodedViewPy = proxy->getValue();
+
+            Py::Object attr = explodedViewPy.getAttr("restoreAssembly");
+            if (attr.ptr() && attr.isCallable()) {
+                Py::Tuple args(1);
+                args.setItem(0, Py::asObject(l->getPyObject()));
+                Py::Callable(attr).apply(args);
             }
         }
     }
@@ -188,7 +225,7 @@ std::vector<TopoDS_Shape> ShapeExtractor::getXShapes(const App::Link* xLink)
                     childNeedsTransform = true;
                 }
             }
-            auto shape = Part::Feature::getShape(l);
+            auto shape = Part::Feature::getShape(l);    // TODO:  getTopoShape() ?
             Part::TopoShape ts(shape);
             if (ts.isInfinite()) {
                 shape = stripInfiniteShapes(shape);
@@ -317,7 +354,7 @@ TopoDS_Shape ShapeExtractor::getShapesFused(const std::vector<App::DocumentObjec
         it.Next();
         for (; it.More(); it.Next()) {
             const TopoDS_Shape& aChild = it.Value();
-            BRepAlgoAPI_Fuse mkFuse(fusedShape, aChild);
+            FCBRepAlgoAPI_Fuse mkFuse(fusedShape, aChild);
             // Let's check if the fusion has been successful
             if (!mkFuse.IsDone()) {
                 Base::Console().Error("SE - Fusion failed\n");
@@ -327,10 +364,13 @@ TopoDS_Shape ShapeExtractor::getShapesFused(const std::vector<App::DocumentObjec
         }
         baseShape = fusedShape;
     }
+    BRepTools::Write(baseShape, "SEbaseShape.brep");
 
     // if there are 2d shapes in the links they will not fuse with the 3d shapes,
     // so instead we return a compound of the fused 3d shapes and the 2d shapes
     std::vector<TopoDS_Shape> shapes2d = getShapes2d(links);
+    BRepTools::Write(DrawUtil::shapeVectorToCompound(shapes2d, false), "SEshapes2d.brep");
+
     if (!shapes2d.empty()) {
         shapes2d.push_back(baseShape);
         return DrawUtil::shapeVectorToCompound(shapes2d, false);
@@ -365,16 +405,9 @@ TopoDS_Shape ShapeExtractor::stripInfiniteShapes(TopoDS_Shape inShape)
     return TopoDS_Shape(std::move(comp));
 }
 
-bool ShapeExtractor::is2dObject(App::DocumentObject* obj)
+bool ShapeExtractor::is2dObject(const App::DocumentObject* obj)
 {
-// TODO:: the check for an object being a sketch should be done as in the commented
-// if statement below. To do this, we need to include Mod/Sketcher/SketchObject.h,
-// but that makes TechDraw dependent on Eigen libraries which we don't use.  As a
-// workaround we will inspect the object's class name.
-//    if (obj->isDerivedFrom(Sketcher::SketchObject::getClassTypeId())) {
-    std::string objTypeName = obj->getTypeId().getName();
-    std::string sketcherToken("Sketcher");
-    if (objTypeName.find(sketcherToken) != std::string::npos) {
+    if (isSketchObject(obj)) {
         return true;
     }
 
@@ -385,7 +418,7 @@ bool ShapeExtractor::is2dObject(App::DocumentObject* obj)
 }
 
 // just these for now
-bool ShapeExtractor::isEdgeType(App::DocumentObject* obj)
+bool ShapeExtractor::isEdgeType(const App::DocumentObject* obj)
 {
     bool result = false;
     Base::Type t = obj->getTypeId();
@@ -401,7 +434,7 @@ bool ShapeExtractor::isEdgeType(App::DocumentObject* obj)
     return result;
 }
 
-bool ShapeExtractor::isPointType(App::DocumentObject* obj)
+bool ShapeExtractor::isPointType(const App::DocumentObject* obj)
 {
     // Base::Console().Message("SE::isPointType(%s)\n", obj->getNameInDocument());
     if (obj) {
@@ -417,7 +450,7 @@ bool ShapeExtractor::isPointType(App::DocumentObject* obj)
     return false;
 }
 
-bool ShapeExtractor::isDraftPoint(App::DocumentObject* obj)
+bool ShapeExtractor::isDraftPoint(const App::DocumentObject* obj)
 {
 //    Base::Console().Message("SE::isDraftPoint()\n");
     //if the docObj doesn't have a Proxy property, it definitely isn't a Draft point
@@ -432,7 +465,7 @@ bool ShapeExtractor::isDraftPoint(App::DocumentObject* obj)
     return false;
 }
 
-bool ShapeExtractor::isDatumPoint(App::DocumentObject* obj)
+bool ShapeExtractor::isDatumPoint(const App::DocumentObject* obj)
 {
     std::string objTypeName = obj->getTypeId().getName();
     std::string pointToken("Point");
@@ -444,7 +477,7 @@ bool ShapeExtractor::isDatumPoint(App::DocumentObject* obj)
 
 
 //! get the location of a point object
-Base::Vector3d ShapeExtractor::getLocation3dFromFeat(App::DocumentObject* obj)
+Base::Vector3d ShapeExtractor::getLocation3dFromFeat(const App::DocumentObject* obj)
 {
     // Base::Console().Message("SE::getLocation3dFromFeat()\n");
     if (!isPointType(obj)) {
@@ -454,7 +487,7 @@ Base::Vector3d ShapeExtractor::getLocation3dFromFeat(App::DocumentObject* obj)
 //        //Draft Points are not necc. Part::PartFeature??
 //        //if Draft option "use part primitives" is not set are Draft points still PartFeature?
 
-    Part::Feature* pf = dynamic_cast<Part::Feature*>(obj);
+    const Part::Feature* pf = dynamic_cast<const Part::Feature*>(obj);
     if (pf) {
         Part::TopoShape pts = pf->Shape.getShape();
         pts.setPlacement(pf->globalPlacement());
@@ -473,11 +506,26 @@ Base::Vector3d ShapeExtractor::getLocation3dFromFeat(App::DocumentObject* obj)
 //! get the located and oriented version of docObj shape
 TopoDS_Shape ShapeExtractor::getLocatedShape(const App::DocumentObject* docObj)
 {
-        Part::TopoShape shape = Part::Feature::getShape(docObj);
+        Part::TopoShape shape = Part::Feature::getTopoShape(docObj);
         const Part::Feature* pf = dynamic_cast<const Part::Feature*>(docObj);
         if (pf) {
             shape.setPlacement(pf->globalPlacement());
         }
         return shape.getShape();
+}
+
+bool ShapeExtractor::isSketchObject(const App::DocumentObject* obj)
+{
+// TODO:: the check for an object being a sketch should be done as in the commented
+// if statement below. To do this, we need to include Mod/Sketcher/SketchObject.h,
+// but that makes TechDraw dependent on Eigen libraries which we don't use.  As a
+// workaround we will inspect the object's class name.
+//    if (obj->isDerivedFrom(Sketcher::SketchObject::getClassTypeId())) {
+    std::string objTypeName = obj->getTypeId().getName();
+    std::string sketcherToken("Sketcher");
+    if (objTypeName.find(sketcherToken) != std::string::npos) {
+        return true;
+    }
+    return false;
 }
 

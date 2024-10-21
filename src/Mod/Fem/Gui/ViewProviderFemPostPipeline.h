@@ -23,7 +23,7 @@
 #ifndef FEM_VIEWPROVIDERFEMPOSTPIPELINE_H
 #define FEM_VIEWPROVIDERFEMPOSTPIPELINE_H
 
-#include <Gui/ViewProviderPythonFeature.h>
+#include <Gui/ViewProviderFeaturePython.h>
 #include <Mod/Fem/FemGlobal.h>
 
 #include "ViewProviderFemPostObject.h"
@@ -45,14 +45,12 @@ public:
     std::vector<App::DocumentObject*> claimChildren() const override;
     std::vector<App::DocumentObject*> claimChildren3D() const override;
     void updateData(const App::Property* prop) override;
+    bool onDelete(const std::vector<std::string>& objs) override;
     void onSelectionChanged(const Gui::SelectionChanges& sel) override;
     void updateColorBars();
     void transformField(char* FieldName, double FieldFactor);
     void scaleField(vtkDataSet* dset, vtkDataArray* pdata, double FieldFactor);
     PyObject* getPyObject() override;
-
-private:
-    Py::Object PythonObject;
 
 protected:
     void updateFunctionSize();

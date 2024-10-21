@@ -474,7 +474,7 @@
       <translation>Select the Trajectory which you want to dress up.</translation>
     </message>
     <message>
-      <location filename="../../ViewProviderTrajectory.cpp" line="148"/>
+      <location filename="../../ViewProviderTrajectory.cpp" line="145"/>
       <source>Modify</source>
       <translation>Modifikasi</translation>
     </message>

@@ -282,20 +282,16 @@ void GraphvizView::updateSvgItem(const App::Document &doc)
     QStringList args, flatArgs;
     args << QLatin1String("-Tsvg");
     flatArgs << QLatin1String("-c2 -l2");
-
-#ifdef FC_OS_LINUX
-    QString path = QString::fromUtf8(hGrp->GetASCII("Graphviz", "/usr/bin").c_str());
-#else
-    QString path = QString::fromUtf8(hGrp->GetASCII("Graphviz").c_str());
-#endif
+    auto dot = QString::fromLatin1("dot");
+    auto unflatten = QString::fromLatin1("unflatten");
+    auto path = QString::fromUtf8(hGrp->GetASCII("Graphviz").c_str());
     bool pathChanged = false;
-#ifdef FC_OS_WIN32
-    QString dot = QString::fromLatin1("\"%1/dot\"").arg(path);
-    QString unflatten = QString::fromLatin1("\"%1/unflatten\"").arg(path);
-#else
-    QString dot = QString::fromLatin1("%1/dot").arg(path);
-    QString unflatten = QString::fromLatin1("%1/unflatten").arg(path);
-#endif
+    QDir dir;
+    if (!path.isEmpty()) {
+        dir = QDir(path);
+        dot = dir.filePath(QString::fromLatin1("dot"));
+        unflatten = dir.filePath(QString::fromLatin1("unflatten"));
+    }
     dotProc->setEnvironment(QProcess::systemEnvironment());
     flatProc->setEnvironment(QProcess::systemEnvironment());
     do {
@@ -323,14 +319,12 @@ void GraphvizView::updateSvgItem(const App::Document &doc)
                 disconnectSignals();
                 return;
             }
-            pathChanged = true;
-#ifdef FC_OS_WIN32
-            dot = QString::fromLatin1("\"%1/dot\"").arg(path);
-            unflatten = QString::fromLatin1("\"%1/unflatten\"").arg(path);
-#else
-            dot = QString::fromLatin1("%1/dot").arg(path);
-            unflatten = QString::fromLatin1("%1/unflatten").arg(path);
-#endif
+            else {
+                dir = QDir(path);
+                dot = dir.filePath(QString::fromLatin1("dot"));
+                unflatten = dir.filePath(QString::fromLatin1("unflatten"));
+                pathChanged = true;
+            }
         }
         else {
             if (pathChanged)
@@ -454,7 +448,7 @@ bool GraphvizView::onMsg(const char* pMsg, const char**)
         formatMap << qMakePair(QString::fromLatin1("%1 (*.pdf)").arg(tr("PDF format")), QString::fromLatin1("pdf"));
 
         QStringList filter;
-        for (const auto & it : qAsConst(formatMap)) {
+        for (const auto & it : std::as_const(formatMap)) {
             filter << it.first;
         }
 
@@ -462,7 +456,7 @@ bool GraphvizView::onMsg(const char* pMsg, const char**)
         QString fn = Gui::FileDialog::getSaveFileName(this, tr("Export graph"), QString(), filter.join(QLatin1String(";;")), &selectedFilter);
         if (!fn.isEmpty()) {
             QString format;
-            for (const auto & it : qAsConst(formatMap)) {
+            for (const auto & it : std::as_const(formatMap)) {
                 if (selectedFilter == it.first) {
                     format = it.second;
                     break;
@@ -515,6 +509,8 @@ bool GraphvizView::onHasMsg(const char* pMsg) const
     else if (strcmp("PrintPreview",pMsg) == 0)
         return true;
     else if (strcmp("PrintPdf",pMsg) == 0)
+        return true;
+    else if (strcmp("AllowsOverlayOnHover", pMsg) == 0)
         return true;
     return false;
 }

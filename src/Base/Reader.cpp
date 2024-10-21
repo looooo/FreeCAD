@@ -46,8 +46,12 @@
 #include <zipios++/zipinputstream.h>
 #include <boost/iostreams/filtering_stream.hpp>
 
-
+#ifndef XERCES_CPP_NAMESPACE_BEGIN
+#define XERCES_CPP_NAMESPACE_QUALIFIER
+using namespace XERCES_CPP_NAMESPACE;
+#else
 XERCES_CPP_NAMESPACE_USE
+#endif
 
 using namespace std;
 
@@ -109,64 +113,37 @@ unsigned int Base::XMLReader::getAttributeCount() const
     return static_cast<unsigned int>(AttrMap.size());
 }
 
-long Base::XMLReader::getAttributeAsInteger(const char* AttrName) const
+long Base::XMLReader::getAttributeAsInteger(const char* AttrName, const char* defaultValue) const
 {
-    AttrMapType::const_iterator pos = AttrMap.find(AttrName);
-
-    if (pos != AttrMap.end()) {
-        return atol(pos->second.c_str());
-    }
-    else {
-        // wrong name, use hasAttribute if not sure!
-        std::ostringstream msg;
-        msg << "XML Attribute: \"" << AttrName << "\" not found";
-        throw Base::XMLAttributeError(msg.str());
-    }
+    return stol(getAttribute(AttrName, defaultValue));
 }
 
-unsigned long Base::XMLReader::getAttributeAsUnsigned(const char* AttrName) const
+unsigned long Base::XMLReader::getAttributeAsUnsigned(const char* AttrName,
+                                                      const char* defaultValue) const
 {
-    AttrMapType::const_iterator pos = AttrMap.find(AttrName);
-
-    if (pos != AttrMap.end()) {
-        return strtoul(pos->second.c_str(), nullptr, 10);
-    }
-    else {
-        // wrong name, use hasAttribute if not sure!
-        std::ostringstream msg;
-        msg << "XML Attribute: \"" << AttrName << "\" not found";
-        throw Base::XMLAttributeError(msg.str());
-    }
+    return stoul(getAttribute(AttrName, defaultValue), nullptr);
 }
 
-double Base::XMLReader::getAttributeAsFloat(const char* AttrName) const
+double Base::XMLReader::getAttributeAsFloat(const char* AttrName, const char* defaultValue) const
 {
-    AttrMapType::const_iterator pos = AttrMap.find(AttrName);
-
-    if (pos != AttrMap.end()) {
-        return atof(pos->second.c_str());
-    }
-    else {
-        // wrong name, use hasAttribute if not sure!
-        std::ostringstream msg;
-        msg << "XML Attribute: \"" << AttrName << "\" not found";
-        throw Base::XMLAttributeError(msg.str());
-    }
+    return stod(getAttribute(AttrName, defaultValue), nullptr);
 }
 
-const char* Base::XMLReader::getAttribute(const char* AttrName) const
+const char* Base::XMLReader::getAttribute(const char* AttrName,            // NOLINT
+                                          const char* defaultValue) const  // NOLINT
 {
-    AttrMapType::const_iterator pos = AttrMap.find(AttrName);
+    auto pos = AttrMap.find(AttrName);
 
     if (pos != AttrMap.end()) {
         return pos->second.c_str();
     }
-    else {
-        // wrong name, use hasAttribute if not sure!
-        std::ostringstream msg;
-        msg << "XML Attribute: \"" << AttrName << "\" not found";
-        throw Base::XMLAttributeError(msg.str());
+    if (defaultValue) {
+        return defaultValue;
     }
+    // wrong name, use hasAttribute if not sure!
+    std::ostringstream msg;
+    msg << "XML Attribute: \"" << AttrName << "\" not found";
+    throw Base::XMLAttributeError(msg.str());
 }
 
 bool Base::XMLReader::hasAttribute(const char* AttrName) const
@@ -204,6 +181,8 @@ bool Base::XMLReader::read()
 void Base::XMLReader::readElement(const char* ElementName)
 {
     bool ok {};
+
+    endCharStream();
     int currentLevel = Level;
     std::string currentName = LocalName;
     do {
@@ -216,7 +195,7 @@ void Base::XMLReader::readElement(const char* ElementName)
             // thus we must stop reading on.
             break;
         }
-        else if (ReadType == EndDocument) {
+        if (ReadType == EndDocument) {
             // the end of the document has been reached but we still try to continue on reading
             throw Base::XMLParseException("End of document reached");
         }
@@ -271,12 +250,14 @@ bool Base::XMLReader::isEndOfDocument() const
 
 void Base::XMLReader::readEndElement(const char* ElementName, int level)
 {
+    endCharStream();
+
     // if we are already at the end of the current element
-    if (ReadType == EndElement && ElementName && LocalName == ElementName
-        && (level < 0 || level == Level)) {
+    if ((ReadType == EndElement || ReadType == StartEndElement) && ElementName
+        && LocalName == ElementName && (level < 0 || level == Level)) {
         return;
     }
-    else if (ReadType == EndDocument) {
+    if (ReadType == EndDocument) {
         // the end of the document has been reached but we still try to continue on reading
         throw Base::XMLParseException("End of document reached");
     }

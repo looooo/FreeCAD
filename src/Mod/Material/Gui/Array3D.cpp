@@ -21,11 +21,10 @@
 
 #include "PreCompiled.h"
 #ifndef _PreComp_
+#include <QMenu>
 #include <QMessageBox>
 #include <QPushButton>
 #endif
-
-#include <QMenu>
 
 #include <Gui/MainWindow.h>
 
@@ -76,12 +75,10 @@ Array3D::Array3D(const QString& propertyName,
     connect(ui->table2D, &QWidget::customContextMenuRequested, this, &Array3D::on2DContextMenu);
 
     _deleteDepthAction.setText(tr("Delete row"));
-    // _deleteDepthAction.setShortcut(Qt::Key_Delete);
     connect(&_deleteDepthAction, &QAction::triggered, this, &Array3D::onDepthDelete);
     ui->table3D->addAction(&_deleteDepthAction);
 
     _delete2DAction.setText(tr("Delete row"));
-    // _delete2DAction.setShortcut(Qt::Key_Delete);
     connect(&_delete2DAction, &QAction::triggered, this, &Array3D::on2DDelete);
     ui->table2D->addAction(&_delete2DAction);
 

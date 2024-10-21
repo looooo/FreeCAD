@@ -98,11 +98,8 @@ public:
 
     void registerPressedKey(bool pressed, int key) override
     {
-        if (Mode != STATUS_SEEK_Second) {
-            return;  // SegmentMode can be changed only in STATUS_SEEK_Second mode
-        }
-
-        if (key == SoKeyboardEvent::M && pressed && previousCurve != -1) {
+        if (Mode == STATUS_SEEK_Second && key == SoKeyboardEvent::M && pressed
+            && previousCurve != -1) {
             // loop through the following modes:
             // SEGMENT_MODE_Line, TRANSITION_MODE_Free / TRANSITION_MODE_Tangent
             // SEGMENT_MODE_Line, TRANSITION_MODE_Perpendicular_L
@@ -184,6 +181,9 @@ public:
             }
             mouseMove(onSketchPos);  // trigger an update of EditCurve
         }
+        else {
+            DrawSketchHandler::registerPressedKey(pressed, key);
+        }
     }
 
     void mouseMove(Base::Vector2d onSketchPos) override
@@ -191,10 +191,7 @@ public:
         suppressTransition = false;
         if (Mode == STATUS_SEEK_First) {
             setPositionText(onSketchPos);
-            if (seekAutoConstraint(sugConstr1, onSketchPos, Base::Vector2d(0.f, 0.f))) {
-                renderSuggestConstraintsCursor(sugConstr1);
-                return;
-            }
+            seekAndRenderAutoConstraint(sugConstr1, onSketchPos, Base::Vector2d(0.f, 0.f));
         }
         else if (Mode == STATUS_SEEK_Second) {
             if (SegmentMode == SEGMENT_MODE_Line) {
@@ -231,10 +228,9 @@ public:
                 }
 
                 if (TransitionMode == TRANSITION_MODE_Free) {
-                    if (seekAutoConstraint(sugConstr2, onSketchPos, onSketchPos - EditCurve[0])) {
-                        renderSuggestConstraintsCursor(sugConstr2);
-                        return;
-                    }
+                    seekAndRenderAutoConstraint(sugConstr2,
+                                                onSketchPos,
+                                                onSketchPos - EditCurve[0]);
                 }
             }
             else if (SegmentMode == SEGMENT_MODE_Arc) {
@@ -325,13 +321,9 @@ public:
                     setPositionText(onSketchPos, text);
                 }
 
-                if (seekAutoConstraint(sugConstr2, onSketchPos, Base::Vector2d(0.f, 0.f))) {
-                    renderSuggestConstraintsCursor(sugConstr2);
-                    return;
-                }
+                seekAndRenderAutoConstraint(sugConstr2, onSketchPos, Base::Vector2d(0.f, 0.f));
             }
         }
-        applyCursor();
     }
 
     bool pressButton(Base::Vector2d onSketchPos) override
@@ -454,7 +446,7 @@ public:
                 try {
                     // open the transaction
                     Gui::Command::openCommand(
-                        QT_TRANSLATE_NOOP("Command", "Add line to sketch wire"));
+                        QT_TRANSLATE_NOOP("Command", "Add line to sketch polyline"));
                     Gui::cmdAppObjectArgs(
                         sketchgui->getObject(),
                         "addGeometry(Part.LineSegment(App.Vector(%f,%f,0),App.Vector(%f,%f,0)),%s)",
@@ -482,7 +474,7 @@ public:
 
                 try {
                     Gui::Command::openCommand(
-                        QT_TRANSLATE_NOOP("Command", "Add arc to sketch wire"));
+                        QT_TRANSLATE_NOOP("Command", "Add arc to sketch polyline"));
                     Gui::cmdAppObjectArgs(
                         sketchgui->getObject(),
                         "addGeometry(Part.ArcOfCircle"

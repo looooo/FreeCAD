@@ -5,12 +5,12 @@
     <name>UnitsApi</name>
     <message>
       <location filename="../../UnitsApi.cpp" line="69"/>
-      <source>Standard (mm, kg, s, degree)</source>
+      <source>Standard (mm, kg, s, °)</source>
       <translation>Standart (mm/kg/s/derece)</translation>
     </message>
     <message>
       <location filename="../../UnitsApi.cpp" line="71"/>
-      <source>MKS (m, kg, s, degree)</source>
+      <source>MKS (m, kg, s, °)</source>
       <translation>MKS (m/kg/s/derece)</translation>
     </message>
     <message>
@@ -35,13 +35,13 @@
     </message>
     <message>
       <location filename="../../UnitsApi.cpp" line="81"/>
-      <source>Metric small parts &amp; CNC(mm, mm/min)</source>
-      <translation>CNC (mm, mm/min)</translation>
+      <source>Metric small parts &amp; CNC (mm, mm/min)</source>
+      <translation>Metrik küçük parçalar ve CNC (mm, mm/min)</translation>
     </message>
     <message>
       <location filename="../../UnitsApi.cpp" line="83"/>
-      <source>Imperial for Civil Eng (ft, ft/sec)</source>
-      <translation>CNC (ft, ft/sec)</translation>
+      <source>Imperial for Civil Eng (ft, ft/s)</source>
+      <translation>İngiliz Ölçü Birimi (ft, ft/sec)</translation>
     </message>
     <message>
       <location filename="../../UnitsApi.cpp" line="85"/>

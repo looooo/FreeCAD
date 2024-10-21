@@ -345,9 +345,9 @@ private:
             std::vector<int> geoIdsWhoAlreadyHasEqual = {};
 
             for (auto& cstr : vals) {
-                int firstIndex = indexInVec(listOfGeoIds, cstr->First);
-                int secondIndex = indexInVec(listOfGeoIds, cstr->Second);
-                int thirdIndex = indexInVec(listOfGeoIds, cstr->Third);
+                int firstIndex = indexOfGeoId(listOfGeoIds, cstr->First);
+                int secondIndex = indexOfGeoId(listOfGeoIds, cstr->Second);
+                int thirdIndex = indexOfGeoId(listOfGeoIds, cstr->Third);
 
                 for (int i = 0; i < numberOfCopiesToMake; i++) {
                     int firstIndexi = firstCurveCreated + firstIndex + static_cast<int>(size) * i;
@@ -389,7 +389,7 @@ private:
                              && firstIndex >= 0 && secondIndex >= 0) {
                         if (!deleteOriginal && cloneConstraints
                             && cstr->First == cstr->Second) {  // only line distances
-                            if (indexInVec(geoIdsWhoAlreadyHasEqual, secondIndexi) != -1) {
+                            if (indexOfGeoId(geoIdsWhoAlreadyHasEqual, secondIndexi) != -1) {
                                 continue;
                             }
                             newConstr->Type = Equal;
@@ -412,19 +412,6 @@ private:
                 }
             }
         }
-    }
-
-    int indexInVec(const std::vector<int>& vec, int elem) const
-    {
-        if (elem == GeoEnum::GeoUndef) {
-            return GeoEnum::GeoUndef;
-        }
-        for (size_t i = 0; i < vec.size(); i++) {
-            if (vec[i] == elem) {
-                return static_cast<int>(i);
-            }
-        }
-        return -1;
     }
 
     Base::Vector3d
@@ -469,7 +456,7 @@ template<>
 void DSHRotateController::firstKeyShortcut()
 {
     auto value = toolWidget->getParameter(WParameter::First);
-    toolWidget->setParameterWithoutPassingFocus(OnViewParameter::First, value + 1);
+    toolWidget->setParameterWithoutPassingFocus(WParameter::First, value + 1);
 }
 
 template<>
@@ -477,7 +464,7 @@ void DSHRotateController::secondKeyShortcut()
 {
     auto value = toolWidget->getParameter(WParameter::First);
     if (value > 0.0) {
-        toolWidget->setParameterWithoutPassingFocus(OnViewParameter::First, value - 1);
+        toolWidget->setParameterWithoutPassingFocus(WParameter::First, value - 1);
     }
 }
 
@@ -487,14 +474,16 @@ void DSHRotateController::configureToolWidget()
     if (!init) {  // Code to be executed only upon initialisation
         toolWidget->setCheckboxLabel(
             WCheckbox::FirstBox,
-            QApplication::translate("TaskSketcherTool_c1_offset", "Clone constraints"));
+            QApplication::translate("TaskSketcherTool_c1_offset", "Apply equal constraints"));
         toolWidget->setCheckboxToolTip(
             WCheckbox::FirstBox,
-            QApplication::translate(
-                "TaskSketcherTool_c1_offset",
-                "This concerns the datum constraints like distances. If you activate Clone, "
-                "then the tool will copy the datum. Else it will try to replace them with "
-                "equalities between the initial geometries and the new copies."));
+            QString::fromLatin1("<p>")
+                + QApplication::translate("TaskSketcherTool_c1_offset",
+                                          "If this option is selected dimensional constraints are "
+                                          "excluded from the operation.\n"
+                                          "Instead equal constraints are applied between the "
+                                          "original objects and their copies.")
+                + QString::fromLatin1("</p>"));
     }
 
     onViewParameters[OnViewParameter::First]->setLabelType(Gui::SoDatumLabel::DISTANCEX);
@@ -508,7 +497,7 @@ void DSHRotateController::configureToolWidget()
 
     toolWidget->setParameterLabel(
         WParameter::First,
-        QApplication::translate("TaskSketcherTool_p4_rotate", "Copies 'U'/'J'"));
+        QApplication::translate("TaskSketcherTool_p4_rotate", "Copies (+'U'/ -'J')"));
     toolWidget->setParameter(OnViewParameter::First, 0.0);
     toolWidget->configureParameterUnit(OnViewParameter::First, Base::Unit());
     toolWidget->configureParameterMin(OnViewParameter::First, 0.0);     // NOLINT

@@ -116,11 +116,6 @@ void Primitive::Restore(Base::XMLReader &reader)
     Part::Feature::Restore(reader);
 }
 
-void Primitive::handleChangedPropertyName(Base::XMLReader &reader, const char * TypeName, const char *PropName)
-{
-    extHandleChangedPropertyName(reader, TypeName, PropName); // AttachExtension
-}
-
 void Primitive::handleChangedPropertyType(Base::XMLReader &reader, const char * TypeName, App::Property * prop)
 {
     // For #0001652 the property types of many primitive features have changed
@@ -657,13 +652,29 @@ App::DocumentObjectExecReturn *Cone::execute()
         return new App::DocumentObjectExecReturn("Radius of cone too small");
     if (Height.getValue() < Precision::Confusion())
         return new App::DocumentObjectExecReturn("Height of cone too small");
+    double angle = Angle.getValue();
+#if OCC_VERSION_HEX == 0x070702
+    // OCCT 7.7.2 will not model a cone with an angle of exactly 360, so we cheat:
+    if ( angle == 360.0) {
+        angle = 359.99;
+    }
+#endif
     try {
-        // Build a cone
-        BRepPrimAPI_MakeCone mkCone(Radius1.getValue(),
-                                    Radius2.getValue(),
-                                    Height.getValue(),
-                                    Angle.getValue()/180.0f*M_PI);
-        TopoDS_Shape ResultShape = mkCone.Shape();
+        TopoDS_Shape ResultShape;
+        if (std::abs(Radius1.getValue() - Radius2.getValue()) < Precision::Confusion()){
+            //Build a cylinder
+            BRepPrimAPI_MakeCylinder mkCylr(Radius1.getValue(),
+                                            Height.getValue(),
+                                            Base::toRadians<double>(Angle.getValue()));
+            ResultShape = mkCylr.Shape();
+        } else {
+            // Build a cone
+            BRepPrimAPI_MakeCone mkCone(Radius1.getValue(),
+                                        Radius2.getValue(),
+                                        Height.getValue(),
+                                        Base::toRadians<double>(angle));
+            ResultShape = mkCone.Shape();
+        }
         this->Shape.setValue(ResultShape);
     }
     catch (Standard_Failure& e) {

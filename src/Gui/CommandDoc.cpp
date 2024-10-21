@@ -50,6 +50,7 @@
 #include "BitmapFactory.h"
 #include "Command.h"
 #include "Control.h"
+#include "DockWindowManager.h"
 #include "FileDialog.h"
 #include "MainWindow.h"
 #include "Selection.h"
@@ -407,6 +408,7 @@ void StdCmdExport::activated(int iMsg)
     static QString lastExportFullPath = QString();
     static bool lastExportUsedGeneratedFilename = true;
     static QString lastExportFilterUsed = QString();
+    static Document* lastActiveDocument;
 
     auto selection = Gui::Selection().getObjectsOfType(App::DocumentObject::getClassTypeId());
     if (selection.empty()) {
@@ -433,15 +435,16 @@ void StdCmdExport::activated(int iMsg)
 
     // Create a default filename for the export
     // * If this is the first export this session default, generate a new default.
-    // * If this is a repeated export during the same session:
+    // * If this is a repeated export during the same session and file:
     //     * If the user accepted the default filename last time, regenerate a new
     //       default, potentially updating the object label.
     //     * If not, default to their previously-set export filename.
     QString defaultFilename = lastExportFullPath;
 
     bool filenameWasGenerated = false;
-    // We want to generate a new default name in two cases:
-    if (defaultFilename.isEmpty() || lastExportUsedGeneratedFilename) {
+    bool didActiveDocumentChange = lastActiveDocument != getActiveGuiDocument();
+    // We want to generate a new default name in three cases:
+    if (defaultFilename.isEmpty() || lastExportUsedGeneratedFilename || didActiveDocumentChange) {
         // First, get the name and path of the current .FCStd file, if there is one:
         QString docFilename = QString::fromUtf8(
             App::GetApplication().getActiveDocument()->getFileName());
@@ -460,7 +463,7 @@ void StdCmdExport::activated(int iMsg)
             defaultExportPath = Gui::FileDialog::getWorkingDirectory();
         }
 
-        if (lastExportUsedGeneratedFilename /*<- static, true on first call*/ ) {
+        if (lastExportUsedGeneratedFilename   || didActiveDocumentChange) {  /*<- static, true on first call*/
             defaultFilename = defaultExportPath + QLatin1Char('/') + createDefaultExportBasename();
 
             // Append the last extension used, if there is one.
@@ -498,6 +501,7 @@ void StdCmdExport::activated(int iMsg)
         else
             lastExportUsedGeneratedFilename = false;
         lastExportFullPath = fileName;
+        lastActiveDocument = getActiveGuiDocument();
     }
 }
 
@@ -1317,7 +1321,11 @@ StdCmdDelete::StdCmdDelete()
   sWhatsThis    = "Std_Delete";
   sStatusTip    = QT_TR_NOOP("Deletes the selected objects");
   sPixmap       = "edit-delete";
+#ifdef FC_OS_MACOSX
+  sAccel        = "Backspace";
+#else
   sAccel        = keySequenceToAccel(QKeySequence::Delete);
+#endif
   eType         = ForEdit;
 }
 
@@ -1340,7 +1348,7 @@ void StdCmdDelete::activated(int iMsg)
         ViewProviderDocumentObject *vpedit = nullptr;
         if(editDoc)
             vpedit = dynamic_cast<ViewProviderDocumentObject*>(editDoc->getInEdit());
-        if(vpedit) {
+        if(vpedit && !vpedit->acceptDeletionsInEdit()) {
             for(auto &sel : Selection().getSelectionEx(editDoc->getDocument()->getName())) {
                 if(sel.getObject() == vpedit->getObject()) {
                     if (!sel.getSubNames().empty()) {
@@ -1561,6 +1569,7 @@ void StdCmdPlacement::activated(int iMsg)
             plm->setPropertyName(QLatin1String("Placement"));
             plm->setSelection(selection);
             plm->bindObject();
+            plm->clearSelection();
         }
     }
     Gui::Control().showDialog(plm);
@@ -1713,6 +1722,41 @@ void StdCmdEdit::activated(int iMsg)
 bool StdCmdEdit::isActive()
 {
     return (!Selection().getCompleteSelection().empty()) || (Gui::Control().activeDialog() != nullptr);
+}
+
+//===========================================================================
+// Std_Properties
+//===========================================================================
+DEF_STD_CMD_A(StdCmdProperties)
+
+StdCmdProperties::StdCmdProperties()
+    : Command("Std_Properties")
+{
+    sGroup = "Edit";
+    sMenuText = QT_TR_NOOP("Properties");
+    sToolTipText = QT_TR_NOOP("Show the property view, which displays the properties of the selected object.");
+    sWhatsThis = "Std_Properties";
+    sStatusTip = sToolTipText;
+    sAccel = "Alt+Return";
+    sPixmap = "document-properties";
+    eType = Alter3DView;
+}
+
+void StdCmdProperties::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+    QWidget* propertyView = Gui::DockWindowManager::instance()->getDockWindow("Property view");
+    if (propertyView) {
+        QWidget* parent = propertyView->parentWidget();
+        if (parent && !parent->isVisible()) {
+            parent->show();
+        }
+    }
+}
+
+bool StdCmdProperties::isActive()
+{
+    return !Selection().getCompleteSelection().empty();
 }
 
 //======================================================================
@@ -1969,6 +2013,7 @@ void CreateDocCommands()
     rcCmdMgr.addCommand(new StdCmdTransformManip());
     rcCmdMgr.addCommand(new StdCmdAlignment());
     rcCmdMgr.addCommand(new StdCmdEdit());
+    rcCmdMgr.addCommand(new StdCmdProperties());
     rcCmdMgr.addCommand(new StdCmdExpression());
 }
 

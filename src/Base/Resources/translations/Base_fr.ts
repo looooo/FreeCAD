@@ -5,18 +5,18 @@
     <name>UnitsApi</name>
     <message>
       <location filename="../../UnitsApi.cpp" line="69"/>
-      <source>Standard (mm, kg, s, degree)</source>
-      <translation>Standard (mm, kg, s, degré)</translation>
+      <source>Standard (mm, kg, s, °)</source>
+      <translation>Standard (mm, kg, s, °)</translation>
     </message>
     <message>
       <location filename="../../UnitsApi.cpp" line="71"/>
-      <source>MKS (m, kg, s, degree)</source>
-      <translation>MKS (m, kg, s, degré)</translation>
+      <source>MKS (m, kg, s, °)</source>
+      <translation>MKS (m, kg, s, °)</translation>
     </message>
     <message>
       <location filename="../../UnitsApi.cpp" line="73"/>
       <source>US customary (in, lb)</source>
-      <translation>Système US (in, lb)</translation>
+      <translation>Unités des États-Unis (in, lb)</translation>
     </message>
     <message>
       <location filename="../../UnitsApi.cpp" line="75"/>
@@ -31,17 +31,17 @@
     <message>
       <location filename="../../UnitsApi.cpp" line="79"/>
       <source>Building US (ft-in, sqft, cft)</source>
-      <translation>Construction US (ft-in, sqft, cft)</translation>
+      <translation>Construction états-unienne (ft-in, sqft, cft)</translation>
     </message>
     <message>
       <location filename="../../UnitsApi.cpp" line="81"/>
-      <source>Metric small parts &amp; CNC(mm, mm/min)</source>
-      <translation>Petites pièces métriques &amp; CNC (mm, mm/min)</translation>
+      <source>Metric small parts &amp; CNC (mm, mm/min)</source>
+      <translation>Métrique, petites pièces &amp; CNC (mm, mm/min)</translation>
     </message>
     <message>
       <location filename="../../UnitsApi.cpp" line="83"/>
-      <source>Imperial for Civil Eng (ft, ft/sec)</source>
-      <translation>Impérial pour le génie civil (ft, ft/sec)</translation>
+      <source>Imperial for Civil Eng (ft, ft/s)</source>
+      <translation>Impérial pour le génie civil (ft, ft/s)</translation>
     </message>
     <message>
       <location filename="../../UnitsApi.cpp" line="85"/>
@@ -56,7 +56,7 @@
     <message>
       <location filename="../../UnitsApi.cpp" line="89"/>
       <source>Unknown schema</source>
-      <translation>Schéma inconnu</translation>
+      <translation>Système inconnu</translation>
     </message>
   </context>
 </TS>

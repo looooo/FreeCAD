@@ -29,9 +29,8 @@
 #include <Bnd_Box.hxx>
 #include <BRep_Tool.hxx>
 #include <BRepAdaptor_Curve.hxx>
-#include <BOPAlgo_Builder.hxx>
-#include <BRepAlgoAPI_Common.hxx>
-#include <BRepAlgoAPI_Fuse.hxx>
+#include <Mod/Part/App/FCBRepAlgoAPI_Common.h>
+#include <Mod/Part/App/FCBRepAlgoAPI_Fuse.h>
 #include <BRepBndLib.hxx>
 #include <BRepBuilderAPI_Copy.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
@@ -45,6 +44,7 @@
 #include <TopoDS.hxx>
 #include <TopoDS_Shape.hxx>
 #endif
+#include <BOPAlgo_Builder.hxx>
 
 #include <Base/Console.h>
 #include <Base/Parameter.h>
@@ -645,7 +645,7 @@ int DrawProjectSplit::isSubset(const TopoDS_Edge &edge0, const TopoDS_Edge &edge
     }
 
     //bboxes of edges intersect
-    BRepAlgoAPI_Common anOp;
+    FCBRepAlgoAPI_Common anOp;
     anOp.SetFuzzyValue (FUZZYADJUST * EWTOLERANCE);
     TopTools_ListOfShape anArg1, anArg2;
     anArg1.Append (edge0);
@@ -683,7 +683,7 @@ int DrawProjectSplit::isSubset(const TopoDS_Edge &edge0, const TopoDS_Edge &edge
 std::vector<TopoDS_Edge> DrawProjectSplit::fuseEdges(const TopoDS_Edge &edge0, const TopoDS_Edge &edge1)
 {
     std::vector<TopoDS_Edge> edgeList;
-    BRepAlgoAPI_Fuse anOp;
+    FCBRepAlgoAPI_Fuse anOp;
     anOp.SetFuzzyValue (FUZZYADJUST * EWTOLERANCE);
     TopTools_ListOfShape anArg1, anArg2;
     anArg1.Append (edge0);

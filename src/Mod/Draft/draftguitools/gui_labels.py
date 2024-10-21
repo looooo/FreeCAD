@@ -87,6 +87,7 @@ class Label(gui_base_original.Creator):
 
     def finish(self, cont=False):
         """Finish the command."""
+        self.end_callbacks(self.call)
         if self.ghost:
             self.ghost.finalize()
         super().finish()

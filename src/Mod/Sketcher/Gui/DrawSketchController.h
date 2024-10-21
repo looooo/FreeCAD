@@ -123,7 +123,8 @@ protected:
     std::vector<std::unique_ptr<Gui::EditableDatumLabel>> onViewParameters;
     // NOLINTEND
 
-    bool init = false;  // true if the controls have been initialised.
+    bool init = false;           // true if the controls have been initialised.
+    int parameterWithFocus = 0;  // track the index of the parameter having the focus
 
     /** @name Named indices for controlling on-view controls */
     //@{
@@ -147,7 +148,6 @@ private:
     Base::Vector2d prevCursorPosition;
     Base::Vector2d lastControlEnforcedPosition;
 
-    int onViewIndexWithFocus = 0;  // track the index of the on-view parameter having the focus
     int nOnViewParameter = OnViewParametersT::defaultMethodSize();
 
     /// Class to keep track of colors used by the on-view parameters
@@ -168,7 +168,7 @@ private:
                 "User parameter:BaseApp/Preferences/View");
 
             dimConstrColor = SbColor(1.0f, 0.149f, 0.0f);           // NOLINT
-            dimConstrDeactivatedColor = SbColor(0.8f, 0.8f, 0.8f);  // NOLINT
+            dimConstrDeactivatedColor = SbColor(0.5f, 0.5f, 0.5f);  // NOLINT
 
             float transparency = 0.f;
             unsigned long color = (unsigned long)(dimConstrColor.getPackedValue());
@@ -323,9 +323,18 @@ public:
 
         handler->updateCursor();
 
-        handler->reset();  // reset of handler to restart.
+        if (resetOnConstructionMethodeChanged()) {
+            handler->reset();  // reset of handler to restart.
+        }
 
         handler->mouseMove(prevCursorPosition);
+    }
+    //@}
+
+    /** function that define if the handler should be reset on construction methode change */
+    virtual bool resetOnConstructionMethodeChanged()
+    {
+        return true;
     }
     //@}
 
@@ -444,6 +453,12 @@ public:
     virtual void secondKeyShortcut()
     {}
 
+    virtual void thirdKeyShortcut()
+    {}
+
+    virtual void fourthKeyShortcut()
+    {}
+
     virtual void tabShortcut()
     {
         passFocusToNextOnViewParameter();
@@ -454,7 +469,7 @@ public:
     /// triggered by the controllable DSH after a mode change has been effected
     virtual void afterHandlerModeChanged()
     {
-        if (!handler->isState(SelectModeT::End) || handler->continuousMode) {
+        if (handler && (!handler->isState(SelectModeT::End) || handler->continuousMode)) {
             handler->mouseMove(prevCursorPosition);
         }
     }
@@ -514,8 +529,8 @@ protected:
     virtual void afterEnforceControlParameters()
     {
         // Give focus to current on-view parameter. In case user interacted outside of 3dview.
-        if (onViewIndexWithFocus >= 0) {
-            setFocusToOnViewParameter(onViewIndexWithFocus);
+        if (focusAutoPassing && parameterWithFocus >= 0) {
+            setFocusToOnViewParameter(parameterWithFocus);
         }
     }
 
@@ -550,6 +565,9 @@ protected:
         auto currentstate = handler->state();
         // ensure that object at point is preselected, so that autoconstraints are generated
         handler->preselectAtPoint(lastControlEnforcedPosition);
+        // We have to redo an update to regenerate the correct autoconstraints after the
+        // preselectAtPoint.
+        handler->updateDataAndDrawToPosition(lastControlEnforcedPosition);
 
         doChangeDrawSketchHandlerMode();
 
@@ -565,7 +583,7 @@ protected:
     void initNOnViewParameters(int n)
     {
         Gui::View3DInventorViewer* viewer = handler->getViewer();
-        Base::Placement placement = handler->sketchgui->getSketchObject()->Placement.getValue();
+        Base::Placement placement = handler->sketchgui->getSketchObject()->globalPlacement();
 
         onViewParameters.clear();
 
@@ -581,10 +599,12 @@ protected:
                                      /*avoidMouseCursor = */ true))
                                  .get();
 
-            QObject::connect(parameter, &Gui::EditableDatumLabel::valueChanged, [=](double value) {
-                parameter->setColor(colorManager.dimConstrColor);
-                onViewValueChanged(i, value);
-            });
+            QObject::connect(parameter,
+                             &Gui::EditableDatumLabel::valueChanged,
+                             [this, parameter, i](double value) {
+                                 parameter->setColor(colorManager.dimConstrColor);
+                                 onViewValueChanged(i, value);
+                             });
         }
     }
 
@@ -599,7 +619,7 @@ protected:
                                  double val,
                                  const Base::Unit& unit = Base::Unit::Length)
     {
-        bool visible = ovpVisibilityManager.isVisible(onViewParameters[index].get());
+        bool visible = isOnViewParameterVisible(index);
 
         if (visible) {
             onViewParameters[index]->setSpinboxValue(val, unit);
@@ -614,7 +634,7 @@ protected:
         ovpVisibilityManager.resetDynamicOverride();
 
         bool firstOfMode = true;
-        onViewIndexWithFocus = -1;
+        parameterWithFocus = -1;
 
         for (size_t i = 0; i < onViewParameters.size(); i++) {
 
@@ -627,11 +647,11 @@ protected:
             else {
 
                 if (firstOfMode) {
-                    onViewIndexWithFocus = static_cast<int>(i);
+                    parameterWithFocus = static_cast<int>(i);
                     firstOfMode = false;
                 }
 
-                bool visible = ovpVisibilityManager.isVisible(onViewParameters[i].get());
+                bool visible = isOnViewParameterVisible(i);
 
                 if (visible) {
                     onViewParameters[i]->activate();
@@ -646,52 +666,46 @@ protected:
     }
 
     /// This function gives the focus to a spinbox and tracks the focus.
-    void setFocusToOnViewParameter(unsigned int onviewparameterindex)
+    bool setFocusToOnViewParameter(unsigned int onviewparameterindex)
     {
         if (onviewparameterindex < onViewParameters.size()) {
 
-            bool visible =
-                ovpVisibilityManager.isVisible(onViewParameters[onviewparameterindex].get());
+            bool visible = isOnViewParameterVisible(onviewparameterindex);
 
             if (visible) {
                 onViewParameters[onviewparameterindex]->setFocusToSpinbox();
+                parameterWithFocus = static_cast<int>(onviewparameterindex);
+                return true;
             }
-
-            onViewIndexWithFocus = static_cast<int>(onviewparameterindex);
         }
+        return false;
     }
 
     /// Switches focus to the next parameter in the current state machine.
     void passFocusToNextOnViewParameter()
     {
-        unsigned int index = onViewIndexWithFocus + 1;
+        unsigned int index = parameterWithFocus + 1;
 
         if (index >= onViewParameters.size()) {
             index = 0;
         }
 
-        bool visible = ovpVisibilityManager.isVisible(onViewParameters[index].get());
-
-        while (index < onViewParameters.size()) {
-            if (isOnViewParameterOfCurrentMode(index)) {
-
-                if (visible) {
-                    setFocusToOnViewParameter(index);
+        auto trySetFocus = [this](unsigned int& idx) -> bool {
+            while (idx < onViewParameters.size()) {
+                if (isOnViewParameterOfCurrentMode(idx) && isOnViewParameterVisible(idx)) {
+                    setFocusToOnViewParameter(idx);
+                    return true;
                 }
-                return;
+                idx++;
             }
-            index++;
-        }
-        // There is no more onViewParameter after onViewIndexWithFocus + 1 in this mode
+            return false;
+        };
 
-        // So we go back to start.
-        index = 0;
-        while (index < onViewParameters.size()) {
-            if (isOnViewParameterOfCurrentMode(index)) {
-                setFocusToOnViewParameter(index);
-                return;
-            }
-            index++;
+        if (!trySetFocus(index)) {
+            // We have not found a parameter in this mode after current.
+            // So we go back to start and retry.
+            index = 0;
+            trySetFocus(index);
         }
 
         // At that point if no onViewParameter is found, there is none.
@@ -713,12 +727,17 @@ protected:
             && getState(onviewparameterindex) < handler->state();
     }
 
+    bool isOnViewParameterVisible(unsigned int onviewparameterindex)
+    {
+        return ovpVisibilityManager.isVisible(onViewParameters[onviewparameterindex].get());
+    }
+
     /** Resets the on-view parameter controls */
     void resetOnViewParameters()
     {
         nOnViewParameter = OnViewParametersT::size(handler->constructionMethod());
         initNOnViewParameters(nOnViewParameter);
-        onViewIndexWithFocus = 0;
+        parameterWithFocus = 0;
 
         configureOnViewParameters();
     }
@@ -730,6 +749,8 @@ protected:
     {
         return keymanager.get();
     }
+
+    bool focusAutoPassing = true;
 
 private:
     /** @name helper functions */
