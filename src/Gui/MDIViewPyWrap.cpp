@@ -20,11 +20,10 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
-# include <unordered_map>
-# include <stdexcept>
-#endif
+
+#include <unordered_map>
+#include <stdexcept>
+
 
 #include <Base/Interpreter.h>
 #include <App/Document.h>
@@ -36,16 +35,28 @@
 using namespace Gui;
 namespace sp = std::placeholders;
 
-namespace Gui {
+namespace Gui
+{
 
 class MDIViewPyWrapImp
 {
 public:
     MDIViewPyWrapImp(Py::Object pyobject)
-        : pyobject{pyobject}
+        : pyobject {pyobject}
     {
         Base::PyGILStateLocker lock;
-        std::vector<std::string> methods = {"widget", "onMsg", "onHasMsg", "canClose", "printDocument", "print", "printPdf", "printPreview", "redoActions", "undoActions"};
+        std::vector<std::string> methods = {
+            "widget",
+            "onMsg",
+            "onHasMsg",
+            "canClose",
+            "printDocument",
+            "print",
+            "printPdf",
+            "printPreview",
+            "redoActions",
+            "undoActions"
+        };
 
         for (const auto& it : methods) {
             if (pyobject.hasAttr(it)) {
@@ -66,7 +77,7 @@ public:
         Base::PyGILStateLocker lock;
         PythonWrapper wrap;
         wrap.loadWidgetsModule();
-        if (func.count("widget") == 0) {
+        if (!func.contains("widget")) {
             throw Py::AttributeError("Object has no attribute 'widget'");
         }
         Py::Callable target(func.at("widget"));
@@ -160,25 +171,34 @@ private:
     Py::Object pyobject;
 };
 
-}
+}  // namespace Gui
 
 
-TYPESYSTEM_SOURCE_ABSTRACT(Gui::MDIViewPyWrap,Gui::MDIView)
+TYPESYSTEM_SOURCE_ABSTRACT(Gui::MDIViewPyWrap, Gui::MDIView)
 
-MDIViewPyWrap::MDIViewPyWrap(const Py::Object& py, Gui::Document* pcDocument,QWidget* parent, Qt::WindowFlags wflags)
-  : MDIView(pcDocument, parent, wflags)
-  , ptr(std::make_unique<MDIViewPyWrapImp>(py))
+MDIViewPyWrap::MDIViewPyWrap(
+    const Py::Object& py,
+    Gui::Document* pcDocument,
+    QWidget* parent,
+    Qt::WindowFlags wflags
+)
+    : MDIView(pcDocument, parent, wflags)
+    , ptr(std::make_unique<MDIViewPyWrapImp>(py))
 {
     try {
         QWidget* widget = ptr->widget();
         if (widget) {
             setCentralWidget(widget);
+            QString title = widget->windowTitle();
+            if (!title.isEmpty()) {
+                setWindowTitle(title);
+            }
         }
     }
     catch (Py::Exception&) {
         Base::PyGILStateLocker lock;
         Base::PyException exc;
-        exc.ReportException();
+        exc.reportException();
     }
 }
 
@@ -192,21 +212,21 @@ PyObject* MDIViewPyWrap::getPyObject()
     return MDIView::getPyObject();
 }
 
-bool MDIViewPyWrap::onMsg(const char* pMsg,const char** ppReturn)
+bool MDIViewPyWrap::onMsg(const char* pMsg)
 {
     try {
         if (ptr->onMsg(pMsg)) {
             return true;
         }
-        return MDIView::onMsg(pMsg, ppReturn);
+        return MDIView::onMsg(pMsg);
     }
     catch (const std::exception&) {
-        return MDIView::onMsg(pMsg, ppReturn);
+        return MDIView::onMsg(pMsg);
     }
     catch (Py::Exception&) {
         Base::PyGILStateLocker lock;
         Base::PyException exc;
-        exc.ReportException();
+        exc.reportException();
         return false;
     }
 }
@@ -225,7 +245,7 @@ bool MDIViewPyWrap::onHasMsg(const char* pMsg) const
     catch (Py::Exception&) {
         Base::PyGILStateLocker lock;
         Base::PyException exc;
-        exc.ReportException();
+        exc.reportException();
         return false;
     }
 }
@@ -241,7 +261,7 @@ bool MDIViewPyWrap::canClose()
     catch (Py::Exception&) {
         Base::PyGILStateLocker lock;
         Base::PyException exc;
-        exc.ReportException();
+        exc.reportException();
         return false;
     }
 }
@@ -257,7 +277,7 @@ void MDIViewPyWrap::print(QPrinter* printer)
     catch (Py::Exception&) {
         Base::PyGILStateLocker lock;
         Base::PyException exc;
-        exc.ReportException();
+        exc.reportException();
     }
 }
 
@@ -272,7 +292,7 @@ void MDIViewPyWrap::print()
     catch (Py::Exception&) {
         Base::PyGILStateLocker lock;
         Base::PyException exc;
-        exc.ReportException();
+        exc.reportException();
     }
 }
 
@@ -287,7 +307,7 @@ void MDIViewPyWrap::printPdf()
     catch (Py::Exception&) {
         Base::PyGILStateLocker lock;
         Base::PyException exc;
-        exc.ReportException();
+        exc.reportException();
     }
 }
 
@@ -302,7 +322,7 @@ void MDIViewPyWrap::printPreview()
     catch (Py::Exception&) {
         Base::PyGILStateLocker lock;
         Base::PyException exc;
-        exc.ReportException();
+        exc.reportException();
     }
 }
 
@@ -317,7 +337,7 @@ QStringList MDIViewPyWrap::undoActions() const
     catch (Py::Exception&) {
         Base::PyGILStateLocker lock;
         Base::PyException exc;
-        exc.ReportException();
+        exc.reportException();
         return MDIView::undoActions();
     }
 }
@@ -333,7 +353,7 @@ QStringList MDIViewPyWrap::redoActions() const
     catch (Py::Exception&) {
         Base::PyGILStateLocker lock;
         Base::PyException exc;
-        exc.ReportException();
+        exc.reportException();
         return MDIView::redoActions();
     }
 }

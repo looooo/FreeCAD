@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2011 Juergen Riegel <FreeCAD@juergen-riegel.net>        *
  *                                                                         *
@@ -20,33 +22,50 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef GUI_TASKVIEW_TaskRevolutionParameters_H
-#define GUI_TASKVIEW_TaskRevolutionParameters_H
+#pragma once
 
 #include <Mod/PartDesign/App/FeatureRevolution.h>
 #include <Mod/PartDesign/App/FeatureGroove.h>
 #include "TaskSketchBasedParameters.h"
-#include "ViewProviderRevolution.h"
 
 
 class Ui_TaskRevolutionParameters;
+class QAbstractButton;
+class QComboBox;
+class QLabel;
+class QLineEdit;
 
-namespace App {
+namespace App
+{
 class Property;
 }
 
-namespace Gui {
+namespace Gui
+{
+class QuantitySpinBox;
+class RadialGizmo;
+class RotationGizmo;
+class Gizmo;
 class ViewProvider;
-}
+class ViewProviderCoordinateSystem;
+}  // namespace Gui
 
-namespace PartDesignGui {
+namespace PartDesignGui
+{
+class ViewProviderRevolution;
+class ViewProviderGroove;
 
-class TaskRevolutionParameters : public TaskSketchBasedParameters
+class TaskRevolutionParameters: public TaskSketchBasedParameters
 {
     Q_OBJECT
 
 public:
-    explicit TaskRevolutionParameters(ViewProvider* RevolutionView, QWidget* parent = nullptr);
+    TaskRevolutionParameters(
+        ViewProvider* RevolutionView,
+        const char* pixname,
+        const QString& title,
+        QWidget* parent = nullptr
+    );
     ~TaskRevolutionParameters() override;
 
     void apply() override;
@@ -59,50 +78,133 @@ public:
      * list (if necessary), and selected. If the list is empty, it will be refilled anyway.
      */
     void fillAxisCombo(bool forceRefill = false);
-    void addAxisToCombo(App::DocumentObject *linkObj, std::string linkSubname, QString itemText);
+    void addAxisToCombo(
+        App::DocumentObject* linkObj,
+        const std::string& linkSubname,
+        const QString& itemText
+    );
 
 private Q_SLOTS:
     void onAngleChanged(double);
     void onAngle2Changed(double);
     void onAxisChanged(int);
-    void onMidplane(bool);
     void onReversed(bool);
-    void onModeChanged(int);
-    void onButtonFace(const bool pressed = true);
-    void onFaceName(const QString& text);
+    void onStartModeChanged(int);
+    void onStartOffsetChanged(double);
+    void onSelectStartReferenceToggle(bool);
+    void onModeChangedSide1(int);
+    void onModeChangedSide2(int);
+    void onSidesModeChanged(int);
 
 protected:
     void onSelectionChanged(const Gui::SelectionChanges& msg) override;
-    void changeEvent(QEvent *event) override;
-    void getReferenceAxis(App::DocumentObject *&obj, std::vector<std::string> &sub) const;
-    bool getMidplane() const;
+    void changeEvent(QEvent* event) override;
+    void getReferenceAxis(App::DocumentObject*& obj, std::vector<std::string>& sub) const;
     bool getReversed() const;
-    QString getFaceName() const;
-    void setupDialog(void);
-    void setCheckboxes(PartDesign::Revolution::RevolMethod mode);
+    int getMode() const;
+    int getMode2() const;
+    int getSidesMode() const;
+    QString getFaceName(QLineEdit* lineEdit) const;
+    void setupDialog();
 
-    //mirrors of revolution's or groove's properties
-    //should have been done by inheriting revolution and groove from common class...
-    App::PropertyAngle* propAngle;
-    App::PropertyAngle* propAngle2;
-    App::PropertyBool* propReversed;
-    App::PropertyBool* propMidPlane;
-    App::PropertyLinkSub* propReferenceAxis;
-    App::PropertyLinkSub* propUpToFace;
+    enum class SidesMode
+    {
+        OneSide,
+        TwoSides,
+        Symmetric,
+    };
+
+    enum class Side
+    {
+        First,
+        Second,
+    };
+
+    enum class StartMode
+    {
+        ProfilePlane,
+        Offset,
+        Reference,
+    };
+
+    enum class SelectionMode
+    {
+        None,
+        Face,
+        StartReference,
+        Axis,
+    };
+
+    enum class Mode
+    {
+        Angle,
+        ThroughAll,
+        ToLast = ThroughAll,
+        ToFirst,
+        ToFace,
+        TwoAngles,
+    };
 
 private:
+    struct SideController
+    {
+        QComboBox* changeMode = nullptr;
+        QLabel* labelAngle = nullptr;
+        Gui::QuantitySpinBox* angleEdit = nullptr;
+        QAbstractButton* buttonFace = nullptr;
+        QLineEdit* lineFaceName = nullptr;
+
+        App::PropertyEnumeration* Type = nullptr;
+        App::PropertyAngle* Angle = nullptr;
+        App::PropertyLinkSub* UpToFace = nullptr;
+    };
+
+    SideController m_side1;
+    SideController m_side2;
+
+    SideController& getSideController(Side side)
+    {
+        return side == Side::First ? m_side1 : m_side2;
+    }
+
+    const SideController& getSideController(Side side) const
+    {
+        return side == Side::First ? m_side1 : m_side2;
+    }
+
+    App::PropertyEnumeration* propSideType;
+    App::PropertyBool* propReversed;
+    App::PropertyLinkSub* propReferenceAxis;
+
+private:
+    void createSideControllers();
+    void setupSideDialog(SideController& side);
     void connectSignals();
-    void updateUI(int index);
-    void translateModeList(int index);
+    void updateUI(Side side);
+    void updateWholeUI(Side side);
+    void updateStartUI();
+    void updateStartReferenceName();
+    void updateSideUI(const SideController& side, Mode mode, bool isParentVisible, bool setFocus);
+    void translateModeList(QComboBox* box, int index);
+    void translateSidesList(int index);
     // TODO: This is common with extrude. Maybe send to superclass.
-    void translateFaceName();
-    void clearFaceName();
+    void translateFaceName(QLineEdit* lineEdit);
+    void handleLineFaceNameClick(QLineEdit* lineEdit);
+    void handleLineFaceNameNo(QLineEdit* lineEdit);
+    void clearFaceName(QLineEdit* lineEdit);
+    void onModeChanged(int index, Side side);
+    void onButtonFace(bool pressed, Side side);
+    void onFaceName(const QString& text, Side side);
+    void setSelectionMode(SelectionMode mode, Side side = Side::First);
+    Gui::ViewProviderCoordinateSystem* getOriginView() const;
 
 private:
     std::unique_ptr<Ui_TaskRevolutionParameters> ui;
-    QWidget *proxy;
-    bool selectionFace;
+    QWidget* proxy;
     bool isGroove;
+    SelectionMode selectionMode;
+    Side activeSelectionSide;
+    double defaultGizmoMultFactor;
 
     /**
      * @brief axesInList is the list of links corresponding to axis combo; must
@@ -113,22 +215,29 @@ private:
      * when adding stuff, and delete when removing stuff.
      */
     std::vector<std::unique_ptr<App::PropertyLinkSub>> axesInList;
+
+    std::unique_ptr<Gui::GizmoContainer> gizmoContainer;
+    Gui::RadialGizmo* rotationGizmo = nullptr;
+    Gui::RadialGizmo* rotationGizmo2 = nullptr;
+    Gui::RotationGizmo* startOffsetGizmo = nullptr;
+    void setupGizmos(ViewProvider* vp);
+    void setGizmoPositions();
 };
 
-/// simulation dialog for the TaskView
-class TaskDlgRevolutionParameters : public TaskDlgSketchBasedParameters
+class TaskDlgRevolutionParameters: public TaskDlgSketchBasedParameters
 {
     Q_OBJECT
 
 public:
-    explicit TaskDlgRevolutionParameters(PartDesignGui::ViewProvider *RevolutionView);
-
-    ViewProvider* getRevolutionView() const
-    {
-        return vp;
-    }
+    explicit TaskDlgRevolutionParameters(PartDesignGui::ViewProviderRevolution* RevolutionView);
 };
 
-} //namespace PartDesignGui
+class TaskDlgGrooveParameters: public TaskDlgSketchBasedParameters
+{
+    Q_OBJECT
 
-#endif // GUI_TASKVIEW_TASKAPPERANCE_H
+public:
+    explicit TaskDlgGrooveParameters(PartDesignGui::ViewProviderGroove* GrooveView);
+};
+
+}  // namespace PartDesignGui

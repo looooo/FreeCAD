@@ -20,30 +20,32 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
-# include <sstream>
-# include <QAction>
-# include <QFileInfo>
-# include <QImage>
-# include <QMenu>
-# include <QString>
-# include <QSvgRenderer>
-# include <Inventor/nodes/SoCoordinate3.h>
-# include <Inventor/nodes/SoFaceSet.h>
-# include <Inventor/nodes/SoMaterial.h>
-# include <Inventor/nodes/SoSeparator.h>
-# include <Inventor/nodes/SoShapeHints.h>
-# include <Inventor/nodes/SoTexture2.h>
-# include <Inventor/nodes/SoTextureCoordinate2.h>
-#endif
+#include <cstdint>
+#include <sstream>
+#include <QAction>
+#include <QFileInfo>
+#include <QImage>
+#include <QImageReader>
+#include <QMenu>
+#include <QString>
+#include <QSvgRenderer>
+#include <Inventor/nodes/SoCoordinate3.h>
+#include <Inventor/nodes/SoFaceSet.h>
+#include <Inventor/nodes/SoLightModel.h>
+#include <Inventor/nodes/SoMaterial.h>
+#include <Inventor/nodes/SoSeparator.h>
+#include <Inventor/nodes/SoShapeHints.h>
+#include <Inventor/nodes/SoTexture2.h>
+#include <Inventor/nodes/SoTextureCoordinate2.h>
 
+#include <Base/Console.h>
 #include <App/Document.h>
+#include <App/ImagePlane.h>
+#include <Gui/Document.h>
 #include <Gui/ActionFunction.h>
 #include <Gui/BitmapFactory.h>
 #include <Gui/Control.h>
 #include <Gui/TaskView/TaskImage.h>
-#include <App/ImagePlane.h>
 
 #include "ViewProviderImagePlane.h"
 
@@ -52,11 +54,11 @@ using namespace Gui;
 
 
 PROPERTY_SOURCE(Gui::ViewProviderImagePlane, Gui::ViewProviderGeometryObject)
-const char* ViewProviderImagePlane::LightingEnums[]= {"One side", "Two side", nullptr};
+const char* ViewProviderImagePlane::LightingEnums[] = {"One side", "Two side", nullptr};
 
 ViewProviderImagePlane::ViewProviderImagePlane()
 {
-    ADD_PROPERTY_TYPE(Lighting,(1L), "Object Style", App::Prop_None, "Set object lighting.");
+    ADD_PROPERTY_TYPE(Lighting, (1L), "Object Style", App::Prop_None, "Set object lighting.");
     Lighting.setEnums(LightingEnums);
 
     texture = new SoTexture2;
@@ -71,6 +73,8 @@ ViewProviderImagePlane::ViewProviderImagePlane()
     shapeHints->ref();
 
     sPixmap = "image-plane";
+
+    ShapeAppearance.setDiffuseColor(1.0F, 1.0F, 1.0F);
 }
 
 ViewProviderImagePlane::~ViewProviderImagePlane()
@@ -80,63 +84,84 @@ ViewProviderImagePlane::~ViewProviderImagePlane()
     shapeHints->unref();
 }
 
-void ViewProviderImagePlane::attach(App::DocumentObject *pcObj)
+void ViewProviderImagePlane::attach(App::DocumentObject* pcObj)
 {
     ViewProviderGeometryObject::attach(pcObj);
 
     // NOTE: SoFCSelection node has beem removed because it led to
     // problems using the image as a construction plane with the
     // draft commands
-    SoSeparator* planesep = new SoSeparator;
-    planesep->addChild(pcCoords);
+    SoSeparator* shading = new SoSeparator;
+    shading->addChild(pcCoords);
 
-    SoTextureCoordinate2 *textCoord = new SoTextureCoordinate2;
-    textCoord->point.set1Value(0,0,0);
-    textCoord->point.set1Value(1,1,0);
-    textCoord->point.set1Value(2,1,1);
-    textCoord->point.set1Value(3,0,1);
-    planesep->addChild(textCoord);
+    SoTextureCoordinate2* textCoord = new SoTextureCoordinate2;
+    textCoord->point.set1Value(0, 0, 0);
+    textCoord->point.set1Value(1, 1, 0);
+    textCoord->point.set1Value(2, 1, 1);
+    textCoord->point.set1Value(3, 0, 1);
+    shading->addChild(textCoord);
 
     // texture
     texture->model = SoTexture2::MODULATE;
-    planesep->addChild(texture);
+    shading->addChild(texture);
 
-    planesep->addChild(shapeHints);
-    planesep->addChild(pcShapeMaterial);
+    shading->addChild(shapeHints);
+    shading->addChild(pcShapeMaterial);
 
     // plane
-    pcCoords->point.set1Value(0,0,0,0);
-    pcCoords->point.set1Value(1,1,0,0);
-    pcCoords->point.set1Value(2,1,1,0);
-    pcCoords->point.set1Value(3,0,1,0);
-    SoFaceSet *faceset = new SoFaceSet;
-    faceset->numVertices.set1Value(0,4);
-    planesep->addChild(faceset);
+    pcCoords->point.set1Value(0, 0, 0, 0);
+    pcCoords->point.set1Value(1, 1, 0, 0);
+    pcCoords->point.set1Value(2, 1, 1, 0);
+    pcCoords->point.set1Value(3, 0, 1, 0);
+    SoFaceSet* faceset = new SoFaceSet;
+    faceset->numVertices.set1Value(0, 4);
+    shading->addChild(faceset);
 
-    addDisplayMaskMode(planesep, "ImagePlane");
+    addDisplayMaskMode(shading, "Shading");
+
+    SoLightModel* lightmodel = new SoLightModel;
+    lightmodel->model = SoLightModel::BASE_COLOR;
+
+    SoSeparator* noshading = new SoSeparator;
+    noshading->addChild(pcCoords);
+    noshading->addChild(textCoord);
+    noshading->addChild(texture);
+    noshading->addChild(shapeHints);
+    noshading->addChild(pcShapeMaterial);
+    noshading->addChild(lightmodel);
+    noshading->addChild(faceset);
+
+    addDisplayMaskMode(noshading, "No shading");
 }
 
 void ViewProviderImagePlane::setDisplayMode(const char* ModeName)
 {
-    if (strcmp("ImagePlane",ModeName) == 0)
-        setDisplayMaskMode("ImagePlane");
+    if (strcmp("Shading", ModeName) == 0) {
+        setDisplayMaskMode("Shading");
+    }
+    else if (strcmp("No shading", ModeName) == 0) {
+        setDisplayMaskMode("No shading");
+    }
     ViewProviderGeometryObject::setDisplayMode(ModeName);
 }
 
 std::vector<std::string> ViewProviderImagePlane::getDisplayModes() const
 {
     std::vector<std::string> StrList;
-    StrList.emplace_back("ImagePlane");
+    StrList.emplace_back("Shading");
+    StrList.emplace_back("No shading");
     return StrList;
 }
 
 void ViewProviderImagePlane::onChanged(const App::Property* prop)
 {
     if (prop == &Lighting) {
-        if (Lighting.getValue() == 0)
+        if (Lighting.getValue() == 0) {
             shapeHints->vertexOrdering = SoShapeHints::UNKNOWN_ORDERING;
-        else
+        }
+        else {
             shapeHints->vertexOrdering = SoShapeHints::COUNTERCLOCKWISE;
+        }
     }
     ViewProviderGeometryObject::onChanged(prop);
 }
@@ -144,11 +169,9 @@ void ViewProviderImagePlane::onChanged(const App::Property* prop)
 void ViewProviderImagePlane::setupContextMenu(QMenu* menu, QObject* receiver, const char* member)
 {
     Gui::ActionFunction* func = new Gui::ActionFunction(menu);
-    QAction* action = menu->addAction(QObject::tr("Change image..."));
+    QAction* action = menu->addAction(QObject::tr("Edit Image Plane"));
     action->setIcon(QIcon(QLatin1String("images:image-scaling.svg")));
-    func->trigger(action, [this](){
-        this->manipulateImage();
-    });
+    func->trigger(action, [this]() { this->manipulateImage(); });
 
     ViewProviderGeometryObject::setupContextMenu(menu, receiver, member);
 }
@@ -161,19 +184,17 @@ bool ViewProviderImagePlane::doubleClicked()
 
 void ViewProviderImagePlane::manipulateImage()
 {
-    auto dialog = new TaskImageDialog(
-        dynamic_cast<Image::ImagePlane*>(getObject())
-    );
+    auto dialog = new TaskImageDialog(getObject<Image::ImagePlane>());
 
-    Gui::Control().showDialog(dialog);
+    Gui::Control().showDialog(dialog, getDocument()->getDocument());
 }
 
 void ViewProviderImagePlane::resizePlane(float xsize, float ysize)
 {
-    pcCoords->point.set1Value(0,-(xsize/2),-(ysize/2),0.0);
-    pcCoords->point.set1Value(1,+(xsize/2),-(ysize/2),0.0);
-    pcCoords->point.set1Value(2,+(xsize/2),+(ysize/2),0.0);
-    pcCoords->point.set1Value(3,-(xsize/2),+(ysize/2),0.0);
+    pcCoords->point.set1Value(0, -(xsize / 2), -(ysize / 2), 0.0);
+    pcCoords->point.set1Value(1, +(xsize / 2), -(ysize / 2), 0.0);
+    pcCoords->point.set1Value(2, +(xsize / 2), +(ysize / 2), 0.0);
+    pcCoords->point.set1Value(3, -(xsize / 2), +(ysize / 2), 0.0);
 }
 
 void ViewProviderImagePlane::loadImage()
@@ -200,7 +221,9 @@ void ViewProviderImagePlane::setPlaneSize(const QSizeF& size, const QImage& img)
 {
     if (!img.isNull()) {
         Image::ImagePlane* imagePlane = static_cast<Image::ImagePlane*>(pcObject);
-        if (!isRestoring()) {
+        // When restoring the document or importing a ImagePlane by eg. pasting it
+        // preserve the X and Y size.
+        if (!isRestoring() && !pcObject->testStatus(App::ObjectStatus::ObjImporting)) {
             imagePlane->XSize.setValue(size.width());
             imagePlane->YSize.setValue(size.height());
         }
@@ -212,9 +235,33 @@ void ViewProviderImagePlane::setPlaneSize(const QSizeF& size, const QImage& img)
 
 QImage ViewProviderImagePlane::loadRaster(const char* fileName) const
 {
-    QImage img;
-    img.load(QString::fromUtf8(fileName));
-    return img;
+    QImageReader reader(QString::fromUtf8(fileName));
+    const QSize imageSize = reader.size();
+
+    if (imageSize.isValid()) {
+        constexpr std::uint64_t bytesPerPixel = 4;
+        constexpr std::uint64_t bytesPerMiB = 1024 * 1024;
+        const auto decodedImageSize = static_cast<std::uint64_t>(imageSize.width())
+            * static_cast<std::uint64_t>(imageSize.height()) * bytesPerPixel;
+        const auto decodedImageSizeMiB = (decodedImageSize - 1) / bytesPerMiB + 1;
+        const int allocationLimit = QImageReader::allocationLimit();
+
+        if (allocationLimit > 0
+            && decodedImageSize > static_cast<std::uint64_t>(allocationLimit) * bytesPerMiB) {
+            const auto message
+                = QObject::tr(
+                      "Cannot load image file %1. The decoded image requires at least %2 MiB, "
+                      "exceeding the %3 MiB limit. Reduce its dimensions before loading it."
+                )
+                      .arg(QString::fromUtf8(fileName))
+                      .arg(decodedImageSizeMiB)
+                      .arg(allocationLimit);
+            Base::Console().warning("%s\n", message.toUtf8().constData());
+            return {};
+        }
+    }
+
+    return reader.read();
 }
 
 void ViewProviderImagePlane::reloadIfSvg()

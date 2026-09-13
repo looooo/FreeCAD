@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2004 Jürgen Riegel <juergen.riegel@web.de>              *
  *   Copyright (c) 2012 Luke Parry <l.parry@warwick.ac.uk>                 *
@@ -21,17 +23,19 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TECHDRAWGUI_VIEWPROVIDERVIEW_H
-#define TECHDRAWGUI_VIEWPROVIDERVIEW_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
-#include <boost_signals2.hpp>
+#include <fastsignals/signal.h>
 
+#include <Base/ProgramVersion.h>
+#include <Gui/Document.h>
 #include <Gui/ViewProviderDocumentObject.h>
 #include <Mod/TechDraw/App/DrawView.h>
 
 #include "ViewProviderDrawingViewExtension.h"
+
 
 namespace TechDraw {
 class DrawView;
@@ -67,9 +71,11 @@ public:
     void dropObject(App::DocumentObject* docObj) override;
 
     void onChanged(const App::Property *prop) override;
-    void updateData(const App::Property*) override;
+    void updateData(const App::Property* prop) override;
 
     QGIView* getQView();
+    static QGIView* getOwnerQView(const QGIView* qgiv);
+
     MDIViewPage* getMDIViewPage() const;
     Gui::MDIView *getMDIView() const override;
     ViewProviderPage* getViewProviderPage() const;
@@ -87,7 +93,7 @@ public:
     void onProgressMessage(const TechDraw::DrawView* dv,
                          const std::string featureName,
                          const std::string text);
-    using Connection = boost::signals2::scoped_connection;
+    using Connection = fastsignals::scoped_connection;
     Connection connectGuiRepaint;
     Connection connectProgressMessage;
 
@@ -99,6 +105,20 @@ public:
 
     const char* whoAmI() const;
 
+    virtual void fixSceneDependencies();
+    std::vector<App::DocumentObject*> claimChildren() const override;
+
+    void fixColorAlphaValues();
+    bool checkMinimumDocumentVersion(Base::Version minimumVersion) const
+        { return checkMinimumDocumentVersion(this->getDocument()->getDocument(), minimumVersion); }
+
+    //! True if document toBeChecked was written by a program with version >= minimumVersion.
+    //! Note that we cannot check patch releases as only the major and minor are recorded in the
+    //! Document.xml file.
+    //! (ex <Document SchemaVersion="4" ProgramVersion="1.2R44322 +1 (Git)" FileVersion="1" StringHasher="1">)
+    static bool checkMinimumDocumentVersion(App::Document* toBeChecked, Base::Version minimumVersion);
+
+
 private:
     void multiParentPaint(std::vector<TechDraw::DrawPage*>& pages);
     void singleParentPaint(const TechDraw::DrawView* dv);
@@ -107,6 +127,3 @@ private:
 };
 
 } // namespace TechDrawGui
-
-
-#endif // TECHDRAWGUI_VIEWPROVIDERVIEW_H

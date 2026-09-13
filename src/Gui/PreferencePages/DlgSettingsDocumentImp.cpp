@@ -20,7 +20,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
+#include <limits>
 
 #include <zlib.h>
 #include <App/License.h>
@@ -38,8 +38,8 @@ using namespace Gui::Dialog;
  *  Constructs a DlgSettingsDocumentImp which is a child of 'parent', with the
  *  name 'name' and widget flags set to 'f'
  */
-DlgSettingsDocumentImp::DlgSettingsDocumentImp( QWidget* parent )
-    : PreferencePage( parent )
+DlgSettingsDocumentImp::DlgSettingsDocumentImp(QWidget* parent)
+    : PreferencePage(parent)
     , ui(new Ui_DlgSettingsDocument)
 {
     ui->setupUi(this);
@@ -48,17 +48,36 @@ DlgSettingsDocumentImp::DlgSettingsDocumentImp( QWidget* parent )
     ui->prefSaveTransaction->hide();
     ui->prefDiscardTransaction->hide();
 
-    QString tip = QString::fromLatin1("<html><head/><body><p>%1</p>"
-                                      "<p>%2: %Y%m%d-%H%M%S</p>"
-                                      "<p>%3: <a href=\"http://www.cplusplus.com/reference/ctime/strftime/\">C++ strftime</a>"
-                                      "</p></body></html>").arg(tr("The format of the date to use."), tr("Default"), tr("Format"));
+    QString tip = QStringLiteral(
+                      "<html><head/><body><p>%1</p>"
+                      "<p>%2: %Y%m%d-%H%M%S</p>"
+                      "</p></body></html>"
+    )
+                      .arg(tr("The format of the date to use."), tr("Default"));
+    QString link = QString::fromLatin1(
+                       "<html><head/><body>"
+                       "<a href=\"http://www.cplusplus.com/reference/ctime/strftime/\">%1</a>"
+                       "</body></html>"
+    )
+                       .arg(tr("Show format documentation"));
     ui->prefSaveBackupDateFormat->setToolTip(tip);
+    ui->FormatTimeDocsLabel->setText(link);
 
-    ui->prefCountBackupFiles->setMaximum(INT_MAX);
+    ui->prefCountBackupFiles->setMaximum(std::numeric_limits<int>::max());
     ui->prefCompression->setMinimum(Z_NO_COMPRESSION);
     ui->prefCompression->setMaximum(Z_BEST_COMPRESSION);
-    connect(ui->prefLicenseType, qOverload<int>(&QComboBox::currentIndexChanged),
-            this, &DlgSettingsDocumentImp::onLicenseTypeChanged);
+    connect(
+        ui->prefLicenseType,
+        qOverload<int>(&QComboBox::currentIndexChanged),
+        this,
+        &DlgSettingsDocumentImp::onLicenseTypeChanged
+    );
+    connect(
+        ui->prefSaveBackupDateFormat,
+        &QLineEdit::textChanged,
+        this,
+        &DlgSettingsDocumentImp::onDateFormatChanged
+    );
 }
 
 /**
@@ -66,12 +85,56 @@ DlgSettingsDocumentImp::DlgSettingsDocumentImp( QWidget* parent )
  */
 DlgSettingsDocumentImp::~DlgSettingsDocumentImp() = default;
 
+void DlgSettingsDocumentImp::onDateFormatChanged(const QString& text)
+{
+    std::time_t now = std::time(nullptr);
+    std::tm local_tm {};
+#if defined(_WIN32)
+    localtime_s(&local_tm, &now);
+#else
+    localtime_r(&now, &local_tm);
+#endif
+    constexpr size_t bufferLength = 128;
+    std::array<char, bufferLength> buffer {};
+    std::strftime(buffer.data(), bufferLength, text.toUtf8().constData(), &local_tm);
+    QString preview = QString::fromUtf8(buffer.data());
+
+    QString invalidChars;
+#if defined(_WIN32)
+    invalidChars = QStringLiteral("<>:\"/\\|?*");
+#else
+    invalidChars = QStringLiteral("/");
+#endif
+
+    bool hasInvalid = false;
+    for (const auto& ch : preview) {
+        if (invalidChars.contains(ch)) {
+            hasInvalid = true;
+            break;
+        }
+    }
+
+    if (hasInvalid) {
+        ui->prefSaveBackupDateFormat->setToolTip(
+            tr("Warning: The format '%1' produces '%2' which contains invalid characters. "
+               "They will be replaced with '-' when saving.")
+                .arg(text, preview)
+        );
+        ui->prefSaveBackupDateFormat->setStyleSheet(
+            QStringLiteral("QLineEdit { background-color:yellow }")
+        );
+    }
+    else {
+        ui->prefSaveBackupDateFormat->setToolTip(QString());
+        ui->prefSaveBackupDateFormat->setStyleSheet(QString());
+    }
+}
+
 void DlgSettingsDocumentImp::saveSettings()
 {
     ui->prefCheckNewDoc->onSave();
     ui->prefCompression->onSave();
 
-    ui->prefUndoRedo->onSave();
     ui->prefUndoRedoSize->onSave();
     ui->prefSaveTransaction->onSave();
     ui->prefDiscardTransaction->onSave();
@@ -82,6 +145,7 @@ void DlgSettingsDocumentImp::saveSettings()
     ui->prefCountBackupFiles->onSave();
     ui->prefSaveBackupExtension->onSave();
     ui->prefSaveBackupDateFormat->onSave();
+    ui->prefDisableVersionCheckOnSave->onSave();
     ui->prefDuplicateLabel->onSave();
     ui->prefPartialLoading->onSave();
     ui->prefLicenseType->onSave();
@@ -93,10 +157,12 @@ void DlgSettingsDocumentImp::saveSettings()
     ui->prefAutoSaveEnabled->onSave();
     ui->prefAutoSaveTimeout->onSave();
     ui->prefCanAbortRecompute->onSave();
+    ui->prefEnableAsyncRecompute->onSave();
 
     int timeout = ui->prefAutoSaveTimeout->value();
-    if (!ui->prefAutoSaveEnabled->isChecked())
+    if (!ui->prefAutoSaveEnabled->isChecked()) {
         timeout = 0;
+    }
     AutoSaver::instance()->setTimeout(timeout * 60000);
 }
 
@@ -105,7 +171,6 @@ void DlgSettingsDocumentImp::loadSettings()
     ui->prefCheckNewDoc->onRestore();
     ui->prefCompression->onRestore();
 
-    ui->prefUndoRedo->onRestore();
     ui->prefUndoRedoSize->onRestore();
     ui->prefSaveTransaction->onRestore();
     ui->prefDiscardTransaction->onRestore();
@@ -116,6 +181,7 @@ void DlgSettingsDocumentImp::loadSettings()
     ui->prefCountBackupFiles->onRestore();
     ui->prefSaveBackupExtension->onRestore();
     ui->prefSaveBackupDateFormat->onRestore();
+    ui->prefDisableVersionCheckOnSave->onRestore();
     ui->prefDuplicateLabel->onRestore();
     ui->prefPartialLoading->onRestore();
     ui->prefLicenseType->onRestore();
@@ -127,12 +193,13 @@ void DlgSettingsDocumentImp::loadSettings()
     ui->prefAutoSaveEnabled->onRestore();
     ui->prefAutoSaveTimeout->onRestore();
     ui->prefCanAbortRecompute->onRestore();
+    ui->prefEnableAsyncRecompute->onRestore();
 }
 
 /**
  * Sets the strings of the subwidgets using the current language.
  */
-void DlgSettingsDocumentImp::changeEvent(QEvent *e)
+void DlgSettingsDocumentImp::changeEvent(QEvent* e)
 {
     if (e->type() == QEvent::LanguageChange) {
         ui->retranslateUi(this);
@@ -148,8 +215,7 @@ void DlgSettingsDocumentImp::changeEvent(QEvent *e)
 void DlgSettingsDocumentImp::addLicenseTypes()
 {
     auto add = [&](const char* what) {
-        ui->prefLicenseType->addItem(
-            QApplication::translate("Gui::Dialog::DlgSettingsDocument", what));
+        ui->prefLicenseType->addItem(QApplication::translate("Gui::Dialog::DlgSettingsDocument", what));
     };
 
     ui->prefLicenseType->clear();

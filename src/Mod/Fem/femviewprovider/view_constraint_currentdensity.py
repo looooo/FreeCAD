@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # ***************************************************************************
 # *   Copyright (c) 2023 Uwe Stöhr <uwestoehr@lyx.org>                      *
 # *                                                                         *
@@ -29,16 +31,36 @@ __url__ = "https://www.freecad.org"
 #  \ingroup FEM
 #  \brief view provider for the constraint current density object
 
+from pivy import coin
+from os import path
+
 from femtaskpanels import task_constraint_currentdensity
 from . import view_base_femconstraint
 
 
 class VPConstraintCurrentDensity(view_base_femconstraint.VPBaseFemConstraint):
 
+    def __init__(self, vobj):
+        super().__init__(vobj)
+        mat = vobj.ShapeAppearance[0]
+        mat.DiffuseColor = (0.71, 0.40, 0.11, 0.0)
+        vobj.ShapeAppearance = mat
+
     def setEdit(self, vobj, mode=0):
-        view_base_femconstraint.VPBaseFemConstraint.setEdit(
-            self,
-            vobj,
-            mode,
-            task_constraint_currentdensity._TaskPanel
+        return view_base_femconstraint.VPBaseFemConstraint.setEdit(
+            self, vobj, mode, task_constraint_currentdensity._TaskPanel
         )
+
+    def attach(self, vobj):
+        super().attach(vobj)
+        vobj.loadSymbol(path.join(vobj.ResourceSymbolDir, "ConstraintCurrentDensity.iv"))
+
+    def updateData(self, obj, prop):
+        if prop == "Mode":
+            symb = obj.ViewObject.SymbolNode.getChild(0)
+            if obj.Mode == "Normal":
+                obj.ViewObject.RotateSymbol = True
+                symb.whichChild.setValue(0)
+            elif obj.Mode == "Custom":
+                obj.ViewObject.RotateSymbol = False
+                symb.whichChild.setValue(-1)

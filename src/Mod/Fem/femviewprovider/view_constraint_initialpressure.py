@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # ***************************************************************************
 # *   Copyright (c) 2022 Uwe Stöhr <uwestoehr@lyx.org>                      *
 # *                                                                         *
@@ -36,9 +38,6 @@ from . import view_base_femconstraint
 class VPConstraintInitialPressure(view_base_femconstraint.VPBaseFemConstraint):
 
     def setEdit(self, vobj, mode=0):
-        view_base_femconstraint.VPBaseFemConstraint.setEdit(
-            self,
-            vobj,
-            mode,
-            task_constraint_initialpressure._TaskPanel
+        return view_base_femconstraint.VPBaseFemConstraint.setEdit(
+            self, vobj, mode, task_constraint_initialpressure._TaskPanel
         )

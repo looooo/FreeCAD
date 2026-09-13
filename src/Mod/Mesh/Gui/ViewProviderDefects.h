@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2006 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef MESHGUI_VIEWPROVIDER_MESH_DEFECTS_H
-#define MESHGUI_VIEWPROVIDER_MESH_DEFECTS_H
+#pragma once
 
 #include "ViewProvider.h"
 
@@ -29,6 +30,7 @@ class SoCoordinate3;
 class SoPointSet;
 class SoLineSet;
 class SoFaceSet;
+class SoMarkerSet;
 
 namespace MeshGui
 {
@@ -52,19 +54,24 @@ public:
     // NOLINTEND
 
     // Build up the initial Inventor node
-    void attach(App::DocumentObject* pcFeature) override = 0;
+    void attach(App::DocumentObject* obj) override = 0;
     /// Fill up the Inventor node with data
     virtual void showDefects(const std::vector<Mesh::ElementIndex>&) = 0;
 
 protected:
     /// get called by the container whenever a property has been changed
     void onChanged(const App::Property* prop) override;
+    SoMarkerSet* makeMarkerSet() const;
+    const MeshCore::MeshKernel& getMeshKernel() const;
 
 protected:
     // NOLINTBEGIN
     SoCoordinate3* pcCoords;
     SoDrawStyle* pcDrawStyle;
     // NOLINTEND
+
+private:
+    FC_DISABLE_COPY_MOVE(ViewProviderMeshDefects)
 };
 
 /** The ViewProviderMeshOrientation class displays wrong oriented facets (i.e. flipped normals) in
@@ -79,11 +86,12 @@ public:
     ViewProviderMeshOrientation();
     ~ViewProviderMeshOrientation() override;
 
-    void attach(App::DocumentObject* pcFeature) override;
-    void showDefects(const std::vector<Mesh::ElementIndex>&) override;
+    void attach(App::DocumentObject* obj) override;
+    void showDefects(const std::vector<Mesh::ElementIndex>& inds) override;
 
 private:
     SoFaceSet* pcFaces;
+    FC_DISABLE_COPY_MOVE(ViewProviderMeshOrientation)
 };
 
 /** The ViewProviderMeshNonManifolds class displays edges with more than two faces attached in red.
@@ -97,11 +105,12 @@ public:
     ViewProviderMeshNonManifolds();
     ~ViewProviderMeshNonManifolds() override;
 
-    void attach(App::DocumentObject* pcFeature) override;
-    void showDefects(const std::vector<Mesh::ElementIndex>&) override;
+    void attach(App::DocumentObject* obj) override;
+    void showDefects(const std::vector<Mesh::ElementIndex>& inds) override;
 
 private:
     SoLineSet* pcLines;
+    FC_DISABLE_COPY_MOVE(ViewProviderMeshNonManifolds)
 };
 
 /** The ViewProviderMeshNonManifoldPoints class displays non-manifold vertexes in red.
@@ -115,11 +124,12 @@ public:
     ViewProviderMeshNonManifoldPoints();
     ~ViewProviderMeshNonManifoldPoints() override;
 
-    void attach(App::DocumentObject* pcFeature) override;
-    void showDefects(const std::vector<Mesh::ElementIndex>&) override;
+    void attach(App::DocumentObject* obj) override;
+    void showDefects(const std::vector<Mesh::ElementIndex>& inds) override;
 
 private:
     SoPointSet* pcPoints;
+    FC_DISABLE_COPY_MOVE(ViewProviderMeshNonManifoldPoints)
 };
 
 /** The ViewProviderMeshDuplicatedFaces class displays duplicated faces in red.
@@ -133,11 +143,12 @@ public:
     ViewProviderMeshDuplicatedFaces();
     ~ViewProviderMeshDuplicatedFaces() override;
 
-    void attach(App::DocumentObject* pcFeature) override;
-    void showDefects(const std::vector<Mesh::ElementIndex>&) override;
+    void attach(App::DocumentObject* obj) override;
+    void showDefects(const std::vector<Mesh::ElementIndex>& inds) override;
 
 private:
     SoFaceSet* pcFaces;
+    FC_DISABLE_COPY_MOVE(ViewProviderMeshDuplicatedFaces)
 };
 
 /** The ViewProviderMeshDegenerations class displays degenerated faces to a line or even a point in
@@ -152,11 +163,12 @@ public:
     ViewProviderMeshDegenerations();
     ~ViewProviderMeshDegenerations() override;
 
-    void attach(App::DocumentObject* pcFeature) override;
-    void showDefects(const std::vector<Mesh::ElementIndex>&) override;
+    void attach(App::DocumentObject* obj) override;
+    void showDefects(const std::vector<Mesh::ElementIndex>& inds) override;
 
 private:
     SoLineSet* pcLines;
+    FC_DISABLE_COPY_MOVE(ViewProviderMeshDegenerations)
 };
 
 class MeshGuiExport ViewProviderMeshDuplicatedPoints: public ViewProviderMeshDefects
@@ -167,11 +179,12 @@ public:
     ViewProviderMeshDuplicatedPoints();
     ~ViewProviderMeshDuplicatedPoints() override;
 
-    void attach(App::DocumentObject* pcFeature) override;
-    void showDefects(const std::vector<Mesh::ElementIndex>&) override;
+    void attach(App::DocumentObject* obj) override;
+    void showDefects(const std::vector<Mesh::ElementIndex>& inds) override;
 
 private:
     SoPointSet* pcPoints;
+    FC_DISABLE_COPY_MOVE(ViewProviderMeshDuplicatedPoints)
 };
 
 class MeshGuiExport ViewProviderMeshIndices: public ViewProviderMeshDefects
@@ -182,11 +195,12 @@ public:
     ViewProviderMeshIndices();
     ~ViewProviderMeshIndices() override;
 
-    void attach(App::DocumentObject* pcFeature) override;
-    void showDefects(const std::vector<Mesh::ElementIndex>&) override;
+    void attach(App::DocumentObject* obj) override;
+    void showDefects(const std::vector<Mesh::ElementIndex>& inds) override;
 
 private:
     SoFaceSet* pcFaces;
+    FC_DISABLE_COPY_MOVE(ViewProviderMeshIndices)
 };
 
 /** The ViewProviderMeshSelfIntersections class displays lines of self-intersections.
@@ -200,11 +214,12 @@ public:
     ViewProviderMeshSelfIntersections();
     ~ViewProviderMeshSelfIntersections() override;
 
-    void attach(App::DocumentObject* pcFeature) override;
-    void showDefects(const std::vector<Mesh::ElementIndex>&) override;
+    void attach(App::DocumentObject* obj) override;
+    void showDefects(const std::vector<Mesh::ElementIndex>& inds) override;
 
 private:
     SoLineSet* pcLines;
+    FC_DISABLE_COPY_MOVE(ViewProviderMeshSelfIntersections)
 };
 
 class MeshGuiExport ViewProviderMeshFolds: public ViewProviderMeshDefects
@@ -215,14 +230,13 @@ public:
     ViewProviderMeshFolds();
     ~ViewProviderMeshFolds() override;
 
-    void attach(App::DocumentObject* pcFeature) override;
-    void showDefects(const std::vector<Mesh::ElementIndex>&) override;
+    void attach(App::DocumentObject* obj) override;
+    void showDefects(const std::vector<Mesh::ElementIndex>& inds) override;
 
 private:
     SoFaceSet* pcFaces;
+
+    FC_DISABLE_COPY_MOVE(ViewProviderMeshFolds)
 };
 
 }  // namespace MeshGui
-
-
-#endif  // MESHGUI_VIEWPROVIDER_MESH_DEFECTS_H

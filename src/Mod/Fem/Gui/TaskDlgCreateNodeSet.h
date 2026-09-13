@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Jürgen Riegel <FreeCAD@juergen-riegel.net>         *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef ROBOTGUI_TaskDlgCreateNodeSet_H
-#define ROBOTGUI_TaskDlgCreateNodeSet_H
+#pragma once
 
 #include <Gui/TaskView/TaskDialog.h>
 #include <Mod/Fem/App/FemSetNodesObject.h>
@@ -78,5 +79,3 @@ protected:
 
 
 }  // namespace FemGui
-
-#endif  // ROBOTGUI_TASKDLGSIMULATE_H

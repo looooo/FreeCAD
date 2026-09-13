@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2021 FreeCAD Developers                                 *
  *   Author: Preslav Aleksandrov <preslav.aleksandrov@protonmail.com>      *
@@ -21,7 +23,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include "FemConstraintSpring.h"
 
@@ -37,20 +38,8 @@ ConstraintSpring::ConstraintSpring()
     ADD_PROPERTY(NormalStiffness, (0.0));
     ADD_PROPERTY(TangentialStiffness, (0.0));
     ADD_PROPERTY(ElmerStiffness, (1));
-    ADD_PROPERTY_TYPE(Points,
-                      (Base::Vector3d()),
-                      "ConstraintSpring",
-                      App::PropertyType(App::Prop_ReadOnly | App::Prop_Output),
-                      "Points where arrows are drawn");
-    ADD_PROPERTY_TYPE(Normals,
-                      (Base::Vector3d()),
-                      "ConstraintSpring",
-                      App::PropertyType(App::Prop_ReadOnly | App::Prop_Output),
-                      "Normals where symbols are drawn");
 
     ElmerStiffness.setEnums(Stiffnesses);
-    Points.setValues(std::vector<Base::Vector3d>());
-    Normals.setValues(std::vector<Base::Vector3d>());
 }
 
 App::DocumentObjectExecReturn* ConstraintSpring::execute()
@@ -66,16 +55,4 @@ const char* ConstraintSpring::getViewProviderName() const
 void ConstraintSpring::onChanged(const App::Property* prop)
 {
     Constraint::onChanged(prop);
-
-    if (prop == &References) {
-        std::vector<Base::Vector3d> points;
-        std::vector<Base::Vector3d> normals;
-        int scale = Scale.getValue();
-        if (getPoints(points, normals, &scale)) {
-            Points.setValues(points);
-            Normals.setValues(normals);
-            Scale.setValue(scale);
-            Points.touch();
-        }
-    }
 }

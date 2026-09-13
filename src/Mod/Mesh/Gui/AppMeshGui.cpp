@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2004 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,15 +22,12 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <Inventor/SoDB.h>
 #include <Inventor/SoInput.h>
 #include <Inventor/annex/ForeignFiles/SoSTLFileKit.h>
 #include <Inventor/nodes/SoSeparator.h>
 
 #include <QApplication>
-#endif
 
 #include <Base/Console.h>
 #include <Base/Interpreter.h>
@@ -54,7 +53,6 @@
 #include "ViewProviderTransform.h"
 #include "ViewProviderTransformDemolding.h"
 #include "Workbench.h"
-#include "images.h"
 
 
 // use a different name to CreateCommand()
@@ -136,10 +134,7 @@ PyMOD_INIT_FUNC(MeshGui)
         PyMOD_Return(nullptr);
     }
     PyObject* mod = MeshGui::initModule();
-    Base::Console().Log("Loading GUI of Mesh module... done\n");
-
-    // Register icons
-    Gui::BitmapFactory().addXPM("mesh_fillhole", mesh_fillhole);
+    Base::Console().log("Loading GUI of Mesh module… done\n");
 
     // instantiating the commands
     CreateMeshCommands();
@@ -153,14 +148,16 @@ PyMOD_INIT_FUNC(MeshGui)
         Base::Interpreter().runString("import MeshFlatteningCommand");
     }
     catch (Base::PyException& err) {
-        err.ReportException();
+        err.reportException();
     }
 
     // register preferences pages
     (void)new Gui::PrefPageProducer<MeshGui::DlgSettingsMeshView>(
-        QT_TRANSLATE_NOOP("QObject", "Display"));
+        QT_TRANSLATE_NOOP("QObject", "Display")
+    );
     (void)new Gui::PrefPageProducer<MeshGui::DlgSettingsImportExport>(
-        QT_TRANSLATE_NOOP("QObject", "Import-Export"));
+        QT_TRANSLATE_NOOP("QObject", "Import-Export")
+    );
 
     Mesh::Extension3MFFactory::addProducer(new MeshGui::ThumbnailExtensionProducer);
     // NOLINTEND

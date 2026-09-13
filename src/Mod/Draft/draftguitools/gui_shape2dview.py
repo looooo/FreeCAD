@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # ***************************************************************************
 # *   (c) 2009, 2010 Yorik van Havre <yorik@uncreated.net>                  *
 # *   (c) 2009, 2010 Ken Cline <cline@frii.com>                             *
@@ -28,6 +30,7 @@ This creates a 2D shape in the 3D view itself. This projection
 can be further used to create a technical drawing using
 the TechDraw Workbench.
 """
+
 ## @package gui_shape2dview
 # \ingroup draftguitools
 # \brief Provides GUI tools to project an object into a 2D plane.
@@ -36,12 +39,15 @@ the TechDraw Workbench.
 # @{
 from PySide.QtCore import QT_TRANSLATE_NOOP
 
+import FreeCAD as App
 import FreeCADGui as Gui
 import DraftVecUtils
 import Draft_rc
-import draftguitools.gui_base_original as gui_base_original
-import draftguitools.gui_tool_utils as gui_tool_utils
-
+import TechDrawGui  # For TechDraw_TreePageUnsync.svg
+from draftguitools import gui_base_original
+from draftguitools import gui_tool_utils
+from draftutils import gui_utils
+from draftutils import utils
 from draftutils.messages import _msg
 from draftutils.translate import translate
 
@@ -55,25 +61,36 @@ class Shape2DView(gui_base_original.Modifier):
     def GetResources(self):
         """Set icon, menu and tooltip."""
 
-        return {'Pixmap': 'Draft_2DShapeView',
-                'MenuText': QT_TRANSLATE_NOOP("Draft_Shape2DView", "Shape 2D view"),
-                'ToolTip': QT_TRANSLATE_NOOP("Draft_Shape2DView", "Creates a 2D projection of the selected objects on the XY plane.\nThe initial projection direction is the negative of the current active view direction.\nYou can select individual faces to project, or the entire solid, and also include hidden lines.\nThese projections can be used to create technical drawings with the TechDraw Workbench.")}
+        return {
+            "Pixmap": "Draft_2DShapeView",
+            "MenuText": QT_TRANSLATE_NOOP("Draft_Shape2DView", "Shape 2D View"),
+            "ToolTip": QT_TRANSLATE_NOOP(
+                "Draft_Shape2DView",
+                "Creates a 2D projection of the selected objects on the XY-plane.\nThe initial projection direction is the opposite of the current active view direction.",
+            ),
+        }
 
     def Activated(self):
         """Execute when the command is called."""
-        super(Shape2DView, self).Activated(name="Project 2D view")
+        super().Activated(name="Project 2D view")
+        if not self.ui:
+            return
         if not Gui.Selection.getSelection():
-            if self.ui:
-                self.ui.selectUi(on_close_call=self.finish)
-                _msg(translate("draft", "Select an object to project"))
-                self.call = self.view.addEventCallback(
-                    "SoEvent",
-                    gui_tool_utils.selectObject)
+            self.ui.selectUi(on_close_call=self.finish)
+            _msg(translate("draft", "Select an object to project"))
+            self.call = self.view.addEventCallback("SoEvent", gui_tool_utils.selectObject)
         else:
             self.proceed()
 
+    def finish(self, cont=False):
+        """Terminate the operation."""
+        self.end_callbacks(self.call)
+        super().finish()
+
     def proceed(self):
         """Proceed with the command if one object was selected."""
+        if self.call is not None:
+            self.end_callbacks(self.call)
         faces = []
         objs = []
         vec = Gui.ActiveDocument.ActiveView.getViewDirection().negative()
@@ -106,11 +123,44 @@ class Shape2DView(gui_base_original.Modifier):
                 n += 1
         if commitlist:
             commitlist.append("FreeCAD.ActiveDocument.recompute()")
-            self.commit(translate("draft", "Create 2D view"),
-                        commitlist)
+            self.commit(translate("draft", "Create 2D View"), commitlist)
         self.finish()
 
 
-Gui.addCommand('Draft_Shape2DView', Shape2DView())
+Gui.addCommand("Draft_Shape2DView", Shape2DView())
+
+
+class UpdateShape2DView:
+    """Gui Command to force the update of Shape2DViews."""
+
+    def GetResources(self):
+        return {
+            "Pixmap": "TechDraw_TreePageUnsync",
+            "Accel": "V,T",
+            "MenuText": QT_TRANSLATE_NOOP("Draft_UpdateShape2DView", "Force 2D View Update"),
+            "ToolTip": QT_TRANSLATE_NOOP(
+                "Draft_UpdateShape2DView",
+                "Forces an update of the selected 2D Views or all 2D Views in the document.\nThe 'Auto Update' property of the views is ignored.",
+            ),
+        }
+
+    def IsActive(self):
+        """Return True when this command should be available."""
+        return bool(gui_utils.get_3d_view())
+
+    def Activated(self):
+        doc = App.ActiveDocument
+        sel = Gui.Selection.getSelection()
+        if not sel:
+            sel = doc.findObjects(Type="Part::Part2DObjectPython")
+        doc.openTransaction(translate("draft", "Update"))
+        for obj in sel:
+            if utils.get_type(obj) == "Shape2DView":
+                obj.Proxy.execute(obj, force_update=True)
+                obj.purgeTouched()
+        doc.commitTransaction()
+
+
+Gui.addCommand("Draft_UpdateShape2DView", UpdateShape2DView())
 
 ## @}

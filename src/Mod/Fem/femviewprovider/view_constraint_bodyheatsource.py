@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # ***************************************************************************
 # *   Copyright (c) 2017 Markus Hovorka <m.hovorka@live.de>                 *
 # *   Copyright (c) 2020 Bernd Hahnebach <bernd@bimstatik.org>              *
@@ -37,9 +39,6 @@ from . import view_base_femconstraint
 class VPConstraintBodyHeatSource(view_base_femconstraint.VPBaseFemConstraint):
 
     def setEdit(self, vobj, mode=0):
-        view_base_femconstraint.VPBaseFemConstraint.setEdit(
-            self,
-            vobj,
-            mode,
-            task_constraint_bodyheatsource._TaskPanel
+        return view_base_femconstraint.VPBaseFemConstraint.setEdit(
+            self, vobj, mode, task_constraint_bodyheatsource._TaskPanel
         )

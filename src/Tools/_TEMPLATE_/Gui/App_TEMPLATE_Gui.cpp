@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) YEAR YOUR NAME <Your e-mail address>                    *
  *                                                                         *
@@ -21,10 +23,8 @@
  ***************************************************************************/
 
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <Python.h>
-#endif
+
 
 #include <Base/Console.h>
 #include <Base/Interpreter.h>
@@ -81,6 +81,6 @@ PyMOD_INIT_FUNC(_TEMPLATE_Gui)
     //
     //
     PyObject* mod = _TEMPLATE_Gui::initModule();
-    Base::Console().Log("Loading GUI of _TEMPLATE_ module... done\n");
+    Base::Console().log("Loading GUI of _TEMPLATE_ module... done\n");
     PyMOD_Return(mod);
 }

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2011 Werner Mayer <wmayer@users.sourceforge.net>        *
  *                                                                         *
@@ -171,12 +173,14 @@ STDAPI CreateRegistryKey(REGKEY_SUBKEY_AND_VALUE* pKey)
     }
 
     if (SUCCEEDED(hr)) {
-        LSTATUS status = SHSetValue(pKey->hKey,
-                                    pKey->lpszSubKey,
-                                    pKey->lpszValue,
-                                    pKey->dwType,
-                                    pvData,
-                                    (DWORD)cbData);
+        LSTATUS status = SHSetValue(
+            pKey->hKey,
+            pKey->lpszSubKey,
+            pKey->lpszValue,
+            pKey->dwType,
+            pvData,
+            (DWORD)cbData
+        );
         if (NOERROR != status) {
             hr = HRESULT_FROM_WIN32(status);
         }

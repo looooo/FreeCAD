@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2011 Juergen Riegel <juergen.riegel@web.de>             *
  *   Copyright (c) 2015 Eivind Kvedalen <eivind@kvedalen.name>             *
@@ -21,22 +23,22 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
-#ifndef _PreComp_
 #include <QMenu>
 #include <QString>
 #include <sstream>
-#endif
+
 
 #include <Gui/Application.h>
 #include <Gui/BitmapFactory.h>
+#include <Gui/CommandT.h>
 #include <Gui/Document.h>
+#include <Gui/FileDialog.h>
 #include <Gui/MainWindow.h>
 #include <Gui/View3DInventor.h>
 #include <Mod/Spreadsheet/App/Sheet.h>
+#include <Mod/Spreadsheet/App/SheetParameter.h>
 
-#include "SpreadsheetView.h"
 #include "ViewProviderSpreadsheet.h"
 #include "ViewProviderSpreadsheetPy.h"
 
@@ -50,73 +52,91 @@ using namespace Spreadsheet;
 PROPERTY_SOURCE(SpreadsheetGui::ViewProviderSheet, Gui::ViewProviderDocumentObject)
 
 ViewProviderSheet::ViewProviderSheet()
-    : Gui::ViewProviderDocumentObject()
-{}
+{
+    setToggleVisibility(ToggleVisibilityMode::NoToggleVisibility);
+}
 
 ViewProviderSheet::~ViewProviderSheet()
 {
     if (!view.isNull()) {
         Gui::getMainWindow()->removeWindow(view);
-        //        delete view;
     }
-}
-
-void ViewProviderSheet::setDisplayMode(const char* ModeName)
-{
-    ViewProviderDocumentObject::setDisplayMode(ModeName);
-}
-
-std::vector<std::string> ViewProviderSheet::getDisplayModes() const
-{
-    std::vector<std::string> StrList;
-    StrList.emplace_back("Spreadsheet");
-    return StrList;
 }
 
 QIcon ViewProviderSheet::getIcon() const
 {
-    static const char* const Points_Feature_xpm[] = {
-        "16 16 3 1",        "       c None",    ".      c #000000", "+      c #FFFFFF",
-        "                ", "                ", "................", ".++++.++++.++++.",
-        ".++++.++++.++++.", "................", ".++++.++++.++++.", ".++++.++++.++++.",
-        "................", ".++++.++++.++++.", ".++++.++++.++++.", "................",
-        ".++++.++++.++++.", ".++++.++++.++++.", "................", "                "};
-    QPixmap px(Points_Feature_xpm);
-    return px;
+    return QIcon(QLatin1String(":icons/Spreadsheet.svg"));
 }
 
 bool ViewProviderSheet::setEdit(int ModNum)
 {
     if (ModNum == ViewProvider::Default) {
-        if (!this->view) {
-            showSpreadsheetView();
-            view->viewAll();
-        }
-        Gui::getMainWindow()->setActiveWindow(this->view);
+        showSheetMdi();
     }
     return false;
 }
 
 bool ViewProviderSheet::doubleClicked()
 {
+    // assure the SpreadSheet workbench
+    if (SheetParameter::instance()->getSwitchToWorkbench()) {
+        Gui::Command::assureWorkbench("SpreadsheetWorkbench");
+    }
+
+    showSheetMdi();
+    return true;
+}
+
+void ViewProviderSheet::showSheetMdi()
+{
     if (!this->view) {
         showSpreadsheetView();
         view->viewAll();
     }
     Gui::getMainWindow()->setActiveWindow(this->view);
-    return true;
+}
+
+void ViewProviderSheet::exportAsFile()
+{
+    auto* sheet = getObject<Spreadsheet::Sheet>();
+    const Gui::FileDialog::FilterList formatList {
+        {QStringLiteral("CSV"), {"*.csv", "*.CSV"}},
+        Gui::FileDialog::Filter::AllFiles(),
+    };
+    QString fileName = Gui::FileDialog::getSaveFileName(
+        Gui::getMainWindow(),
+        QObject::tr("Export File"),
+        QString(),
+        formatList
+    );
+    if (!fileName.isEmpty()) {
+        if (sheet) {
+            char delim = '\0';
+            char quote = '\0';
+            char escape = '\0';
+            std::string errMsg = "Export";
+            bool isValid = sheet->getCharsFromPrefs(delim, quote, escape, errMsg);
+
+            if (isValid) {
+                sheet->exportToFile(fileName.toStdString(), delim, quote, escape);
+            }
+            else {
+                Base::Console().error(errMsg.c_str());
+            }
+        }
+    }
 }
 
 void ViewProviderSheet::setupContextMenu(QMenu* menu, QObject* receiver, const char* member)
 {
     QAction* act;
-    act = menu->addAction(QObject::tr("Show spreadsheet"), receiver, member);
+    act = menu->addAction(QObject::tr("Show Spreadsheet"), receiver, member);
     act->setData(QVariant((int)ViewProvider::Default));
 }
 
 Sheet* ViewProviderSheet::getSpreadsheetObject() const
 {
-    return freecad_dynamic_cast<Sheet>(pcObject);
+    return freecad_cast<Sheet*>(pcObject);
 }
 
 void ViewProviderSheet::beforeDelete()
@@ -137,8 +157,7 @@ SheetView* ViewProviderSheet::showSpreadsheetView()
         Gui::Document* doc = Gui::Application::Instance->getDocument(this->pcObject->getDocument());
         view = new SheetView(doc, this->pcObject, Gui::getMainWindow());
         view->setWindowIcon(Gui::BitmapFactory().pixmap(":icons/Spreadsheet.svg"));
-        view->setWindowTitle(QString::fromUtf8(pcObject->Label.getValue())
-                             + QString::fromLatin1("[*]"));
+        view->setWindowTitle(QString::fromUtf8(pcObject->Label.getValue()) + QStringLiteral("[*]"));
         Gui::getMainWindow()->addWindow(view);
         startEditing();
     }
@@ -176,5 +195,5 @@ PROPERTY_SOURCE_TEMPLATE(SpreadsheetGui::ViewProviderSheetPython, SpreadsheetGui
 /// @endcond
 
 // explicit template instantiation
-template class SpreadsheetGuiExport ViewProviderPythonFeatureT<ViewProviderSheet>;
+template class SpreadsheetGuiExport ViewProviderFeaturePythonT<ViewProviderSheet>;
 }  // namespace Gui

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TECHDRAWGUI_QGICENTERLINE_H
-#define TECHDRAWGUI_QGICENTERLINE_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
@@ -29,6 +30,7 @@
 #include <QPointF>
 
 #include "QGIDecoration.h"
+#include "QGIUserTypes.h"
 
 namespace TechDrawGui
 {
@@ -39,7 +41,7 @@ public:
     explicit QGICenterLine();
     ~QGICenterLine() override = default;
 
-    enum {Type = QGraphicsItem::UserType + 174};
+    enum {Type = UserType::QGICenterLine};
     int type() const override { return Type;}
 
     void paint(QPainter * painter, const QStyleOptionGraphicsItem * option, QWidget * widget = nullptr ) override;
@@ -65,5 +67,3 @@ private:
 };
 
 }
-
-#endif // TECHDRAWGUI_QGICENTERLINE_H

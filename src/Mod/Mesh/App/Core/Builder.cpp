@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2005 Imetric 3D GmbH                                    *
  *                                                                         *
@@ -20,11 +22,9 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
-#ifndef _PreComp_
 #include <algorithm>
-#endif
+
 
 #include <Base/Exception.h>
 #include <Base/Sequencer.h>
@@ -73,7 +73,7 @@ void MeshBuilder::Initialize(size_t ctFacets, bool deletion)
         // memory with 10% surcharge To save memory we hold an array with iterators that point to
         // the right vertex (insertion order) in the set, instead of holding the vertex array twice.
         size_t ctPoints = ctFacets / 2;
-        _pointsIterator.reserve(static_cast<size_t>(float(ctPoints) * 1.10f));
+        _pointsIterator.reserve(static_cast<size_t>(float(ctPoints) * 1.10F));
         _ptIdx = 0;
     }
     else {
@@ -90,7 +90,7 @@ void MeshBuilder::Initialize(size_t ctFacets, bool deletion)
         size_t newCtFacets = _meshKernel._aclFacetArray.size() + ctFacets;
         _meshKernel._aclFacetArray.reserve(newCtFacets);
         size_t ctPoints = newCtFacets / 2;
-        _pointsIterator.reserve(static_cast<size_t>(float(ctPoints) * 1.10f));
+        _pointsIterator.reserve(static_cast<size_t>(float(ctPoints) * 1.10F));
     }
 
     this->_seq = new Base::SequencerLauncher("create mesh structure...", ctFacets * 2);
@@ -107,20 +107,17 @@ void MeshBuilder::AddFacet(const MeshGeomFacet& facet, bool takeFlag, bool takeP
         prop = facet._ulProp;
     }
 
-    AddFacet(facet._aclPoints[0],
-             facet._aclPoints[1],
-             facet._aclPoints[2],
-             facet.GetNormal(),
-             flag,
-             prop);
+    AddFacet(facet._aclPoints[0], facet._aclPoints[1], facet._aclPoints[2], facet.GetNormal(), flag, prop);
 }
 
-void MeshBuilder::AddFacet(const Base::Vector3f& pt1,
-                           const Base::Vector3f& pt2,
-                           const Base::Vector3f& pt3,
-                           const Base::Vector3f& normal,
-                           unsigned char flag,
-                           unsigned long prop)
+void MeshBuilder::AddFacet(
+    const Base::Vector3f& pt1,
+    const Base::Vector3f& pt2,
+    const Base::Vector3f& pt3,
+    const Base::Vector3f& normal,
+    unsigned char flag,
+    unsigned long prop
+)
 {
     Base::Vector3f facetPoints[4] = {pt1, pt2, pt3, normal};
     AddFacet(facetPoints, flag, prop);
@@ -128,11 +125,11 @@ void MeshBuilder::AddFacet(const Base::Vector3f& pt1,
 
 void MeshBuilder::AddFacet(Base::Vector3f* facetPoints, unsigned char flag, unsigned long prop)
 {
-    this->_seq->next(true);  // allow to cancel
+    this->_seq->next(true);  // allow one to cancel
 
     // adjust circulation direction
     if ((((facetPoints[1] - facetPoints[0]) % (facetPoints[2] - facetPoints[0])) * facetPoints[3])
-        < 0.0f) {
+        < 0.0F) {
         std::swap(facetPoints[1], facetPoints[2]);
     }
 
@@ -171,7 +168,7 @@ void MeshBuilder::SetNeighbourhood()
     FacetIndex facetIdx = 0;
 
     for (auto& mf : _meshKernel._aclFacetArray) {
-        this->_seq->next(true);  // allow to cancel
+        this->_seq->next(true);  // allow one to cancel
         for (int i = 0; i < 3; i++) {
             Edge edge(mf._aulPoints[i], mf._aulPoints[(i + 1) % 3], facetIdx);
             std::set<Edge>::iterator e = edges.find(edge);
@@ -217,11 +214,11 @@ void MeshBuilder::RemoveUnreferencedPoints()
         }
     }
 
-    unsigned long uValidPts = std::count_if(_meshKernel._aclPointArray.begin(),
-                                            _meshKernel._aclPointArray.end(),
-                                            [](const MeshPoint& p) {
-                                                return p.IsValid();
-                                            });
+    unsigned long uValidPts = std::count_if(
+        _meshKernel._aclPointArray.begin(),
+        _meshKernel._aclPointArray.end(),
+        [](const MeshPoint& p) { return p.IsValid(); }
+    );
     if (uValidPts < _meshKernel.CountPoints()) {
         _meshKernel.RemoveInvalids();
     }
@@ -306,15 +303,14 @@ struct MeshFastBuilder::Private
             if (x != rhs.x) {
                 return x < rhs.x;
             }
-            else if (y != rhs.y) {
+            if (y != rhs.y) {
                 return y < rhs.y;
             }
-            else if (z != rhs.z) {
+            if (z != rhs.z) {
                 return z < rhs.z;
             }
-            else {
-                return false;
-            }
+
+            return false;
         }
     };
 
@@ -369,7 +365,7 @@ void MeshFastBuilder::Finish()
     }
 
     // std::sort(verts.begin(), verts.end());
-    int threads = QThread::idealThreadCount();
+    int threads = int(std::thread::hardware_concurrency());
     MeshCore::parallel_sort(verts.begin(), verts.end(), std::less<>(), threads);
 
     QVector<FacetIndex> indices(ulCtPts);

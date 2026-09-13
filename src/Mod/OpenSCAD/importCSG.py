@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
 # -*- coding: utf8 -*-
 
 #***************************************************************************
@@ -44,9 +45,7 @@ import Draft
 from OpenSCADFeatures import *
 from OpenSCADUtils import *
 
-# Save the native open function to avoid collisions
-if open.__module__ in ['__builtin__', 'io']:
-    pythonopen = open
+
 import ply.lex as lex
 import ply.yacc as yacc
 
@@ -66,6 +65,7 @@ original_root_objects = []
 # Get the token map from the lexer. This is required.
 import tokrules
 from tokrules import tokens
+from builtins import open as pyopen
 
 translate = FreeCAD.Qt.translate
 
@@ -140,7 +140,6 @@ def insert(filename, docname):
             original_root_objects.append(obj)
     except NameError:
         doc = FreeCAD.newDocument(docname)
-    #importgroup = doc.addObject("App::DocumentObjectGroup",groupname)
     if filename.lower().endswith('.scad'):
         tmpfile = callopenscad(filename)
         pathName = os.path.dirname(os.path.normpath(filename))
@@ -168,14 +167,11 @@ def processcsg(filename):
     # as it requires a writable location
     parser = yacc.yacc(debug=False, write_tables=False)
     if printverbose: print('Parser Loaded')
-    # Give the lexer some input
-    #f=open('test.scad', 'r')
+
     f = io.open(filename, 'r', encoding="utf8")
-    #lexer.input(f.read())
 
     if printverbose: print('Start Parser')
-    # Swap statements to enable Parser debugging
-    #result = parser.parse(f.read(),debug=1)
+
     result = parser.parse(f.read())
     f.close()
     if printverbose:
@@ -196,15 +192,12 @@ def p_block_list_(p):
                | statementwithmod
                | block_list statementwithmod
     '''
-    #if printverbose: print("Block List")
-    #if printverbose: print(p[1])
+
     if(len(p) > 2):
         if printverbose: print(p[2])
         p[0] = p[1] + p[2]
     else:
         p[0] = p[1]
-    #if printverbose: print("End Block List")
-
 
 def p_render_action(p):
     'render_action : render LPAREN keywordargument_list RPAREN OBRACE block_list EBRACE'
@@ -242,10 +235,6 @@ def p_boolean(p):
             | false
     '''
     p[0] = p[1]
-
-#def p_string(p):
-#    'string : QUOTE ID QUOTE'
-#    p[0] = p[2]
 
 
 def p_stripped_string(p):
@@ -306,7 +295,7 @@ def p_part(p):
 def p_2d_point(p):
     '2d_point : OSQUARE NUMBER COMMA NUMBER ESQUARE'
     global points_list
-    if printverbose: print("2d Point")
+    if printverbose: print("2D Point")
     p[0] = [float(p[2]), float(p[4])]
 
 
@@ -317,9 +306,6 @@ def p_points_list_2d(p):
                    | points_list_2d 2d_point
                    '''
     if p[2] == ',':
-        #if printverbose:
-        #    print("Start List")
-        #    print(p[1])
         p[0] = [p[1]]
     else:
         if printverbose:
@@ -327,7 +313,6 @@ def p_points_list_2d(p):
             print(p[2])
         p[1].append(p[2])
         p[0] = p[1]
-    #if printverbose: print(p[0])
 
 
 def p_3d_point(p):
@@ -360,24 +345,16 @@ def p_path_points(p):
                 | path_points NUMBER COMMA
                 | path_points NUMBER
                 '''
-    #if printverbose: print("Path point")
+
     if p[2] == ',':
-        #if printverbose: print('Start list')
-        #if printverbose: print(p[1])
         p[0] = [int(p[1])]
     else:
-        #if printverbose: print(p[1])
-        #if printverbose: print(len(p[1]))
-        #if printverbose: print(p[2])
         p[1].append(int(p[2]))
         p[0] = p[1]
-    #if printverbose: print(p[0])
 
 
 def p_path_list(p):
     'path_list : OSQUARE path_points ESQUARE'
-    #if printverbose: print('Path List ')
-    #if printverbose: print(p[2])
     p[0] = p[2]
 
 
@@ -386,14 +363,11 @@ def p_path_set(p):
     path_set : path_list
              | path_set COMMA path_list
              '''
-    #if printverbose: print('Path Set')
-    #if printverbose: print(len(p))
     if len(p) == 2:
         p[0] = [p[1]]
     else:
         p[1].append(p[3])
         p[0] = p[1]
-    #if printverbose: print(p[0])
 
 def p_operation(p):
     '''
@@ -469,12 +443,6 @@ def p_offset_action(p):
     newobj.Document.recompute()
     if gui:
         subobj.ViewObject.hide()
-#        if FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/OpenSCAD").\
-#            GetBool('useViewProviderTree'):
-#            from OpenSCADFeatures import ViewProviderTree
-#            ViewProviderTree(newobj.ViewObject)
-#        else:
-#            newobj.ViewObject.Proxy = 0
     p[0] = [newobj]
 
 def checkObjShape(obj):
@@ -813,8 +781,6 @@ def process_linear_extrude_with_transform(base,height,twist,scale) :
             ViewProviderTree(newobj.ViewObject)
         else:
             newobj.ViewObject.Proxy = 0
-    #import ViewProviderTree from OpenSCADFeatures
-    #ViewProviderTree(obj.ViewObject)
     return newobj
 
 def p_linear_extrude_with_transform(p):
@@ -825,7 +791,10 @@ def p_linear_extrude_with_transform(p):
     s = [1.0,1.0]
     t = 0.0
     if 'scale' in p[3]:
-        s = [float(p[3]['scale'][0]), float(p[3]['scale'][1])]
+        if isinstance(p[3]['scale'], str):
+            s = [float(p[3]['scale']), float(p[3]['scale'])]
+        else:
+            s = [float(p[3]['scale'][0]), float(p[3]['scale'][1])]
         if printverbose: print ("Scale: " + str(s))
     if 'twist' in p[3]:
         t = float(p[3]['twist'])
@@ -894,8 +863,8 @@ def processSVG(fname, ext):
 
     # pathName is a Global
     filename = os.path.join(pathName,fname+'.'+ext)
-    # Use the native Python open which was saved as `pythonopen`
-    parser.parse(pythonopen(filename))
+    # Use the native Python open which was saved as `pyopen`
+    parser.parse(pyopen(filename))
 
     #combine SVG objects into one
     shapes = []
@@ -903,8 +872,6 @@ def processSVG(fname, ext):
         if printverbose: print(obj.Name)
         if printverbose: print(obj.Shape)
         shapes.append(obj.Shape)
-    #compoundSVG = Part.makeCompound(shapes)
-    #compoundSVG = Draft.join(objects)
     FreeCAD.closeDocument(docSVG.Name)
     FreeCAD.ActiveDocument=doc
     obj=doc.addObject('Part::Feature',fname)
@@ -928,14 +895,11 @@ def process_mesh_file(fname,ext):
         sh.makeShapeFromMesh(mesh1.Mesh.Topology,0.1)
         solid = Part.Solid(sh)
         obj = doc.addObject('Part::Feature',"Mesh")
-        #ImportObject(obj,mesh1) #This object is not mutable from the GUI
-        #ViewProviderTree(obj.ViewObject)
+
         solid = solid.removeSplitter()
         if solid.Volume < 0:
-            #sh.reverse()
-            #sh = sh.copy()
             solid.complement()
-        obj.Shape = solid#.removeSplitter()
+        obj.Shape = solid
     else: #mesh1 is None
         FreeCAD.Console.PrintError('Mesh not imported %s.%s %s\n' % \
                 (objname,ext,filename))
@@ -1125,7 +1089,6 @@ def p_cylinder_action(p):
     h = float(p[3]['h'])
     r1 = float(p[3]['r1'])
     r2 = float(p[3]['r2'])
-    #n = int(p[3]['$fn'])
     n = int(round(float(p[3]['$fn'])))
     fnmax = FreeCAD.ParamGet(\
         "User parameter:BaseApp/Preferences/Mod/OpenSCAD").\
@@ -1153,7 +1116,6 @@ def p_cylinder_action(p):
                         if printverbose:
                             print("Draft makePolygon Failed, falling back on manual polygon")
                         mycyl.Base = myPolygon(n,r1)
-                        # mycyl.Solid = True
 
                     else :
                         pass
@@ -1250,10 +1212,7 @@ def p_circle_action(p) :
         mycircle.MakeFace = True
         mycircle = Draft.makeCircle(r,face=True) # would call doc.recompute
         FreeCAD.ActiveDocument.recompute()
-        #mycircle = doc.addObject('Part::Circle',p[1]) #would not create a face
-        #mycircle.Radius = r
     else :
-        #mycircle = Draft.makePolygon(n,r) # would call doc.recompute
         mycircle = FreeCAD.ActiveDocument.addObject("Part::Part2DObjectPython",'polygon')
         Draft._Polygon(mycircle)
         mycircle.FacesNumber = n
@@ -1388,7 +1347,6 @@ def p_polyhedron_action(p) :
         except Exception:
             secWireList = w.Edges[:]
             f = Part.makeFilledFace(Part.__sortEdges__(secWireList))
-        #f = make_face(v[int(i[0])],v[int(i[1])],v[int(i[2])])
         faces_list.append(f)
     shell=Part.makeShell(faces_list)
     solid=Part.Solid(shell).removeSplitter()

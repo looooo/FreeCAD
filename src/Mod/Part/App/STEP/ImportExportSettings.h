@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2022 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,12 +22,12 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef PART_STEP_IMPORTEXPORTSETTINGS_H
-#define PART_STEP_IMPORTEXPORTSETTINGS_H
+#pragma once
 
 #include <Mod/Part/App/Interface.h>
 #include <Base/Parameter.h>
 
+#include <Mod/Part/PartGlobal.h>
 
 namespace Part
 {
@@ -39,6 +41,9 @@ public:
 
     void setVisibleExportDialog(bool);
     bool isVisibleExportDialog() const;
+
+    void setVisibleImportDialog(bool);
+    bool isVisibleImportDialog() const;
 
     void setWriteSurfaceCurveMode(bool);
     bool getWriteSurfaceCurveMode() const;
@@ -62,7 +67,5 @@ private:
     ParameterGrp::handle pGroup;
 };
 
-} //namespace STEP
-} //namespace Part
-
-#endif
+}  // namespace STEP
+}  // namespace Part

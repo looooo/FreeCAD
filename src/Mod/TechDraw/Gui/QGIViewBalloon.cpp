@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Luke Parry <l.parry@warwick.ac.uk>                 *
  *   Copyright (c) 2019 Franck Jullien <franck.jullien@gmail.com>          *
@@ -21,21 +23,22 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 # include <cmath>
 # include <string>
 
+# include <QGuiApplication>
 # include <QGraphicsScene>
 # include <QGraphicsSceneMouseEvent>
 # include <QPaintDevice>
 # include <QPainter>
 # include <QPainterPath>
 # include <QSvgGenerator>
-#endif
 
 #include <App/Application.h>
 #include <Base/Parameter.h>
+#include <Base/Tools.h>
+#include <Gui/Application.h>
+#include <Gui/Document.h>
 #include <Gui/Command.h>
 #include <Gui/Tools.h>
 #include <Mod/TechDraw/App/ArrowPropEnum.h>
@@ -53,19 +56,47 @@
 #include "ViewProviderBalloon.h"
 #include "ViewProviderViewPart.h"
 #include "ZVALUE.h"
+#include "DrawGuiUtil.h"
+#include "QGSPage.h"
 
 
 //TODO: hide the Qt coord system (+y down).
 
 using namespace TechDraw;
 using namespace TechDrawGui;
+using DU = DrawUtil;
+using DGU = DrawGuiUtil;
+
+// Bubble outline needs a filled hit region so its interior is hoverable
+namespace {
+class QGIBalloonBubble : public QGIDimLines {
+public:
+    explicit QGIBalloonBubble(QGIViewBalloon* b) : m_balloon(b) {
+        setAcceptHoverEvents(true);
+    }
+    QPainterPath shape() const override {
+        QPainterPath p = path();
+        p.setFillRule(Qt::WindingFill);
+        return p;
+    }
+protected:
+    void hoverEnterEvent(QGraphicsSceneHoverEvent* e) override {
+        if (m_balloon) m_balloon->hover(true);
+        e->accept();
+    }
+    void hoverLeaveEvent(QGraphicsSceneHoverEvent* e) override {
+        if (m_balloon) m_balloon->hover(false);
+        e->accept();
+    }
+private:
+    QGIViewBalloon* m_balloon;
+};
+}
 
 QGIBalloonLabel::QGIBalloonLabel()
 {
-    posX = 0;
-    posY = 0;
-    m_ctrl = false;
-    m_drag = false;
+    m_originDrag = false;
+    m_dragging = false;
 
     setCacheMode(QGraphicsItem::NoCache);
     setFlag(ItemSendsGeometryChanges, true);
@@ -74,6 +105,7 @@ QGIBalloonLabel::QGIBalloonLabel()
     setAcceptHoverEvents(true);
 
     m_labelText = new QGCustomText();
+    m_labelText->setTightBounding(true);
     m_labelText->setParentItem(this);
 
     verticalSep = false;
@@ -95,9 +127,8 @@ QVariant QGIBalloonLabel::itemChange(GraphicsItemChange change, const QVariant& 
         update();
     }
     else if (change == ItemPositionHasChanged && scene()) {
-        setLabelCenter();
-        if (m_drag) {
-            Q_EMIT dragging(m_ctrl);
+        if (m_dragging) {
+            Q_EMIT dragging(m_originDrag);
         }
     }
 
@@ -106,11 +137,22 @@ QVariant QGIBalloonLabel::itemChange(GraphicsItemChange change, const QVariant& 
 
 void QGIBalloonLabel::mousePressEvent(QGraphicsSceneMouseEvent* event)
 {
-    m_ctrl = false;
-    m_drag = true;
-    if (event->modifiers() & Qt::ControlModifier) {
-        m_ctrl = true;
+    m_originDrag = false;
+    m_dragging = true;
+
+    if (event->button() != Qt::LeftButton) {
+        QGraphicsItem::mousePressEvent(event);
+        return;
     }
+
+    if (QGSPage::cleanModifierList(event->modifiers()) == Preferences::balloonDragModifiers()) {
+        if (!PreferencesGui::multiSelection() ||
+            Preferences::multiselectModifiers() != Preferences::balloonDragModifiers()) {
+            // multiselect does not apply or does not conflict, so treat this is an origin drag
+            m_originDrag = true;
+        }
+    }
+
     QGraphicsItem::mousePressEvent(event);
 }
 
@@ -121,8 +163,8 @@ void QGIBalloonLabel::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
             Q_EMIT dragFinished();
         }
     }
-    m_ctrl = false;
-    m_drag = false;
+    m_originDrag = false;
+    m_dragging = false;
     QGraphicsItem::mouseReleaseEvent(event);
 }
 
@@ -134,7 +176,7 @@ void QGIBalloonLabel::mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event)
         return;
     }
 
-    auto ViewProvider = dynamic_cast<ViewProviderBalloon*>(
+    auto ViewProvider = freecad_cast<ViewProviderBalloon*>(
         qgivBalloon->getViewProvider(qgivBalloon->getViewObject()));
     if (!ViewProvider) {
         qWarning() << "QGIBalloonLabel::mouseDoubleClickEvent: No valid view provider";
@@ -149,29 +191,13 @@ void QGIBalloonLabel::hoverEnterEvent(QGraphicsSceneHoverEvent* event)
 {
     Q_EMIT hover(true);
     hasHover = true;
-    if (!isSelected()) {
-        setPrettyPre();
-    }
-    else {
-        setPrettySel();
-    }
     QGraphicsItem::hoverEnterEvent(event);
 }
 
 void QGIBalloonLabel::hoverLeaveEvent(QGraphicsSceneHoverEvent* event)
 {
-    QGIView* view = dynamic_cast<QGIView*>(parentItem());
-    assert(view);
-    Q_UNUSED(view);
-
     Q_EMIT hover(false);
     hasHover = false;
-    if (!isSelected()) {
-        setPrettyNormal();
-    }
-    else {
-        setPrettySel();
-    }
     QGraphicsItem::hoverLeaveEvent(event);
 }
 
@@ -191,15 +217,13 @@ void QGIBalloonLabel::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
 void QGIBalloonLabel::setPosFromCenter(const double& xCenter, const double& yCenter)
 {
     //set label's Qt position(top, left) given boundingRect center point
-    setPos(xCenter - m_labelText->boundingRect().width() / 2.,
-           yCenter - m_labelText->boundingRect().height() / 2.);
+    setPos(xCenter - m_labelText->boundingRect().center().x(),
+           yCenter - m_labelText->boundingRect().center().y());
 }
 
-void QGIBalloonLabel::setLabelCenter()
+Base::Vector3d QGIBalloonLabel::getLabelCenter() const
 {
-    //save label's bRect center (posX, posY) given Qt position (top, left)
-    posX = x() + m_labelText->boundingRect().width() / 2.;
-    posY = y() + m_labelText->boundingRect().height() / 2.;
+    return Base::Vector3d(getCenterX(), getCenterY(), 0.0);
 }
 
 void QGIBalloonLabel::setFont(QFont font) { m_labelText->setFont(font); }
@@ -234,8 +258,6 @@ QGIViewBalloon::QGIViewBalloon()
     : dvBalloon(nullptr), hasHover(false), m_lineWidth(0.0), m_obtuse(false), parent(nullptr),
       m_dragInProgress(false)
 {
-    m_ctrl = false;
-
     setHandlesChildEvents(false);
     setFlag(QGraphicsItem::ItemIsMovable, false);
     setCacheMode(QGraphicsItem::NoCache);
@@ -252,11 +274,11 @@ QGIViewBalloon::QGIViewBalloon()
     balloonLines->setNormalColor(prefNormalColor());
     balloonLines->setPrettyNormal();
 
-    balloonShape = new QGIDimLines();
+    balloonShape = new QGIBalloonBubble(this);
     addToGroup(balloonShape);
+    balloonShape->setHighlightFill(false);
     balloonShape->setNormalColor(prefNormalColor());
     balloonShape->setFill(Qt::transparent, Qt::SolidPattern);
-    balloonShape->setFillOverride(true);
     balloonShape->setPrettyNormal();
 
     arrow = new QGIArrow();
@@ -266,7 +288,7 @@ QGIViewBalloon::QGIViewBalloon()
     arrow->setPrettyNormal();
     arrow->setStyle(prefDefaultArrow());
 
-    balloonLabel->setZValue(ZVALUE::LABEL);
+    balloonLabel->setZValue(ZVALUE::BALLOON);
     arrow->setZValue(ZVALUE::DIMENSION);
 
     balloonLines->setZValue(ZVALUE::DIMENSION);
@@ -321,7 +343,6 @@ bool QGIViewBalloon::getGroupSelection()
 //Set selection state for this and its children
 void QGIViewBalloon::setGroupSelection(bool isSelected)
 {
-    //    Base::Console().Message("QGIVB::setGroupSelection(%d)\n", b);
     setSelected(isSelected);
     balloonLabel->setSelected(isSelected);
     balloonLines->setSelected(isSelected);
@@ -331,20 +352,21 @@ void QGIViewBalloon::setGroupSelection(bool isSelected)
 
 void QGIViewBalloon::select(bool state)
 {
-    //    Base::Console().Message("QGIVBall::select(%d)\n", state);
     setSelected(state);
     draw();
 }
 
 void QGIViewBalloon::hover(bool state)
 {
+    if (hasHover == state) {
+        return;
+    }
     hasHover = state;
     draw();
 }
 
 void QGIViewBalloon::setViewPartFeature(TechDraw::DrawViewBalloon* balloonFeat)
 {
-    //    Base::Console().Message("QGIVB::setViewPartFeature()\n");
     if (!balloonFeat) {
         return;
     }
@@ -356,7 +378,7 @@ void QGIViewBalloon::setViewPartFeature(TechDraw::DrawViewBalloon* balloonFeat)
     double scale = 1.0;
     App::DocumentObject* docObj = balloonFeat->SourceView.getValue();
     if (docObj) {
-        balloonParent = dynamic_cast<DrawView*>(docObj);
+        balloonParent = freecad_cast<DrawView*>(docObj);
         if (balloonParent) {
             scale = balloonParent->getScale();
         }
@@ -378,7 +400,6 @@ void QGIViewBalloon::setViewPartFeature(TechDraw::DrawViewBalloon* balloonFeat)
 
 void QGIViewBalloon::updateView(bool update)
 {
-    // Base::Console().Message("QGIVB::updateView()\n");
     Q_UNUSED(update);
     auto balloon(dynamic_cast<TechDraw::DrawViewBalloon*>(getViewObject()));
     if (!balloon) {
@@ -403,7 +424,6 @@ void QGIViewBalloon::updateView(bool update)
 //update the bubble contents
 void QGIViewBalloon::updateBalloon(bool obtuse)
 {
-    // Base::Console().Message("QGIVB::updateBalloon()\n");
     (void)obtuse;
     const auto balloon(dynamic_cast<TechDraw::DrawViewBalloon*>(getViewObject()));
     if (!balloon) {
@@ -429,9 +449,9 @@ void QGIViewBalloon::updateBalloon(bool obtuse)
 
     if (strcmp(balloon->BubbleShape.getValueAsString(), "Rectangle") == 0) {
         std::vector<int> newSeps;
-        while (labelText.contains(QString::fromUtf8("|"))) {
-            int pos = labelText.indexOf(QString::fromUtf8("|"));
-            labelText.replace(pos, 1, QString::fromUtf8("   "));
+        while (labelText.contains(QStringLiteral("|"))) {
+            int pos = labelText.indexOf(QStringLiteral("|"));
+            labelText.replace(pos, 1, QStringLiteral("   "));
             QFontMetrics fm(balloonLabel->getFont());
             newSeps.push_back(Gui::QtTools::horizontalAdvance(fm, labelText.left(pos + 2)));
             balloonLabel->setVerticalSep(true);
@@ -440,14 +460,18 @@ void QGIViewBalloon::updateBalloon(bool obtuse)
     }
 
     balloonLabel->setDimString(labelText, Rez::guiX(balloon->TextWrapLen.getValue()));
-    float x = Rez::guiX(balloon->X.getValue() * refObj->getScale());
-    float y = Rez::guiX(balloon->Y.getValue() * refObj->getScale());
-    balloonLabel->setPosFromCenter(x, -y);
+
+    if (balloon->X.isTouched() || balloon->Y.isTouched()) {
+        float x = Rez::guiX(balloon->X.getValue() * refObj->getScale());
+        float y = Rez::guiX(balloon->Y.getValue() * refObj->getScale());
+        balloonLabel->setPosFromCenter(x, -y);
+    }
+
+
 }
 
-void QGIViewBalloon::balloonLabelDragged(bool ctrl)
+void QGIViewBalloon::balloonLabelDragged(bool originDrag)
 {
-    m_ctrl = ctrl;
     auto dvb(dynamic_cast<TechDraw::DrawViewBalloon*>(getViewObject()));
     if (!dvb) {
         return;
@@ -455,13 +479,15 @@ void QGIViewBalloon::balloonLabelDragged(bool ctrl)
 
     if (!m_dragInProgress) {//first drag movement
         m_dragInProgress = true;
-        if (ctrl) {//moving whole thing, remember Origin offset from Bubble
-            m_saveOffset = dvb->getOriginOffset();
+        if (originDrag) {//moving whole thing, remember Origin offset from Bubble
+            m_saveOriginOffset = dvb->getOriginOffset();
+            m_saveOrigin = DU::toVector3d(arrow->pos());
+            m_savePosition = DU::toVector3d(balloonLabel->pos());
         }
     }
 
     // store if origin is also moving to be able to later calc new origin and update feature
-    if (ctrl) {
+    if (originDrag) {
         m_originDragged = true;
     }
 
@@ -470,6 +496,10 @@ void QGIViewBalloon::balloonLabelDragged(bool ctrl)
         // redraw the balloon at the new position
         // note that we don't store the new position to the X/Y properties
         // since the dragging is not yet finished
+        // TODO: we don't need to redraw if the graphic is not changing (other than location).
+        //       all of the balloon components (box, text, line, arrow, etc) would have to be placed
+        //       into a QGraphicsItemGroup (or made children of a single QGI) in order to move them in
+        //       sync
         drawBalloon(true);
     }
 }
@@ -485,13 +515,17 @@ void QGIViewBalloon::balloonLabelDragFinished()
 
     double scale = 1.0;
     DrawView* balloonParent = getSourceView();
-    if (balloonParent) {
-        scale = balloonParent->getScale();
+    if (!balloonParent) {
+        return;
     }
+    scale = balloonParent->getScale();
 
     //set feature position (x, y) from graphic position
-    double x = Rez::appX(balloonLabel->X() / scale), y = Rez::appX(balloonLabel->Y() / scale);
-    Gui::Command::openCommand(QT_TRANSLATE_NOOP("Command", "Drag Balloon"));
+    double x = Rez::appX(balloonLabel->getCenterX() / scale);
+    double y = Rez::appX(balloonLabel->getCenterY() / scale);
+
+    int tid = Gui::Command::openActiveDocumentCommand(QT_TRANSLATE_NOOP("Command", "Drag Balloon"));
+
     Gui::Command::doCommand(Gui::Command::Doc, "App.ActiveDocument.%s.X = %f",
                             dvb->getNameInDocument(), x);
     Gui::Command::doCommand(Gui::Command::Doc, "App.ActiveDocument.%s.Y = %f",
@@ -499,31 +533,38 @@ void QGIViewBalloon::balloonLabelDragFinished()
 
     // for the case that origin was also dragged, calc new origin and update feature
     if (m_originDragged) {
-        Base::Vector3d pos(x, -y, 0.0);
-        Base::Vector3d newOrg = pos - m_saveOffset;
+        auto originGui = arrowPosInDrag();                  // Qt rotated
+        auto originApp = originGui / scale;                 // Qt rotated unscaled
+        originApp = Rez::appX(DU::invertY(originApp));      // App rotated
+
+        auto originAppUnrotated = originApp;
+        auto rotationDeg = balloonParent->Rotation.getValue();
+        if (rotationDeg != 0) {
+            originAppUnrotated.RotateZ(Base::toRadians(-rotationDeg));
+        }
+
         Gui::Command::doCommand(Gui::Command::Doc, "App.ActiveDocument.%s.OriginX = %f",
-                                dvb->getNameInDocument(), newOrg.x);
+                                dvb->getNameInDocument(), originAppUnrotated.x);
         Gui::Command::doCommand(Gui::Command::Doc, "App.ActiveDocument.%s.OriginY = %f",
-                                dvb->getNameInDocument(), newOrg.y);
+                                dvb->getNameInDocument(), originAppUnrotated.y);
     }
 
-    Gui::Command::commitCommand();
+    Gui::Command::commitCommand(tid);
 
     m_dragInProgress = false;
     m_originDragged = false;
+    drawBalloon(false);
 }
 
 //from QGVP::mouseReleaseEvent - pos = eventPos in scene coords?
 void QGIViewBalloon::placeBalloon(QPointF pos)
 {
-    //    Base::Console().Message("QGIVB::placeBalloon(%s)\n",
-    //                            DrawUtil::formatVector(pos).c_str());
     auto balloon(dynamic_cast<TechDraw::DrawViewBalloon*>(getViewObject()));
     if (!balloon) {
         return;
     }
 
-    DrawView* balloonParent = dynamic_cast<DrawView*>(balloon->SourceView.getValue());
+    DrawView* balloonParent = freecad_cast<DrawView*>(balloon->SourceView.getValue());
     if (!balloonParent) {
         return;
     }
@@ -541,7 +582,7 @@ void QGIViewBalloon::placeBalloon(QPointF pos)
     QGIView* qgivParent = nullptr;
     QPointF viewPos;
     Gui::ViewProvider* objVp = QGIView::getViewProvider(balloonParent);
-    auto partVP = dynamic_cast<ViewProviderViewPart*>(objVp);
+    auto partVP = freecad_cast<ViewProviderViewPart*>(objVp);
     if (partVP) {
         qgivParent = partVP->getQView();
         if (qgivParent) {
@@ -576,24 +617,34 @@ void QGIViewBalloon::placeBalloon(QPointF pos)
 
 void QGIViewBalloon::draw()
 {
-    // Base::Console().Message("QGIVB::draw()\n");
     // just redirect
     drawBalloon(false);
 }
 
-void QGIViewBalloon::drawBalloon(bool dragged)
+void QGIViewBalloon::drawBalloon(bool originDrag)
 {
-    // Base::Console().Message("QGIVB::drawBalloon(%d)\n", dragged);
+    using std::numbers::pi;
+
+    if ((!originDrag) && m_dragInProgress) {
+        // TODO there are 2 drag status variables.  m_draggingInProgress appears to be the one to use?
+        // dragged shows false while drag is still in progress.
+        return;
+    }
+
     prepareGeometryChange();
 
     TechDraw::DrawViewBalloon* balloon = dynamic_cast<TechDraw::DrawViewBalloon*>(getViewObject());
     if ((!balloon) ||
-        (!balloon->isDerivedFrom(TechDraw::DrawViewBalloon::getClassTypeId()))) {
+        (!balloon->isDerivedFrom<TechDraw::DrawViewBalloon>())) {
         //nothing to draw, don't try
         return;
     }
+    if (balloon->isRestoring()) {
+        // don't try to draw yet
+        return;
+    }
 
-    const TechDraw::DrawView* refObj = balloon->getParentView();
+    TechDraw::DrawView* refObj = balloon->getParentView();
     auto vp = static_cast<ViewProviderBalloon*>(getViewProvider(getViewObject()));
     if (!refObj || !vp) {
         // can't draw this.  probably restoring.
@@ -604,30 +655,14 @@ void QGIViewBalloon::drawBalloon(bool dragged)
 
     double textWidth = balloonLabel->getDimText()->boundingRect().width();
     double textHeight = balloonLabel->getDimText()->boundingRect().height();
-    float x, y, arrowTipX, arrowTipY;
-    // when not dragging take the X/Y properties otherwise the current label position
-    if (!dragged) {
-        x = Rez::guiX(balloon->X.getValue() * refObj->getScale());
-        y = Rez::guiX(balloon->Y.getValue() * refObj->getScale());
-        arrowTipX = Rez::guiX(balloon->OriginX.getValue() * refObj->getScale());
-        arrowTipY = -Rez::guiX(balloon->OriginY.getValue() * refObj->getScale());
-    }
-    else {
-        x = balloonLabel->X();
-        y = -balloonLabel->Y();
-        if (m_originDragged) {
-            double scale = Rez::guiX(refObj->getScale());
-            Base::Vector3d pos(x / scale, y / scale, 0.0);
-            Base::Vector3d newOrg = pos - m_saveOffset;
-            arrowTipX = newOrg.x * scale;
-            arrowTipY = -newOrg.y * scale;
-        }
-        else {
-            arrowTipX = Rez::guiX(balloon->OriginX.getValue() * refObj->getScale());
-            arrowTipY = -Rez::guiX(balloon->OriginY.getValue() * refObj->getScale());
-        }
-    }
-    Base::Vector3d lblCenter(x, -y, 0.0);
+
+    float arrowTipX;
+    Base::Vector3d arrowTipPosInParent;
+    bool isDragging = originDrag || m_dragInProgress;
+    Base::Vector3d labelPos;
+    getBalloonPoints(balloon, refObj, isDragging, labelPos, arrowTipPosInParent);
+    arrowTipX = arrowTipPosInParent.x;
+    Base::Vector3d lblCenter(labelPos.x, -labelPos.y, 0.0);
 
     if (balloon->isLocked()) {
         balloonLabel->setFlag(QGraphicsItem::ItemIsMovable, false);
@@ -649,8 +684,8 @@ void QGIViewBalloon::drawBalloon(bool dragged)
 
     if (strcmp(balloonType, "Circular") == 0) {
         double balloonRadius = sqrt(pow((textHeight / 2.0), 2) + pow((textWidth / 2.0), 2));
-        balloonRadius = balloonRadius * scale;
         balloonPath.moveTo(lblCenter.x, lblCenter.y);
+        balloonRadius = balloonRadius * scale;
         balloonPath.addEllipse(lblCenter.x - balloonRadius, lblCenter.y - balloonRadius,
                                balloonRadius * 2, balloonRadius * 2);
         offsetLR = balloonRadius;
@@ -680,14 +715,14 @@ void QGIViewBalloon::drawBalloon(bool dragged)
         double radius = sqrt(pow((textHeight / 2.0), 2) + pow((textWidth / 2.0), 2));
         radius = radius * scale;
         radius += Rez::guiX(3.0);
-        offsetLR = (tan(30 * M_PI / 180) * radius);
+        offsetLR = tan(Base::toRadians(30.0)) * radius;
         QPolygonF triangle;
-        double startAngle = -M_PI / 2;
+        double startAngle = -pi / 2;
         double angle = startAngle;
         for (int i = 0; i < 4; i++) {
             triangle +=
                 QPointF(lblCenter.x + (radius * cos(angle)), lblCenter.y + (radius * sin(angle)));
-            angle += (2 * M_PI / 3);
+            angle += (2 * pi / 3);
         }
         balloonPath.moveTo(lblCenter.x + (radius * cos(startAngle)),
                            lblCenter.y + (radius * sin(startAngle)));
@@ -721,12 +756,12 @@ void QGIViewBalloon::drawBalloon(bool dragged)
         radius += Rez::guiX(1.0);
         offsetLR = radius;
         QPolygonF triangle;
-        double startAngle = -2 * M_PI / 3;
+        double startAngle = -2 * pi / 3;
         double angle = startAngle;
         for (int i = 0; i < 7; i++) {
             triangle +=
                 QPointF(lblCenter.x + (radius * cos(angle)), lblCenter.y + (radius * sin(angle)));
-            angle += (2 * M_PI / 6);
+            angle += (2 * pi / 6);
         }
         balloonPath.moveTo(lblCenter.x + (radius * cos(startAngle)),
                            lblCenter.y + (radius * sin(startAngle)));
@@ -768,7 +803,7 @@ void QGIViewBalloon::drawBalloon(bool dragged)
 
     double xAdj = 0.0;
     double yAdj = 0.0;
-    int endType = balloon->EndType.getValue();
+    ArrowType endType = static_cast<ArrowType>(balloon->EndType.getValue());
     double arrowAdj = QGIArrow::getOverlapAdjust(
         endType, balloon->EndTypeScale.getValue() * QGIArrow::getPrefArrowSize());
 
@@ -777,22 +812,20 @@ void QGIViewBalloon::drawBalloon(bool dragged)
     }
     else {
         arrow->setStyle(endType);
-
         arrow->setSize(balloon->EndTypeScale.getValue() * QGIArrow::getPrefArrowSize());
         arrow->draw();
+        arrow->setPos(DU::toQPointF(arrowTipPosInParent));
 
-        Base::Vector3d arrowTipPos(arrowTipX, arrowTipY, 0.0);
         Base::Vector3d dirballoonLinesLine;
         if (!DrawUtil::fpCompare(kinkLength, 0.0)) {
-            dirballoonLinesLine = (arrowTipPos - kinkPoint).Normalize();
+            dirballoonLinesLine = (arrowTipPosInParent - kinkPoint).Normalize();
         }
         else {
-            dirballoonLinesLine = (arrowTipPos - dLineStart).Normalize();
+            dirballoonLinesLine = (arrowTipPosInParent - dLineStart).Normalize();
         }
 
-        float arAngle = atan2(dirballoonLinesLine.y, dirballoonLinesLine.x) * 180 / M_PI;
+        float arAngle = Base::toDegrees(atan2(dirballoonLinesLine.y, dirballoonLinesLine.x));
 
-        arrow->setPos(arrowTipX, arrowTipY);
         if ((endType == ArrowType::FILLED_TRIANGLE) && (prefOrthoPyramid())) {
             if (arAngle < 0.0) {
                 arAngle += 360.0;
@@ -810,7 +843,7 @@ void QGIViewBalloon::drawBalloon(bool dragged)
             else {
                 arAngle = 0;
             }
-            double radAngle = arAngle * M_PI / 180.0;
+            double radAngle = Base::toRadians(arAngle);
             double sinAngle = sin(radAngle);
             double cosAngle = cos(radAngle);
             xAdj = Rez::guiX(arrowAdj * cosAngle);
@@ -819,7 +852,7 @@ void QGIViewBalloon::drawBalloon(bool dragged)
         arrow->setRotation(arAngle);
         arrow->show();
     }
-    dLinePath.lineTo(arrowTipX - xAdj, arrowTipY - yAdj);
+    dLinePath.lineTo(arrowTipPosInParent.x - xAdj, arrowTipPosInParent.y - yAdj);
     balloonLines->setPath(dLinePath);
 
     // This overwrites the previously created QPainterPath with empty one, in case it should be hidden.  Should be refactored.
@@ -848,35 +881,31 @@ void QGIViewBalloon::drawBalloon(bool dragged)
 void QGIViewBalloon::setPrettyPre(void)
 {
     arrow->setPrettyPre();
-    //TODO: primPath needs override for fill
-    //balloonShape->setFillOverride(true);   //don't fill with pre or select colours.
-    //    balloonShape->setFill(Qt::white, Qt::NoBrush);
     balloonShape->setPrettyPre();
     balloonLines->setPrettyPre();
+    balloonLabel->setPrettyPre();
 }
 
 void QGIViewBalloon::setPrettySel(void)
 {
-    //    Base::Console().Message("QGIVBal::setPrettySel()\n");
     arrow->setPrettySel();
-    //    balloonShape->setFill(Qt::white, Qt::NoBrush);
     balloonShape->setPrettySel();
     balloonLines->setPrettySel();
+    balloonLabel->setPrettySel();
 }
 
 void QGIViewBalloon::setPrettyNormal(void)
 {
     arrow->setPrettyNormal();
-    //    balloonShape->setFill(Qt::white, Qt::SolidPattern);
     balloonShape->setPrettyNormal();
     balloonLines->setPrettyNormal();
+    balloonLabel->setPrettyNormal();
 }
-
 
 void QGIViewBalloon::drawBorder(void)
 {
     //Dimensions have no border!
-    //    Base::Console().Message("TRACE - QGIViewDimension::drawBorder - doing nothing!\n");
+    //    Base::Console().message("TRACE - QGIViewDimension::drawBorder - doing nothing!\n");
 }
 
 void QGIViewBalloon::paint(QPainter* painter, const QStyleOptionGraphicsItem* option,
@@ -910,6 +939,7 @@ void QGIViewBalloon::setPens(void)
 {
     balloonLines->setWidth(m_lineWidth);
     balloonShape->setWidth(m_lineWidth);
+    balloonShape->setFillColor(PreferencesGui::pageQColor());
     arrow->setWidth(m_lineWidth);
 }
 
@@ -930,17 +960,18 @@ QColor QGIViewBalloon::prefNormalColor()
     ViewProviderBalloon* vpBalloon = nullptr;
     Gui::ViewProvider* vp = getViewProvider(getBalloonFeat());
     if (vp) {
-        vpBalloon = dynamic_cast<ViewProviderBalloon*>(vp);
+        vpBalloon = freecad_cast<ViewProviderBalloon*>(vp);
         if (vpBalloon) {
-            App::Color fcColor = Preferences::getAccessibleColor(vpBalloon->Color.getValue());
+            Base::Color fcColor = Preferences::getAccessibleColor(vpBalloon->Color.getValue());
             setNormalColor(fcColor.asValue<QColor>());
         }
     }
     return getNormalColor();
 }
 
-int QGIViewBalloon::prefDefaultArrow() const { return Preferences::balloonArrow(); }
-
+ArrowType QGIViewBalloon::prefDefaultArrow() const {
+    return Preferences::balloonArrow();
+}
 
 //should this be an object property or global preference?
 //when would you want a crooked pyramid?
@@ -953,11 +984,98 @@ DrawView* QGIViewBalloon::getSourceView() const
 {
     DrawView* balloonParent = nullptr;
     App::DocumentObject* docObj = getViewObject();
-    DrawViewBalloon* dvb = dynamic_cast<DrawViewBalloon*>(docObj);
+    DrawViewBalloon* dvb = freecad_cast<DrawViewBalloon*>(docObj);
     if (dvb) {
-        balloonParent = dynamic_cast<DrawView*>(dvb->SourceView.getValue());
+        balloonParent = freecad_cast<DrawView*>(dvb->SourceView.getValue());
     }
     return balloonParent;
+}
+
+//! Calculate the required position of the arrow tip during drag operations.  Uses the current
+//! label position and relative positions of the label and tip at the start of the drag.
+//! Note this returns the Gui position of the arrow, not the App position.
+Base::Vector3d QGIViewBalloon::arrowPosInDrag()
+{
+    auto offsetGui = m_savePosition - m_saveOrigin;
+    auto arrowPosGui = DU::toVector3d(balloonLabel->pos()) - offsetGui;
+    return arrowPosGui;
+}
+
+
+//! retrieves the appropriate label position and origin (arrow) point
+void QGIViewBalloon::getBalloonPoints(TechDraw::DrawViewBalloon* balloon, DrawView *refObj,
+                                      bool isDragging,
+                                      Base::Vector3d& labelPos,
+                                      Base::Vector3d& arrowPos)
+{
+    float x, y;
+    Base::Vector3d originApp{balloon->OriginX.getValue(), balloon->OriginY.getValue(), 0.0};
+    Base::Vector3d arrowTipPosInParent;
+
+    // when not dragging take the X/Y properties otherwise the current label position
+    if (!isDragging) {
+        x = Rez::guiX(balloon->X.getValue() * refObj->getScale());
+        y = Rez::guiX(balloon->Y.getValue() * refObj->getScale());
+        arrowTipPosInParent = DGU::toGuiPoint(refObj, originApp);
+    }
+    else {
+        x =  balloonLabel->getCenterX();
+        y = -balloonLabel->getCenterY();     // invert from Qt scene units to R2 mm
+        if (m_originDragged) {
+            // moving the whole bubble object. do not adjust origin point.
+            arrowTipPosInParent = arrowPosInDrag();
+        } else {
+            // this is a bubble drag, so the origin must remain in the same position on the view.
+            // if the parent view is rotated, the origin scene position must be rotated to match
+            arrowTipPosInParent = DGU::toGuiPoint(refObj, originApp);
+        }
+    }
+    labelPos = Base::Vector3d(x, y, 0.0);
+    arrowPos = arrowTipPosInParent;
+}
+
+//! get the X&Y position from the feature in parent coords, convert to Qt coords and update
+//! this graphic item's scene position.
+// Since balloon positioning is different from shape views, we don't want to use
+// QGIView::updatePositionFromFeatureXY here.
+void QGIViewBalloon::updatePositionFromFeatureXY()
+{
+    //TODO: opportunity to use this method to centralize positioning logic from
+    //      QGIViewBalloon::placeBalloon(), QGSPage::createBalloon(), etc.
+}
+
+QPainterPath QGIViewBalloon::shape() const
+{
+    QPainterPath path;
+
+    if (balloonShape) {
+        QPainterPath p = mapFromItem(balloonShape, balloonShape->path());
+        p.setFillRule(Qt::WindingFill);
+        path.addPath(p);
+    }
+    if (balloonLines) {
+        path.addPath(mapFromItem(balloonLines, balloonLines->shape()));
+    }
+    if (balloonLabel) {
+        path.addPath(mapFromItem(balloonLabel, balloonLabel->shape()));
+    }
+    if (arrow && arrow->isVisible()) {
+        path.addPath(mapFromItem(arrow, arrow->shape()));
+    }
+
+    return path;
+}
+
+void QGIViewBalloon::hoverEnterEvent(QGraphicsSceneHoverEvent* event)
+{
+    hover(true);
+    QGIView::hoverEnterEvent(event);
+}
+
+void QGIViewBalloon::hoverLeaveEvent(QGraphicsSceneHoverEvent* event)
+{
+    hover(false);
+    QGIView::hoverLeaveEvent(event);
 }
 
 #include <Mod/TechDraw/Gui/moc_QGIViewBalloon.cpp>

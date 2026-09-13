@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2008 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,21 +22,21 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include "TopoShape.h"
 
-#ifndef _PreComp_
-# include <BRep_Builder.hxx>
-# include <Precision.hxx>
-# include <ShapeAnalysis_FreeBounds.hxx>
-# include <Standard_Failure.hxx>
-# include <TopExp_Explorer.hxx>
-# include <TopoDS_Compound.hxx>
-# include <TopTools_HSequenceOfShape.hxx>
-#endif
+#include <BRep_Builder.hxx>
+#include <Precision.hxx>
+#include <ShapeAnalysis_FreeBounds.hxx>
+#include <Standard_Failure.hxx>
+#include <TopExp_Explorer.hxx>
+#include <TopoDS.hxx>
+#include <TopoDS_Compound.hxx>
+#include <TopTools_HSequenceOfShape.hxx>
+
 
 #include "OCCError.h"
+#include "ShapeAnalysis_FreeBoundsFix.h"
 #include <Base/GeometryPyCXX.h>
 
 // inclusion of the generated files (generated out of TopoShapeCompoundPy.xml)
@@ -52,7 +54,7 @@ std::string TopoShapeCompoundPy::representation() const
     return str.str();
 }
 
-PyObject *TopoShapeCompoundPy::PyMake(struct _typeobject *, PyObject *, PyObject *)
+PyObject* TopoShapeCompoundPy::PyMake(struct _typeobject*, PyObject*, PyObject*)
 {
     return new TopoShapeCompoundPy(new TopoShape);
 }
@@ -67,22 +69,21 @@ int TopoShapeCompoundPy::PyInit(PyObject* args, PyObject* /*kwd*/)
     }
 
     PyErr_Clear();
-    PyObject *pcObj;
-    if (!PyArg_ParseTuple(args, "O", &pcObj))
+    PyObject* pcObj;
+    if (!PyArg_ParseTuple(args, "O", &pcObj)) {
         return -1;
+    }
 
-    BRep_Builder builder;
-    TopoDS_Compound Comp;
-    builder.MakeCompound(Comp);
+    std::vector<TopoShape> shapes;
 
     try {
         Py::Sequence list(pcObj);
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
             if (PyObject_TypeCheck((*it).ptr(), &(Part::TopoShapePy::Type))) {
-                const TopoDS_Shape& sh = static_cast<TopoShapePy*>((*it).ptr())->
-                    getTopoShapePtr()->getShape();
-                if (!sh.IsNull())
-                    builder.Add(Comp, sh);
+                const TopoShape& sh = *(static_cast<TopoShapePy*>((*it).ptr())->getTopoShapePtr());
+                if (!sh.isNull()) {
+                    shapes.push_back(sh);
+                }
             }
         }
     }
@@ -91,24 +92,31 @@ int TopoShapeCompoundPy::PyInit(PyObject* args, PyObject* /*kwd*/)
         return -1;
     }
 
-    getTopoShapePtr()->setShape(Comp);
+    getTopoShapePtr()->makeElementCompound(shapes);
     return 0;
 }
 
-PyObject*  TopoShapeCompoundPy::add(PyObject *args)
+PyObject* TopoShapeCompoundPy::add(PyObject* args)
 {
-    PyObject *obj;
-    if (!PyArg_ParseTuple(args, "O!", &(Part::TopoShapePy::Type), &obj))
+    PyObject* obj;
+    if (!PyArg_ParseTuple(args, "O!", &(Part::TopoShapePy::Type), &obj)) {
         return nullptr;
+    }
 
-    BRep_Builder builder;
-    TopoDS_Shape comp = getTopoShapePtr()->getShape();
+    TopoShape& comp = *(getTopoShapePtr());
+    std::vector<TopoShape> shapes;
 
     try {
-        const TopoDS_Shape& sh = static_cast<TopoShapePy*>(obj)->
-            getTopoShapePtr()->getShape();
-        if (!sh.IsNull())
-            builder.Add(comp, sh);
+        if (comp.shapeType(/*silent = */ true) == TopAbs_COMPOUND) {
+            for (const TopoShape& childShape : comp.getSubTopoShapes()) {
+                shapes.push_back(childShape);
+            }
+        }
+
+        const TopoShape& sh = *(static_cast<TopoShapePy*>(obj)->getTopoShapePtr());
+        if (!sh.isNull()) {
+            shapes.push_back(sh);
+        }
     }
     catch (Standard_Failure& e) {
 
@@ -116,34 +124,36 @@ PyObject*  TopoShapeCompoundPy::add(PyObject *args)
         return nullptr;
     }
 
-    getTopoShapePtr()->setShape(comp);
+    getTopoShapePtr()->makeElementCompound(shapes);
 
     Py_Return;
 }
 
-PyObject* TopoShapeCompoundPy::connectEdgesToWires(PyObject *args)
+PyObject* TopoShapeCompoundPy::connectEdgesToWires(PyObject* args) const
 {
-    PyObject *shared=Py_True;
+    PyObject* shared = Py_True;
     double tol = Precision::Confusion();
-    if (!PyArg_ParseTuple(args, "|O!d",&PyBool_Type,&shared,&tol))
+    if (!PyArg_ParseTuple(args, "|O!d", &PyBool_Type, &shared, &tol)) {
         return nullptr;
+    }
 
     try {
         const TopoDS_Shape& s = getTopoShapePtr()->getShape();
 
         Handle(TopTools_HSequenceOfShape) hEdges = new TopTools_HSequenceOfShape();
         Handle(TopTools_HSequenceOfShape) hWires = new TopTools_HSequenceOfShape();
-        for (TopExp_Explorer xp(s, TopAbs_EDGE); xp.More(); xp.Next())
+        for (TopExp_Explorer xp(s, TopAbs_EDGE); xp.More(); xp.Next()) {
             hEdges->Append(xp.Current());
+        }
 
-        ShapeAnalysis_FreeBounds::ConnectEdgesToWires(hEdges, tol, Base::asBoolean(shared), hWires);
+        Part::Fix_ShapeAnalysis_FreeBounds_ConnectEdgesToWires(hEdges, tol, Base::asBoolean(shared), hWires);
 
         TopoDS_Compound comp;
         BRep_Builder builder;
         builder.MakeCompound(comp);
 
         int len = hWires->Length();
-        for(int i=1;i<=len;i++) {
+        for (int i = 1; i <= len; i++) {
             builder.Add(comp, hWires->Value(i));
         }
 
@@ -157,7 +167,7 @@ PyObject* TopoShapeCompoundPy::connectEdgesToWires(PyObject *args)
     }
 }
 
-PyObject* TopoShapeCompoundPy::setFaces(PyObject *args)
+PyObject* TopoShapeCompoundPy::setFaces(PyObject* args)
 {
     using Facet = Data::ComplexGeoData::Facet;
     using Point = Base::Vector3d;
@@ -165,7 +175,7 @@ PyObject* TopoShapeCompoundPy::setFaces(PyObject *args)
     std::vector<Point> points;
     std::vector<Facet> facets;
 
-    PyObject* data{};
+    PyObject* data {};
     double accuracy = 1.0e-06;  // NOLINT
     if (!PyArg_ParseTuple(args, "O!|d", &PyTuple_Type, &data, &accuracy)) {
         return nullptr;
@@ -217,7 +227,7 @@ PyObject* TopoShapeCompoundPy::setFaces(PyObject *args)
     Py_Return;
 }
 
-PyObject *TopoShapeCompoundPy::getCustomAttributes(const char* /*attr*/) const
+PyObject* TopoShapeCompoundPy::getCustomAttributes(const char* /*attr*/) const
 {
     return nullptr;
 }

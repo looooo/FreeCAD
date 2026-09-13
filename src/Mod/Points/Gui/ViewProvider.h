@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2004 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,14 +22,13 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef POINTSGUI_VIEWPROVIDERPOINTS_H
-#define POINTSGUI_VIEWPROVIDERPOINTS_H
+#pragma once
 
 #include <Inventor/SbVec2f.h>
 
 #include <Gui/ViewProviderBuilder.h>
 #include <Gui/ViewProviderGeometryObject.h>
-#include <Gui/ViewProviderPythonFeature.h>
+#include <Gui/ViewProviderFeaturePython.h>
 #include <Mod/Points/PointsGlobal.h>
 
 
@@ -173,9 +174,6 @@ protected:
     SoIndexedPointSet* pcPoints;
 };
 
-using ViewProviderPython = Gui::ViewProviderPythonFeatureT<ViewProviderScattered>;
+using ViewProviderPython = Gui::ViewProviderFeaturePythonT<ViewProviderScattered>;
 
 }  // namespace PointsGui
-
-
-#endif  // POINTSGUI_VIEWPROVIDERPOINTS_H

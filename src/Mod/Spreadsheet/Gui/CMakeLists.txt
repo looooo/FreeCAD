@@ -1,18 +1,10 @@
-include_directories(
-    ${CMAKE_CURRENT_BINARY_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${Boost_INCLUDE_DIRS}
-    ${COIN3D_INCLUDE_DIRS}
-    ${ZLIB_INCLUDE_DIR}
-    ${PYTHON_INCLUDE_DIRS}
-    ${XercesC_INCLUDE_DIRS}
-)
+# SPDX-License-Identifier: LGPL-2.1-or-later
 
-generate_from_xml(ViewProviderSpreadsheetPy)
+generate_from_py(ViewProviderSpreadsheet)
 
 # The XML files
 set(SpreadsheetGui_XML_SRCS
-    ViewProviderSpreadsheetPy.xml
+    ViewProviderSpreadsheet.pyi
 )
 
 set(SpreadsheetGui_LIBS
@@ -41,7 +33,11 @@ set (Spreadsheet_TR_QRC ${CMAKE_CURRENT_BINARY_DIR}/Resources/Spreadsheet_transl
 qt_find_and_add_translation(QM_SRCS "Resources/translations/*_*.ts"
     ${CMAKE_CURRENT_BINARY_DIR}/Resources/translations)
 qt_create_resource_file(${Spreadsheet_TR_QRC} ${QM_SRCS})
-qt_add_resources(SpreadsheetGui_QRC_SRCS ${SpreadsheetGui_RES_SRCS} ${Spreadsheet_TR_QRC})
+qt_add_resources(SpreadsheetGui_QRC_SRCS
+    ${SpreadsheetGui_RES_SRCS}
+    ${Spreadsheet_TR_QRC}
+    OPTIONS ${FREECAD_RCC_OPTIONS}
+)
 
 set(SpreadsheetGui_UIC_SRCS
    Sheet.ui
@@ -74,7 +70,6 @@ SET(SpreadsheetGui_SRCS
     SheetTableViewAccessibleInterface.cpp
     SheetModel.h
     SheetModel.cpp
-    PreCompiled.cpp
     PreCompiled.h
     Workbench.cpp
     Workbench.h
@@ -86,6 +81,8 @@ SET(SpreadsheetGui_SRCS
     DlgBindSheet.cpp
     DlgSheetConf.h
     DlgSheetConf.cpp
+    ZoomableView.h
+    ZoomableView.cpp
     ${SpreadsheetGui_UIC_HDRS}
 )
 
@@ -108,10 +105,33 @@ set(SpreadsheetGui_UIC_SRCS
     DlgSettings.ui
 )
 
-add_library(SpreadsheetGui SHARED ${SpreadsheetGui_SRCS} ${SpreadsheetGuiIcon_SVG})
+add_library(SpreadsheetGui SHARED
+    ${SpreadsheetGui_SRCS}
+    ${SpreadsheetGuiIcon_SVG}
+)
+
+if(FREECAD_USE_PCH)
+    target_precompile_headers(SpreadsheetGui PRIVATE
+            $<$<COMPILE_LANGUAGE:CXX>:"${CMAKE_CURRENT_LIST_DIR}/PreCompiled.h">
+    )
+endif(FREECAD_USE_PCH)
+
+target_include_directories(
+    SpreadsheetGui
+    PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
 target_link_libraries(SpreadsheetGui ${SpreadsheetGui_LIBS})
 
-SET_BIN_DIR(SpreadsheetGui SpreadsheetGui /Mod/Spreadsheet)
+if (MSVC)
+    target_compile_options(SpreadsheetGui PRIVATE /wd4251)
+endif()
+
+target_compile_warn_error(SpreadsheetGui)
+
+SET_BIN_DIR(SpreadsheetGui)
 SET_PYTHON_PREFIX_SUFFIX(SpreadsheetGui)
 
 fc_copy_sources(SpreadsheetGui "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_DATADIR}/Mod/Spreadsheet" ${SpreadsheetGuiIcon_SVG})

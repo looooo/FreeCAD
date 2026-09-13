@@ -21,77 +21,21 @@
  *                                                                         *
  **************************************************************************/
 
-#include "PreCompiled.h"
-
 #include "Camera.h"
 #include "Utilities.h"
 
+#include <App/Application.h>
+
+#include <algorithm>
+#include <cmath>
+
+#include <Inventor/SbBox3f.h>
+#include <Inventor/SbMatrix.h>
+#include <Inventor/SbVec3f.h>
+#include <Inventor/nodes/SoOrthographicCamera.h>
+
 using namespace Gui;
 
-
-/**
- Formulas to get quaternion for axonometric views:
-
- \code
-from math import sqrt, degrees, asin, atan
-p1=App.Rotation(App.Vector(1,0,0),90)
-p2=App.Rotation(App.Vector(0,0,1),alpha)
-p3=App.Rotation(p2.multVec(App.Vector(1,0,0)),beta)
-p4=p3.multiply(p2).multiply(p1)
-
-from pivy import coin
-c=Gui.ActiveDocument.ActiveView.getCameraNode()
-c.orientation.setValue(*p4.Q)
- \endcode
-
- The angles alpha and beta depend on the type of axonometry
- Isometric:
- \code
-alpha=45
-beta=degrees(asin(-sqrt(1.0/3.0)))
- \endcode
-
- Dimetric:
- \code
-alpha=degrees(asin(sqrt(1.0/8.0)))
-beta=degrees(-asin(1.0/3.0))
- \endcode
-
- Trimetric:
- \code
-alpha=30.0
-beta=-35.0
- \endcode
-
- Verification code that the axonomtries are correct:
-
- \code
-from pivy import coin
-c=Gui.ActiveDocument.ActiveView.getCameraNode()
-vo=App.Vector(c.getViewVolume().getMatrix().multVecMatrix(coin.SbVec3f(0,0,0)).getValue())
-vx=App.Vector(c.getViewVolume().getMatrix().multVecMatrix(coin.SbVec3f(10,0,0)).getValue())
-vy=App.Vector(c.getViewVolume().getMatrix().multVecMatrix(coin.SbVec3f(0,10,0)).getValue())
-vz=App.Vector(c.getViewVolume().getMatrix().multVecMatrix(coin.SbVec3f(0,0,10)).getValue())
-(vx-vo).Length
-(vy-vo).Length
-(vz-vo).Length
-
-# Projection
-vo.z=0
-vx.z=0
-vy.z=0
-vz.z=0
-
-(vx-vo).Length
-(vy-vo).Length
-(vz-vo).Length
- \endcode
-
- See also:
- http://www.mathematik.uni-marburg.de/~thormae/lectures/graphics1/graphics_6_2_ger_web.html#1
- http://www.mathematik.uni-marburg.de/~thormae/lectures/graphics1/code_v2/Axonometric/qt/Axonometric.cpp
- https://de.wikipedia.org/wiki/Arkussinus_und_Arkuskosinus
-*/
 
 SbRotation Camera::top()
 {
@@ -105,13 +49,13 @@ SbRotation Camera::bottom()
 
 SbRotation Camera::front()
 {
-    auto root = sqrtf(2.0)/2.0f;
+    auto root = sqrtf(2.0) / 2.0f;
     return {root, 0, 0, root};
 }
 
 SbRotation Camera::rear()
 {
-    auto root = sqrtf(2.0)/2.0f;
+    auto root = sqrtf(2.0) / 2.0f;
     return {0, root, root, 0};
 }
 
@@ -127,62 +71,161 @@ SbRotation Camera::left()
 
 SbRotation Camera::isometric()
 {
-    //from math import sqrt, degrees, asin
-    //p1=App.Rotation(App.Vector(1,0,0),45)
-    //p2=App.Rotation(App.Vector(0,0,1),-45)
-    //p3=p2.multiply(p1)
-    //return SbRotation(0.353553f, -0.146447f, -0.353553f, 0.853553f);
-
-    //from math import sqrt, degrees, asin
-    //p1=App.Rotation(App.Vector(1,0,0),90)
-    //p2=App.Rotation(App.Vector(0,0,1),135)
-    //p3=App.Rotation(App.Vector(-1,1,0),degrees(asin(-sqrt(1.0/3.0))))
-    //p4=p3.multiply(p2).multiply(p1)
-    //return SbRotation(0.17592, 0.424708, 0.820473, 0.339851);
-
-    //from math import sqrt, degrees, asin
-    //p1=App.Rotation(App.Vector(1,0,0),90)
-    //p2=App.Rotation(App.Vector(0,0,1),45)
-    //#p3=App.Rotation(App.Vector(1,1,0),45)
-    //p3=App.Rotation(App.Vector(1,1,0),degrees(asin(-sqrt(1.0/3.0))))
-    //p4=p3.multiply(p2).multiply(p1)
+    // The values here are precalculated as our quaternion implementation
+    // does not support calculating the values in compile time.
+    // The values are verified with unit tests.
     return {0.424708F, 0.17592F, 0.339851F, 0.820473F};
 }
 
 SbRotation Camera::dimetric()
 {
+    // The values here are precalculated as our quaternion implementation
+    // does not support calculating the values in compile time.
+    // The values are verified with unit tests.
+
+    // While there are multiple ways to calculate the dimetric rotation,
+    // we use one which is similar to other CAD applications.
     return {0.567952F, 0.103751F, 0.146726F, 0.803205F};
 }
 
 SbRotation Camera::trimetric()
 {
+    // The values here are precalculated as our quaternion implementation
+    // does not support calculating the values in compile time.
+    // The values are verified with unit tests.
+
+    // While there are multiple ways to calculate the trimetric rotation,
+    // we use one which is similar to other CAD applications.
     return {0.446015F, 0.119509F, 0.229575F, 0.856787F};
 }
 
 SbRotation Camera::rotation(Camera::Orientation view)
 {
     switch (view) {
-    case Top:
-        return top();
-    case Bottom:
-        return bottom();
-    case Front:
-        return front();
-    case Rear:
-        return rear();
-    case Right:
-        return right();
-    case Left:
-        return left();
-    case Isometric:
-        return isometric();
-    case Dimetric:
-        return dimetric();
-    case Trimetric:
-        return trimetric();
-    default:
-        return top();
+        case Top:
+            return top();
+        case Bottom:
+            return bottom();
+        case Front:
+            return front();
+        case Rear:
+            return rear();
+        case Right:
+            return right();
+        case Left:
+            return left();
+        case Isometric:
+            return isometric();
+        case Dimetric:
+            return dimetric();
+        case Trimetric:
+            return trimetric();
+        default:
+            return top();
     }
+}
+
+SbRotation Camera::rotation(const std::string& view, Camera::Orientation fallback)
+{
+    if (view == "Top") {
+        return rotation(Top);
+    }
+    if (view == "Bottom") {
+        return rotation(Bottom);
+    }
+    if (view == "Front") {
+        return rotation(Front);
+    }
+    if (view == "Rear") {
+        return rotation(Rear);
+    }
+    if (view == "Left") {
+        return rotation(Left);
+    }
+    if (view == "Right") {
+        return rotation(Right);
+    }
+    if (view == "Isometric") {
+        return rotation(Isometric);
+    }
+    if (view == "Dimetric") {
+        return rotation(Dimetric);
+    }
+    if (view == "Trimetric") {
+        return rotation(Trimetric);
+    }
+    if (view == "Custom") {
+        auto hGrp = App::GetApplication().GetParameterGroupByPath(
+            "User parameter:BaseApp/Preferences/View/Custom"
+        );
+        SbRotation rot;
+        rot.setValue(
+            static_cast<float>(hGrp->GetFloat("Q0", 0)),
+            static_cast<float>(hGrp->GetFloat("Q1", 0)),
+            static_cast<float>(hGrp->GetFloat("Q2", 0)),
+            static_cast<float>(hGrp->GetFloat("Q3", 1))
+        );
+        return rot;
+    }
+
+    return rotation(fallback);
+}
+
+SbRotation Camera::defaultOrientation(const char* fallbackView)
+{
+    auto hGrp = App::GetApplication().GetParameterGroupByPath(
+        "User parameter:BaseApp/Preferences/View"
+    );
+    return rotation(hGrp->GetASCII("NewDocumentCameraOrientation", fallbackView), Top);
+}
+
+bool Camera::rotationsMatch(const SbRotation& lhs, const SbRotation& rhs, float squaredTolerance)
+{
+    float l0 {};
+    float l1 {};
+    float l2 {};
+    float l3 {};
+    float r0 {};
+    float r1 {};
+    float r2 {};
+    float r3 {};
+    lhs.getValue(l0, l1, l2, l3);
+    rhs.getValue(r0, r1, r2, r3);
+    const float dot = l0 * r0 + l1 * r1 + l2 * r2 + l3 * r3;
+    const float absDot = std::fabs(dot);
+    // For unit quaternions, q and -q encode the same rotation, so compare
+    // against the closer sign.
+    const float squaredDistance = 2.0F * (1.0F - absDot);
+    return squaredDistance <= squaredTolerance;
+}
+
+void Camera::fitToBox(SoOrthographicCamera& camera, const SbBox3f& box, float aspect)
+{
+    if (box.isEmpty()) {
+        return;
+    }
+
+    SbMatrix intoCameraSpace;
+    intoCameraSpace.setRotate(camera.orientation.getValue().inverse());
+
+    // Only the rotated size matters here; viewBoundingBox below places the camera.
+    SbBox3f projected = box;
+    projected.transform(intoCameraSpace);
+    const SbVec3f half = projected.getSize() * 0.5F;
+
+    const float halfExtent = std::max(half[1], half[0] / aspect);
+    if (halfExtent <= 0.0F) {
+        // A box that projects to a point would leave the view volume degenerate.
+        return;
+    }
+
+    // Geometry outside the bounding box is still rendered - a sketch's edit-mode cross axes,
+    // for one - so the planes Coin puts tangent to the bounding sphere at a slack of 1 would
+    // clip it. Orthographic projection is happy with the negative near distance a slack of 2 gives.
+    camera.viewBoundingBox(box, aspect, 2.0F);
+
+    // Coin sizes the frame from the circumscribing sphere, which leaves the image mostly empty.
+    camera.height = 2.0F * halfExtent * fitMargin;
 }
 
 Base::Rotation Camera::convert(Camera::Orientation view)

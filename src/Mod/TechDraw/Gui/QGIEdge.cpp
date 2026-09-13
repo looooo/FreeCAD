@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Luke Parry <l.parry@warwick.ac.uk>                 *
  *                                                                         *
@@ -20,13 +22,10 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
-# include <cassert>
 
 # include <QPainterPath>
 # include <QPainterPathStroker>
-#endif
+
 
 #include <App/Application.h>
 #include <App/Material.h>
@@ -34,7 +33,6 @@
 #include <Base/Parameter.h>
 #include <Gui/Control.h>
 #include <Mod/TechDraw/App/DrawUtil.h>
-#include <Mod/TechDraw/App/DrawViewPart.h>
 
 #include "QGIEdge.h"
 #include "PreferencesGui.h"
@@ -50,7 +48,10 @@ QGIEdge::QGIEdge(int index) :
     isHiddenEdge(false),
     isSmoothEdge(false)
 {
-    m_width = 1.0;
+    setFlag(QGraphicsItem::ItemIsFocusable, true);      // to get key press events
+    setFlag(QGraphicsItem::ItemIsSelectable, true);
+
+    setWidth(1.0);
     setCosmetic(isCosmetic);
     setFill(Qt::NoBrush);
 }
@@ -59,7 +60,6 @@ QGIEdge::QGIEdge(int index) :
 // not FreeCAD cosmetic lines
 void QGIEdge::setCosmetic(bool state)
 {
-//    Base::Console().Message("QGIE::setCosmetic(%d)\n", state);
     isCosmetic = state;
     if (state) {
         setWidth(0.0);
@@ -68,43 +68,21 @@ void QGIEdge::setCosmetic(bool state)
 
 void QGIEdge::setHiddenEdge(bool b) {
     isHiddenEdge = b;
-    if (b) {
-        m_styleCurrent = getHiddenStyle();
-    } else {
-        m_styleCurrent = Qt::SolidLine;
-    }
 }
 
 void QGIEdge::setPrettyNormal() {
-//    Base::Console().Message("QGIE::setPrettyNormal()\n");
     if (isHiddenEdge) {
-        m_colCurrent = getHiddenColor();
-    } else {
-        m_colCurrent = getNormalColor();
+        m_pen.setColor(getHiddenColor());
+        return;
     }
-    //should call QGIPP::setPrettyNormal()?
+    QGIPrimPath::setPrettyNormal();
 }
 
 QColor QGIEdge::getHiddenColor()
 {
-    App::Color fcColor = App::Color((uint32_t) Preferences::getPreferenceGroup("Colors")->GetUnsigned("HiddenColor", 0x000000FF));
+    Base::Color fcColor = Base::Color((uint32_t) Preferences::getPreferenceGroup("Colors")->GetUnsigned("HiddenColor", 0x000000FF));
     return PreferencesGui::getAccessibleQColor(fcColor.asValue<QColor>());
 }
-
-Qt::PenStyle QGIEdge::getHiddenStyle()
-{
-    //Qt::PenStyle - NoPen, Solid, Dashed, ...
-    //Preferences::General - Solid, Dashed
-    // Dashed lines should use ISO Line #2 instead of Qt::DashedLine
-    Qt::PenStyle hidStyle = static_cast<Qt::PenStyle> (Preferences::getPreferenceGroup("General")->GetInt("HiddenLine", 0) + 1);
-    return hidStyle;
-}
-
- double QGIEdge::getEdgeFuzz() const
-{
-    return PreferencesGui::edgeFuzz();
-}
-
 
 QRectF QGIEdge::boundingRect() const
 {
@@ -115,7 +93,7 @@ QPainterPath QGIEdge::shape() const
 {
     QPainterPath outline;
     QPainterPathStroker stroker;
-    stroker.setWidth(getEdgeFuzz());
+    stroker.setWidth(this->m_edgeFuzz);
     outline = stroker.createStroke(path());
     return outline;
 }
@@ -123,18 +101,17 @@ QPainterPath QGIEdge::shape() const
 void QGIEdge::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event)
 {
     Q_UNUSED(event)
-    QGIView *parent = dynamic_cast<QGIView *>(parentItem());
-    if (parent && parent->getViewObject() && parent->getViewObject()->isDerivedFrom(TechDraw::DrawViewPart::getClassTypeId())) {
-        TechDraw::DrawViewPart *baseFeat = static_cast<TechDraw::DrawViewPart *>(parent->getViewObject());
+    auto* parent = dynamic_cast<QGIView *>(parentItem());
+    if (parent && parent->getViewObject() && parent->getViewObject()->isDerivedFrom<TechDraw::DrawViewPart>()) {
+        auto* baseFeat = static_cast<TechDraw::DrawViewPart *>(parent->getViewObject());
         std::vector<std::string> edgeName(1, DrawUtil::makeGeomName("Edge", getProjIndex()));
 
         Gui::Control().showDialog(new TaskDlgLineDecor(baseFeat, edgeName));
     }
 }
 
-
-
-void QGIEdge::setLinePen(QPen linePen)
+void QGIEdge::setLinePen(const QPen& linePen)
 {
     m_pen = linePen;
 }
+

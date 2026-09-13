@@ -1,6 +1,11 @@
-target_sources(
-    Mesh_tests_run
-        PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/Core/KDTree.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/Mesh.cpp
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
+add_executable(Mesh_tests_run
+        Core/KDTree.cpp
+        Exporter.cpp
+        Importer.cpp
+        Mesh.cpp
+        MeshFeature.cpp
 )
+
+target_compile_definitions(Mesh_tests_run PRIVATE DATADIR="${CMAKE_SOURCE_DIR}/data")

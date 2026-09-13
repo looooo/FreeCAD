@@ -20,14 +20,14 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef GUI_PYTHONEDITOR_H
-#define GUI_PYTHONEDITOR_H
+#pragma once
 
 #include "SyntaxHighlighter.h"
 #include "TextEdit.h"
 
 
-namespace Gui {
+namespace Gui
+{
 
 class PythonSyntaxHighlighter;
 class PythonSyntaxHighlighterP;
@@ -36,17 +36,14 @@ class PythonSyntaxHighlighterP;
  * Python text editor with syntax highlighting.
  * \author Werner Mayer
  */
-class GuiExport PythonEditor : public TextEditor
+class GuiExport PythonEditor: public PythonTextEditor
 {
     Q_OBJECT
 
 public:
-    explicit PythonEditor(QWidget *parent = nullptr);
-    ~PythonEditor() override;
+    explicit PythonEditor(QWidget* parent = nullptr);
 
-    void toggleBreakpoint();
-    void showDebugMarker(int line);
-    void hideDebugMarker();
+    void OnChange(Base::Subject<const char*>& rCaller, const char* rcReason) override;
 
 public Q_SLOTS:
     /** Inserts a '#' at the beginning of each selected line or the current line if
@@ -59,36 +56,28 @@ public Q_SLOTS:
      * this line is skipped.
      */
     void onUncomment();
-    void setFileName(const QString&);
-    void startDebug();
+    void onExecuteInConsole();
 
 protected:
     /** Pops up the context menu with some extensions */
-    void contextMenuEvent ( QContextMenuEvent* e ) override;
-    void drawMarker(int line, int x, int y, QPainter*) override;
-    void keyPressEvent(QKeyEvent *) override;
-
-private:
-    //PythonSyntaxHighlighter* pythonSyntax;
-    struct PythonEditorP* d;
+    void contextMenuEvent(QContextMenuEvent* e) override;
+    void keyPressEvent(QKeyEvent*) override;
 };
 
 /**
  * Syntax highlighter for Python.
  * \author Werner Mayer
  */
-class GuiExport PythonSyntaxHighlighter : public SyntaxHighlighter
+class GuiExport PythonSyntaxHighlighter: public SyntaxHighlighter
 {
 public:
     explicit PythonSyntaxHighlighter(QObject* parent);
     ~PythonSyntaxHighlighter() override;
 
-    void highlightBlock (const QString & text) override;
+    void highlightBlock(const QString& text) override;
 
 private:
     PythonSyntaxHighlighterP* d;
 };
 
-} // namespace Gui
-
-#endif // GUI_PYTHONEDITOR_H
+}  // namespace Gui

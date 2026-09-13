@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2018 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -21,24 +23,26 @@
  ***************************************************************************/
 
 
-#ifndef BASE_TRANSLATE_H
-#define BASE_TRANSLATE_H
+#pragma once
 
 #include <CXX/Extensions.hxx>
-#include <CXX/Objects.hxx>
-#include <QTranslator>
-#include <memory>
-#include <list>
-#ifndef FC_GLOBAL_H
+#include <string>
+#include <vector>
 #include <FCGlobal.h>
-#endif
 
+namespace Py
+{
+class Object;
+class Tuple;
+}  // namespace Py
 
 namespace Base
 {
 
 class BaseExport Translate: public Py::ExtensionModule<Translate>  // NOLINT
 {
+    friend class QtModulePy;
+
 public:
     Translate();
     ~Translate() override;
@@ -52,9 +56,7 @@ private:
     Py::Object removeTranslators(const Py::Tuple& args);
 
 private:
-    std::list<std::shared_ptr<QTranslator>> translators;
+    std::vector<std::string> translators;
 };
 
 }  // namespace Base
-
-#endif  // BASE_TRANSLATE_H

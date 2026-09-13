@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2020 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TechDraw_LandmarkDimension_h_
-#define TechDraw_LandmarkDimension_h_
+#pragma once
 
 # include <App/DocumentObject.h>
 #include <Mod/TechDraw/TechDrawGlobal.h>
@@ -57,7 +58,7 @@ public:
         return "TechDrawGui::ViewProviderDimension"; }
 
     DrawViewPart* getViewPart() const override;
-    int getRefType() const override;
+    RefType getRefType() const override;
 
     gp_Ax2 getProjAxis() const;
 
@@ -71,4 +72,3 @@ private:
 };
 
 } //namespace TechDraw
-#endif

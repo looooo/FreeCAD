@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2023 Pierre-Louis Boyer <pierrelouis.boyer@gmail.com>   *
  *                                                                         *
@@ -21,8 +23,7 @@
  *   SnapManager initially funded by the Open Toolchain Foundation         *
  ***************************************************************************/
 
-#ifndef SKETCHERGUI_SnapManager_H
-#define SKETCHERGUI_SnapManager_H
+#pragma once
 
 #include <App/Application.h>
 
@@ -51,10 +52,21 @@ private:
     friend class SnapManager;
 };
 
+enum class SnapType
+{
+    None = 0x0,
+    Angle = 0x1,
+    Point = 0x2,
+    Edge = 0x4,
+    Grid = 0x8,
+
+    All = Angle | Point | Edge | Grid
+};
+
 /* This class is used to manage the overriding of mouse pointer coordinates in Sketcher
  *  (in Edit-Mode) depending on the situation. Those situations are in priority order :
  *  1 - Snap at angle: For tools like Slot, Arc, Line, Ellipse, this enables to constrain the angle
- * at steps of 5° (or customized angle). This is useful to make features at a certain angle (45° for
+ * at steps of 5Â° (or customized angle). This is useful to make features at a certain angle (45Â° for
  * example) 2 - Snap to object: This snaps the mouse pointer onto objects. 3 - Snap to grid: This
  * snaps the mouse pointer on the grid.
  */
@@ -99,15 +111,28 @@ public:
     explicit SnapManager(ViewProviderSketch& vp);
     ~SnapManager();
 
-    bool snap(double& x, double& y);
-    bool snapAtAngle(double& x, double& y);
-    bool snapToObject(double& x, double& y);
-    bool snapToGrid(double& x, double& y);
+    Base::Vector2d snap(Base::Vector2d inputPos, SnapType mask);
+    bool snapAtAngle(Base::Vector2d inputPos, Base::Vector2d& snapPos);
+    bool snapToObject(Base::Vector2d inputPos, Base::Vector2d& snapPos, SnapType mask);
+    bool snapToGrid(Base::Vector2d inputPos, Base::Vector2d& snapPos);
 
     bool snapToLineMiddle(Base::Vector3d& pointToOverride, const Part::GeomLineSegment* line);
     bool snapToArcMiddle(Base::Vector3d& pointToOverride, const Part::GeomArcOfCircle* arc);
 
     void setAngleSnapping(bool enable, Base::Vector2d referencepoint);
+
+    struct SnapHandle
+    {
+        SnapManager* mgr = nullptr;
+        Base::Vector2d cursorPos;
+
+        SnapHandle(SnapManager* m, const Base::Vector2d& cursorPos)
+            : mgr(m)
+            , cursorPos(cursorPos)
+        {}
+
+        Base::Vector2d compute(SnapType mask = SnapType::All);
+    };
 
 private:
     /// Reference to ViewProviderSketch in order to access the public and the Attorney Interface
@@ -129,6 +154,3 @@ private:
 
 
 }  // namespace SketcherGui
-
-
-#endif  // SKETCHERGUI_SnapManager_H

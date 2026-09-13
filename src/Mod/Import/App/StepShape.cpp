@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2014 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,10 +22,8 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <sstream>
-#endif
+
 
 #include <Base/Exception.h>
 #include <Base/FileInfo.h>
@@ -34,6 +34,7 @@
 #include <STEPControl_Reader.hxx>
 #include <Standard_Version.hxx>
 #include <StepData_StepModel.hxx>
+#include <TColStd_HSequenceOfTransient.hxx>
 
 #include "StepShape.h"
 
@@ -69,22 +70,12 @@ int StepShape::read(const char* fileName)
 
 
     std::cout << "dump of step header:" << std::endl;
-#if OCC_VERSION_HEX < 0x070401
-    Handle(Message_PrinterOStream) mstr = new Message_PrinterOStream();
-    Handle(Message_Messenger) msg = new Message_Messenger(mstr);
-    model->DumpHeader(msg);
-#else
     model->DumpHeader(std::cout);
-#endif
 
     for (int nent = 1; nent <= model->NbEntities(); nent++) {
         Handle(Standard_Transient) entity = model->Entity(nent);
         std::cout << "label entity " << nent << ":";
-#if OCC_VERSION_HEX < 0x070401
-        model->PrintLabel(entity, msg);
-#else
         model->PrintLabel(entity, std::cout);
-#endif
         std::cout << ";" << entity->DynamicType()->Name() << std::endl;
     }
 

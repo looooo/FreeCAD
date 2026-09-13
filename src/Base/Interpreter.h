@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2002 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -21,24 +23,25 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef BASE_INTERPRETER_H
-#define BASE_INTERPRETER_H
+#pragma once
 
 #if defined(_POSIX_C_SOURCE)
-#undef _POSIX_C_SOURCE
+# undef _POSIX_C_SOURCE
 #endif  // (re-)defined in pyconfig.h
 #if defined(_XOPEN_SOURCE)
-#undef _XOPEN_SOURCE
+# undef _XOPEN_SOURCE
 #endif  // (re-)defined in pyconfig.h
 
+#include <FCConfig.h>
+
 #ifdef FC_OS_MACOSX
-#undef toupper
-#undef tolower
-#undef isupper
-#undef islower
-#undef isspace
-#undef isalpha
-#undef isalnum
+# undef toupper
+# undef tolower
+# undef isupper
+# undef islower
+# undef isspace
+# undef isalpha
+# undef isalnum
 #endif
 
 #include <CXX/Extensions.hxx>
@@ -56,14 +59,14 @@
  *
  *  See FeaturePythonImp::init() for example usage
  */
-#define FC_PY_GetCallable(_pyobj, _name, _var)                                                     \
-    do {                                                                                           \
-        _var = Py::Object();                                                                       \
-        if (PyObject_HasAttrString(_pyobj, _name)) {                                               \
-            Py::Object _obj(PyObject_GetAttrString(_pyobj, _name), true);                          \
-            if (_obj.isCallable())                                                                 \
-                _var = _obj;                                                                       \
-        }                                                                                          \
+#define FC_PY_GetCallable(_pyobj, _name, _var) \
+    do { \
+        _var = Py::Object(); \
+        if (PyObject_HasAttrString(_pyobj, _name)) { \
+            Py::Object _obj(PyObject_GetAttrString(_pyobj, _name), true); \
+            if (_obj.isCallable()) \
+                _var = _obj; \
+        } \
     } while (0)
 
 /** Helper macro to obtain attribute from an object
@@ -74,20 +77,17 @@
  *
  *  See FeaturePythonImp::init() for example usage
  */
-#define FC_PY_GetObject(_pyobj, _name, _var)                                                       \
-    do {                                                                                           \
-        _var = Py::Object();                                                                       \
-        if (PyObject_HasAttrString(_pyobj, _name))                                                 \
-            _var = Py::asObject(PyObject_GetAttrString(_pyobj, _name));                            \
+#define FC_PY_GetObject(_pyobj, _name, _var) \
+    do { \
+        _var = Py::Object(); \
+        if (PyObject_HasAttrString(_pyobj, _name)) \
+            _var = Py::asObject(PyObject_GetAttrString(_pyobj, _name)); \
     } while (0)
 // NOLINTEND
 
 
 namespace Base
 {
-
-using std::string;
-using std::vector;
 
 
 class BaseExport PyException: public Exception
@@ -107,7 +107,7 @@ public:
     /// this method determines if the original exception
     /// can be reconstructed or not, if yes throws the reconstructed version
     /// if not, throws a generic PyException.
-    static void ThrowException();
+    static void throwException();
 
     ///  this function returns the stack trace
     const std::string& getStackTrace() const
@@ -122,7 +122,7 @@ public:
     {
         return _exceptionType;
     }
-    void ReportException() const override;
+    void reportException() const override;
     /// Sets the Python error indicator and an error message
     void setPyException() const override;
 
@@ -149,6 +149,34 @@ inline Py::Object pyCallWithKeywords(PyObject* callable, PyObject* args, PyObjec
     }
     return Py::asObject(result);
 }
+
+/**
+ * Structured lifecycle metadata for one deprecated Python API.
+ *
+ * deprecatedIn and removedIn must both be non-null and non-empty.
+ */
+struct PythonApiDeprecation
+{
+    const char* deprecatedIn;
+    const char* removedIn;
+    const char* replacement = nullptr;
+    const char* details = nullptr;
+};
+
+/**
+ * Emit a Python DeprecationWarning for one FreeCAD API entry point.
+ *
+ * apiKind, qualifiedName, deprecation.deprecatedIn, and
+ * deprecation.removedIn must all be non-null and non-empty.
+ *
+ * Returns false if the warning API raised a Python exception instead of
+ * reporting a warning, for example when deprecations are configured as errors.
+ */
+BaseExport bool warnDeprecatedPythonApi(
+    const char* apiKind,
+    const char* qualifiedName,
+    const PythonApiDeprecation& deprecation
+);
 
 /**
  * The SystemExitException is thrown if the Python-internal PyExc_SystemExit exception
@@ -256,8 +284,7 @@ public:
     /// the result.
     std::string runString(const char* psCmd);
     /// Run a statement on the python interpreter with a key for exchanging strings
-    std::string
-    runStringWithKey(const char* psCmd, const char* key, const char* key_initial_value = "");
+    std::string runStringWithKey(const char* psCmd, const char* key, const char* key_initial_value = "");
     /// Run a statement on the python interpreter and return back the result object.
     Py::Object runStringObject(const char* sCmd);
     /// Run a statement on the python interpreter and gives back a string with the representation of
@@ -272,12 +299,14 @@ public:
     /// runs a python object method which returns a arbitrary object
     PyObject* runMethodObject(PyObject* pobject, const char* method);
     /// runs a python method with arbitrary params
-    void runMethod(PyObject* pobject,
-                   const char* method,
-                   const char* resfmt = nullptr,
-                   void* cresult = nullptr,
-                   const char* argfmt = "()",
-                   ...);
+    void runMethod(
+        PyObject* pobject,
+        const char* method,
+        const char* resfmt = nullptr,
+        void* cresult = nullptr,
+        const char* argfmt = "()",
+        ...
+    );
     //@}
 
     /** @name Module handling
@@ -288,6 +317,8 @@ public:
     bool loadModule(const char* psModName);
     /// Add an additional python path
     void addPythonPath(const char* Path);
+    /// Get the path (replaces the deprecated Py_GetPath method)
+    std::string getPythonPath();
     static void addType(PyTypeObject* Type, PyObject* Module, const char* Name);
     /// Add a module and return a PyObject to it
     PyObject* addModule(Py::ExtensionModuleBase*);
@@ -316,7 +347,7 @@ public:
      */
     //@{
     /// init the interpreter and returns the module search path
-    const char* init(int argc, char* argv[]);
+    std::string init(int argc, char* argv[]);
     int runCommandLine(const char* prompt);
     void replaceStdOutput();
     static InterpreterSingleton& Instance();
@@ -329,13 +360,14 @@ public:
      */
     //@{
     /// generate a SWIG object
-    PyObject*
-    createSWIGPointerObj(const char* Module, const char* TypeName, void* Pointer, int own);
-    bool convertSWIGPointerObj(const char* Module,
-                               const char* TypeName,
-                               PyObject* obj,
-                               void** ptr,
-                               int flags);
+    PyObject* createSWIGPointerObj(const char* Module, const char* TypeName, void* Pointer, int own);
+    bool convertSWIGPointerObj(
+        const char* Module,
+        const char* TypeName,
+        PyObject* obj,
+        void** ptr,
+        int flags
+    );
     void cleanupSWIG(const char* TypeName);
     PyTypeObject* getSWIGPointerTypeObj(const char* Module, const char* TypeName);
     //@}
@@ -345,12 +377,6 @@ public:
     //@{
     /// sets the file name which should be debugged
     void dbgObserveFile(const char* sFileName = "");
-    /// sets a break point to a special line number in the current file
-    void dbgSetBreakPoint(unsigned int uiLineNumber);
-    /// unsets a break point to a special line number in the current file
-    void dbgUnsetBreakPoint(unsigned int uiLineNumber);
-    /// One step further
-    void dbgStep();
     //@}
 
 
@@ -388,5 +414,3 @@ inline InterpreterSingleton& Interpreter()
 }
 
 }  // namespace Base
-
-#endif  // BASE_INTERPRETER_H

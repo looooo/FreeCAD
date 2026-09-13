@@ -1,24 +1,15 @@
-if (BUILD_SMESH)
-    add_definitions(-DHAVE_SMESH -DHAVE_MEFISTO)
-endif(BUILD_SMESH)
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
+if (SMESH_FOUND)
+    add_definitions(-DHAVE_SMESH)
+    if(SMESH_VERSION_MAJOR LESS_EQUAL 9 AND SMESH_VERSION_MINOR LESS 10 )
+      add_definitions(-DHAVE_MEFISTO)
+    endif()
+endif(SMESH_FOUND)
 
 if(BUILD_FEM_NETGEN)
     add_definitions(-DHAVE_NETGEN)
 endif(BUILD_FEM_NETGEN)
-
-include_directories(
-    ${CMAKE_BINARY_DIR}
-    ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_BINARY_DIR}
-    ${Boost_INCLUDE_DIRS}
-    ${OCC_INCLUDE_DIR}
-    ${COIN3D_INCLUDE_DIRS}
-    ${ZLIB_INCLUDE_DIR}
-    ${PYTHON_INCLUDE_DIRS}
-)
-
-link_directories(${OCC_LIBRARY_DIR})
-link_directories(${SMESH_LIB_PATH})
 
 set(MeshPartGui_LIBS
     MeshPart
@@ -37,7 +28,11 @@ set (MeshPart_TR_QRC ${CMAKE_CURRENT_BINARY_DIR}/Resources/MeshPart_translation.
 qt_find_and_add_translation(QM_SRCS "Resources/translations/*_*.ts"
     ${CMAKE_CURRENT_BINARY_DIR}/Resources/translations)
 qt_create_resource_file(${MeshPart_TR_QRC} ${QM_SRCS})
-qt_add_resources(MeshPartGui_QRC_SRCS Resources/MeshPart.qrc ${MeshPart_TR_QRC})
+qt_add_resources(MeshPartGui_QRC_SRCS
+    Resources/MeshPart.qrc
+    ${MeshPart_TR_QRC}
+    OPTIONS ${FREECAD_RCC_OPTIONS}
+)
 
 SET(MeshPartGui_SRCS
     ${MeshPartGui_QRC_SRCS}
@@ -50,7 +45,6 @@ SET(MeshPartGui_SRCS
     CurveOnMesh.cpp
     CurveOnMesh.h
     Resources/MeshPart.qrc
-    PreCompiled.cpp
     PreCompiled.h
     TaskCurveOnMesh.ui
     TaskCurveOnMesh.cpp
@@ -70,17 +64,32 @@ set(FLATMESH_PY_SRCS
     MeshFlatteningCommand.py
 )
 
+add_library(MeshPartGui SHARED ${MeshPartGui_SRCS} ${MeshPartGui_Scripts} ${FLATMESH_PY_SRCS})
+
 if(FREECAD_USE_PCH)
-    add_definitions(-D_PreComp_)
-    GET_MSVC_PRECOMPILED_SOURCE("PreCompiled.cpp" PCH_SRCS ${MeshPartGui_SRCS})
-    ADD_MSVC_PRECOMPILED_HEADER(MeshPartGui PreCompiled.h PreCompiled.cpp PCH_SRCS)
+    target_precompile_headers(MeshPartGui PRIVATE
+            $<$<COMPILE_LANGUAGE:CXX>:"${CMAKE_CURRENT_LIST_DIR}/PreCompiled.h">
+    )
 endif(FREECAD_USE_PCH)
 
-add_library(MeshPartGui SHARED ${MeshPartGui_SRCS} ${MeshPartGui_Scripts} ${FLATMESH_PY_SRCS})
+target_include_directories(
+    MeshPartGui
+    PRIVATE
+    ${CMAKE_BINARY_DIR}
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+target_link_directories(MeshPartGui PUBLIC ${SMESH_LIB_PATH})
 target_link_libraries(MeshPartGui ${MeshPartGui_LIBS})
 
+if (MSVC)
+    target_compile_options(MeshPartGui PRIVATE /wd4275)
+endif()
 
-SET_BIN_DIR(MeshPartGui MeshPartGui /Mod/MeshPart)
+target_compile_warn_error(MeshPartGui)
+
+SET_BIN_DIR(MeshPartGui)
 SET_PYTHON_PREFIX_SUFFIX(MeshPartGui)
 
 fc_target_copy_resource_flat(MeshPartGui

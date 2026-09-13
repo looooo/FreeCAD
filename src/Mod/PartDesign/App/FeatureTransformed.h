@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /******************************************************************************
  *   Copyright (c) 2012 Jan Rheinländer <jrheinlaender@users.sourceforge.net> *
  *                                                                            *
@@ -21,13 +23,12 @@
  ******************************************************************************/
 
 
-#ifndef PARTDESIGN_FeatureTransformed_H
-#define PARTDESIGN_FeatureTransformed_H
+#pragma once
 
 #include <gp_Trsf.hxx>
 
 #include <App/PropertyStandard.h>
-#include "Feature.h"
+#include "FeatureRefine.h"
 
 
 namespace PartDesign
@@ -37,18 +38,23 @@ namespace PartDesign
  * Abstract superclass of all features that are created by transformation of another feature
  * Transformations are translation, rotation and mirroring
  */
-class PartDesignExport Transformed : public PartDesign::Feature
+class PartDesignExport Transformed: public PartDesign::FeatureRefine
 {
     PROPERTY_HEADER_WITH_OVERRIDE(PartDesign::Transformed);
 
 public:
+    enum class Mode
+    {
+        Features,
+        WholeShape
+    };
+
     Transformed();
 
-    /** The shapes to be transformed
-      * if Originals is empty the instance is just a container for storing transformation data
-      */
+    /** The features to be transformed
+     */
     App::PropertyLinkList Originals;
-
+    App::PropertyEnumeration TransformMode;
     App::PropertyBool Refine;
 
     /**
@@ -58,48 +64,61 @@ public:
      *               silently return a nullptr, otherwise throw Base::Exception.
      *               Default is false.
      */
-    Part::Feature* getBaseObject(bool silent=false) const override;
+    Part::Feature* getBaseObject(bool silent = false) const override;
+
+    virtual std::vector<App::DocumentObject*> getOriginals() const;
+    /** Returns the list of original features sorted in chronological order of
+     *  the parent Body's history (retaining suppressed features).
+     */
+    std::vector<App::DocumentObject*> getSortedOriginals() const;
 
     /// Return the sketch of the first original
     App::DocumentObject* getSketchObject() const;
 
+    /// Return true if this feature is a child of a MultiTransform
+    bool isMultiTransformChild() const;
+
     /// Get the list of transformations describing the members of the pattern
     // Note: Only the Scaled feature requires the originals
-    virtual const std::list<gp_Trsf> getTransformations(const std::vector<App::DocumentObject*> /*originals*/) {
-        return std::list<gp_Trsf>(); // Default method
+    virtual const std::list<gp_Trsf> getTransformations(const std::vector<App::DocumentObject*> /*originals*/)
+    {
+        return std::list<gp_Trsf>();  // Default method
     }
 
-   /** @name methods override feature */
+    /** @name methods override feature */
     //@{
     /** Recalculate the feature
-      * Gets the transformations from the virtual getTransformations() method of the sub class
-      * and applies them to every member of Originals. The total number of copies including
-      * the untransformed Originals will be sizeof(Originals) times sizeof(getTransformations())
-      * If Originals is empty, execute() returns immediately without doing anything as
-      * the actual processing will happen in the MultiTransform feature
-      */
-    App::DocumentObjectExecReturn *execute() override;
+     * Gets the transformations from the virtual getTransformations() method of the sub class
+     * and applies them to every member of Originals. The total number of copies including
+     * the untransformed Originals will be sizeof(Originals) times sizeof(getTransformations())
+     * If Originals is empty, execute() returns immediately without doing anything as
+     * the actual processing will happen in the MultiTransform feature
+     */
+    App::DocumentObjectExecReturn* execute() override;
     short mustExecute() const override;
     //@}
 
+    App::DocumentObjectExecReturn* recomputePreview() override;
+
+    void onChanged(const App::Property* prop) override;
+
     /** returns the compound of the shapes that were rejected during the last execute
-      * because they did not overlap with the support
-      */
+     * because they did not overlap with the support
+     */
     TopoDS_Shape rejected;
 
 protected:
-    void Restore(Base::XMLReader &reader) override;
-    void handleChangedPropertyType(Base::XMLReader &reader, const char * TypeName, App::Property * prop) override;
+    void Restore(Base::XMLReader& reader) override;
+    void handleChangedPropertyType(
+        Base::XMLReader& reader,
+        const char* TypeName,
+        App::Property* prop
+    ) override;
+
     virtual void positionBySupport();
-    TopoDS_Shape refineShapeIfActive(const TopoDS_Shape&) const;
-    void divideTools(const std::vector<TopoDS_Shape> &toolsIn, std::vector<TopoDS_Shape> &individualsOut,
-                     TopoDS_Compound &compoundOut) const;
     static TopoDS_Shape getRemainingSolids(const TopoDS_Shape&);
 
 private:
 };
 
-} //namespace PartDesign
-
-
-#endif // PARTDESIGN_FeatureTransformed_H
+}  // namespace PartDesign

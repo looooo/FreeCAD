@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2022 Wanderer Fan <wandererfan@gmail.com>               *
  *                                                                         *
@@ -21,8 +23,7 @@
  ***************************************************************************/
 
 
-#ifndef TECHDRAW_MAYANAVSTYLE_H
-#define TECHDRAW_MAYANAVSTYLE_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
@@ -51,4 +52,3 @@ private:
 };
 
 }
-#endif // TECHDRAW_MAYANAVSTYLE_H

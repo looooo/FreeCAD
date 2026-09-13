@@ -1,7 +1,19 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
+add_library(FreeCADApp SHARED)
+
 if(WIN32)
     add_definitions(-DFCApp)
     add_definitions(-DBOOST_DYN_LINK)
 endif(WIN32)
+
+if(BUILD_TRACY_FRAME_PROFILER)
+    add_definitions(-DBUILD_TRACY_FRAME_PROFILER)
+endif()
+
+if(CMAKE_BUILD_TYPE)
+    add_definitions(-DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE}")
+endif(CMAKE_BUILD_TYPE)
 
 if(FREECAD_RELEASE_SEH)
     add_definitions(-DHAVE_SEH)
@@ -19,9 +31,6 @@ ENDIF(LIBRARYDIR)
 IF(DOCDIR)
     add_definitions(-DDOCDIR="${DOCDIR}")
 ENDIF(DOCDIR)
-
-#if you want to use the old DAG structure uncomment this line
-#add_definitions(-DUSE_OLD_DAG)
 
 # -----------------------------------------------------------------------------
 
@@ -51,15 +60,22 @@ fc_copy_file_if_different(
 
 # -----------------------------------------------------------------------------
 
-include_directories(
+target_include_directories(
+    FreeCADApp
+    PRIVATE
     ${CMAKE_BINARY_DIR}
     ${CMAKE_BINARY_DIR}/src
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_CURRENT_BINARY_DIR}
-    ${Boost_INCLUDE_DIRS}
-    ${PYTHON_INCLUDE_DIRS}
-    ${XercesC_INCLUDE_DIRS}
-    ${ZLIB_INCLUDE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_include_directories(
+    FreeCADApp
+    SYSTEM
+    PUBLIC
+    ${QtCore_INCLUDE_DIRS}
+    ${QtXml_INCLUDE_DIRS}
 )
 
 set(FreeCADApp_LIBS
@@ -68,65 +84,83 @@ set(FreeCADApp_LIBS
     fmt::fmt
 )
 
-include_directories(
-    ${QtCore_INCLUDE_DIRS}
-    ${QtXml_INCLUDE_DIRS}
-)
+if(BUILD_TRACY_FRAME_PROFILER)
+    list(APPEND FreeCADApp_LIBS TracyClient)
+endif()
+
 list(APPEND FreeCADApp_LIBS
         ${QtCore_LIBRARIES}
         ${QtXml_LIBRARIES}
 )
 
-generate_from_xml(DocumentPy)
-generate_from_xml(DocumentObjectPy)
-generate_from_xml(ExtensionPy)
-generate_from_xml(ExtensionContainerPy)
-generate_from_xml(DocumentObjectExtensionPy)
-generate_from_xml(GroupExtensionPy)
-generate_from_xml(LinkBaseExtensionPy)
-generate_from_xml(DocumentObjectGroupPy)
-generate_from_xml(GeoFeaturePy)
-generate_from_xml(GeoFeatureGroupExtensionPy)
-generate_from_xml(MetadataPy)
-generate_from_xml(OriginGroupExtensionPy)
-generate_from_xml(PartPy)
-generate_from_xml(StringHasherPy)
-generate_from_xml(StringIDPy)
+generate_from_py(ApplicationDirectories)
+generate_from_py(DepEdge)
+generate_from_py(Document)
+generate_from_py(DocumentSettings)
+generate_from_py(DocumentObject)
+generate_from_py(Extension)
+generate_from_py(ExtensionContainer)
+generate_from_py(DocumentObjectExtension)
+generate_from_py(GroupExtension)
+generate_from_py(LinkBaseExtension)
+generate_from_py(DocumentObjectGroup)
+generate_from_py(GeoFeature)
+generate_from_py(GeoFeatureGroupExtension)
+generate_from_py(SuppressibleExtension)
+generate_from_py(Metadata)
+generate_from_py(OriginGroupExtension)
+generate_from_py(Part)
+generate_from_py(StringHasher)
+generate_from_py(StringID)
 
-generate_from_xml(ComplexGeoDataPy)
-generate_from_xml(PropertyContainerPy)
-generate_from_xml(MaterialPy)
-
-generate_from_py(FreeCADInit InitScript.h)
-generate_from_py(FreeCADTest TestScript.h)
-
-SET(FreeCADApp_XML_SRCS
-    ExtensionPy.xml
-    ExtensionContainerPy.xml
-    DocumentObjectExtensionPy.xml
-    GroupExtensionPy.xml
-    LinkBaseExtensionPy.xml
-    MetadataPy.xml
-    DocumentObjectGroupPy.xml
-    DocumentObjectPy.xml
-    GeoFeaturePy.xml
-    GeoFeatureGroupExtensionPy.xml
-    OriginGroupExtensionPy.xml
-    PartPy.xml
-    DocumentPy.xml
-    PropertyContainerPy.xml
-    ComplexGeoDataPy.xml
-    MaterialPy.xml
-    StringHasherPy.xml
-    StringIDPy.xml
+generate_from_py(ComplexGeoData)
+generate_from_py(PropertyContainer)
+generate_from_py(Material)
+generate_from_py(MeasureManager)
+generate_module_from_py(
+    FreeCAD
+    FreeCAD_MODULE_GENERATED_SRCS
 )
-SOURCE_GROUP("XML" FILES ${FreeCADApp_XML_SRCS})
+
+generate_embed_from_py(FreeCADInit InitScript.h)
+generate_embed_from_py(FreeCADTest TestScript.h)
+
+SET(FreeCADApp_Pyi_SRCS
+    ApplicationDirectories.pyi
+    Extension.pyi
+    ExtensionContainer.pyi
+    DocumentObjectExtension.pyi
+    GroupExtension.pyi
+    LinkBaseExtension.pyi
+    Metadata.pyi
+    DepEdge.pyi
+    DocumentObjectGroup.pyi
+    DocumentObject.pyi
+    DocumentSettings.pyi
+    GeoFeature.pyi
+    GeoFeatureGroupExtension.pyi
+    OriginGroupExtension.pyi
+    SuppressibleExtension.pyi
+    Part.pyi
+    Document.pyi
+    PropertyContainer.pyi
+    ComplexGeoData.pyi
+    Material.pyi
+    MeasureManager.pyi
+    FreeCAD.module.pyi
+    StringHasher.pyi
+    StringID.pyi
+)
+SOURCE_GROUP("Pyi" FILES ${FreeCADApp_Pyi_SRCS})
 
 # The document stuff
 SET(Document_CPP_SRCS
     Annotation.cpp
+    BackupPolicy.cpp
     Document.cpp
+    RecoverySnapshot.cpp
     DocumentObject.cpp
+    DepEdgePyImp.cpp
     Extension.cpp
     ExtensionPyImp.cpp
     DocumentObjectExtension.cpp
@@ -144,6 +178,8 @@ SET(Document_CPP_SRCS
     DocumentObserver.cpp
     DocumentObserverPython.cpp
     DocumentPyImp.cpp
+    DocumentSettings.cpp
+    DocumentSettingsPyImp.cpp
     Expression.cpp
     ExpressionTokenizer.cpp
     FeaturePython.cpp
@@ -154,14 +190,16 @@ SET(Document_CPP_SRCS
     ImagePlane.cpp
     OriginGroupExtensionPyImp.cpp
     OriginGroupExtension.cpp
+    SuppressibleExtensionPyImp.cpp
+    SuppressibleExtension.cpp
     PartPyImp.cpp
     Part.cpp
     Origin.cpp
     Path.cpp
     InventorObject.cpp
-    MeasureDistance.cpp
     Placement.cpp
-    OriginFeature.cpp
+    ProjectFile.cpp
+    Datums.cpp
     Range.cpp
     Transactions.cpp
     TransactionalObject.cpp
@@ -171,12 +209,16 @@ SET(Document_CPP_SRCS
     TextDocument.cpp
     Link.cpp
     LinkBaseExtensionPyImp.cpp
+    VarSet.cpp
     License.h
 )
 
 SET(Document_HPP_SRCS
     Annotation.h
+    BackupPolicy.h
     Document.h
+    RecoverySnapshot.h
+    DepEdge.h
     DocumentObject.h
     Extension.h
     ExtensionContainer.h
@@ -186,6 +228,7 @@ SET(Document_HPP_SRCS
     DocumentObjectGroup.h
     DocumentObserver.h
     DocumentObserverPython.h
+    DocumentSettings.h
     Expression.h
     ExpressionParser.h
     ExpressionTokenizer.h
@@ -199,13 +242,14 @@ SET(Document_HPP_SRCS
     GeoFeatureGroupExtension.h
     ImagePlane.h
     OriginGroupExtension.h
+    SuppressibleExtension.h
     Part.h
     Origin.h
     Path.h
     InventorObject.h
-    MeasureDistance.h
     Placement.h
-    OriginFeature.h
+    ProjectFile.h
+    Datums.h
     Range.h
     Transactions.h
     TransactionalObject.h
@@ -213,6 +257,7 @@ SET(Document_HPP_SRCS
     MaterialObject.h
     MergeDocuments.h
     TextDocument.h
+    VarSet.h
     Link.h
 )
 SET(Document_SRCS
@@ -248,6 +293,7 @@ SET(Properties_HPP_SRCS
     PropertyStandard.h
     PropertyUnits.h
     PropertyExpressionEngine.h
+    PropertyOverrides.h
 )
 SET(Properties_SRCS
     ${Properties_CPP_SRCS}
@@ -259,13 +305,19 @@ SET(FreeCADApp_CPP_SRCS
     ${Document_CPP_SRCS}
     ${Properties_CPP_SRCS}
     Application.cpp
+    ApplicationDirectories.cpp
+    ApplicationDirectoriesPyImp.cpp
     ApplicationPy.cpp
+    ${FreeCAD_MODULE_GENERATED_SRCS}
     AutoTransaction.cpp
     Branding.cpp
-    Color.cpp
+    ByteArray.cpp
+    CleanupProcess.cpp
     ColorModel.cpp
     ComplexGeoData.cpp
     ComplexGeoDataPyImp.cpp
+    ConsoleQtBridge.cpp
+    TranslationQtBridge.cpp
     ElementMap.cpp
     Enumeration.cpp
     IndexedName.cpp
@@ -273,9 +325,14 @@ SET(FreeCADApp_CPP_SRCS
     MappedName.cpp
     Material.cpp
     MaterialPyImp.cpp
+    MeasureManager.cpp
+    MeasureManagerPyImp.cpp
     Metadata.cpp
     MetadataPyImp.cpp
     ElementNamingUtils.cpp
+    ProgramInformation.cpp
+    SafeMode.cpp
+    Services.cpp
     StringHasher.cpp
     StringHasherPyImp.cpp
     StringIDPyImp.cpp
@@ -285,9 +342,11 @@ SET(FreeCADApp_HPP_SRCS
     ${Document_HPP_SRCS}
     ${Properties_HPP_SRCS}
     Application.h
+    ApplicationDirectories.h
     AutoTransaction.h
     Branding.h
-    Color.h
+    ByteArray.h
+    CleanupProcess.h
     ColorModel.h
     ComplexGeoData.h
     ElementMap.h
@@ -296,32 +355,56 @@ SET(FreeCADApp_HPP_SRCS
     MappedName.h
     MappedElement.h
     Material.h
+    MeasureManager.h
     Metadata.h
     ElementNamingUtils.h
+    ProgramInformation.h
+    Services.h
     StringHasher.h
+    MainThreadSignal.h
+)
+
+# auto-generate resource file with all available translations
+set (FreeCADApp_TR_QRC ${CMAKE_CURRENT_BINARY_DIR}/Resources/App_translation.qrc)
+qt_find_and_add_translation(QM_SRCS "Resources/translations/*_*.ts"
+    ${CMAKE_CURRENT_BINARY_DIR}/Resources/translations)
+qt_find_and_add_translation(QM_SRCS "${CMAKE_SOURCE_DIR}/src/Base/Resources/translations/*_*.ts"
+    ${CMAKE_CURRENT_BINARY_DIR}/Resources/translations)
+qt_create_resource_file(${FreeCADApp_TR_QRC} ${QM_SRCS})
+qt_add_resources(FreeCADApp_QRC_SRCS
+    ${FreeCADApp_TR_QRC}
+    OPTIONS ${FREECAD_RCC_OPTIONS}
 )
 
 SET(FreeCADApp_SRCS
+    ${FreeCADApp_QRC_SRCS}
     ${FreeCADApp_CPP_SRCS}
     ${FreeCADApp_HPP_SRCS}
-    ${FreeCADApp_XML_SRCS}
+    ${FreeCADApp_Pyi_SRCS}
     FreeCADInit.py
     FreeCADTest.py
-    PreCompiled.cpp
     PreCompiled.h
 )
 
 if(FREECAD_USE_PCH)
-    add_definitions(-D_PreComp_)
-    ADD_MSVC_PRECOMPILED_HEADER(FreeCADApp PreCompiled.h PreCompiled.cpp FreeCADApp_CPP_SRCS)
+    target_precompile_headers(FreeCADApp PRIVATE
+        $<$<COMPILE_LANGUAGE:CXX>:"${CMAKE_CURRENT_LIST_DIR}/PreCompiled.h">
+    )
 endif(FREECAD_USE_PCH)
 
-add_library(FreeCADApp SHARED ${FreeCADApp_SRCS})
+target_sources(FreeCADApp PRIVATE ${FreeCADApp_SRCS})
 target_link_libraries(FreeCADApp ${FreeCADApp_LIBS})
+
+if (MSVC)
+    target_compile_definitions(FreeCADApp PRIVATE WIN32_LEAN_AND_MEAN)
+    target_compile_options(FreeCADApp PRIVATE /wd4251 /wd4273 /wd4275)
+endif()
+
+target_compile_warn_error(FreeCADApp)
 
 add_dependencies(FreeCADApp fc_version)
 
-SET_BIN_DIR(FreeCADApp FreeCADApp)
+SET_BIN_DIR(FreeCADApp)
 
 if(WIN32)
     INSTALL(TARGETS FreeCADApp

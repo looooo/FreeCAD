@@ -1,9 +1,11 @@
+.. SPDX-License-Identifier: LGPL-2.1-or-later
+
 The Matrix object
 =================
 
 .. toctree::
    :maxdepth: 4
-   
+
 .. automodule:: FreeCAD
 
    .. autoclass:: Matrix

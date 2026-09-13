@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # ***************************************************************************
 # *   Copyright (c) 2021 Bernd Hahnebach <bernd@bimstatik.org>              *
 # *                                                                         *
@@ -30,7 +32,7 @@ from femmesh import meshtools
 
 
 def get_analysis_types():
-    return "all"    # write for all analysis types
+    return "all"  # write for all analysis types
 
 
 def get_sets_name():
@@ -69,16 +71,18 @@ def write_meshdata_constraint(f, femobj, fric_obj, ccxwriter):
     # Thus call write_node_sets_constraints_planerotation has to be
     # after constraint fixed and constraint displacement
     l_nodes = femobj["Nodes"]
-    f.write("*NSET,NSET={}\n".format(fric_obj.Name))
+    f.write(f"*NSET,NSET={fric_obj.Name}\n")
     # Code to extract nodes and coordinates on the PlaneRotation support face
     nodes_coords = []
     for node in l_nodes:
-        nodes_coords.append((
-            node,
-            ccxwriter.femnodes_mesh[node].x,
-            ccxwriter.femnodes_mesh[node].y,
-            ccxwriter.femnodes_mesh[node].z
-        ))
+        nodes_coords.append(
+            (
+                node,
+                ccxwriter.femnodes_mesh[node].x,
+                ccxwriter.femnodes_mesh[node].y,
+                ccxwriter.femnodes_mesh[node].z,
+            )
+        )
     node_planerotation = meshtools.get_three_non_colinear_nodes(nodes_coords)
     for i in range(len(l_nodes)):
         if l_nodes[i] not in node_planerotation:
@@ -93,7 +97,7 @@ def write_meshdata_constraint(f, femobj, fric_obj, ccxwriter):
             MPC = node_planerotation[i]
             MPC_nodes.append(MPC)
     for i in range(len(MPC_nodes)):
-        f.write("{},\n".format(MPC_nodes[i]))
+        f.write(f"{MPC_nodes[i]},\n")
 
 
 def write_constraint(f, femobj, fric_obj, ccxwriter):
@@ -101,4 +105,4 @@ def write_constraint(f, femobj, fric_obj, ccxwriter):
     # floats read from ccx should use {:.13G}, see comment in writer module
 
     f.write("*MPC\n")
-    f.write("PLANE,{}\n".format(fric_obj.Name))
+    f.write(f"PLANE,{fric_obj.Name}\n")

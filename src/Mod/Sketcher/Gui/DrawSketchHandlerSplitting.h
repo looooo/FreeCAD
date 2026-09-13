@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2022 Abdullah Tahiri <abdullah.tahiri.yo@gmail.com>     *
  *                                                                         *
@@ -20,27 +22,23 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef SKETCHERGUI_DrawSketchHandlerSplitting_H
-#define SKETCHERGUI_DrawSketchHandlerSplitting_H
+#pragma once
 
 #include <Gui/Notifications.h>
-#include <Gui/SelectionFilter.h>
+#include <Gui/Selection/SelectionFilter.h>
 #include <Gui/Command.h>
 #include <Gui/CommandT.h>
 
 #include <Mod/Sketcher/App/SketchObject.h>
 
 #include "DrawSketchHandler.h"
-#include "GeometryCreationMode.h"
 #include "Utils.h"
 #include "ViewProviderSketch.h"
+#include "SnapManager.h"
 
 
 namespace SketcherGui
 {
-
-extern GeometryCreationMode geometryCreationMode;  // defined in CommandCreateGeo.cpp
-
 
 class SplittingSelection: public Gui::SelectionFilterGate
 {
@@ -57,7 +55,7 @@ public:
         if (pObj != this->object) {
             return false;
         }
-        if (!sSubName || sSubName[0] == '\0') {
+        if (Base::Tools::isNullOrEmpty(sSubName)) {
             return false;
         }
         std::string element(sSubName);
@@ -65,12 +63,16 @@ public:
             int GeoId = std::atoi(element.substr(4, 4000).c_str()) - 1;
             Sketcher::SketchObject* Sketch = static_cast<Sketcher::SketchObject*>(object);
             const Part::Geometry* geom = Sketch->getGeometry(GeoId);
-            if (geom->is<Part::GeomLineSegment>() || geom->is<Part::GeomCircle>()
+
+            // clang-format off: keep line breaks for readability
+            if (geom->is<Part::GeomLineSegment>()
+                || geom->is<Part::GeomCircle>()
                 || geom->is<Part::GeomEllipse>()
-                || geom->isDerivedFrom(Part::GeomArcOfConic::getClassTypeId())
+                || geom->isDerivedFrom<Part::GeomArcOfConic>()
                 || geom->is<Part::GeomBSplineCurve>()) {
                 return true;
             }
+            // clang-format on
         }
         else if (element.substr(0, 6) == "Vertex") {
             int VertId = std::atoi(element.substr(6, 4000).c_str()) - 1;
@@ -89,6 +91,8 @@ public:
 
 class DrawSketchHandlerSplitting: public DrawSketchHandler
 {
+    Q_DECLARE_TR_FUNCTIONS(SketcherGui::DrawSketchHandlerSplitting)
+
 public:
     DrawSketchHandlerSplitting() = default;
     ~DrawSketchHandlerSplitting() override
@@ -96,9 +100,9 @@ public:
         Gui::Selection().rmvSelectionGate();
     }
 
-    void mouseMove(Base::Vector2d onSketchPos) override
+    void mouseMove(SnapManager::SnapHandle snapHandle) override
     {
-        Q_UNUSED(onSketchPos);
+        Q_UNUSED(snapHandle);
     }
 
     bool pressButton(Base::Vector2d onSketchPos) override
@@ -114,27 +118,32 @@ public:
         int curveGeoId = getPreselectCurve();
         if (curveGeoId >= 0) {
             const Part::Geometry* geom = sketchgui->getSketchObject()->getGeometry(curveGeoId);
-            if (geom->is<Part::GeomLineSegment>() || geom->is<Part::GeomCircle>()
+            // clang-format off: keep line breaks for readability
+            if (geom->is<Part::GeomLineSegment>()
+                || geom->is<Part::GeomCircle>()
                 || geom->is<Part::GeomEllipse>()
-                || geom->isDerivedFrom(Part::GeomArcOfConic::getClassTypeId())
+                || geom->isDerivedFrom<Part::GeomArcOfConic>()
                 || geom->is<Part::GeomBSplineCurve>()) {
                 GeoId = curveGeoId;
             }
+            // clang-format on
         }
         else {
-            // No curve of interest is pre-selected. Try pre-selected point.
+            // No curve of interest is preselected. Try preselected point.
             int pointGeoId = getPreselectPoint();
 
             if (pointGeoId >= 0) {
                 // TODO: This has to be a knot. Find the spline.
 
                 const auto& constraints = getSketchObject()->Constraints.getValues();
-                const auto& conIt =
-                    std::find_if(constraints.begin(), constraints.end(), [pointGeoId](auto constr) {
-                        return (constr->Type == Sketcher::InternalAlignment
-                                && constr->AlignmentType == Sketcher::BSplineKnotPoint
-                                && constr->First == pointGeoId);
-                    });
+                const auto& conIt
+                    = std::find_if(constraints.begin(), constraints.end(), [pointGeoId](auto constr) {
+                          return (
+                              constr->Type == Sketcher::InternalAlignment
+                              && constr->AlignmentType == Sketcher::BSplineKnotPoint
+                              && constr->First == pointGeoId
+                          );
+                      });
 
                 if (conIt != constraints.end()) {
                     GeoId = (*conIt)->Second;
@@ -144,21 +153,25 @@ public:
 
         if (GeoId >= 0) {
             try {
-                Gui::Command::openCommand(QT_TRANSLATE_NOOP("Command", "Split edge"));
-                Gui::cmdAppObjectArgs(sketchgui->getObject(),
-                                      "split(%d,App.Vector(%f,%f,0))",
-                                      GeoId,
-                                      onSketchPos.x,
-                                      onSketchPos.y);
-                Gui::Command::commitCommand();
-                tryAutoRecompute(static_cast<Sketcher::SketchObject*>(sketchgui->getObject()));
+                openCommand(QT_TRANSLATE_NOOP("Command", "Split edge"));
+                Gui::cmdAppObjectArgs(
+                    sketchgui->getObject(),
+                    "split(%d,App.Vector(%f,%f,0))",
+                    GeoId,
+                    onSketchPos.x,
+                    onSketchPos.y
+                );
+                commitCommand();
+                tryAutoRecompute(sketchgui->getObject<Sketcher::SketchObject>());
             }
             catch (const Base::Exception&) {
-                Gui::NotifyError(sketchgui,
-                                 QT_TRANSLATE_NOOP("Notifications", "Error"),
-                                 QT_TRANSLATE_NOOP("Notifications", "Failed to add edge"));
+                Gui::NotifyError(
+                    sketchgui,
+                    QT_TRANSLATE_NOOP("Notifications", "Error"),
+                    QT_TRANSLATE_NOOP("Notifications", "Failed to add edge")
+                );
 
-                Gui::Command::abortCommand();
+                abortCommand();
             }
         }
         else {
@@ -178,11 +191,25 @@ private:
 
     QString getCrosshairCursorSVGName() const override
     {
-        return QString::fromLatin1("Sketcher_Pointer_Splitting");
+        return QStringLiteral("Sketcher_Pointer_Splitting");
+    }
+
+    enum State
+    {
+        WaitingForEdge
+    };
+
+private:
+    std::vector<Base::Vector2d> EditMarkers;
+
+public:
+    std::list<Gui::InputHint> getToolHints() const override
+    {
+        return {
+            {tr("%1 pick location on edge to split", "Sketcher Splitting: hint"),
+             {Gui::InputHint::UserInput::MouseLeft}},
+        };
     }
 };
 
 }  // namespace SketcherGui
-
-
-#endif  // SKETCHERGUI_DrawSketchHandlerSplitting_H

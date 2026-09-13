@@ -27,6 +27,8 @@
 #ifndef _SMESH_MeshVSLink_HeaderFile
 #define _SMESH_MeshVSLink_HeaderFile
 
+#include <MeshVS_HArray1OfSequenceOfInteger.hxx>
+#include <TColStd_Array1OfReal.hxx>
 #if OCC_VERSION_HEX < 0x070000
 #ifndef _Handle_SMESH_MeshVSLink_HeaderFile
 #include <Handle_SMESH_MeshVSLink.hxx>
@@ -56,9 +58,6 @@
 #endif
 #ifndef _MeshVS_EntityType_HeaderFile
 #include <MeshVS_EntityType.hxx>
-#endif
-#ifndef _Standard_Address_HeaderFile
-#include <Standard_Address.hxx>
 #endif
 #ifndef _TColStd_HArray1OfInteger_HeaderFile
 #include <TColStd_HArray1OfInteger.hxx>

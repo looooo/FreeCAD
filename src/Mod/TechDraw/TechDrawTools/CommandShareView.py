@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # ***************************************************************************
 # *   Copyright (c) 2022 Wanderer Fan <wandererfan@gmail.com>               *
 # *                                                                         *
@@ -34,7 +36,7 @@ import FreeCADGui as Gui
 import TechDrawTools
 
 class CommandShareView:
-    """Shares a View on current Page to another Page."""
+    """Shares a view on current page to another page."""
 
     def __init__(self):
         """Initialize variables for the command that must exist at all times."""
@@ -45,7 +47,7 @@ class CommandShareView:
         return {'Pixmap': 'actions/TechDraw_ShareView.svg',
                 'Accel': "",
                 'MenuText': QT_TRANSLATE_NOOP("TechDraw_ShareView", "Share View"),
-                'ToolTip': QT_TRANSLATE_NOOP("TechDraw_ShareView", "Share a View on a second Page")}
+                'ToolTip': QT_TRANSLATE_NOOP("TechDraw_ShareView", "Shares a view on a second page")}
 
     def Activated(self):
         """Run the following code when the command is activated (button press)."""

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
+disable_occt8_deprecation_warnings()
 
 add_subdirectory(App)
 if(BUILD_GUI)
@@ -18,23 +21,6 @@ if(BUILD_GUI)
     )
 endif(BUILD_GUI)
 
-if (EXISTS ${CMAKE_SOURCE_DIR}/src/Mod/Robot/Lib/Kuka)
-SET(Robot_Resources
-    Lib/Kuka/kr500_1.wrl
-    Lib/Kuka/kr500_1.csv
-    Lib/Kuka/kr_500_2.pdf
-    Lib/Kuka/kr210.WRL
-    Lib/Kuka/kr_210_2.csv
-    Lib/Kuka/kr_210_2.pdf
-    Lib/Kuka/kr16.wrl
-    Lib/Kuka/kr_16.csv
-    Lib/Kuka/kr_16.pdf
-    Lib/Kuka/kr125_3.wrl
-    Lib/Kuka/kr_125.csv
-    Lib/Kuka/kr125_2.pdf
-)
-endif ()
-
 add_custom_target(RobotScripts ALL
     SOURCES ${Robot_Scripts} ${Robot_Resources}
 )
@@ -44,10 +30,12 @@ fc_target_copy_resource(RobotScripts
     ${CMAKE_BINARY_DIR}/Mod/Robot
     ${Robot_Scripts})
 
+if (DEFINED Robot_Resources)
 fc_target_copy_resource(RobotScripts
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_DATADIR}/Mod/Robot
     ${Robot_Resources})
+endif()
 
 INSTALL(
     FILES
@@ -56,11 +44,13 @@ INSTALL(
         Mod/Robot
 )
 
+if (DEFINED Robot_Resources)
 INSTALL(
     DIRECTORY
         Lib
     DESTINATION
         ${CMAKE_INSTALL_DATADIR}/Mod/Robot
     PATTERN "Makefile*" EXCLUDE
-    PATTERN "*.pdf" EXCLUDE
+    PATTERN "testprog.*" EXCLUDE
 )
+endif()

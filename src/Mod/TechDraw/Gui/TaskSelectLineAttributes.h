@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2021 edi                                                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TECHDRAWGUI_TASKSELECTLINEATTRIBUTES_H
-#define TECHDRAWGUI_TASKSELECTLINEATTRIBUTES_H
+#pragma once
 
 #include <Gui/TaskView/TaskDialog.h>
 #include <Gui/TaskView/TaskView.h>
@@ -85,7 +86,7 @@ class Ui_TaskSelectLineAttributes;
 //     float getWidthValue();
 //     void setColor(int);
 //     int getColor() const {return color;}
-//     App::Color getColorValue();
+//     Base::Color getColorValue();
 
 // }; // class lineAttributes
 
@@ -94,7 +95,7 @@ class TaskSelectLineAttributes : public QWidget
     Q_OBJECT
 
 public:
-    explicit TaskSelectLineAttributes(TechDraw::LineFormat* ptActiveAttributes);
+    explicit TaskSelectLineAttributes();
     ~TaskSelectLineAttributes() override;
 
     virtual bool accept();
@@ -102,13 +103,11 @@ public:
     void updateTask();
 
 protected:
-    void changeEvent(QEvent *e) override;
+    void changeEvent(QEvent *event) override;
 
     void setUiEdit();
 
 private:
-    // lineAttributes* activeAttributes;
-    TechDraw::LineFormat* activeAttributes;
     std::unique_ptr<Ui_TaskSelectLineAttributes> ui;
 
     TechDraw::LineGenerator* m_lineGenerator;
@@ -119,7 +118,7 @@ class TaskDlgSelectLineAttributes : public Gui::TaskView::TaskDialog
     Q_OBJECT
 
 public:
-    explicit TaskDlgSelectLineAttributes(TechDraw::LineFormat * ptActiveAttributes);
+    explicit TaskDlgSelectLineAttributes();
     ~TaskDlgSelectLineAttributes() override;
 
 public:
@@ -145,5 +144,3 @@ private:
 }; // class TaskDlgSelectLineAttributes
 
 } // namespace TechDrawGui
-
-#endif // #ifndef TECHDRAWGUI_TASKSELECTLINEATTRIBUTES_H

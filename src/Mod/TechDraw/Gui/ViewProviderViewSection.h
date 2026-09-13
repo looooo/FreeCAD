@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2004 Jürgen Riegel <juergen.riegel@web.de>              *
  *   Copyright (c) 2013 Luke Parry <l.parry@warwick.ac.uk>                 *
@@ -21,8 +23,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TECHDRAWGUI_VIEWPROVIDERVIEWSECTION_H
-#define TECHDRAWGUI_VIEWPROVIDERVIEWSECTION_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
@@ -51,6 +52,10 @@ public:
     App::PropertyColor  GeomHatchColor;
     App::PropertyFloat  WeightPattern;
 
+    App::PropertyFont   SectionLineFont;
+    App::PropertyLength SectionLineFontsize;
+    App::PropertyLength SectionLineArrowsize;
+
     void updateData(const App::Property*) override;
     void onChanged(const App::Property *prop) override;
     bool setEdit(int ModNum) override;
@@ -64,6 +69,3 @@ public:
 };
 
 } // namespace TechDrawGui
-
-
-#endif // TECHDRAWGUI_VIEWPROVIDERVIEWSECTION_H

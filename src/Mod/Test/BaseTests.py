@@ -30,6 +30,20 @@ import FreeCAD
 from FreeCAD import Base
 
 
+class MaterialTestCase(unittest.TestCase):
+    def testComparison(self):
+        first = FreeCAD.Material()
+        second = FreeCAD.Material()
+
+        self.assertEqual(first, second)
+        self.assertFalse(first != second)
+
+        first.DiffuseColor = (1.0, 0.0, 0.0, 1.0)
+
+        self.assertNotEqual(first, second)
+        self.assertFalse(first == second)
+
+
 class ConsoleTestCase(unittest.TestCase):
     def setUp(self):
         self.count = 0
@@ -83,32 +97,6 @@ class ConsoleTestCase(unittest.TestCase):
         time.sleep(3)
         FreeCAD.Console.PrintMessage(str(self.count) + "\n")
 
-    #    def testStatus(self):
-    #        SLog = FreeCAD.GetStatus("Console","Log")
-    #        SErr = FreeCAD.GetStatus("Console","Err")
-    #        SWrn = FreeCAD.GetStatus("Console","Wrn")
-    #        SMsg = FreeCAD.GetStatus("Console","Msg")
-    #        FreeCAD.SetStatus("Console","Log",1)
-    #        FreeCAD.SetStatus("Console","Err",1)
-    #        FreeCAD.SetStatus("Console","Wrn",1)
-    #        FreeCAD.SetStatus("Console","Msg",1)
-    #        self.assertEqual(FreeCAD.GetStatus("Console","Msg"),1,"Set and read status failed (Console,Msg)")
-    #        self.assertEqual(FreeCAD.GetStatus("Console","Err"),1,"Set and read status failed (Console,Err)")
-    #        self.assertEqual(FreeCAD.GetStatus("Console","Wrn"),1,"Set and read status failed (Console,Wrn)")
-    #        self.assertEqual(FreeCAD.GetStatus("Console","Log"),1,"Set and read status failed (Console,Log)")
-    #        FreeCAD.SetStatus("Console","Log",0)
-    #        FreeCAD.SetStatus("Console","Err",0)
-    #        FreeCAD.SetStatus("Console","Wrn",0)
-    #        FreeCAD.SetStatus("Console","Msg",0)
-    #        self.assertEqual(FreeCAD.GetStatus("Console","Msg"),0,"Set and read status failed (Console,Msg)")
-    #        self.assertEqual(FreeCAD.GetStatus("Console","Err"),0,"Set and read status failed (Console,Err)")
-    #        self.assertEqual(FreeCAD.GetStatus("Console","Wrn"),0,"Set and read status failed (Console,Wrn)")
-    #        self.assertEqual(FreeCAD.GetStatus("Console","Log"),0,"Set and read status failed (Console,Log)")
-    #        FreeCAD.SetStatus("Console","Log",SLog)
-    #        FreeCAD.SetStatus("Console","Err",SErr)
-    #        FreeCAD.SetStatus("Console","Wrn",SWrn)
-    #        FreeCAD.SetStatus("Console","Msg",SMsg)
-
     def tearDown(self):
         pass
 
@@ -144,8 +132,6 @@ class ParameterTestCase(unittest.TestCase):
 
     # check on special conditions
     def testInt(self):
-        # FreeCAD.Console.PrintLog("Base::ParameterTestCase::testInt\n")
-        # Temp = FreeCAD.ParamGet("System parameter:Test/44")
         # check on Int
         self.TestPar.SetInt("44", 4711)
         self.assertEqual(self.TestPar.GetInt("44"), 4711, "In and out error at Int")
@@ -154,7 +140,6 @@ class ParameterTestCase(unittest.TestCase):
         self.assertEqual(self.TestPar.GetInt("44", 1), 1, "Deletion error at Int")
 
     def testBool(self):
-        # FreeCAD.Console.PrintLog("Base::ParameterTestCase::testBool\n")
         # check on Int
         self.TestPar.SetBool("44", 1)
         self.assertEqual(self.TestPar.GetBool("44"), 1, "In and out error at Bool")
@@ -163,8 +148,6 @@ class ParameterTestCase(unittest.TestCase):
         self.assertEqual(self.TestPar.GetBool("44", 0), 0, "Deletion error at Bool")
 
     def testFloat(self):
-        # FreeCAD.Console.PrintLog("Base::ParameterTestCase::testFloat\n")
-        # Temp = FreeCAD.ParamGet("System parameter:Test/44")
         # check on Int
         self.TestPar.SetFloat("44", 4711.4711)
         self.assertEqual(self.TestPar.GetFloat("44"), 4711.4711, "In and out error at Float")
@@ -173,8 +156,6 @@ class ParameterTestCase(unittest.TestCase):
         self.assertEqual(self.TestPar.GetFloat("44", 1.1), 1.1, "Deletion error at Float")
 
     def testString(self):
-        # FreeCAD.Console.PrintLog("Base::ParameterTestCase::testFloat\n")
-        # Temp = FreeCAD.ParamGet("System parameter:Test/44")
         # check on Int
         self.TestPar.SetString("44", "abcdefgh")
         self.assertEqual(self.TestPar.GetString("44"), "abcdefgh", "In and out error at String")
@@ -183,8 +164,6 @@ class ParameterTestCase(unittest.TestCase):
         self.assertEqual(self.TestPar.GetString("44", "hallo"), "hallo", "Deletion error at String")
 
     def testNesting(self):
-        # Parameter testing
-        # FreeCAD.Console.PrintLog("Base::ParameterTestCase::testNesting\n")
         for i in range(50):
             self.TestPar.SetFloat(str(i), 4711.4711)
             self.TestPar.SetInt(str(i), 4711)
@@ -197,8 +176,6 @@ class ParameterTestCase(unittest.TestCase):
         Temp = 0
 
     def testExportImport(self):
-        # Parameter testing
-        # FreeCAD.Console.PrintLog("Base::ParameterTestCase::testNesting\n")
         self.TestPar.SetFloat("ExTest", 4711.4711)
         self.TestPar.SetInt("ExTest", 4711)
         self.TestPar.SetString("ExTest", "4711")

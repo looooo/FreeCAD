@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,14 +22,15 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_QGCUSTOMRECT_H
-#define DRAWINGGUI_QGCUSTOMRECT_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
 #include <QGraphicsItem>
 #include <QGraphicsRectItem>
 #include <QPointF>
+
+#include "QGIUserTypes.h"
 
 QT_BEGIN_NAMESPACE
 class QPainter;
@@ -43,7 +46,7 @@ public:
     explicit QGCustomRect();
     ~QGCustomRect() override = default;
 
-    enum {Type = QGraphicsItem::UserType + 133};
+    enum {Type = UserType::QGCustomRect};
     int type() const override { return Type;}
 
     void paint(QPainter * painter, const QStyleOptionGraphicsItem * option, QWidget * widget = nullptr ) override;
@@ -57,6 +60,3 @@ private:
 };
 
 } // namespace MDIViewPageGui
-
-#endif // DRAWINGGUI_QGCUSTOMRECT_H
-

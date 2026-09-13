@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /**************************************************************************
  *   Copyright (c) 2015 FreeCAD Developers                                 *
  *   Author: Przemo Firszt <przemo@firszt.eu>                              *
@@ -22,8 +24,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef FEMGUI_DLGSETTINGSFEMGENERALIMP_H
-#define FEMGUI_DLGSETTINGSFEMGENERALIMP_H
+#pragma once
 
 #include <Gui/PropertyPage.h>
 #include <memory>
@@ -40,6 +41,10 @@ public:
     explicit DlgSettingsFemGeneralImp(QWidget* parent = nullptr);
     ~DlgSettingsFemGeneralImp() override;
 
+protected Q_SLOTS:
+    void onfileNameSelected(const QString& fileName);
+    void oncustomDirSelected(const QString& fileName);
+
 protected:
     void saveSettings() override;
     void loadSettings() override;
@@ -50,5 +55,3 @@ private:
 };
 
 }  // namespace FemGui
-
-#endif  // FEMGUI_DLGSETTINGSFEMGENERALIMP_H

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2019 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,11 +22,8 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
-# include <cmath>
 # include <QStatusBar>
-#endif
+
 
 #include <App/Document.h>
 #include <Base/Console.h>
@@ -40,6 +39,7 @@
 #include <Mod/TechDraw/App/DrawPage.h>
 #include <Mod/TechDraw/App/DrawView.h>
 #include <Mod/TechDraw/App/LineGroup.h>
+#include <Mod/TechDraw/App/DrawUtil.h>
 
 #include "TaskLeaderLine.h"
 #include "ui_TaskLeaderLine.h"
@@ -58,39 +58,41 @@
 using namespace Gui;
 using namespace TechDraw;
 using namespace TechDrawGui;
+using DU = DrawUtil;
+using DGU = DrawGuiUtil;
 
-//ctor for edit
+constexpr int MessageDisplayTime{3000};
+
 TaskLeaderLine::TaskLeaderLine(TechDrawGui::ViewProviderLeader* leadVP) :
     ui(new Ui_TaskLeaderLine),
     m_tracker(nullptr),
     m_lineVP(leadVP),
     m_baseFeat(nullptr),
     m_basePage(nullptr),
-    m_lineFeat(nullptr),
+    m_lineFeat(m_lineVP->getFeature()),
     m_qgParent(nullptr),
     m_createMode(false),
-    m_trackerMode(QGTracker::None),
+    m_trackerMode(QGTracker::TrackerMode::None),
     m_saveContextPolicy(Qt::DefaultContextMenu),
     m_inProgressLock(false),
-    m_qgLine(nullptr),
+    m_qgLeader(nullptr),
     m_btnOK(nullptr),
     m_btnCancel(nullptr),
-    m_pbTrackerState(TRACKEREDIT),
+    m_pbTrackerState(TrackerAction::EDIT),
     m_saveX(0.0),
     m_saveY(0.0)
 {
     //existence of leadVP is guaranteed by caller being ViewProviderLeaderLine.setEdit
 
-    m_lineFeat = m_lineVP->getFeature();
 
     m_basePage = m_lineFeat->findParentPage();
     if (!m_basePage) {
-        Base::Console().Error("TaskRichAnno - bad parameters (2).  Can not proceed.\n");
+        Base::Console().error("TaskRichAnno - bad parameters (2).  Cannot proceed.\n");
         return;
     }
     App::DocumentObject* obj = m_lineFeat->LeaderParent.getValue();
     if (obj) {
-        if (obj->isDerivedFrom(TechDraw::DrawView::getClassTypeId()) )  {
+        if (obj->isDerivedFrom<TechDraw::DrawView>() )  {
             m_baseFeat = static_cast<TechDraw::DrawView*>(m_lineFeat->LeaderParent.getValue());
         }
     }
@@ -106,7 +108,7 @@ TaskLeaderLine::TaskLeaderLine(TechDrawGui::ViewProviderLeader* leadVP) :
 
     //TODO: when/if leaders are allowed to be parented to Page, check for m_baseFeat will be removed
     if (!m_baseFeat || !m_basePage) {
-        Base::Console().Error("TaskLeaderLine - bad parameters (2).  Can not proceed.\n");
+        Base::Console().error("TaskLeaderLine - bad parameters (2).  Cannot proceed.\n");
         return;
     }
 
@@ -127,8 +129,9 @@ TaskLeaderLine::TaskLeaderLine(TechDrawGui::ViewProviderLeader* leadVP) :
     saveState();
 
     m_trackerMode = QGTracker::TrackerMode::Line;
-    if (m_vpp->getMDIViewPage())
+    if (m_vpp->getMDIViewPage()) {
         m_saveContextPolicy = m_vpp->getMDIViewPage()->contextMenuPolicy();
+    }
 }
 
 //ctor for creation
@@ -142,13 +145,13 @@ TaskLeaderLine::TaskLeaderLine(TechDraw::DrawView* baseFeat,
     m_lineFeat(nullptr),
     m_qgParent(nullptr),
     m_createMode(true),
-    m_trackerMode(QGTracker::None),
+    m_trackerMode(QGTracker::TrackerMode::None),
     m_saveContextPolicy(Qt::DefaultContextMenu),
     m_inProgressLock(false),
-    m_qgLine(nullptr),
+    m_qgLeader(nullptr),
     m_btnOK(nullptr),
     m_btnCancel(nullptr),
-    m_pbTrackerState(TRACKERPICK),
+    m_pbTrackerState(TrackerAction::PICK),
     m_saveX(0.0),
     m_saveY(0.0)
 {
@@ -158,7 +161,6 @@ TaskLeaderLine::TaskLeaderLine(TechDraw::DrawView* baseFeat,
     Gui::ViewProvider* vp = activeGui->getViewProvider(m_basePage);
     m_vpp = static_cast<ViewProviderPage*>(vp);
 
-    m_qgParent = nullptr;
     if (m_baseFeat) {
         m_qgParent = m_vpp->getQGSPage()->findQViewForDocObj(baseFeat);
     }
@@ -174,8 +176,9 @@ TaskLeaderLine::TaskLeaderLine(TechDraw::DrawView* baseFeat,
     ui->pbCancelEdit->setEnabled(false);
 
     m_trackerMode = QGTracker::TrackerMode::Line;
-    if (m_vpp->getMDIViewPage())
+    if (m_vpp->getMDIViewPage()) {
         m_saveContextPolicy = m_vpp->getMDIViewPage()->contextMenuPolicy();
+    }
 }
 
 void TaskLeaderLine::saveState()
@@ -212,16 +215,15 @@ void TaskLeaderLine::changeEvent(QEvent *event)
 
 void TaskLeaderLine::setUiPrimary()
 {
-//    Base::Console().Message("TTL::setUiPrimary()\n");
     enableVPUi(true);
     setWindowTitle(QObject::tr("New Leader Line"));
 
     if (m_baseFeat) {
         std::string baseName = m_baseFeat->getNameInDocument();
-        ui->tbBaseView->setText(Base::Tools::fromStdString(baseName));
+        ui->tbBaseView->setText(QString::fromStdString(baseName));
     }
 
-    ui->pbTracker->setText(tr("Pick points"));
+    ui->pbTracker->setText(tr("Pick Points"));
     if (m_vpp->getMDIViewPage()) {
         ui->pbTracker->setEnabled(true);
         ui->pbCancelEdit->setEnabled(true);
@@ -231,17 +233,17 @@ void TaskLeaderLine::setUiPrimary()
     }
 
     DrawGuiUtil::loadArrowBox(ui->cboxStartSym);
-    int aStyle = getPrefArrowStyle();
-    ui->cboxStartSym->setCurrentIndex(aStyle);
+    ArrowType aStyle = PreferencesGui::dimArrowStyle();
+    ui->cboxStartSym->setCurrentIndex(static_cast<int>(aStyle));
 
     DrawGuiUtil::loadArrowBox(ui->cboxEndSym);
-    ui->cboxEndSym->setCurrentIndex(TechDraw::ArrowType::NONE);
+    ui->cboxEndSym->setCurrentIndex(static_cast<int>(TechDraw::ArrowType::NONE));
 
     ui->dsbWeight->setUnit(Base::Unit::Length);
     ui->dsbWeight->setMinimum(0);
-    ui->dsbWeight->setValue(prefWeight());
+    ui->dsbWeight->setValue(TechDraw::LineGroup::getDefaultWidth("Graphic"));
 
-    ui->cpLineColor->setColor(prefLineColor().asValue<QColor>());
+    ui->cpLineColor->setColor(PreferencesGui::leaderColor().asValue<QColor>());
 }
 
 //switch widgets related to ViewProvider on/off
@@ -255,13 +257,12 @@ void TaskLeaderLine::enableVPUi(bool enable)
 
 void TaskLeaderLine::setUiEdit()
 {
-//    Base::Console().Message("TTL::setUiEdit()\n");
     enableVPUi(true);
     setWindowTitle(QObject::tr("Edit Leader Line"));
 
     if (m_lineFeat) {
         std::string baseName = m_lineFeat->LeaderParent.getValue()->getNameInDocument();
-        ui->tbBaseView->setText(Base::Tools::fromStdString(baseName));
+        ui->tbBaseView->setText(QString::fromStdString(baseName));
 
         DrawGuiUtil::loadArrowBox(ui->cboxStartSym);
         ui->cboxStartSym->setCurrentIndex(m_lineFeat->StartSymbol.getValue());
@@ -270,7 +271,7 @@ void TaskLeaderLine::setUiEdit()
         ui->cboxEndSym->setCurrentIndex(m_lineFeat->EndSymbol.getValue());
         connect(ui->cboxEndSym, qOverload<int>(&QComboBox::currentIndexChanged), this, &TaskLeaderLine::onEndSymbolChanged);
 
-        ui->pbTracker->setText(tr("Edit points"));
+        ui->pbTracker->setText(tr("Edit Points"));
         if (m_vpp->getMDIViewPage()) {
             ui->pbTracker->setEnabled(true);
             ui->pbCancelEdit->setEnabled(true);
@@ -295,7 +296,7 @@ void TaskLeaderLine::recomputeFeature()
 {
     App::DocumentObject* objVP = m_lineVP->getObject();
     assert(objVP);
-    objVP->getDocument()->recomputeFeature(objVP);
+    objVP->recomputeFeature();
 }
 
 void TaskLeaderLine::onStartSymbolChanged()
@@ -312,7 +313,7 @@ void TaskLeaderLine::onEndSymbolChanged()
 
 void TaskLeaderLine::onColorChanged()
 {
-    App::Color ac;
+    Base::Color ac;
     ac.setValue<QColor>(ui->cpLineColor->color());
     m_lineVP->Color.setValue(ac);
     recomputeFeature();
@@ -332,16 +333,17 @@ void TaskLeaderLine::onLineStyleChanged()
 
 
 //******************************************************************************
-void TaskLeaderLine::createLeaderFeature(std::vector<Base::Vector3d> converted)
+//! sceneDeltas are vector from first picked scene point (0,0) to the ith point.
+//! sceneDeltas are in Qt scene coords (Rez and inverted Y).
+void TaskLeaderLine::createLeaderFeature(std::vector<Base::Vector3d> sceneDeltas)
 {
-//    Base::Console().Message("TTL::createLeaderFeature()\n");
     const std::string objectName{"LeaderLine"};
     std::string m_leaderName = m_basePage->getDocument()->getUniqueObjectName(objectName.c_str());
     m_leaderType = "TechDraw::DrawLeaderLine";
 
     std::string PageName = m_basePage->getNameInDocument();
 
-    Gui::Command::openCommand(QT_TRANSLATE_NOOP("Command", "Create Leader"));
+    int tid = Gui::Command::openActiveDocumentCommand(QT_TRANSLATE_NOOP("Command", "Create Leader"));
     Command::doCommand(Command::Doc, "App.activeDocument().addObject('%s', '%s')",
                        m_leaderType.c_str(), m_leaderName.c_str());
     Command::doCommand(Command::Doc, "App.activeDocument().%s.translateLabel('DrawLeaderLine', 'LeaderLine', '%s')",
@@ -349,31 +351,51 @@ void TaskLeaderLine::createLeaderFeature(std::vector<Base::Vector3d> converted)
 
     Command::doCommand(Command::Doc, "App.activeDocument().%s.addView(App.activeDocument().%s)",
                        PageName.c_str(), m_leaderName.c_str());
+
+    double baseRotation{0};
     if (m_baseFeat) {
         Command::doCommand(Command::Doc, "App.activeDocument().%s.LeaderParent = App.activeDocument().%s",
                                m_leaderName.c_str(), m_baseFeat->getNameInDocument());
+        baseRotation = m_baseFeat->Rotation.getValue();
     }
 
     App::DocumentObject* obj = m_basePage->getDocument()->getObject(m_leaderName.c_str());
-    if (!obj)
+    if (!obj) {
         throw Base::RuntimeError("TaskLeaderLine - new markup object not found");
-    if (obj->isDerivedFrom(TechDraw::DrawLeaderLine::getClassTypeId())) {
+    }
+
+    if (obj->isDerivedFrom<TechDraw::DrawLeaderLine>()) {
         m_lineFeat = static_cast<TechDraw::DrawLeaderLine*>(obj);
+        auto forMath{m_attachPoint};
+        if (baseRotation != 0) {
+            forMath = DU::invertY(forMath);
+            forMath.RotateZ(-Base::toRadians(baseRotation));
+            forMath = DU::invertY(forMath);
+        }
+        m_attachPoint = forMath;
         m_lineFeat->setPosition(Rez::appX(m_attachPoint.x), Rez::appX(- m_attachPoint.y), true);
-        if (!converted.empty()) {
-            m_lineFeat->WayPoints.setValues(converted);
-            if (m_lineFeat->AutoHorizontal.getValue()) {
-                m_lineFeat->adjustLastSegment();
+        if (!sceneDeltas.empty()) {
+            std::vector<Base::Vector3d> pageDeltas;
+            // convert deltas to mm. leader points are stored inverted, so we do not convert to conventional Y axis
+            for (auto& delta : sceneDeltas) {
+                Base::Vector3d deltaInPageCoords = Rez::appX(delta);
+                pageDeltas.push_back(deltaInPageCoords);
             }
+
+            // already unrotated, now convert to unscaled, but inverted
+            bool doScale{true};
+            bool doRotate{false};
+            auto temp = m_lineFeat->makeCanonicalPointsInverted(pageDeltas, doScale, doRotate);
+            m_lineFeat->WayPoints.setValues(temp);
         }
         commonFeatureUpdate();
     }
 
     if (m_lineFeat) {
         Gui::ViewProvider* vp = QGIView::getViewProvider(m_lineFeat);
-        auto leadVP = dynamic_cast<ViewProviderLeader*>(vp);
+        auto leadVP = freecad_cast<ViewProviderLeader*>(vp);
         if (leadVP) {
-            App::Color ac;
+            Base::Color ac;
             ac.setValue<QColor>(ui->cpLineColor->color());
             leadVP->Color.setValue(ac);
             leadVP->LineWidth.setValue(ui->dsbWeight->rawValue());
@@ -382,7 +404,7 @@ void TaskLeaderLine::createLeaderFeature(std::vector<Base::Vector3d> converted)
     }
 
     Gui::Command::updateActive();
-    Gui::Command::commitCommand();
+    Gui::Command::commitCommand(tid);
 
     //trigger claimChildren in tree
     if (m_baseFeat) {
@@ -396,20 +418,29 @@ void TaskLeaderLine::createLeaderFeature(std::vector<Base::Vector3d> converted)
     }
 }
 
+void TaskLeaderLine::dumpTrackerPoints(std::vector<Base::Vector3d>& tPoints) const
+{
+    Base::Console().message("TTL::dumpTrackerPoints(%d)\n", tPoints.size());
+    Base::Console().message("TTL::dumpTrackerPoints - attach point: %s\n", DU::formatVector(m_attachPoint).c_str());
+    for (auto& point : tPoints) {
+        Base::Console().message("TTL::dumpTrackerPoints - a point: %s\n", DU::formatVector(point).c_str());
+    }
+}
+
 void TaskLeaderLine::updateLeaderFeature()
 {
-//    Base::Console().Message("TTL::updateLeaderFeature()\n");
-    Gui::Command::openCommand(QT_TRANSLATE_NOOP("Command", "Edit Leader"));
+//    Base::Console().message("TTL::updateLeaderFeature()\n");
+    int tid = Gui::Command::openActiveDocumentCommand(QT_TRANSLATE_NOOP("Command", "Edit Leader"));
     //waypoints & x, y are updated by QGILeaderLine (for edits only!)
     commonFeatureUpdate();
-    App::Color ac;
+    Base::Color ac;
     ac.setValue<QColor>(ui->cpLineColor->color());
     m_lineVP->Color.setValue(ac);
     m_lineVP->LineWidth.setValue(ui->dsbWeight->rawValue());
     m_lineVP->LineStyle.setValue(ui->cboxStyle->currentIndex());
 
     Gui::Command::updateActive();
-    Gui::Command::commitCommand();
+    Gui::Command::commitCommand(tid);
 
     if (m_baseFeat) {
         m_baseFeat->requestPaint();
@@ -427,9 +458,10 @@ void TaskLeaderLine::commonFeatureUpdate()
 
 void TaskLeaderLine::removeFeature()
 {
-//    Base::Console().Message("TTL::removeFeature()\n");
-    if (!m_lineFeat)
+//    Base::Console().message("TTL::removeFeature()\n");
+    if (!m_lineFeat) {
         return;
+    }
 
     if (m_createMode) {
         try {
@@ -440,7 +472,7 @@ void TaskLeaderLine::removeFeature()
                                         m_lineFeat->getNameInDocument());
         }
         catch (...) {
-            Base::Console().Message("TTL::removeFeature - failed to delete feature\n");
+            Base::Console().message("TTL::removeFeature - failed to delete feature\n");
             return;
         }
     } else {
@@ -455,31 +487,31 @@ void TaskLeaderLine::removeFeature()
 void TaskLeaderLine::onTrackerClicked(bool clicked)
 {
     Q_UNUSED(clicked);
-//    Base::Console().Message("TTL::onTrackerClicked() m_pbTrackerState: %d\n",
-//                            m_pbTrackerState);
     if (!m_vpp->getMDIViewPage()) {
-        Base::Console().Message("TLL::onTrackerClicked - no Mdi, no Tracker!\n");
+        Base::Console().message("TLL::onTrackerClicked - no MDI, no tracker!\n");
         return;
     }
 
-    if ( (m_pbTrackerState == TRACKERSAVE) &&
-         (getCreateMode())  ){
+    if ( m_pbTrackerState == TrackerAction::SAVE &&
+         getCreateMode() ){
         if (m_tracker) {
             m_tracker->terminateDrawing();
         }
-        m_pbTrackerState = TRACKERPICK;
+        m_pbTrackerState = TrackerAction::PICK;
         ui->pbTracker->setText(tr("Pick Points"));
         ui->pbCancelEdit->setEnabled(false);
         enableTaskButtons(true);
 
         setEditCursor(Qt::ArrowCursor);
         return;
-    } else  if ( (m_pbTrackerState == TRACKERSAVE) &&
-                 (!getCreateMode()) ) {                //edit mode
-        if (m_qgLine) {
-            m_qgLine->closeEdit();
+    }
+
+    if ( m_pbTrackerState == TrackerAction::SAVE &&
+         !getCreateMode() ) {                //edit mode
+        if (m_qgLeader) {
+            m_qgLeader->closeEdit();
         }
-        m_pbTrackerState = TRACKERPICK;
+        m_pbTrackerState = TrackerAction::PICK;
         ui->pbTracker->setText(tr("Edit Points"));
         ui->pbCancelEdit->setEnabled(false);
         enableTaskButtons(true);
@@ -488,7 +520,7 @@ void TaskLeaderLine::onTrackerClicked(bool clicked)
         return;
     }
 
-    //TRACKERPICK or TRACKEREDIT
+    //TrackerAction::PICK or TrackerAction::EDIT
     if (getCreateMode()) {
         m_inProgressLock = true;
         m_saveContextPolicy = m_vpp->getMDIViewPage()->contextMenuPolicy();
@@ -499,37 +531,46 @@ void TaskLeaderLine::onTrackerClicked(bool clicked)
 
         QString msg = tr("Pick a starting point for leader line");
         getMainWindow()->statusBar()->show();
-        Gui::getMainWindow()->showMessage(msg, 3000);
+        Gui::getMainWindow()->showMessage(msg, MessageDisplayTime);
         ui->pbTracker->setText(tr("Save Points"));
         ui->pbTracker->setEnabled(true);
         ui->pbCancelEdit->setEnabled(true);
-        m_pbTrackerState = TRACKERSAVE;
+        m_pbTrackerState = TrackerAction::SAVE;
         enableTaskButtons(false);
     } else {    //edit mode
-        m_trackerPoints = m_lineFeat->WayPoints.getValues();
-        if (!m_trackerPoints.empty()) {    //regular edit session
+        // pageDeltas are in mm with conventional Y axis
+        auto pageDeltas =  m_lineFeat->getScaledAndRotatedPoints();
+
+        m_sceneDeltas.clear();
+        m_sceneDeltas.reserve(pageDeltas.size());
+        // now convert to sceneUnits and Qt Y axis
+        for (auto& entry : pageDeltas) {
+            m_sceneDeltas.push_back(DGU::toSceneCoords(entry, false));
+        }
+
+        if (!m_sceneDeltas.empty()) {    //regular edit session
             m_inProgressLock = true;
             m_saveContextPolicy = m_vpp->getMDIViewPage()->contextMenuPolicy();
             m_vpp->getMDIViewPage()->setContextMenuPolicy(Qt::PreventContextMenu);
             QGIView* qgiv = m_vpp->getQGSPage()->findQViewForDocObj(m_lineFeat);
-            QGILeaderLine* qgLead = dynamic_cast<QGILeaderLine*>(qgiv);
+            auto qgLead = dynamic_cast<QGILeaderLine*>(qgiv);
 
             if (!qgLead) {
                 //tarfu
-                Base::Console().Error("TaskLeaderLine - can't find leader graphic\n");
+                Base::Console().error("TaskLeaderLine - cannot find leader graphic\n");
                 //now what? throw will generate "unknown unhandled exception"
             } else {
-                m_qgLine = qgLead;
+                m_qgLeader = qgLead;
                 connect(qgLead, &QGILeaderLine::editComplete,
-                this, &TaskLeaderLine::onPointEditComplete);
+                        this, &TaskLeaderLine::onPointEditComplete);
                 qgLead->startPathEdit();
                 QString msg = tr("Click and drag markers to adjust leader line");
                 getMainWindow()->statusBar()->show();
-                Gui::getMainWindow()->showMessage(msg, 3000);
-                ui->pbTracker->setText(tr("Save changes"));
+                Gui::getMainWindow()->showMessage(msg, MessageDisplayTime);
+                ui->pbTracker->setText(tr("Save Changes"));
                 ui->pbTracker->setEnabled(true);
                 ui->pbCancelEdit->setEnabled(true);
-                m_pbTrackerState = TRACKERSAVE;
+                m_pbTrackerState = TrackerAction::SAVE;
                 enableTaskButtons(false);
             }
         } else { // need to recreate leaderline
@@ -542,11 +583,11 @@ void TaskLeaderLine::onTrackerClicked(bool clicked)
 
             QString msg = tr("Pick a starting point for leader line");
             getMainWindow()->statusBar()->show();
-            Gui::getMainWindow()->showMessage(msg, 3000);
-            ui->pbTracker->setText(tr("Save changes"));
+            Gui::getMainWindow()->showMessage(msg, MessageDisplayTime);
+            ui->pbTracker->setText(tr("Save Changes"));
             ui->pbTracker->setEnabled(true);
             ui->pbCancelEdit->setEnabled(true);
-            m_pbTrackerState = TRACKERSAVE;
+            m_pbTrackerState = TrackerAction::SAVE;
             enableTaskButtons(false);
         }
     }
@@ -554,11 +595,14 @@ void TaskLeaderLine::onTrackerClicked(bool clicked)
 
 void TaskLeaderLine::startTracker()
 {
-//    Base::Console().Message("TTL::startTracker()\n");
-    if (!m_vpp->getQGSPage())
+//    Base::Console().message("TTL::startTracker()\n");
+    if (!m_vpp->getQGSPage()) {
         return;
-    if (m_trackerMode == QGTracker::TrackerMode::None)
+    }
+
+    if (m_trackerMode == QGTracker::TrackerMode::None) {
         return;
+    }
 
     if (!m_tracker) {
         m_tracker = new QGTracker(m_vpp->getQGSPage(), m_trackerMode);
@@ -573,48 +617,56 @@ void TaskLeaderLine::startTracker()
     setEditCursor(Qt::CrossCursor);
     QString msg = tr("Left click to set a point");
     Gui::getMainWindow()->statusBar()->show();
-    Gui::getMainWindow()->showMessage(msg, 3000);
+    Gui::getMainWindow()->showMessage(msg, MessageDisplayTime);
 }
 
-void TaskLeaderLine::onTrackerFinished(std::vector<QPointF> pts, QGIView* qgParent)
+void TaskLeaderLine::onTrackerFinished(std::vector<QPointF> trackerScenePoints, QGIView* qgParent)
 {
     //in this case, we already know who the parent is.  We don't need QGTracker to tell us.
     (void) qgParent;
-//    Base::Console().Message("TTL::onTrackerFinished() - parent: %X\n", qgParent);
-    if (pts.empty()) {
-        Base::Console().Error("TaskLeaderLine - no points available\n");
+    //    Base::Console().message("TTL::onTrackerFinished() - parent: %X\n", qgParent);
+    if (trackerScenePoints.empty()) {
+        Base::Console().error("TaskLeaderLine - no points available\n");
         return;
     }
 
     if (m_qgParent) {
         double scale = m_qgParent->getScale();
-        QPointF mapped = m_qgParent->mapFromScene(pts.front()) / scale;
+        QPointF mapped = m_qgParent->mapFromScene(trackerScenePoints.front()) / scale;
         m_attachPoint = Base::Vector3d(mapped.x(), mapped.y(), 0.0);
-        trackerPointsFromQPoints(pts);
+        m_sceneDeltas = scenePointsToDeltas(trackerScenePoints);
     } else {
-        Base::Console().Message("TTL::onTrackerFinished - can't find parent graphic!\n");
+        Base::Console().message("TTL::onTrackerFinished - cannot find parent graphic!\n");
         //blow up!?
-        throw Base::RuntimeError("TaskLeaderLine - can not find parent graphic");
+        throw Base::RuntimeError("TaskLeaderLine - cannot find parent graphic");
     }
 
     QString msg = tr("Press OK or Cancel to continue");
     getMainWindow()->statusBar()->show();
-    Gui::getMainWindow()->showMessage(msg, 3000);
+    Gui::getMainWindow()->showMessage(msg, MessageDisplayTime);
     enableTaskButtons(true);
 
+            // ??? why does the tracker go to sleep when we are finished with it? why not removeTracker
     m_tracker->sleep(true);
     m_inProgressLock = false;
+
+            // can not pick points any more?
     ui->pbTracker->setEnabled(false);
     ui->pbCancelEdit->setEnabled(false);
+
+    // only option available to user is accept/reject?
     enableTaskButtons(true);
-    setEditCursor(Qt::ArrowCursor);
+    setEditCursor(Qt::ArrowCursor);  // already done by m_tracker->sleep()?
 }
 
+
+// this is called at every possible exit path?
 void TaskLeaderLine::removeTracker()
 {
-//    Base::Console().Message("TTL::removeTracker()\n");
-    if (!m_vpp->getQGSPage())
+//    Base::Console().message("TTL::removeTracker()\n");
+    if (!m_vpp->getQGSPage()) {
         return;
+    }
     if (m_tracker && m_tracker->scene()) {
         m_vpp->getQGSPage()->removeItem(m_tracker);
         delete m_tracker;
@@ -625,15 +677,15 @@ void TaskLeaderLine::removeTracker()
 void TaskLeaderLine::onCancelEditClicked(bool clicked)
 {
     Q_UNUSED(clicked);
-//    Base::Console().Message("TTL::onCancelEditClicked() m_pbTrackerState: %d\n",
+//    Base::Console().message("TTL::onCancelEditClicked() m_pbTrackerState: %d\n",
 //                            m_pbTrackerState);
     abandonEditSession();
     if (m_lineFeat) {
         m_lineFeat->requestPaint();
     }
 
-    m_pbTrackerState = TRACKEREDIT;
-    ui->pbTracker->setText(tr("Edit points"));
+    m_pbTrackerState = TrackerAction::EDIT;
+    ui->pbTracker->setText(tr("Edit Points"));
     ui->pbCancelEdit->setEnabled(false);
     enableTaskButtons(true);
 
@@ -643,18 +695,20 @@ void TaskLeaderLine::onCancelEditClicked(bool clicked)
 
 QGIView* TaskLeaderLine::findParentQGIV()
 {
-    if (!m_baseFeat)
+    if (!m_baseFeat) {
         return nullptr;
+    }
 
     Gui::ViewProvider* gvp = QGIView::getViewProvider(m_baseFeat);
-    ViewProviderDrawingView* vpdv = dynamic_cast<ViewProviderDrawingView*>(gvp);
-    if (!vpdv)
+    ViewProviderDrawingView* vpdv = freecad_cast<ViewProviderDrawingView*>(gvp);
+    if (!vpdv) {
         return nullptr;
+    }
 
     return vpdv->getQView();;
 }
 
-void TaskLeaderLine::setEditCursor(QCursor cursor)
+void TaskLeaderLine::setEditCursor(const QCursor &cursor)
 {
     if (!m_vpp->getQGSPage()) {
         return;
@@ -665,44 +719,66 @@ void TaskLeaderLine::setEditCursor(QCursor cursor)
     }
 }
 
-//from 1:1 scale scene QPointF to zero origin Vector3d points
-void TaskLeaderLine::trackerPointsFromQPoints(std::vector<QPointF> pts)
+// from scene QPointF to zero origin (delta from p0) Vector3d points
+std::vector<Base::Vector3d> TaskLeaderLine::scenePointsToDeltas(std::vector<QPointF> scenePoints)
 {
-//    Base::Console().Message("TTL::trackerPointsFromQPoints(%d)\n", pts.size());
-    m_trackerPoints.clear();
-    for (auto& p: pts) {
-        QPointF mapped = p - pts.front();
-        Base::Vector3d convert(mapped.x(), mapped.y(), 0.0);
-        m_trackerPoints.push_back(convert);
+    if (scenePoints.empty()) {
+        return {};
     }
+
+    std::vector<Base::Vector3d> result;
+    auto frontPoint = DU::toVector3d(m_qgParent->mapFromScene(scenePoints.front()));
+    result.reserve(scenePoints.size());
+    for (auto& point: scenePoints) {
+        auto viewPoint = m_qgParent->mapFromScene(point);
+        auto vPoint = DU::toVector3d(viewPoint);
+        auto delta = vPoint - frontPoint;
+        auto rotationDeg = m_baseFeat->Rotation.getValue();
+        auto deltaUnrotated{delta};
+        if (rotationDeg != 0) {
+            deltaUnrotated = DU::invertY(deltaUnrotated);
+            deltaUnrotated.RotateZ(-Base::toRadians(rotationDeg));
+            deltaUnrotated = DU::invertY(deltaUnrotated);
+        }
+
+        result.push_back(deltaUnrotated);
+    }
+    return result;
 }
 
 //******************************************************************************
 //void TaskLeaderLine::onPointEditComplete(std::vector<QPointF> pts, QGIView* parent)
+
+//! point edit session completed.  reset ui to initial state.
 void TaskLeaderLine::onPointEditComplete()
 {
-//    Base::Console().Message("TTL::onPointEditComplete()\n");
+//    Base::Console().message("TTL::onPointEditComplete()\n");
     m_inProgressLock = false;
 
-    m_pbTrackerState = TRACKEREDIT;
-    ui->pbTracker->setText(tr("Edit points"));
+    m_pbTrackerState = TrackerAction::EDIT;
+    ui->pbTracker->setText(tr("Edit Points"));
     ui->pbTracker->setEnabled(true);
     ui->pbCancelEdit->setEnabled(true);
     enableTaskButtons(true);
 }
 
+
+//! give up on the current point editing session.  reset the ui so we are in a state to
+//! start editing points again.  leave the existing tracker instance in place.
 void TaskLeaderLine::abandonEditSession()
 {
-//    Base::Console().Message("TTL::abandonEditSession()\n");
-    if (m_qgLine) {
-        m_qgLine->abandonEdit();
+//    Base::Console().message("TTL::abandonEditSession()\n");
+    constexpr int MessageDuration{4000};
+    if (m_qgLeader) {
+        // tell the graphics item that we are giving up so it should do any clean up it needs.
+        m_qgLeader->abandonEdit();
     }
     QString msg = tr("In progress edit abandoned. Start over.");
     getMainWindow()->statusBar()->show();
-    Gui::getMainWindow()->showMessage(msg, 4000);
+    Gui::getMainWindow()->showMessage(msg, MessageDuration);
 
-    m_pbTrackerState = TRACKEREDIT;
-    ui->pbTracker->setText(tr("Edit points"));
+    m_pbTrackerState = TrackerAction::EDIT;
+    ui->pbTracker->setText(tr("Edit Points"));
     enableTaskButtons(true);
     ui->pbTracker->setEnabled(true);
     ui->pbCancelEdit->setEnabled(false);
@@ -723,26 +799,11 @@ void TaskLeaderLine::enableTaskButtons(bool enable)
     m_btnCancel->setEnabled(enable);
 }
 
-int TaskLeaderLine::getPrefArrowStyle()
-{
-    return PreferencesGui::dimArrowStyle();
-}
-
-double TaskLeaderLine::prefWeight() const
-{
-    return TechDraw::LineGroup::getDefaultWidth("Thin");
-}
-
-App::Color TaskLeaderLine::prefLineColor()
-{
-    return PreferencesGui::leaderColor();
-}
-
 //******************************************************************************
 
 bool TaskLeaderLine::accept()
 {
-//    Base::Console().Message("TTL::accept()\n");
+//    Base::Console().message("TTL::accept()\n");
     if (m_inProgressLock) {
         //accept() button shouldn't be available if there is an edit in progress.
         abandonEditSession();
@@ -759,7 +820,7 @@ bool TaskLeaderLine::accept()
         updateLeaderFeature();
     } else {
 //        removeTracker();
-        createLeaderFeature(m_trackerPoints);
+        createLeaderFeature(m_sceneDeltas);
     }
     m_trackerMode = QGTracker::TrackerMode::None;
     removeTracker();
@@ -775,7 +836,7 @@ bool TaskLeaderLine::accept()
 bool TaskLeaderLine::reject()
 {
     if (m_inProgressLock) {
-//        Base::Console().Message("TTL::reject - edit in progress!!\n");
+//        Base::Console().message("TTL::reject - edit in progress!!\n");
         //reject() button shouldn't be available if there is an edit in progress.
         abandonEditSession();
         removeTracker();

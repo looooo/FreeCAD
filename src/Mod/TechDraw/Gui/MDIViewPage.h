@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2007 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,14 +22,13 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TECHDRAWGUI_MDIVIEWPAGE_H
-#define TECHDRAWGUI_MDIVIEWPAGE_H
+#pragma once
 
 #include <QPrinter>
 
 #include <Gui/MDIView.h>
 #include <Gui/MDIViewPy.h>
-#include <Gui/Selection.h>
+#include <Gui/Selection/Selection.h>
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
 #include "ViewProviderPage.h"
@@ -72,9 +73,11 @@ public:
     void selectQGIView(App::DocumentObject *obj, bool isSelected, const std::vector<std::string> &subNames);
     void clearSceneSelection();
     void blockSceneSelection(bool isBlocked);
+    void selectOnRightPress(QGraphicsItem* item);
 
-    bool onMsg(const char* pMsg, const char** ppReturn) override;
+    bool onMsg(const char* pMsg) override;
     bool onHasMsg(const char* pMsg) const override;
+    void onRelabel(Gui::Document* pDoc) override;
 
     void print() override;
     void print(QPrinter* printer) override;
@@ -89,7 +92,7 @@ public:
 
     void saveSVG(std::string fileName);
     void saveDXF(std::string fileName);
-    void savePDF(std::string fileName);
+    void savePDF(const std::string& fileName) const;
 
     void zoomIn();
     void zoomOut();
@@ -99,22 +102,31 @@ public:
 
     PyObject* getPyObject() override;
     TechDraw::DrawPage * getPage() { return m_vpPage->getDrawPage(); }
-
-    ViewProviderPage* getViewProviderPage() {return m_vpPage;}
+    ViewProviderPage* getViewProviderPage() const {return m_vpPage;}
 
     void setTabText(std::string tabText);
+    void closeWithoutSavePrompt();
 
     void contextMenuEvent(QContextMenuEvent *event) override;
 
     void setScene(QGSPage* scene, QGVPage* view);
     void fixSceneDependencies();
 
+    void setDimensionsSelectability(bool val);
+    void enableContextualMenu(bool val) { isContextualMenuEnabled = val; }
+
+    QString getPdfFileName() const;     // static?
+    static bool isFileWritable(const QString& filename);
+    void exportAsPdf() const;
+
+
 public Q_SLOTS:
     void viewAll() override;
     void saveSVG();
     void saveDXF();
-    void savePDF();
+    void slotContextExportPdf();
     void toggleFrame();
+    void toggleGrid();
     void toggleKeepUpdated();
     void sceneSelectionChanged();
     void printAll();
@@ -127,14 +139,31 @@ protected:
     void onDeleteObject(const App::DocumentObject& obj);
 
     bool compareSelections(std::vector<Gui::SelectionObject> treeSel, QList<QGraphicsItem*> sceneSel);
+    void addSceneItemToTreeSel(QGraphicsItem* sceneItem, std::vector<Gui::SelectionObject> treeSel);
+    void removeUnselectedTreeSelection(QList<QGraphicsItem*> sceneSel, Gui::SelectionObject& treeSelection);
+    std::string getSceneSubName(QGraphicsItem* scene);
     void setTreeToSceneSelect();
     void sceneSelectionManager();
 
 private:
-    using Connection = boost::signals2::connection;
+    struct SelectionContext {
+        bool hasFace = false;
+        bool hasGeomEdge = false;
+        bool hasCosmeticEdge = false;
+        bool hasCircleEdge = false;
+    };
+
+    static SelectionContext getSelectionContext();
+
+    bool addSelectionGroups(QMenu& menu);
+    void addPageGroup(QMenu& menu);
+    int addCommandsByName(QMenu& menu, std::initializer_list<const char*> names);
+
+    using Connection = fastsignals::connection;
     Connection connectDeletedObject;
 
     QAction *m_toggleFrameAction;
+    QAction *m_toggleGridAction;
     QAction *m_toggleKeepUpdatedAction;
     QAction *m_exportSVGAction;
     QAction *m_exportDXFAction;
@@ -144,15 +173,15 @@ private:
     std::string m_objectName;
     std::string m_documentName;
     bool isSelectionBlocked;
+    bool isContextualMenuEnabled;
     QPointer<QGSPage> m_scene;
 
     QString m_currentPath;
     ViewProviderPage* m_vpPage;
 
-    QList<QGraphicsItem*> m_qgSceneSelected;        //items in selection order
+    QList<QGraphicsItem*> m_orderedSceneSelection;        //items in selection order
 
-    void getPaperAttributes();
-    PagePrinter* m_pagePrinter;
+    QString defaultFileName();
 
 };
 
@@ -178,5 +207,3 @@ protected:
 
 
 } // namespace MDIViewPageGui
-
-#endif // TECHDRAWGUI_MDIVIEWPAGE_H

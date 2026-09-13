@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
  /**************************************************************************
  *   Copyright (c) 2020 FreeCAD Developers                                 *
  *   Author: Uwe Stöhr <uwestoehr@lyx.org>                                 *
@@ -21,8 +23,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_DLGPREFSTECHDRAWIMPANNOTATION_H
-#define DRAWINGGUI_DLGPREFSTECHDRAWIMPANNOTATION_H
+#pragma once
 
 #include <memory>
 #include <Gui/PrefWidgets.h>
@@ -31,6 +32,7 @@
 
 namespace TechDraw {
 class LineGenerator;
+enum class ArrowType : int;
 }
 
 namespace TechDrawGui {
@@ -53,7 +55,9 @@ protected:
     void loadSettings() override;
     void changeEvent(QEvent *e) override;
 
-    int prefBalloonArrow() const;
+    TechDraw::ArrowType prefBalloonArrow() const;
+    int prefBalloonShape() const;
+    int prefMattingStyle() const;
     void loadLineStyleBoxes();
 
 private:
@@ -62,5 +66,3 @@ private:
 };
 
 } // namespace TechDrawGui
-
-#endif // DRAWINGGUI_DLGPREFSTECHDRAWIMPANNOTATION_H

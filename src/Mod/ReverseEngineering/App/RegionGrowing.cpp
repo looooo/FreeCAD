@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,26 +22,25 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <boost/math/special_functions/fpclassify.hpp>
-#endif
 
+
+#include <Base/Tools.h>
 #include <Mod/Points/App/Points.h>
 
 #include "RegionGrowing.h"
 
 
 #if defined(HAVE_PCL_FILTERS)
-#include <pcl/filters/passthrough.h>
-#include <pcl/point_types.h>
+# include <pcl/filters/passthrough.h>
+# include <pcl/point_types.h>
 #endif
 #if defined(HAVE_PCL_SEGMENTATION)
-#include <pcl/features/normal_3d.h>
-#include <pcl/filters/extract_indices.h>
-#include <pcl/search/kdtree.h>
-#include <pcl/search/search.h>
-#include <pcl/segmentation/region_growing.h>
+# include <pcl/features/normal_3d.h>
+# include <pcl/filters/extract_indices.h>
+# include <pcl/search/kdtree.h>
+# include <pcl/search/search.h>
+# include <pcl/segmentation/region_growing.h>
 
 using namespace std;
 using namespace Reen;
@@ -57,8 +58,7 @@ void RegionGrowing::perform(int ksearch)
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
     cloud->reserve(myPoints.size());
     for (Points::PointKernel::const_iterator it = myPoints.begin(); it != myPoints.end(); ++it) {
-        if (!boost::math::isnan(it->x) && !boost::math::isnan(it->y)
-            && !boost::math::isnan(it->z)) {
+        if (!boost::math::isnan(it->x) && !boost::math::isnan(it->y) && !boost::math::isnan(it->z)) {
             cloud->push_back(pcl::PointXYZ(it->x, it->y, it->z));
         }
     }
@@ -88,14 +88,13 @@ void RegionGrowing::perform(int ksearch)
     reg.setInputCloud(cloud);
     // reg.setIndices (indices);
     reg.setInputNormals(normals);
-    reg.setSmoothnessThreshold(3.0 / 180.0 * M_PI);
+    reg.setSmoothnessThreshold(Base::toRadians(3.0));
     reg.setCurvatureThreshold(1.0);
 
     std::vector<pcl::PointIndices> clusters;
     reg.extract(clusters);
 
-    for (std::vector<pcl::PointIndices>::iterator it = clusters.begin(); it != clusters.end();
-         ++it) {
+    for (std::vector<pcl::PointIndices>::iterator it = clusters.begin(); it != clusters.end(); ++it) {
         myClusters.push_back(std::vector<int>());
         myClusters.back().swap(it->indices);
     }
@@ -104,7 +103,7 @@ void RegionGrowing::perform(int ksearch)
 void RegionGrowing::perform(const std::vector<Base::Vector3f>& myNormals)
 {
     if (myPoints.size() != myNormals.size()) {
-        throw Base::RuntimeError("Number of points doesn't match with number of normals");
+        throw Base::RuntimeError("Number of points does not match with number of normals");
     }
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
@@ -142,14 +141,13 @@ void RegionGrowing::perform(const std::vector<Base::Vector3f>& myNormals)
     reg.setInputCloud(cloud);
     // reg.setIndices (indices);
     reg.setInputNormals(normals);
-    reg.setSmoothnessThreshold(3.0 / 180.0 * M_PI);
+    reg.setSmoothnessThreshold(Base::toRadians(3.0));
     reg.setCurvatureThreshold(1.0);
 
     std::vector<pcl::PointIndices> clusters;
     reg.extract(clusters);
 
-    for (std::vector<pcl::PointIndices>::iterator it = clusters.begin(); it != clusters.end();
-         ++it) {
+    for (std::vector<pcl::PointIndices>::iterator it = clusters.begin(); it != clusters.end(); ++it) {
         myClusters.push_back(std::vector<int>());
         myClusters.back().swap(it->indices);
     }

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2012 Yorik van Havre <yorik@uncreated.net>              *
  *   Copyright (c) 2015 WandererFan <wandererfan@gmail.com>                *
@@ -21,7 +23,8 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
+
+#include <App/Link.h>
 
 #include "DrawViewClip.h"
 #include "DrawPage.h"
@@ -65,11 +68,20 @@ void DrawViewClip::onChanged(const App::Property* prop)
     DrawView::onChanged(prop);
 }
 
-void DrawViewClip::addView(DrawView *view)
+void DrawViewClip::addView(App::DocumentObject* docObj)
 {
-    const std::vector<App::DocumentObject*> currViews = Views.getValues();
-    std::vector<App::DocumentObject *> newViews(currViews);
-    newViews.push_back(view);
+    if(docObj->isDerivedFrom<App::Link>()) {
+        auto* link = static_cast<App::Link*>(docObj);
+        docObj = link->getLinkedObject();
+    }
+
+    if (!docObj->isDerivedFrom<DrawView>()) {
+        return;
+    }
+    auto* view = static_cast<DrawView*>(docObj);
+
+    std::vector<App::DocumentObject*> newViews(Views.getValues());
+    newViews.push_back(docObj);
     Views.setValues(newViews);
     QRectF viewRect = view->getRectAligned();
     QPointF clipPoint(X.getValue(), Y.getValue());
@@ -91,18 +103,34 @@ void DrawViewClip::addView(DrawView *view)
     page->Views.touch();
 }
 
-void DrawViewClip::removeView(DrawView *view)
+void DrawViewClip::removeView(App::DocumentObject* docObj)
 {
-    std::vector<App::DocumentObject *> currViews = Views.getValues();
     std::vector<App::DocumentObject *> newViews;
-    std::vector<App::DocumentObject*>::iterator it = currViews.begin();
-    for (; it != currViews.end(); it++) {
-        std::string viewName = view->getNameInDocument();
-        if (viewName.compare((*it)->getNameInDocument()) != 0) {
-            newViews.push_back((*it));
+    std::string viewName = docObj->getNameInDocument();
+    for (auto* view : Views.getValues()) {
+        if (viewName.compare(view->getNameInDocument()) != 0) {
+            newViews.push_back(view);
         }
     }
     Views.setValues(newViews);
+}
+
+std::vector<App::DocumentObject*> DrawViewClip::getViews() const
+{
+    std::vector<App::DocumentObject*> views = Views.getValues();
+    std::vector<App::DocumentObject*> allViews;
+    for (auto& v : views) {
+        if (v->isDerivedFrom<App::Link>()) {
+            v = static_cast<App::Link*>(v)->getLinkedObject();
+        }
+
+        if (!v->isDerivedFrom<DrawView>()) {
+            continue;
+        }
+
+        allViews.push_back(v);
+    }
+    return allViews;
 }
 
 App::DocumentObjectExecReturn *DrawViewClip::execute()
@@ -111,10 +139,10 @@ App::DocumentObjectExecReturn *DrawViewClip::execute()
         return App::DocumentObject::StdReturn;
     }
 
-    std::vector<App::DocumentObject*> children = Views.getValues();
-    for (std::vector<App::DocumentObject*>::iterator it = children.begin(); it != children.end(); ++it) {
-        if ((*it)->isDerivedFrom<DrawView>()) {
-            TechDraw::DrawView *view = static_cast<TechDraw::DrawView *>(*it);
+    std::vector<App::DocumentObject*> children = getViews();
+    for (auto* obj : getViews()) {
+        if (obj->isDerivedFrom<DrawView>()) {
+            auto* view = static_cast<TechDraw::DrawView*>(obj);
             view->requestPaint();
         }
     }
@@ -140,10 +168,9 @@ short DrawViewClip::mustExecute() const
 std::vector<std::string> DrawViewClip::getChildViewNames()
 {
     std::vector<std::string> childNames;
-    std::vector<App::DocumentObject*> children = Views.getValues();
-    for (std::vector<App::DocumentObject*>::iterator it = children.begin(); it != children.end(); ++it) {
-        if ((*it)->isDerivedFrom<DrawView>()) {
-            std::string name = (*it)->getNameInDocument();
+    for (auto* obj : getViews()) {
+        if (obj->isDerivedFrom<DrawView>()) {
+            std::string name = obj->getNameInDocument();
             childNames.push_back(name);
         }
     }
@@ -152,9 +179,8 @@ std::vector<std::string> DrawViewClip::getChildViewNames()
 
 bool DrawViewClip::isViewInClip(App::DocumentObject* view)
 {
-    std::vector<App::DocumentObject*> children = Views.getValues();
-    for (std::vector<App::DocumentObject*>::iterator it = children.begin(); it != children.end(); ++it) {
-        if ((*it) == view) {
+    for (auto* obj : getViews()) {
+        if (obj == view) {
             return true;
         }
     }

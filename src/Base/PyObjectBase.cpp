@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2002 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,12 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-
-#include "PreCompiled.h"
-
-#ifndef _PreComp_
 #include <sstream>
-#endif
 
 #include "PyObjectBase.h"
 #include "Console.h"
@@ -48,6 +45,8 @@ PyObject* Base::PyExc_FC_BadGraphError = nullptr;
 PyObject* Base::PyExc_FC_ExpressionError = nullptr;
 PyObject* Base::PyExc_FC_ParserError = nullptr;
 PyObject* Base::PyExc_FC_CADKernelError = nullptr;
+PyObject* Base::PyExc_FC_PropertyError = nullptr;
+PyObject* Base::PyExc_FC_AbortIOException = nullptr;
 
 typedef struct {            //NOLINT
     PyObject_HEAD
@@ -66,7 +65,7 @@ PyObjectBase::PyObjectBase(void* voidp, PyTypeObject *T)
 #endif
     _Py_NewReference(this);
 #ifdef FC_LOGPYOBJECTS
-    Base::Console().Log("PyO+: %s (%p)\n",T->tp_name, this);
+    Base::Console().log("PyO+: %s (%p)\n",T->tp_name, this);
 #endif
     StatusBits.set(Valid); // valid, the second bit is NOT set, i.e. it's mutable
     StatusBits.set(Notify);
@@ -77,7 +76,7 @@ PyObjectBase::~PyObjectBase()
 {
     PyGILStateLocker lock;
 #ifdef FC_LOGPYOBJECTS
-    Base::Console().Log("PyO-: %s (%p)\n",Py_TYPE(this)->tp_name, this);
+    Base::Console().log("PyO-: %s (%p)\n",Py_TYPE(this)->tp_name, this);
 #endif
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
     if (baseProxy && reinterpret_cast<PyBaseProxy*>(baseProxy)->baseobject == this) {
@@ -94,7 +93,7 @@ PyObjectBase::~PyObjectBase()
  * To prevent subclasses of PyTypeObject to be subclassed in Python we should remove
  * the Py_TPFLAGS_BASETYPE flag. For example, the classes App::VectorPy and App::MatrixPy
  * have removed this flag and its Python proxies App.Vector and App.Matrix cannot be subclassed.
- * In case we want to allow to derive from subclasses of PyTypeObject in Python
+ * In case we want to allow a new class to derive from subclasses of PyTypeObject in Python
  * we must either reimplement tp_new, tp_dealloc, tp_getattr, tp_setattr, tp_repr or set them to
  * 0 and define tp_base as 0.
  */
@@ -114,18 +113,13 @@ PyBaseProxy_dealloc(PyObject* self)
     }
     Py_TYPE(self)->tp_free(self);
 }
-
 static PyTypeObject PyBaseProxyType = {
     PyVarObject_HEAD_INIT(nullptr, 0)
     "PyBaseProxy",                                          /*tp_name*/
     sizeof(PyBaseProxy),                                    /*tp_basicsize*/
     0,                                                      /*tp_itemsize*/
     PyBaseProxy_dealloc,                                    /*tp_dealloc*/
-#if PY_VERSION_HEX >= 0x03080000
     0,                                                      /*tp_vectorcall_offset*/
-#else
-    nullptr,                                                /*tp_print*/
-#endif
     nullptr,                                                /*tp_getattr*/
     nullptr,                                                /*tp_setattr*/
     nullptr,                                                /*tp_compare*/
@@ -168,12 +162,12 @@ static PyTypeObject PyBaseProxyType = {
     nullptr,                                                /*tp_del */
     0,                                                      /*tp_version_tag */
     nullptr                                                 /*tp_finalize */
-#if PY_VERSION_HEX >= 0x03090000
     ,0                                            //NOLINT  /*tp_vectorcall */
-#elif PY_VERSION_HEX >= 0x03080000
-    ,0                                                      /*tp_vectorcall */
-    /* bpo-37250: kept for backwards compatibility in CPython 3.8 only */
-    ,0                                                      /*tp_print */
+#if PY_VERSION_HEX >= 0x030c0000
+    ,0                                                      /*tp_watched */
+#endif
+#if PY_VERSION_HEX >= 0x030d0000
+    ,0                                                      /*tp_versions_used*/
 #endif
 };
 
@@ -184,11 +178,7 @@ PyTypeObject PyObjectBase::Type = {
     0,                                                      /*tp_itemsize*/
     /* --- methods ---------------------------------------------- */
     PyDestructor,                                           /*tp_dealloc*/
-#if PY_VERSION_HEX >= 0x03080000
     0,                                                      /*tp_vectorcall_offset*/
-#else
-    nullptr,                                                /*tp_print*/
-#endif
     nullptr,                                                /*tp_getattr*/
     nullptr,                                                /*tp_setattr*/
     nullptr,                                                /*tp_compare*/
@@ -233,12 +223,12 @@ PyTypeObject PyObjectBase::Type = {
     nullptr,                                                /*tp_del */
     0,                                                      /*tp_version_tag */
     nullptr                                                 /*tp_finalize */
-#if PY_VERSION_HEX >= 0x03090000
     ,0                                            //NOLINT  /*tp_vectorcall */
-#elif PY_VERSION_HEX >= 0x03080000
-    ,0                                                      /*tp_vectorcall */
-    /* bpo-37250: kept for backwards compatibility in CPython 3.8 only */
-    ,0                                                      /*tp_print */
+#if PY_VERSION_HEX >= 0x030c0000
+    ,0                                                      /*tp_watched */
+#endif
+#if PY_VERSION_HEX >= 0x030d0000
+    ,0                                                      /*tp_versions_used*/
 #endif
 };
 
@@ -271,7 +261,16 @@ PyObject* createWeakRef(PyObjectBase* ptr)
 PyObjectBase* getFromWeakRef(PyObject* ref)
 {
     if (ref) {
+#if PY_VERSION_HEX >= 0x030d0000
+        ::PyObject* proxy;
+        int returnCode = PyWeakref_GetRef(ref, &proxy);
+        if (returnCode != 1) {
+            return nullptr;
+        }
+        Py_DECREF(proxy);
+#else
         PyObject* proxy = PyWeakref_GetObject(ref);
+#endif
         if (proxy && PyObject_TypeCheck(proxy, &PyBaseProxyType)) {
             // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
             return static_cast<PyObjectBase*>(reinterpret_cast<PyBaseProxy*>(proxy)->baseobject);
@@ -359,13 +358,13 @@ int PyObjectBase::__setattro(PyObject *obj, PyObject *attro, PyObject *value)
     const char *attr{};
     attr = PyUnicode_AsUTF8(attro);
 
-    //Hint: In general we don't allow to delete attributes (i.e. value=0). However, if we want to allow
+    //Hint: In general we don't allow one to delete attributes (i.e. value=0). However, if we want to allow
     //we must check then in _setattr() of all subclasses whether value is 0.
     if (!value) {
         PyErr_Format(PyExc_AttributeError, "Cannot delete attribute: '%s'", attr);
         return -1;
     }
-    else if (!static_cast<PyObjectBase*>(obj)->isValid()){
+    if (!static_cast<PyObjectBase*>(obj)->isValid()){
         PyErr_Format(PyExc_ReferenceError, "Cannot access attribute '%s' of deleted object", attr);
         return -1;
     }
@@ -404,36 +403,32 @@ PyObject *PyObjectBase::_getattr(const char *attr)
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
         return reinterpret_cast<PyObject *>(Py_TYPE(this));
     }
-    else if (streq(attr, "__members__")) {
+    if (streq(attr, "__members__")) {
         // Use __dict__ instead as __members__ is deprecated
         return nullptr;
     }
-    else if (streq(attr,"__dict__")) {
+    if (streq(attr,"__dict__")) {
         // Return the default dict
         PyTypeObject *tp = Py_TYPE(this);
         Py_XINCREF(tp->tp_dict);
         return tp->tp_dict;
     }
-    else if (streq(attr,"softspace")) {
+    if (streq(attr,"softspace")) {
         // Internal Python stuff
         return nullptr;
     }
-    else {
-        // As fallback solution use Python's default method to get generic attributes
-        PyObject *w{};
-        PyObject *res{};
-        w = PyUnicode_InternFromString(attr);
-        if (w) {
-            res = PyObject_GenericGetAttr(this, w);
-            Py_XDECREF(w);
-            return res;
-        } else {
-            // Throw an exception for unknown attributes
-            PyTypeObject *tp = Py_TYPE(this);
-            PyErr_Format(PyExc_AttributeError, "%.50s instance has no attribute '%.400s'", tp->tp_name, attr);
-            return nullptr;
-        }
+    // As fallback solution use Python's default method to get generic attributes
+    PyObject *w{}, *res{};
+    w = PyUnicode_InternFromString(attr);
+    if (w) {
+        res = PyObject_GenericGetAttr(this, w);
+        Py_XDECREF(w);
+        return res;
     }
+    // Throw an exception for unknown attributes
+    PyTypeObject *tp = Py_TYPE(this);
+    PyErr_Format(PyExc_AttributeError, "%.50s instance has no attribute '%.400s'", tp->tp_name, attr);
+    return nullptr;
 }
 
 int PyObjectBase::_setattr(const char *attr, PyObject *value)
@@ -449,12 +444,11 @@ int PyObjectBase::_setattr(const char *attr, PyObject *value)
         int res = PyObject_GenericSetAttr(this, w, value);
         Py_DECREF(w);
         return res;
-    } else {
-        // Throw an exception for unknown attributes
-        PyTypeObject *tp = Py_TYPE(this);
-        PyErr_Format(PyExc_AttributeError, "%.50s instance has no attribute '%.400s'", tp->tp_name, attr);
-        return -1;
     }
+    // Throw an exception for unknown attributes
+    PyTypeObject *tp = Py_TYPE(this);
+    PyErr_Format(PyExc_AttributeError, "%.50s instance has no attribute '%.400s'", tp->tp_name, attr);
+    return -1;
 }
 
 /*------------------------------
@@ -465,7 +459,7 @@ PyObject *PyObjectBase::_repr()
     std::stringstream a;
     a << "<base object at " << _pcTwinPointer << ">";
 # ifdef FCDebug
-    Console().Log("PyObjectBase::_repr() not overwritten representation!");
+    Console().log("PyObjectBase::_repr() not overwritten representation!");
 # endif
     return Py_BuildValue("s", a.str().c_str());
 }

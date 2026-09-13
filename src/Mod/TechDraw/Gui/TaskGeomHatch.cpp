@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2017 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,10 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 # include <cmath>
-#endif // #ifndef _PreComp_
 
 #include <App/Document.h>
 #include <Base/Console.h>
@@ -33,6 +32,7 @@
 #include <Gui/ViewProvider.h>
 #include <Mod/TechDraw/App/DrawGeomHatch.h>
 #include <Mod/TechDraw/App/DrawView.h>
+#include <Mod/TechDraw/App/DrawUtil.h>
 
 #include "TaskGeomHatch.h"
 #include "ui_TaskGeomHatch.h"
@@ -42,6 +42,7 @@
 using namespace Gui;
 using namespace TechDraw;
 using namespace TechDrawGui;
+using DU = DrawUtil;
 
 TaskGeomHatch::TaskGeomHatch(TechDraw::DrawGeomHatch* inHatch, TechDrawGui::ViewProviderGeomHatch* inVp, bool mode) :
     ui(new Ui_TaskGeomHatch),
@@ -68,7 +69,7 @@ void TaskGeomHatch::initUi()
     if (nameIndex > -1) {
         ui->cbName->setCurrentIndex(nameIndex);
     } else {
-        Base::Console().Warning("Warning - Pattern name *%s* not found in current PAT File\n", m_name.c_str());
+        Base::Console().warning("Warning - Pattern name *%s* not found in current PAT file\n", m_name.c_str());
     }
     connect(ui->cbName, qOverload<int>(&QComboBox::currentIndexChanged), this, &TaskGeomHatch::onNameChanged);
 
@@ -91,7 +92,8 @@ void TaskGeomHatch::initUi()
 
 void TaskGeomHatch::onFileChanged()
 {
-    m_file = ui->fcFile->fileName().toUtf8().constData();
+    auto filespec = ui->fcFile->fileName().toStdString();
+    m_file = DU::cleanFilespecBackslash(filespec);
     std::vector<std::string> names = PATLineSpec::getPatternList(m_file);
     QStringList qsNames = listToQ(names);
     ui->cbName->clear();
@@ -149,7 +151,7 @@ void TaskGeomHatch::onColorChanged()
 
 bool TaskGeomHatch::accept()
 {
-//    Base::Console().Message("TGH::accept()\n");
+//    Base::Console().message("TGH::accept()\n");
     updateValues();
     Gui::Command::doCommand(Gui::Command::Gui, "Gui.ActiveDocument.resetEdit()");
     m_hatch->recomputeFeature();                     //create the hatch lines
@@ -201,7 +203,7 @@ void TaskGeomHatch::getParameters()
 //move values from screen to DocObjs
 void TaskGeomHatch::updateValues()
 {
-//    Base::Console().Message("TGH::updateValues()\n");
+//    Base::Console().message("TGH::updateValues()\n");
     m_file = (ui->fcFile->fileName()).toUtf8().constData();
     m_hatch->FilePattern.setValue(m_file);
     QString cText = ui->cbName->currentText();

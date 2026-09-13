@@ -20,20 +20,17 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-
-#ifndef _PreComp_
-# include <QCoreApplication>
-# include <QDate>
-# include <QDesktopServices>
-# include <QDir>
-# include <QLocale>
-# include <QMessageBox>
-# include <QSettings>
-# include <QUrl>
-# include <cmath>
-# include <vector>
-#endif
+#include <cmath>
+#include <limits>
+#include <vector>
+#include <QCoreApplication>
+#include <QDate>
+#include <QDesktopServices>
+#include <QDir>
+#include <QLocale>
+#include <QMessageBox>
+#include <QSettings>
+#include <QUrl>
 
 #include <App/Application.h>
 #include <App/Document.h>
@@ -51,24 +48,25 @@ using namespace Gui::Dialog;
 QString DlgSettingsCacheDirectory::currentSize;
 
 DlgSettingsCacheDirectory::DlgSettingsCacheDirectory(QWidget* parent)
-  : PreferencePage(parent)
-  , ui(new Ui_DlgSettingsCacheDirectory)
+    : PreferencePage(parent)
+    , ui(new Ui_DlgSettingsCacheDirectory)
 {
     ui->setupUi(this);
     ui->labelCache->setToolTip(tr("Notify the user if the cache size exceeds the specified limit"));
-    if (currentSize.isEmpty())
+    if (currentSize.isEmpty()) {
         currentSize = tr("Unknown");
+    }
     setCurrentCacheSize(currentSize);
 
     QString path = QString::fromStdString(App::Application::getUserCachePath());
     ui->cacheLocation->setText(path);
 
-    ui->comboBoxLimit->addItem(QString::fromLatin1("100 MB"), 100);
-    ui->comboBoxLimit->addItem(QString::fromLatin1("300 MB"), 300);
-    ui->comboBoxLimit->addItem(QString::fromLatin1("500 MB"), 500);
-    ui->comboBoxLimit->addItem(QString::fromLatin1("1 GB"), 1024);
-    ui->comboBoxLimit->addItem(QString::fromLatin1("2 GB"), 2048);
-    ui->comboBoxLimit->addItem(QString::fromLatin1("3 GB"), 3072);
+    ui->comboBoxLimit->addItem(QStringLiteral("100 MB"), 100);
+    ui->comboBoxLimit->addItem(QStringLiteral("300 MB"), 300);
+    ui->comboBoxLimit->addItem(QStringLiteral("500 MB"), 500);
+    ui->comboBoxLimit->addItem(QStringLiteral("1 GB"), 1024);
+    ui->comboBoxLimit->addItem(QStringLiteral("2 GB"), 2048);
+    ui->comboBoxLimit->addItem(QStringLiteral("3 GB"), 3072);
 
     connect(ui->pushButtonCheck, &QPushButton::clicked, this, &DlgSettingsCacheDirectory::runCheck);
     connect(ui->openButton, &QPushButton::clicked, this, &DlgSettingsCacheDirectory::openDirectory);
@@ -85,20 +83,34 @@ void DlgSettingsCacheDirectory::saveSettings()
 void DlgSettingsCacheDirectory::loadSettings()
 {
     int period = ApplicationCacheSettings::getCheckPeriod();
-    if (period >= 0 && period < ui->comboBoxPeriod->count())
+    if (period >= 0 && period < ui->comboBoxPeriod->count()) {
         ui->comboBoxPeriod->setCurrentIndex(period);
+    }
     unsigned int limit = ApplicationCacheSettings::getCacheSizeLimit();
     int index = ui->comboBoxLimit->findData(limit);
 
     // if not found then add a new item with this value
     if (index < 0) {
-        ui->comboBoxLimit->addItem(QString::fromLatin1("%1 MB").arg(limit), limit);
+        ui->comboBoxLimit->addItem(QStringLiteral("%1 MB").arg(limit), limit);
         index = ui->comboBoxLimit->count() - 1;
     }
     ui->comboBoxLimit->setCurrentIndex(index);
 }
 
-void DlgSettingsCacheDirectory::changeEvent(QEvent *e)
+void DlgSettingsCacheDirectory::resetSettingsToDefaults()
+{
+    ParameterGrp::handle hGrp;
+    hGrp = WindowParameter::getDefaultParameter()->GetGroup("CacheDirectory");
+    // reset "Limit" parameter
+    hGrp->RemoveUnsigned("Limit");
+    // reset "Period" parameter
+    hGrp->RemoveInt("Period");
+
+    // finally reset all the parameters associated to Gui::Pref* widgets
+    PreferencePage::resetSettingsToDefaults();
+}
+
+void DlgSettingsCacheDirectory::changeEvent(QEvent* e)
 {
     if (e->type() == QEvent::LanguageChange) {
         int period = ui->comboBoxPeriod->currentIndex();
@@ -153,24 +165,24 @@ ApplicationCache::ApplicationCache()
 void ApplicationCache::setPeriod(ApplicationCache::Period period)
 {
     switch (period) {
-    case Period::Always:
-        numDays = -1;
-        break;
-    case Period::Daily:
-        numDays = 1;
-        break;
-    case Period::Weekly:
-        numDays = 7;
-        break;
-    case Period::Monthly:
-        numDays = 31;
-        break;
-    case Period::Yearly:
-        numDays = 365;
-        break;
-    case Period::Never:
-        numDays = INT_MAX;
-        break;
+        case Period::Always:
+            numDays = -1;
+            break;
+        case Period::Daily:
+            numDays = 1;
+            break;
+        case Period::Weekly:
+            numDays = 7;
+            break;
+        case Period::Monthly:
+            numDays = 31;
+            break;
+        case Period::Yearly:
+            numDays = 365;
+            break;
+        case Period::Never:
+            numDays = std::numeric_limits<int>::max();
+            break;
     }
 }
 
@@ -195,7 +207,7 @@ bool ApplicationCache::periodicCheckOfSize() const
     QString application = QString::fromStdString(App::Application::getExecutableName());
 
     QSettings settings(vendor, application);
-    QString key = QString::fromLatin1("LastCacheCheck");
+    QString key = QStringLiteral("LastCacheCheck");
     QDate date = settings.value(key).toDate();
     QDate now = QDate::currentDate();
 
@@ -225,14 +237,16 @@ bool ApplicationCache::performAction(qint64 total)
         QString path = QString::fromStdString(App::Application::getUserCachePath());
         QMessageBox msgBox(Gui::getMainWindow());
         msgBox.setIcon(QMessageBox::Warning);
-        msgBox.setWindowTitle(tr("Cache directory"));
+        msgBox.setWindowTitle(tr("Cache Directory"));
 
-        QString hint = tr("The cache directory %1 exceeds the size of %2.").arg(path, ApplicationCache::toString(limit));
-        QString ask = tr("Do you want to clear it now?");
-        QString warn = tr("Warning: Please make sure that this is the only running %1 instance "
-                          "and that no documents are opened as this may result into data loss!").arg(QCoreApplication::applicationName());
+        QString hint = tr("The cache directory %1 exceeds the size of %2.")
+                           .arg(path, ApplicationCache::toString(limit));
+        QString ask = tr("Clear it now?");
+        QString warn = tr("Warning: Make sure that this is the only running %1 instance "
+                          "and that no documents are opened as this may result into data loss!")
+                           .arg(QCoreApplication::applicationName());
 
-        msgBox.setText(QString::fromLatin1("%1 %2\n\n\n%3").arg(hint, ask, warn));
+        msgBox.setText(QStringLiteral("%1 %2\n\n\n%3").arg(hint, ask, warn));
         msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No | QMessageBox::Open);
         msgBox.setDefaultButton(QMessageBox::No);
 
@@ -273,7 +287,7 @@ void ApplicationCache::clearDirectory(const QString& path)
 {
     // Add the transient directories and the lock files to the ignore list
     QDir tmp = QString::fromUtf8(App::Application::getUserCachePath().c_str());
-    tmp.setNameFilters(QStringList() << QString::fromLatin1("*.lock"));
+    tmp.setNameFilters(QStringList() << QStringLiteral("*.lock"));
     tmp.setFilter(QDir::Files);
 
     QList<QFileInfo> dirs;
@@ -308,8 +322,9 @@ qint64 ApplicationCache::dirSize(QString dirPath) const
     // traverse sub-directories recursively
     QDir::Filters dirFilters = QDir::Dirs | QDir::NoDotAndDotDot;
     const auto& dirs = dir.entryList(dirFilters);
-    for (const QString& subDirPath : dirs)
+    for (const QString& subDirPath : dirs) {
         total += dirSize(dirPath + QDir::separator() + subDirPath);
+    }
     return total;
 }
 
@@ -334,19 +349,18 @@ qint64 ApplicationCache::toBytes(unsigned int sizeInMB)
 
 QString ApplicationCache::toString(qint64 size)
 {
-    QStringList units = {QString::fromLatin1("Bytes"),
-                         QString::fromLatin1("KB"),
-                         QString::fromLatin1("MB"),
-                         QString::fromLatin1("GB")};
+    QStringList units
+        = {QStringLiteral("Bytes"), QStringLiteral("KB"), QStringLiteral("MB"), QStringLiteral("GB")};
     int i;
     double outputSize = size;
-    for (i=0; i<units.size()-1; i++) {
-        if (outputSize < 1024)
+    for (i = 0; i < units.size() - 1; i++) {
+        if (outputSize < 1024) {
             break;
+        }
         outputSize /= 1024;
     }
 
-    return QString::fromLatin1("%1 %2").arg(QLocale().toString(outputSize, 'f', 2), units[i]);
+    return QStringLiteral("%1 %2").arg(QLocale().toString(outputSize, 'f', 2), units[i]);
 }
 
 // ----------------------------------------------------------------------------

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2019 Viktor Titov (DeepSOIC) <vv.titov@gmail.com>       *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef FREECAD_BASE_DUAL_QUATERNION_H
-#define FREECAD_BASE_DUAL_QUATERNION_H
+#pragma once
 
 #include "DualNumber.h"
 #include <FCGlobal.h>
@@ -130,7 +131,7 @@ public:
 
     // DEBUG
     // void print() const {
-    //     Console().Log("%f, %f, %f, %f; %f, %f, %f, %f", x.re,y.re,z.re,w.re, x.du,y.du,z.du,
+    //     Console().log("%f, %f, %f, %f; %f, %f, %f, %f", x.re,y.re,z.re,w.re, x.du,y.du,z.du,
     //     w.du);
     // }
 };
@@ -147,5 +148,3 @@ BaseExport DualQuat operator*(DualNumber a, DualQuat b);
 
 }  // namespace Base
 // NOLINTEND(readability-identifier-length)
-
-#endif

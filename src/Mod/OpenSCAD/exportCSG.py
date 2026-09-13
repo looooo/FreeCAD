@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
 
 #***************************************************************************
 #*   Copyright (c) 2012 Keith Sloan <keith@sloan-home.co.uk>               *
@@ -29,6 +30,7 @@ __author__ = "Keith Sloan <keith@sloan-home.co.uk>"
 __url__ = ["http://www.sloan-home.co.uk/Export/Export.html"]
 
 import FreeCAD
+from builtins import open as pyopen
 
 if FreeCAD.GuiUp:
     gui = True
@@ -48,9 +50,6 @@ convexity = 'convexity = %d' % conv
 #***************************************************************************
 # Radius values not fixed for value apart from cylinder & Cone
 # no doubt there will be a problem when they do implement Value
-if open.__module__ in ['__builtin__', 'io']:
-    pythonopen = open # to distinguish python built-in open function from the one declared here
-
 
 def center(b):
     if b == 2:
@@ -147,7 +146,6 @@ def process_object(csg,ob):
     elif ob.TypeId == "Part::Prism":
         import math
         f = str(ob.Polygon)
-#        r = str(ob.Length/2.0/math.sin(math.pi/ob.Polygon))
         r = str(ob.Circumradius) # length seems to be the outer radius
         h = str(ob.Height.Value)
         mm = check_multmatrix(csg, ob, 0, 0, -float(h)/2)
@@ -254,7 +252,7 @@ def export(exportList, filename):
     # process Objects
     print("\nStart Export 0.1d\n")
     print("Open Output File")
-    csg = pythonopen(filename,'w')
+    csg = pyopen(filename,'w')
     print("Write Initial Output")
     # Not sure if comments as per scad are allowed in csg file
     csg.write("// CSG file generated from FreeCAD %s\n" % \

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2017 Stefan Tröger <stefantroeger@gmx.net>              *
  *                                                                         *
@@ -21,10 +23,8 @@
  ***************************************************************************/
 
 
-#include "PreCompiled.h"
-
 #include <App/Document.h>
-#include <Gui/Command.h>
+#include <Gui/CommandT.h>
 #include <Mod/PartDesign/App/FeatureBase.h>
 
 #include "ViewProviderBase.h"
@@ -32,7 +32,7 @@
 
 using namespace PartDesignGui;
 
-PROPERTY_SOURCE(PartDesignGui::ViewProviderBase,PartDesignGui::ViewProvider)
+PROPERTY_SOURCE(PartDesignGui::ViewProviderBase, PartDesignGui::ViewProvider)
 
 ViewProviderBase::ViewProviderBase()
 {
@@ -45,19 +45,19 @@ bool ViewProviderBase::doubleClicked()
 {
     // If the Placement is mutable then open the transform panel.
     // If the Placement can't be modified then just do nothing on double-click.
-    PartDesign::FeatureBase* base = static_cast<PartDesign::FeatureBase*>(getObject());
-    if (!base->Placement.testStatus(App::Property::Immutable) &&
-        !base->Placement.testStatus(App::Property::ReadOnly) &&
-        !base->Placement.testStatus(App::Property::Hidden)) {
+    PartDesign::FeatureBase* base = getObject<PartDesign::FeatureBase>();
+    if (!base->Placement.testStatus(App::Property::Immutable)
+        && !base->Placement.testStatus(App::Property::ReadOnly)
+        && !base->Placement.testStatus(App::Property::Hidden)) {
 
         try {
             std::string Msg("Edit ");
             Msg += base->Label.getValue();
-            Gui::Command::openCommand(Msg.c_str());
-            FCMD_SET_EDIT(base);
+            getDocument()->openCommand(Msg.c_str());
+            Gui::cmdSetEdit(base, Gui::Application::Instance->getUserEditMode());
         }
         catch (const Base::Exception&) {
-            Gui::Command::abortCommand();
+            getDocument()->commitCommand();
         }
         return true;
     }
@@ -68,27 +68,44 @@ bool ViewProviderBase::doubleClicked()
 void ViewProviderBase::setupContextMenu(QMenu* menu, QObject* receiver, const char* member)
 {
     // If the Placement is mutable then show the context-menu of the base class.
-    PartDesign::FeatureBase* base = static_cast<PartDesign::FeatureBase*>(getObject());
-    if (!base->Placement.testStatus(App::Property::Immutable) &&
-        !base->Placement.testStatus(App::Property::ReadOnly) &&
-        !base->Placement.testStatus(App::Property::Hidden)) {
-        PartDesignGui::ViewProvider::setupContextMenu(menu, receiver, member);
+    PartDesign::FeatureBase* base = getObject<PartDesign::FeatureBase>();
+    if (!base->Placement.testStatus(App::Property::Immutable)
+        && !base->Placement.testStatus(App::Property::ReadOnly)
+        && !base->Placement.testStatus(App::Property::Hidden)) {
+
+        // Handling of the edge case where some base features are outside the body
+        // that should not happen, but it was possible to do in older FreeCAD versions.
+        // This ensures that for older files it still works correctly.
+        if (!getBodyViewProvider()) {
+            ViewProviderPartExt::setupContextMenu(menu, receiver, member);
+        }
+
+        ViewProvider::setupContextMenu(menu, receiver, member);
     }
+}
+Gui::ViewProvider* ViewProviderBase::startEditing(int ModNum)
+{
+    if (!getBodyViewProvider()) {
+        return ViewProviderPartExt::startEditing(ModNum);
+    }
+
+    return ViewProvider::startEditing(ModNum);
 }
 
 bool ViewProviderBase::setEdit(int ModNum)
 {
-    PartDesign::FeatureBase* base = static_cast<PartDesign::FeatureBase*>(getObject());
-    if (!base->Placement.testStatus(App::Property::Immutable) &&
-        !base->Placement.testStatus(App::Property::ReadOnly) &&
-        !base->Placement.testStatus(App::Property::Hidden)) {
-        return PartGui::ViewProviderPart::setEdit(ModNum); // clazy:exclude=skipped-base-method
+    PartDesign::FeatureBase* base = getObject<PartDesign::FeatureBase>();
+    if (!base->Placement.testStatus(App::Property::Immutable)
+        && !base->Placement.testStatus(App::Property::ReadOnly)
+        && !base->Placement.testStatus(App::Property::Hidden)) {
+
+        // same as in setupContextMenu
+        if (!getBodyViewProvider()) {
+            return ViewProviderPartExt::setEdit(ModNum);
+        }
+
+        return ViewProvider::setEdit(ModNum);
     }
 
     return false;
-}
-
-void ViewProviderBase::unsetEdit(int ModNum)
-{
-    PartGui::ViewProviderPart::unsetEdit(ModNum); // clazy:exclude=skipped-base-method
 }

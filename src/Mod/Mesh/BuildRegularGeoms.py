@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # Copyright (c) 2005 Berthold Grupp
 # License: LGPL
 
@@ -7,11 +9,10 @@
 Return value are list of vectors, 3 vectors define a facet.
 
 Sample code for creating a mesh:
-	facets = Cube(3.0, 4.0, 5.0)
-	m = Mesh.newMesh()
-	m.addFacets(facets)
+        facets = Cube(3.0, 4.0, 5.0)
+        m = Mesh.newMesh()
+        m.addFacets(facets)
 """
-
 
 import math
 

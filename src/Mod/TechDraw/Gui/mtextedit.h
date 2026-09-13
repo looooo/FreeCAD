@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-only WITH Digia-Qt-LGPL-exception-1.1
+
 /*
 ** Copyright (C) 2013 Jiří Procházka (Hobrasoft)
 ** Contact: http://www.hobrasoft.cz/
@@ -20,8 +22,7 @@
 **
 ** $QT_END_LICENSE$
 */
-#ifndef MTEXTEDIT_H_
-#define MTEXTEDIT_H_
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
@@ -43,5 +44,3 @@ class MTextEdit : public QTextEdit {
     QMimeData  *createMimeDataFromSelection() const override;
 
 };
-
-#endif

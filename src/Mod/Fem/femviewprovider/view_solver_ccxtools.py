@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # ***************************************************************************
 # *   Copyright (c) 2015 Bernd Hahnebach <bernd@bimstatik.org>              *
 # *                                                                         *
@@ -42,10 +44,6 @@ class VPSolverCcxTools(view_base_femconstraint.VPBaseFemConstraint):
         return ":/icons/FEM_SolverStandard.svg"
 
     def setEdit(self, vobj, mode=0):
-        view_base_femconstraint.VPBaseFemConstraint.setEdit(
-            self,
-            vobj,
-            mode,
-            task_solver_ccxtools._TaskPanel,
-            hide_mesh=False
+        return view_base_femconstraint.VPBaseFemConstraint.setEdit(
+            self, vobj, mode, task_solver_ccxtools._TaskPanel, hide_mesh=False
         )

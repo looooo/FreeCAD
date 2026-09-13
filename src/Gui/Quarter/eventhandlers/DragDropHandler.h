@@ -1,5 +1,4 @@
-#ifndef QUARTER_DRAGDROPHANDLER_H
-#define QUARTER_DRAGDROPHANDLER_H
+#pragma once
 
 /**************************************************************************\
  * Copyright (c) Kongsberg Oil & Gas Technologies AS
@@ -33,7 +32,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 \**************************************************************************/
 
-#include <QtCore/QObject>
+#include <QObject>
 #include <Quarter/Basic.h>
 
 class QEvent;
@@ -46,7 +45,7 @@ class QuarterWidget;
 class QUARTER_DLL_API DragDropHandler : public QObject {
   Q_OBJECT
 public:
-  DragDropHandler(QuarterWidget * parent);
+  explicit DragDropHandler(QuarterWidget * parent);
   ~DragDropHandler() override;
 
 protected:
@@ -58,5 +57,3 @@ private:
 };
 
 }}} // namespace
-
-#endif // QUARTER_DRAGDROPHANDLER_H

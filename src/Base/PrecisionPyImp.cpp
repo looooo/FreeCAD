@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2022 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,15 +22,13 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
+// generated out of Precision.pyi
 #include "PrecisionPy.h"
 #include "PrecisionPy.cpp"
 
-
 using Base::Precision;
 using Base::PrecisionPy;
-
 
 // returns a string which represents the object e.g. when printed in python
 std::string PrecisionPy::representation() const

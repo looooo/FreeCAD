@@ -22,15 +22,11 @@
  **************************************************************************/
 
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
+#include <boost/core/ignore_unused.hpp>
 #include <Standard_Version.hxx>
 #include <TColStd_IndexedDataMapOfStringString.hxx>
-#if OCC_VERSION_HEX >= 0x070500
 #include <Message_ProgressRange.hxx>
 #include <RWGltf_CafWriter.hxx>
-#endif
-#endif
 
 #include "WriterGltf.h"
 #include <Base/Exception.h>
@@ -47,7 +43,6 @@ void WriterGltf::write(Handle(TDocStd_Document) hDoc) const  // NOLINT
     std::string utf8Name = file.filePath();
     std::string name8bit = Part::encodeFilename(utf8Name);
 
-#if OCC_VERSION_HEX >= 0x070500
     TColStd_IndexedDataMapOfStringString aMetadata;
     RWGltf_CafWriter aWriter(name8bit.c_str(), file.hasExtension("glb"));
     aWriter.SetTransformationFormat(RWGltf_WriterTrsfFormat_Compact);
@@ -61,7 +56,4 @@ void WriterGltf::write(Handle(TDocStd_Document) hDoc) const  // NOLINT
     if (!ret) {
         throw Base::FileException("Cannot save to file: ", file);
     }
-#else
-    throw Base::RuntimeError("gITF support requires OCCT 7.5.0 or later");
-#endif
 }

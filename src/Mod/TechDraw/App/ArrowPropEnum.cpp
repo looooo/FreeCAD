@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2020 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include "ArrowPropEnum.h"
 
@@ -29,13 +30,13 @@ namespace TechDraw {
 
 const int   ArrowPropEnum::ArrowCount = 8;
 const char* ArrowPropEnum::ArrowTypeEnums[]= {
-    QT_TRANSLATE_NOOP("ArrowPropEnum", "Filled Arrow"),
-    QT_TRANSLATE_NOOP("ArrowPropEnum", "Open Arrow"),
+    QT_TRANSLATE_NOOP("ArrowPropEnum", "Filled arrow"),
+    QT_TRANSLATE_NOOP("ArrowPropEnum", "Open arrow"),
     QT_TRANSLATE_NOOP("ArrowPropEnum", "Tick"),
     QT_TRANSLATE_NOOP("ArrowPropEnum", "Dot"),
-    QT_TRANSLATE_NOOP("ArrowPropEnum", "Open Circle"),
+    QT_TRANSLATE_NOOP("ArrowPropEnum", "Open circle"),
     QT_TRANSLATE_NOOP("ArrowPropEnum", "Fork"),
-    QT_TRANSLATE_NOOP("ArrowPropEnum", "Filled Triangle"),
+    QT_TRANSLATE_NOOP("ArrowPropEnum", "Filled triangle"),
     QT_TRANSLATE_NOOP("ArrowPropEnum", "None"),
     nullptr};
 

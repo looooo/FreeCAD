@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2006 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef MESHGUI_VIEWPROVIDERMESHFACESET_H
-#define MESHGUI_VIEWPROVIDERMESHFACESET_H
+#pragma once
 
 #include <Mod/Mesh/Gui/ViewProvider.h>
 
@@ -55,11 +56,11 @@ public:
     ViewProviderMeshFaceSet();
     ~ViewProviderMeshFaceSet() override;
 
-    void attach(App::DocumentObject* pcFeat) override;
-    void updateData(const App::Property*) override;
+    void attach(App::DocumentObject* obj) override;
+    void updateData(const App::Property* prop) override;
 
 protected:
-    void showOpenEdges(bool) override;
+    void showOpenEdges(bool show) override;
     SoShape* getShapeNode() const override;
     SoNode* getCoordNode() const override;
 
@@ -70,9 +71,8 @@ private:
     SoFCIndexedFaceSet* pcMeshFaces;
     SoFCMeshObjectNode* pcMeshNode;
     SoFCMeshObjectShape* pcMeshShape;
+
+    FC_DISABLE_COPY_MOVE(ViewProviderMeshFaceSet)
 };
 
 }  // namespace MeshGui
-
-
-#endif  // MESHGUI_VIEWPROVIDERMESHFACESET_H

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2005 Imetric 3D GmbH                                    *
  *                                                                         *
@@ -20,11 +22,10 @@
  *                                                                         *
  ***************************************************************************/
 
-
-#include "PreCompiled.h"
-
 #include <cmath>
 #include <limits>
+
+#include <boost/math/special_functions/fpclassify.hpp>
 
 #include "Vector3D.h"
 #include "Tools.h"
@@ -184,8 +185,10 @@ Vector3<float_type> Vector3<float_type>::Cross(const Vector3<float_type>& rcVct)
 }
 
 template<class float_type>
-bool Vector3<float_type>::IsOnLineSegment(const Vector3<float_type>& startVct,
-                                          const Vector3<float_type>& endVct) const
+bool Vector3<float_type>::IsOnLineSegment(
+    const Vector3<float_type>& startVct,
+    const Vector3<float_type>& endVct
+) const
 {
     Vector3<float_type> vectorAB = endVct - startVct;
     Vector3<float_type> vectorAC = *this - startVct;
@@ -228,8 +231,33 @@ bool Vector3<float_type>::IsEqual(const Vector3<float_type>& rclPnt, float_type 
 }
 
 template<class float_type>
-Vector3<float_type>& Vector3<float_type>::ProjectToPlane(const Vector3<float_type>& rclBase,
-                                                         const Vector3<float_type>& rclNorm)
+bool Vector3<float_type>::IsParallel(const Vector3<float_type>& rclDir, float_type tol) const
+{
+    float_type angle = GetAngle(rclDir);
+    if (boost::math::isnan(angle)) {
+        return false;
+    }
+
+    return angle <= tol || traits_type::pi() - angle <= tol;
+}
+
+template<class float_type>
+bool Vector3<float_type>::IsNormal(const Vector3<float_type>& rclDir, float_type tol) const
+{
+    float_type angle = GetAngle(rclDir);
+    if (boost::math::isnan(angle)) {
+        return false;
+    }
+
+    float_type diff = std::abs(traits_type::pi() / 2.0 - angle);  // NOLINT
+    return diff <= tol;
+}
+
+template<class float_type>
+Vector3<float_type>& Vector3<float_type>::ProjectToPlane(
+    const Vector3<float_type>& rclBase,
+    const Vector3<float_type>& rclNorm
+)
 {
     Vector3<float_type> clTemp(rclNorm);
     *this = *this - (clTemp *= ((*this - rclBase) * clTemp) / clTemp.Sqr());
@@ -237,17 +265,21 @@ Vector3<float_type>& Vector3<float_type>::ProjectToPlane(const Vector3<float_typ
 }
 
 template<class float_type>
-void Vector3<float_type>::ProjectToPlane(const Vector3& rclBase,
-                                         const Vector3& rclNorm,
-                                         Vector3& rclProj) const
+void Vector3<float_type>::ProjectToPlane(
+    const Vector3& rclBase,
+    const Vector3& rclNorm,
+    Vector3& rclProj
+) const
 {
     Vector3<float_type> clTemp(rclNorm);
     rclProj = *this - (clTemp *= ((*this - rclBase) * clTemp) / clTemp.Sqr());
 }
 
 template<class float_type>
-float_type Vector3<float_type>::DistanceToPlane(const Vector3<float_type>& rclBase,
-                                                const Vector3<float_type>& rclNorm) const
+float_type Vector3<float_type>::DistanceToPlane(
+    const Vector3<float_type>& rclBase,
+    const Vector3<float_type>& rclNorm
+) const
 {
     return ((*this - rclBase) * rclNorm) / rclNorm.Length();
 }
@@ -259,8 +291,10 @@ float_type Vector3<float_type>::Length() const
 }
 
 template<class float_type>
-float_type Vector3<float_type>::DistanceToLine(const Vector3<float_type>& base,
-                                               const Vector3<float_type>& dir) const
+float_type Vector3<float_type>::DistanceToLine(
+    const Vector3<float_type>& base,
+    const Vector3<float_type>& dir
+) const
 {
     // clang-format off
     return static_cast<float_type>(std::fabs((dir % Vector3(*this - base)).Length() / dir.Length()));
@@ -268,8 +302,10 @@ float_type Vector3<float_type>::DistanceToLine(const Vector3<float_type>& base,
 }
 
 template<class float_type>
-Vector3<float_type> Vector3<float_type>::DistanceToLineSegment(const Vector3& rclP1,
-                                                               const Vector3& rclP2) const
+Vector3<float_type> Vector3<float_type>::DistanceToLineSegment(
+    const Vector3& rclP1,
+    const Vector3& rclP2
+) const
 {
     float_type len2 = Base::DistanceP2(rclP1, rclP2);
     if (len2 == 0) {
@@ -285,15 +321,19 @@ Vector3<float_type> Vector3<float_type>::DistanceToLineSegment(const Vector3& rc
 }
 
 template<class float_type>
-Vector3<float_type>& Vector3<float_type>::ProjectToLine(const Vector3<float_type>& rclPoint,
-                                                        const Vector3<float_type>& rclLine)
+Vector3<float_type>& Vector3<float_type>::ProjectToLine(
+    const Vector3<float_type>& rclPoint,
+    const Vector3<float_type>& rclLine
+)
 {
     return (*this = ((((rclPoint * rclLine) / rclLine.Sqr()) * rclLine) - rclPoint));
 }
 
 template<class float_type>
-Vector3<float_type> Vector3<float_type>::Perpendicular(const Vector3<float_type>& rclBase,
-                                                       const Vector3<float_type>& rclDir) const
+Vector3<float_type> Vector3<float_type>::Perpendicular(
+    const Vector3<float_type>& rclBase,
+    const Vector3<float_type>& rclDir
+) const
 {
     float_type t = ((*this - rclBase) * rclDir) / (rclDir * rclDir);
     return rclBase + t * rclDir;
@@ -411,6 +451,15 @@ Vector3<float_type>& Vector3<float_type>::Normalize()
 }
 
 template<class float_type>
+Vector3<float_type> Vector3<float_type>::Normalized() const
+{
+    Vector3<float_type> copy = *this;
+    copy.Normalize();
+
+    return copy;
+}
+
+template<class float_type>
 bool Vector3<float_type>::IsNull() const
 {
     float_type n {0.0};
@@ -441,9 +490,27 @@ float_type Vector3<float_type>::GetAngle(const Vector3& rcVect) const
 }
 
 template<class float_type>
-void Vector3<float_type>::TransformToCoordinateSystem(const Vector3& rclBase,
-                                                      const Vector3& rclDirX,
-                                                      const Vector3& rclDirY)
+float_type Vector3<float_type>::GetAngleOriented(const Vector3& rcVect, const Vector3& norm) const
+{
+    float_type angle = GetAngle(rcVect);
+
+    Vector3<float_type> crossProduct = Cross(rcVect);
+
+    // Use dot product to determine the sign
+    float_type dot = crossProduct.Dot(norm);
+    if (dot < 0) {
+        angle = 2 * traits_type::pi() - angle;
+    }
+
+    return angle;
+}
+
+template<class float_type>
+void Vector3<float_type>::TransformToCoordinateSystem(
+    const Vector3& rclBase,
+    const Vector3& rclDirX,
+    const Vector3& rclDirY
+)
 {
     Vector3 clVectX;
     Vector3 clVectY;

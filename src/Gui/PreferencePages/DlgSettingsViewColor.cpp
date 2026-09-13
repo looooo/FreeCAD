@@ -20,10 +20,8 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
-# include <QPushButton>
-#endif
+#include <QPushButton>
+
 
 #include "DlgSettingsViewColor.h"
 #include "ui_DlgSettingsViewColor.h"
@@ -41,6 +39,7 @@ DlgSettingsViewColor::DlgSettingsViewColor(QWidget* parent)
     : PreferencePage(parent)
     , ui(new Ui_DlgSettingsViewColor)
 {
+    // clang-format off
     ui->setupUi(this);
     connect(ui->SwitchGradientColors, &QPushButton::pressed, this,
         &DlgSettingsViewColor::onSwitchGradientColorsPressed);
@@ -56,6 +55,7 @@ DlgSettingsViewColor::DlgSettingsViewColor(QWidget* parent)
 
     connect(ui->checkMidColor, &QCheckBox::toggled, this,
         &DlgSettingsViewColor::onCheckMidColorToggled);
+    // clang-format on
 }
 
 /**
@@ -93,19 +93,22 @@ void DlgSettingsViewColor::loadSettings()
     ui->TreeActiveColor->onRestore();
     ui->CbLabelColor->onRestore();
     ui->CbLabelTextSize->onRestore();
-    
-    if (ui->radioButtonSimple->isChecked())
+
+    if (ui->radioButtonSimple->isChecked()) {
         onRadioButtonSimpleToggled(true);
-    else if(ui->radioButtonGradient->isChecked())
+    }
+    else if (ui->radioButtonGradient->isChecked()) {
         onRadioButtonGradientToggled(true);
-    else
+    }
+    else {
         onRadioButtonRadialGradientToggled(true);
+    }
 }
 
 /**
  * Sets the strings of the subwidgets using the current language.
  */
-void DlgSettingsViewColor::changeEvent(QEvent *e)
+void DlgSettingsViewColor::changeEvent(QEvent* e)
 {
     if (e->type() == QEvent::LanguageChange) {
         ui->retranslateUi(this);
@@ -136,17 +139,17 @@ void DlgSettingsViewColor::onRadioButtonSimpleToggled(bool val)
 void DlgSettingsViewColor::onRadioButtonGradientToggled(bool val)
 {
     setGradientColorVisibility(val);
-    ui->color1Label->setText(tr("Top:"));
-    ui->color2Label->setText(tr("Middle:"));
-    ui->color3Label->setText(tr("Bottom:"));
+    ui->color1Label->setText(tr("Top"));
+    ui->color2Label->setText(tr("Middle"));
+    ui->color3Label->setText(tr("Bottom"));
 }
 
 void DlgSettingsViewColor::onRadioButtonRadialGradientToggled(bool val)
 {
     setGradientColorVisibility(val);
-    ui->color1Label->setText(tr("Central:"));
-    ui->color2Label->setText(tr("Midway:"));
-    ui->color3Label->setText(tr("End:"));
+    ui->color1Label->setText(tr("Central"));
+    ui->color2Label->setText(tr("Midway"));
+    ui->color3Label->setText(tr("End"));
 }
 
 void DlgSettingsViewColor::setGradientColorVisibility(bool val)
@@ -161,8 +164,9 @@ void DlgSettingsViewColor::setGradientColorVisibility(bool val)
     ui->checkMidColor->setVisible(val);
     ui->SwitchGradientColors->setVisible(val);
 
-    if (val)
+    if (val) {
         onCheckMidColorToggled(ui->checkMidColor->isChecked());
+    }
 }
 
 #include "moc_DlgSettingsViewColor.cpp"

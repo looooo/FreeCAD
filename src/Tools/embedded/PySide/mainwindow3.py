@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 import sys
 
 # sys.path.append("")
@@ -14,9 +16,6 @@ class MainWindow(QtGui.QMainWindow):
         super(MainWindow, self).__init__(parent)
         from PySide import QtNetwork
 
-        # Webkit is used to create icons from SVG files. This could cause a deadlock
-        # when setting up the internally used network interface. Doing this before
-        # creating the icons fixes the issue.
         QtNetwork.QNetworkConfigurationManager()
 
     @QtCore.Slot()
@@ -28,6 +27,7 @@ class MainWindow(QtGui.QMainWindow):
         )
         addr = PyCObject_AsVoidPtr(hwnd)
         FreeCADGui.embedToWindow(hex(addr))
+
         # Need version >= 0.16.5949
         class BlankWorkbench(FreeCADGui.Workbench):
             MenuText = "Blank"

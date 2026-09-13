@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2010 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,12 +22,26 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
+#include <array>
+#include <limits>
+#include <cmath>
+#include <cstring>
+#include <initializer_list>
+#include <numbers>
+#include <optional>
+#include <string_view>
+#include <utility>
+
 #include <Precision.hxx>
+#include <Bnd_Box.hxx>
+#include <QApplication>
 #include <QPainter>
-#include <cfloat>
-#endif
+#include <algorithm>
+#include <sstream>
+
+#include <BRepBndLib.hxx>
+
+#include <boost/range/adaptor/reversed.hpp>
 
 #include <App/Application.h>
 #include <Base/Tools.h>
@@ -34,24 +50,26 @@
 #include <Gui/Application.h>
 #include <Gui/BitmapFactory.h>
 #include <Gui/CommandT.h>
-#include <Gui/DlgCheckableMessageBox.h>
+#include <Gui/Dialogs/DlgCheckableMessageBox.h>
 #include <Gui/Document.h>
 #include <Gui/MainWindow.h>
 #include <Gui/Notifications.h>
-#include <Gui/Selection.h>
-#include <Gui/SelectionFilter.h>
-#include <Gui/SelectionObject.h>
+#include <Gui/Selection/Selection.h>
+#include <Gui/Selection/SelectionFilter.h>
+#include <Gui/Selection/SelectionObject.h>
 #include <Mod/Sketcher/App/GeometryFacade.h>
 #include <Mod/Sketcher/App/SketchObject.h>
 #include <Mod/Sketcher/App/SolverGeometryExtension.h>
 
 #include "CommandConstraints.h"
 #include "DrawSketchHandler.h"
+#include "DrawSketchHandlerExternal.h"
 #include "EditDatumDialog.h"
 #include "Utils.h"
 #include "ViewProviderSketch.h"
 #include "ui_InsertDatum.h"
 #include <Inventor/events/SoKeyboardEvent.h>
+#include "SnapManager.h"
 
 // Remove this after pre-commit hook is activated
 // clang-format off
@@ -71,16 +89,271 @@ enum ConstraintCreationMode
 
 ConstraintCreationMode constraintCreationMode = Driving;
 
+namespace SketcherGui::LinearDatumLabelPlacement
+{
+[[nodiscard]] bool computeLabelPosition(const Sketcher::SketchObject* sketch,
+                                        const Sketcher::Constraint* constraint,
+                                        Base::Vector2d& position)
+{
+    if (constraint->Type != Sketcher::DistanceX && constraint->Type != Sketcher::DistanceY
+        && constraint->Type != Sketcher::Distance) {
+        return false;
+    }
+
+    const auto projectPoint = [](const Base::Vector3d& point) {
+        return Base::Vector2d(point.x, point.y);
+    };
+
+    Base::Vector2d firstPoint;
+    Base::Vector2d secondPoint;
+
+    if (constraint->SecondPos != Sketcher::PointPos::none) {
+        firstPoint = projectPoint(sketch->getPoint(constraint->First, constraint->FirstPos));
+        secondPoint = projectPoint(sketch->getPoint(constraint->Second, constraint->SecondPos));
+    }
+    else if (constraint->FirstPos != Sketcher::PointPos::none
+             && constraint->Second == Sketcher::GeoEnum::GeoUndef) {
+        firstPoint = Base::Vector2d(0.0, 0.0);
+        secondPoint = projectPoint(sketch->getPoint(constraint->First, constraint->FirstPos));
+    }
+    else if (constraint->Type == Sketcher::Distance
+             && constraint->Second == Sketcher::GeoEnum::GeoUndef
+             && constraint->First >= 0
+             && constraint->FirstPos == Sketcher::PointPos::none) {
+        const Part::Geometry* geo = sketch->getGeometry(constraint->First);
+
+        if (!geo || !isLineSegment(*geo)) {
+            return false;
+        }
+
+        const auto* lineSegment = static_cast<const Part::GeomLineSegment*>(geo);
+        firstPoint = projectPoint(lineSegment->getStartPoint());
+        secondPoint = projectPoint(lineSegment->getEndPoint());
+    }
+    else {
+        return false;
+    }
+
+    const double eps = Precision::Confusion();
+    Base::Vector2d labelDirection(0.0, 0.0);
+
+    switch (constraint->Type) {
+        case Sketcher::DistanceX:
+            if (secondPoint.x < firstPoint.x - eps) {
+                std::swap(firstPoint, secondPoint);
+            }
+            labelDirection = Base::Vector2d(0.0, -1.0);
+            break;
+        case Sketcher::DistanceY:
+            if (secondPoint.y < firstPoint.y - eps) {
+                std::swap(firstPoint, secondPoint);
+            }
+            if (secondPoint.x > firstPoint.x + eps) {
+                labelDirection = Base::Vector2d(1.0, 0.0);
+            }
+            else if (secondPoint.x < firstPoint.x - eps) {
+                labelDirection = Base::Vector2d(-1.0, 0.0);
+            }
+            else {
+                labelDirection = Base::Vector2d(1.0, 0.0);
+            }
+            break;
+        case Sketcher::Distance:
+            if (secondPoint.y < firstPoint.y - eps
+                || (std::abs(secondPoint.y - firstPoint.y) <= eps
+                    && secondPoint.x < firstPoint.x - eps)) {
+                std::swap(firstPoint, secondPoint);
+            }
+            {
+                const Base::Vector2d span = secondPoint - firstPoint;
+                const double spanLength = span.Length();
+                if (spanLength <= eps) {
+                    return false;
+                }
+                labelDirection = span.x >= 0.0
+                    ? Base::Vector2d(-span.y / spanLength, span.x / spanLength)
+                    : Base::Vector2d(span.y / spanLength, -span.x / spanLength);
+            }
+            break;
+        default:
+            return false;
+    }
+
+    const Base::Vector2d span = secondPoint - firstPoint;
+    position = (firstPoint + secondPoint) * 0.5
+        + labelDirection * (constraint->LabelDistance
+                            + 0.5 * std::abs(span.x * labelDirection.x
+                                             + span.y * labelDirection.y));
+    return true;
+}
+}  // namespace SketcherGui::LinearDatumLabelPlacement
+
+namespace SketcherGui::AngularDatumLabelPlacement
+{
+[[nodiscard]] std::optional<Base::Vector2d> computeLabelPosition(const Sketcher::SketchObject* sketch,
+                                                                   const Sketcher::Constraint* constraint)
+{
+    if (constraint->Type != Sketcher::Angle) {
+        return std::nullopt;
+    }
+
+    const bool firstIsAxis = constraint->First == Sketcher::GeoEnum::HAxis
+        || constraint->First == Sketcher::GeoEnum::VAxis;
+    const bool secondIsAxis = constraint->Second == Sketcher::GeoEnum::HAxis
+        || constraint->Second == Sketcher::GeoEnum::VAxis;
+
+    Base::Vector2d vertex;
+    Base::Vector2d rayPoint1;
+    Base::Vector2d rayPoint2;
+    double radius = 0.0;
+
+    const auto vertexOnSegment = [](const Base::Vector2d& segmentStart,
+                                    const Base::Vector2d& segmentSpan,
+                                    const Base::Vector2d& point) {
+        const double tolerance = Precision::Confusion();
+        const Base::Vector2d segmentToPoint = point - segmentStart;
+
+        const double crossProduct = segmentSpan.x * segmentToPoint.y
+            - segmentSpan.y * segmentToPoint.x;
+        const double dotProduct = segmentToPoint.x * segmentSpan.x
+            + segmentToPoint.y * segmentSpan.y;
+        const double segmentLengthSquared = segmentSpan.Sqr();
+
+        const bool pointIsOnLine = std::abs(crossProduct) <= tolerance;
+        const bool pointIsAfterSegmentStart = dotProduct >= -tolerance;
+        const bool pointIsBeforeSegmentEnd = dotProduct <= segmentLengthSquared + tolerance;
+
+        return pointIsOnLine && pointIsAfterSegmentStart && pointIsBeforeSegmentEnd;
+    };
+
+    if (constraint->Second == Sketcher::GeoEnum::GeoUndef) {
+        const auto* arc = freecad_cast<const Part::GeomArcOfCircle*>(
+            sketch->getGeometry(constraint->First));
+
+        if (!arc) {
+            return std::nullopt;
+        }
+
+        double startAngle = 0.0;
+        double endAngle = 0.0;
+        arc->getRange(startAngle, endAngle, true);
+
+        const Base::Vector2d center(arc->getCenter().x, arc->getCenter().y);
+        const double radius = arc->getRadius();
+        const double middleAngle = 0.5 * (startAngle + endAngle);
+        return center + Base::Vector2d(std::cos(middleAngle), std::sin(middleAngle))
+                * (radius + constraint->LabelDistance);
+    }
+    else if (firstIsAxis != secondIsAxis) {
+        const int axisGeoId = firstIsAxis ? constraint->First : constraint->Second;
+        const auto* lineSegment = freecad_cast<const Part::GeomLineSegment*>(
+            sketch->getGeometry(firstIsAxis ? constraint->Second : constraint->First));
+        if (!lineSegment) {
+            return std::nullopt;
+        }
+
+        const Base::Vector2d startPoint(lineSegment->getStartPoint().x, lineSegment->getStartPoint().y);
+        const Base::Vector2d endPoint(lineSegment->getEndPoint().x, lineSegment->getEndPoint().y);
+        const Base::Vector2d lineSpan = endPoint - startPoint;
+        if (!Base::Line2d(startPoint, endPoint)
+                 .Intersect(Base::Line2d(Base::Vector2d(0.0, 0.0),
+                                         axisGeoId == Sketcher::GeoEnum::HAxis
+                                             ? Base::Vector2d(1.0, 0.0)
+                                             : Base::Vector2d(0.0, 1.0)),
+                            vertex)) {
+            return std::nullopt;
+        }
+
+        if (vertexOnSegment(startPoint, lineSpan, vertex)) {
+            return std::nullopt;
+        }
+
+        rayPoint2 = (startPoint - vertex).Sqr() <= (endPoint - vertex).Sqr() ? startPoint : endPoint;
+
+        radius = (rayPoint2 - vertex).Length();
+        if (radius <= Precision::Confusion()) {
+            return std::nullopt;
+        }
+
+        rayPoint1 = axisGeoId == Sketcher::GeoEnum::HAxis
+            ? vertex + Base::Vector2d((rayPoint2 - vertex).x >= 0.0 ? radius : -radius, 0.0)
+            : vertex + Base::Vector2d(0.0, (rayPoint2 - vertex).y >= 0.0 ? radius : -radius);
+    }
+    else {
+        const auto* firstLine =
+            freecad_cast<const Part::GeomLineSegment*>(sketch->getGeometry(constraint->First));
+        const auto* secondLine =
+            freecad_cast<const Part::GeomLineSegment*>(sketch->getGeometry(constraint->Second));
+        if (!firstLine || !secondLine) {
+            return std::nullopt;
+        }
+
+        const Base::Vector2d firstStart(firstLine->getStartPoint().x, firstLine->getStartPoint().y);
+        const Base::Vector2d firstEnd(firstLine->getEndPoint().x, firstLine->getEndPoint().y);
+        const Base::Vector2d secondStart(secondLine->getStartPoint().x, secondLine->getStartPoint().y);
+        const Base::Vector2d secondEnd(secondLine->getEndPoint().x, secondLine->getEndPoint().y);
+        const Base::Vector2d firstSpan = firstEnd - firstStart;
+        const Base::Vector2d secondSpan = secondEnd - secondStart;
+        if (!Base::Line2d(firstStart, firstEnd).Intersect(Base::Line2d(secondStart, secondEnd), vertex)) {
+            return std::nullopt;
+        }
+
+        if (vertexOnSegment(firstStart, firstSpan, vertex)
+            && vertexOnSegment(secondStart, secondSpan, vertex)) {
+            return std::nullopt;
+        }
+
+        rayPoint1 = (firstStart - vertex).Sqr() <= (firstEnd - vertex).Sqr() ? firstStart : firstEnd;
+        rayPoint2 = (secondStart - vertex).Sqr() <= (secondEnd - vertex).Sqr() ? secondStart : secondEnd;
+        radius = std::min((rayPoint1 - vertex).Length(), (rayPoint2 - vertex).Length());
+        if (radius <= Precision::Confusion()) {
+            return std::nullopt;
+        }
+    }
+
+    Base::Vector2d firstDirection = rayPoint1 - vertex;
+    Base::Vector2d secondDirection = rayPoint2 - vertex;
+    if (firstDirection.Length() <= Precision::Confusion()
+        || secondDirection.Length() <= Precision::Confusion()) {
+        return std::nullopt;
+    }
+
+    firstDirection.Normalize();
+    secondDirection.Normalize();
+    Base::Vector2d position = firstDirection + secondDirection;
+    if (position.Length() <= Precision::Confusion()) {
+        position = firstDirection.Perpendicular(false);
+    }
+    else {
+        position.Normalize();
+    }
+
+    return vertex + position * (radius + constraint->LabelDistance);
+}
+}  // namespace SketcherGui::AngularDatumLabelPlacement
+
+namespace SketcherGui
+{
+class ViewProviderSketchCommandConstraintsAttorney
+{
+public:
+    static void moveConstraint(ViewProviderSketch& viewProvider,
+                               int constraintIndex,
+                               const Base::Vector2d& position)
+    {
+        viewProvider.moveConstraint(constraintIndex, position);
+    }
+};
+}  // namespace SketcherGui
+
 bool isCreateConstraintActive(Gui::Document* doc)
 {
     if (doc) {
         // checks if a Sketch View provider is in Edit and is in no special mode
-        if (doc->getInEdit()
-            && doc->getInEdit()->isDerivedFrom(SketcherGui::ViewProviderSketch::getClassTypeId())) {
-            if (static_cast<SketcherGui::ViewProviderSketch*>(doc->getInEdit())->getSketchMode()
-                == ViewProviderSketch::STATUS_NONE) {
-                if (Gui::Selection().countObjectsOfType(Sketcher::SketchObject::getClassTypeId())
-                    > 0) {
+        auto vp = dynamic_cast<SketcherGui::ViewProviderSketch*>(doc->getInEdit());
+        if (vp && vp->isInEditMode()) {
+            if (vp->getSketchMode() == ViewProviderSketch::STATUS_NONE) {
+                if (Gui::Selection().countObjectsOfType<Sketcher::SketchObject>() > 0) {
                     return true;
                 }
             }
@@ -106,16 +379,15 @@ void finishDatumConstraint(Gui::Command* cmd,
 
     // Guess some reasonable distance for placing the datum text
     Gui::Document* doc = cmd->getActiveGuiDocument();
-    float scaleFactor = 1.0;
     double labelPosition = 0.0;
     float labelPositionRandomness = 0.0;
 
     if (lastConstraintType == Radius || lastConstraintType == Diameter) {
-        labelPosition = hGrp->GetFloat("RadiusDiameterConstraintDisplayBaseAngle", 15.0)
-            * (M_PI / 180);// Get radius/diameter constraint display angle
+        // Get radius/diameter constraint display angle
+        labelPosition = Base::toRadians(hGrp->GetFloat("RadiusDiameterConstraintDisplayBaseAngle", 15.0));
+        // Get randomness
         labelPositionRandomness =
-            hGrp->GetFloat("RadiusDiameterConstraintDisplayAngleRandomness", 0.0)
-            * (M_PI / 180);// Get randomness
+            Base::toRadians(hGrp->GetFloat("RadiusDiameterConstraintDisplayAngleRandomness", 0.0));
 
         // Adds a random value around the base angle, so that possibly overlapping labels get likely
         // a different position.
@@ -127,21 +399,34 @@ void finishDatumConstraint(Gui::Command* cmd,
     }
 
     if (doc && doc->getInEdit()
-        && doc->getInEdit()->isDerivedFrom(SketcherGui::ViewProviderSketch::getClassTypeId())) {
+        && doc->getInEdit()->isDerivedFrom<SketcherGui::ViewProviderSketch>()) {
         SketcherGui::ViewProviderSketch* vp =
             static_cast<SketcherGui::ViewProviderSketch*>(doc->getInEdit());
-        scaleFactor = vp->getScaleFactor();
 
         int firstConstraintIndex = lastConstraintIndex - numberofconstraints + 1;
 
         for (int i = lastConstraintIndex; i >= firstConstraintIndex; i--) {
-            ConStr[i]->LabelDistance = 2. * scaleFactor;
-
             if (lastConstraintType == Radius || lastConstraintType == Diameter) {
                 const Part::Geometry* geo = sketch->getGeometry(ConStr[i]->First);
 
                 if (geo && isCircle(*geo)) {
                     ConStr[i]->LabelPosition = labelPosition;
+                }
+            }
+            else if (lastConstraintType == Angle) {
+                if (auto labelPosition = AngularDatumLabelPlacement::computeLabelPosition(
+                        sketch, ConStr[i])) {
+                    ViewProviderSketchCommandConstraintsAttorney::moveConstraint(
+                        *vp, i, *labelPosition);
+                }
+            }
+            else {
+                Base::Vector2d labelPosition;
+
+                if (LinearDatumLabelPlacement::computeLabelPosition(
+                        sketch, ConStr[i], labelPosition)) {
+                    ViewProviderSketchCommandConstraintsAttorney::moveConstraint(
+                        *vp, i, labelPosition);
                 }
             }
         }
@@ -152,7 +437,8 @@ void finishDatumConstraint(Gui::Command* cmd,
 
     // Ask for the value of the distance immediately
     if (show && isDriving) {
-        EditDatumDialog editDatumDialog(sketch, ConStr.size() - 1);
+        EditDatumDialog editDatumDialog(cmd->transactionID(), sketch, ConStr.size() - 1);
+        cmd->resetTransactionID();
         editDatumDialog.exec();
     }
     else {
@@ -162,6 +448,27 @@ void finishDatumConstraint(Gui::Command* cmd,
 
     tryAutoRecompute(sketch);
     cmd->getSelection().clearSelection();
+}
+
+// Finalize a single datum, setting it non-driving before label placement and the dialog.
+// Callers decide whether their particular geometry requires a reference constraint.
+static void finishDrivingDatumConstraint(Gui::Command* cmd,
+                                         Sketcher::SketchObject* sketch,
+                                         bool makeReference)
+{
+    if (makeReference) {
+        const auto& constraints = sketch->Constraints.getValues();
+        Gui::cmdAppObjectArgs(sketch, "setDriving(%d,%s)", constraints.size() - 1, "False");
+    }
+    finishDatumConstraint(cmd, sketch, !makeReference);
+}
+
+
+void finishTransactionAndUpdate(Gui::Command* cmd, Sketcher::SketchObject* sketch)
+{
+    cmd->commitCommand();
+    tryAutoRecompute(sketch);
+    Gui::Command::getSelection().clearSelection();
 }
 
 void showNoConstraintBetweenExternal(const App::DocumentObject* obj)
@@ -187,6 +494,54 @@ bool isGeoConcentricCompatible(const Part::Geometry* geo)
     return (isEllipse(*geo) || isArcOfEllipse(*geo) || isCircle(*geo) || isArcOfCircle(*geo));
 }
 
+// Removes point-on-object constraints made redundant with certain constraints
+// under certain conditions. Currently, that happens only when the constraint is on
+// a B-spline, for 3-selection tangent, perpendicular, and angle constraints.
+// Returns true if constraints were removed.
+// GeoId3 HAS to be the point, and the other two are the curves.
+bool removeRedundantPointOnObject(SketchObject* Obj, int GeoId1, int GeoId2, int GeoId3)
+{
+    const std::vector<Constraint*>& cvals = Obj->Constraints.getValues();
+
+    std::vector<int> cidsToBeRemoved;
+
+    int cid = 0;
+    for (auto it = cvals.begin(); it != cvals.end(); ++it, ++cid) {
+        if ((*it)->Type == Sketcher::PointOnObject &&
+            (((*it)->First == GeoId3 && (*it)->Second == GeoId1) ||
+             ((*it)->First == GeoId3 && (*it)->Second == GeoId2))) {
+
+            // ONLY do this if it is a B-spline (or any other where point
+            // on object is implied).
+            const Part::Geometry* geom = Obj->getGeometry((*it)->Second);
+            if (isBSplineCurve(*geom))
+                cidsToBeRemoved.push_back(cid);
+        }
+    }
+
+    if (!cidsToBeRemoved.empty()) {
+        for (auto it = cidsToBeRemoved.rbegin(); it != cidsToBeRemoved.rend(); ++it) {
+            Gui::cmdAppObjectArgs(Obj,
+                                  "delConstraint(%d)",
+                                  *it);// remove the preexisting point on object constraint.
+        }
+
+        // A substitution requires a solve() so that the autoremove redundants works when
+        // Autorecompute not active. However, delConstraint includes such solve() internally. So
+        // at this point it is already solved.
+        tryAutoRecomputeIfNotSolve(Obj);
+
+        notifyConstraintSubstitutions(QObject::tr("One or two point-on-object constraints were deleted, "
+                                                  "since the latest constraint being applied internally applies point-on-object as well."));
+
+        // TODO: find way to get selection here, or clear elsewhere
+        // getSelection().clearSelection();
+        return true;
+    }
+
+    return false;
+}
+
 /// Makes an angle constraint between 2 lines
 void SketcherGui::makeAngleBetweenTwoLines(Sketcher::SketchObject* Obj,
     Gui::Command* cmd,
@@ -210,36 +565,25 @@ void SketcherGui::makeAngleBetweenTwoLines(Sketcher::SketchObject* Obj,
         return;
     }
 
-    Gui::Command::openCommand(QT_TRANSLATE_NOOP("Command", "Add angle constraint"));
+    cmd->openCommand(QT_TRANSLATE_NOOP("Command", "Add angle constraint"));
     Gui::cmdAppObjectArgs(Obj,
-        "addConstraint(Sketcher.Constraint('Angle',%d,%d,%d,%d,%f))",
+        "addConstraint(Sketcher.Constraint('Angle',%d,%d,%d,%d,%.8g))",
         geoId1,
         static_cast<int>(posId1),
         geoId2,
         static_cast<int>(posId2),
         actAngle);
 
-    if (areBothPointsOrSegmentsFixed(Obj, geoId1, geoId2)
-        || constraintCreationMode == Reference) {
-        // it is a constraint on a external line, make it non-driving
-        const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-
-        Gui::cmdAppObjectArgs(Obj, "setDriving(%d,%s)", ConStr.size() - 1, "False");
-        finishDatumConstraint(cmd, Obj, false);
-    }
-    else {
-        finishDatumConstraint(cmd, Obj, true);
-    }
+    finishDrivingDatumConstraint(
+        cmd, Obj, areBothPointsOrSegmentsFixed(Obj, geoId1, geoId2) || constraintCreationMode == Reference);
 }
-
-
 
 bool SketcherGui::calculateAngle(Sketcher::SketchObject* Obj, int& GeoId1, int& GeoId2, Sketcher::PointPos& PosId1, Sketcher::PointPos& PosId2, double& ActAngle)
 {
     const Part::Geometry* geom1 = Obj->getGeometry(GeoId1);
     const Part::Geometry* geom2 = Obj->getGeometry(GeoId2);
 
-    if (!(geom1->is<Part::GeomLineSegment>()) ||
+    if (!geom1 || !geom2 || !(geom1->is<Part::GeomLineSegment>()) ||
         !(geom2->is<Part::GeomLineSegment>())) {
         return false;
     }
@@ -272,7 +616,7 @@ bool SketcherGui::calculateAngle(Sketcher::SketchObject* Obj, int& GeoId1, int& 
     }
     else {
         // if all points are collinear
-        double length = DBL_MAX;
+        double length = std::numeric_limits<double>::max();
         for (int i = 0; i <= 1; i++) {
             for (int j = 0; j <= 1; j++) {
                 double tmp = Base::DistanceP2(p2[j], p1[i]);
@@ -309,19 +653,34 @@ bool SketcherGui::calculateAngle(Sketcher::SketchObject* Obj, int& GeoId1, int& 
         std::swap(PosId1, PosId2);
     }
 
+    // If a simple line-line perpendicular constraint already covers these two geometries,
+    // infer exactly pi/2 rather than reading back the solver's geometry, which may
+    // carry residual noise. Guard against other Perpendicular forms (via-point, with
+    // Third set) where First/Second alone do not prove the geometries are at 90°.
+    for (const auto* c : Obj->Constraints.getValues()) {
+        if (c->Type == Sketcher::Perpendicular
+            && c->FirstPos == Sketcher::PointPos::none
+            && c->SecondPos == Sketcher::PointPos::none
+            && c->Third == GeoEnum::GeoUndef
+            && ((c->First == GeoId1 && c->Second == GeoId2)
+                || (c->First == GeoId2 && c->Second == GeoId1))) {
+            ActAngle = std::numbers::pi / 2;
+            break;
+        }
+    }
+
     return true;
 }
-
 
 /// Makes a simple tangency constraint using extra point + tangent via point
 /// ellipse => an ellipse
 /// geom2 => any of an ellipse, an arc of ellipse, a circle, or an arc (of circle)
 /// geoId1 => geoid of the ellipse
 /// geoId2 => geoid of geom2
-/// NOTE: A command must be opened before calling this function, which this function
-/// commits or aborts as appropriate. The reason is for compatibility reasons with
-/// other code e.g. "Autoconstraints" in DrawSketchHandler.cpp
-void SketcherGui::makeTangentToEllipseviaNewPoint(Sketcher::SketchObject* Obj,
+/// Returns true on success and false on failure
+/// the call site is responsible to create, commit and abort commands
+/// and recompute if it needs to
+bool SketcherGui::makeTangentToEllipseviaNewPoint(Sketcher::SketchObject* Obj,
                                                   const Part::GeomEllipse* ellipse,
                                                   const Part::Geometry* geom2,
                                                   int geoId1,
@@ -359,7 +718,7 @@ void SketcherGui::makeTangentToEllipseviaNewPoint(Sketcher::SketchObject* Obj,
 
     try {
         // Add a point
-        Gui::cmdAppObjectArgs(Obj, "addGeometry(Part.Point(App.Vector(%f,%f,0)))", PoE.x, PoE.y);
+        Gui::cmdAppObjectArgs(Obj, "addGeometry(Part.Point(App.Vector(%f,%f,0)), True)", PoE.x, PoE.y);
         int GeoIdPoint = Obj->getHighestCurveIndex();
 
         // Point on first object
@@ -386,14 +745,11 @@ void SketcherGui::makeTangentToEllipseviaNewPoint(Sketcher::SketchObject* Obj,
         Gui::NotifyUserError(Obj,
                              QT_TRANSLATE_NOOP("Notifications", "Invalid Constraint"),
                              e.what());
-        Gui::Command::abortCommand();
 
-        tryAutoRecompute(Obj);
-        return;
+        return false;
     }
 
-    Gui::Command::commitCommand();
-    tryAutoRecompute(Obj);
+    return true;
 }
 
 /// Makes a simple tangency constraint using extra point + tangent via point
@@ -401,10 +757,10 @@ void SketcherGui::makeTangentToEllipseviaNewPoint(Sketcher::SketchObject* Obj,
 /// geom2 => any of an arc of ellipse, a circle, or an arc (of circle)
 /// geoId1 => geoid of the arc of ellipse
 /// geoId2 => geoid of geom2
-/// NOTE: A command must be opened before calling this function, which this function
-/// commits or aborts as appropriate. The reason is for compatibility reasons with
-/// other code e.g. "Autoconstraints" in DrawSketchHandler.cpp
-void SketcherGui::makeTangentToArcOfEllipseviaNewPoint(Sketcher::SketchObject* Obj,
+/// Returns true on success and false on failure
+/// the call site is responsible to create, commit and abort commands
+/// and recompute if it needs to
+bool SketcherGui::makeTangentToArcOfEllipseviaNewPoint(Sketcher::SketchObject* Obj,
                                                        const Part::GeomArcOfEllipse* aoe,
                                                        const Part::Geometry* geom2,
                                                        int geoId1,
@@ -439,7 +795,7 @@ void SketcherGui::makeTangentToArcOfEllipseviaNewPoint(Sketcher::SketchObject* O
 
     try {
         // Add a point
-        Gui::cmdAppObjectArgs(Obj, "addGeometry(Part.Point(App.Vector(%f,%f,0)))", PoE.x, PoE.y);
+        Gui::cmdAppObjectArgs(Obj, "addGeometry(Part.Point(App.Vector(%f,%f,0)), True)", PoE.x, PoE.y);
         int GeoIdPoint = Obj->getHighestCurveIndex();
 
         // Point on first object
@@ -466,14 +822,9 @@ void SketcherGui::makeTangentToArcOfEllipseviaNewPoint(Sketcher::SketchObject* O
         Gui::NotifyUserError(Obj,
                              QT_TRANSLATE_NOOP("Notifications", "Invalid Constraint"),
                              e.what());
-        Gui::Command::abortCommand();
-
-        tryAutoRecompute(Obj);
-        return;
+        return false;
     }
-
-    Gui::Command::commitCommand();
-    tryAutoRecompute(Obj);
+    return true;
 }
 
 /// Makes a simple tangency constraint using extra point + tangent via point
@@ -481,10 +832,10 @@ void SketcherGui::makeTangentToArcOfEllipseviaNewPoint(Sketcher::SketchObject* O
 /// geom2 => any of an arc of hyperbola, an arc of ellipse, a circle, or an arc (of circle)
 /// geoId1 => geoid of the arc of hyperbola
 /// geoId2 => geoid of geom2
-/// NOTE: A command must be opened before calling this function, which this function
-/// commits or aborts as appropriate. The reason is for compatibility reasons with
-/// other code e.g. "Autoconstraints" in DrawSketchHandler.cpp
-void SketcherGui::makeTangentToArcOfHyperbolaviaNewPoint(Sketcher::SketchObject* Obj,
+/// Returns true on success and false on failure
+/// the call site is responsible to create, commit and abort commands
+/// and recompute if it needs to
+bool SketcherGui::makeTangentToArcOfHyperbolaviaNewPoint(Sketcher::SketchObject* Obj,
                                                          const Part::GeomArcOfHyperbola* aoh,
                                                          const Part::Geometry* geom2,
                                                          int geoId1,
@@ -536,7 +887,7 @@ void SketcherGui::makeTangentToArcOfHyperbolaviaNewPoint(Sketcher::SketchObject*
 
     try {
         // Add a point
-        Gui::cmdAppObjectArgs(Obj, "addGeometry(Part.Point(App.Vector(%f,%f,0)))", PoH.x, PoH.y);
+        Gui::cmdAppObjectArgs(Obj, "addGeometry(Part.Point(App.Vector(%f,%f,0)), True)", PoH.x, PoH.y);
         int GeoIdPoint = Obj->getHighestCurveIndex();
 
         // Point on first object
@@ -563,25 +914,19 @@ void SketcherGui::makeTangentToArcOfHyperbolaviaNewPoint(Sketcher::SketchObject*
         Gui::NotifyUserError(Obj,
                              QT_TRANSLATE_NOOP("Notifications", "Invalid Constraint"),
                              e.what());
-        Gui::Command::abortCommand();
-
-        tryAutoRecompute(Obj);
-        return;
+        return false;
     }
-
-    Gui::Command::commitCommand();
-
-    tryAutoRecompute(Obj);
+    return true;
 }
 
 /// Makes a simple tangency constraint using extra point + tangent via point
 /// aop => an arc of parabola
 /// geom2 => any of an arc of parabola, an arc of hyperbola an arc of ellipse, a circle, or an arc
-/// (of circle) geoId1 => geoid of the arc of parabola geoId2 => geoid of geom2 NOTE: A command must
-/// be opened before calling this function, which this function commits or aborts as appropriate.
-/// The reason is for compatibility reasons with other code e.g. "Autoconstraints" in
-/// DrawSketchHandler.cpp
-void SketcherGui::makeTangentToArcOfParabolaviaNewPoint(Sketcher::SketchObject* Obj,
+/// (of circle) geoId1 => geoid of the arc of parabola geoId2 => geoid of geom2
+/// Returns true on success and false on failure
+/// the call site is responsible to create, commit and abort commands
+/// and recompute if it needs to
+bool SketcherGui::makeTangentToArcOfParabolaviaNewPoint(Sketcher::SketchObject* Obj,
                                                         const Part::GeomArcOfParabola* aop,
                                                         const Part::Geometry* geom2,
                                                         int geoId1,
@@ -626,7 +971,7 @@ void SketcherGui::makeTangentToArcOfParabolaviaNewPoint(Sketcher::SketchObject* 
 
     try {
         // Add a point
-        Gui::cmdAppObjectArgs(Obj, "addGeometry(Part.Point(App.Vector(%f,%f,0)))", PoP.x, PoP.y);
+        Gui::cmdAppObjectArgs(Obj, "addGeometry(Part.Point(App.Vector(%f,%f,0)), True)", PoP.x, PoP.y);
         int GeoIdPoint = Obj->getHighestCurveIndex();
 
         // Point on first object
@@ -654,14 +999,10 @@ void SketcherGui::makeTangentToArcOfParabolaviaNewPoint(Sketcher::SketchObject* 
                              QT_TRANSLATE_NOOP("Notifications", "Invalid Constraint"),
                              e.what());
 
-        Gui::Command::abortCommand();
-
-        tryAutoRecompute(Obj);
-        return;
+        return false;
     }
 
-    Gui::Command::commitCommand();
-    tryAutoRecompute(Obj);
+    return true;
 }
 
 void SketcherGui::doEndpointTangency(Sketcher::SketchObject* Obj,
@@ -711,7 +1052,7 @@ void SketcherGui::notifyConstraintSubstitutions(const QString& message)
         QLatin1String("NotifyConstraintSubstitutions"),
         true,// Default ParamEntry
         true,// checkbox state
-        QObject::tr("Keep notifying me of constraint substitutions"));
+        QObject::tr("Keep notifying about constraint substitutions"));
 }
 
 // returns true if successful, false otherwise
@@ -725,10 +1066,8 @@ bool addConstraintSafely(SketchObject* obj, std::function<void()> constraintaddi
         // Untranslated developer intended messages (i.e. to the Report View)
         // Example of exception carrying a static string with a pair in the "Notifications" context
         Gui::NotifyUserError(obj,
-                             QT_TRANSLATE_NOOP("Notifications", "Invalid Constraint"),
+                             QT_TRANSLATE_NOOP("Notifications", "Invalid constraint"),
                              e.what());
-
-        Gui::Command::abortCommand();
 
         tryAutoRecompute(obj);
         return false;
@@ -737,9 +1076,7 @@ bool addConstraintSafely(SketchObject* obj, std::function<void()> constraintaddi
         Gui::TranslatedUserError(
             obj,
             QObject::tr("Error"),
-            QObject::tr("Unexpected error. More information may be available in the Report View."));
-
-        Gui::Command::abortCommand();
+            QObject::tr("Unexpected error. More information may be available in the report view."));
 
         tryAutoRecompute(obj);
         return false;
@@ -789,7 +1126,7 @@ int SketchSelection::setUp()
     if (selection.size() == 1) {
         // if one selectetd, only sketch allowed. should be done by activity of command
         if (!selection[0].getObject()->isDerivedFrom<Sketcher::SketchObject>()) {
-            ErrorMsg = QObject::tr("Only sketch and its support are allowed to be selected.");
+            ErrorMsg = QObject::tr("Only the sketch and its support are allowed to be selected");
             return -1;
         }
 
@@ -799,8 +1136,8 @@ int SketchSelection::setUp()
         if (selection[0].getObject()->isDerivedFrom<Sketcher::SketchObject>()) {
             SketchObj = static_cast<Sketcher::SketchObject*>(selection[0].getObject());
             // check if the none sketch object is the support of the sketch
-            if (selection[1].getObject() != SketchObj->Support.getValue()) {
-                ErrorMsg = QObject::tr("Only sketch and its support are allowed to be selected.");
+            if (selection[1].getObject() != SketchObj->AttachmentSupport.getValue()) {
+                ErrorMsg = QObject::tr("Only the sketch and its support may be selected");
                 return -1;
             }
             // assume always a Part::Feature derived object as support
@@ -811,8 +1148,8 @@ int SketchSelection::setUp()
         else if (selection[1].getObject()->isDerivedFrom<Sketcher::SketchObject>()) {
             SketchObj = static_cast<Sketcher::SketchObject*>(selection[1].getObject());
             // check if the none sketch object is the support of the sketch
-            if (selection[0].getObject() != SketchObj->Support.getValue()) {
-                ErrorMsg = QObject::tr("Only sketch and its support are allowed to be selected.");
+            if (selection[0].getObject() != SketchObj->AttachmentSupport.getValue()) {
+                ErrorMsg = QObject::tr("Only the sketch and its support  may be selected");
                 return -1;
             }
             // assume always a Part::Feature derived object as support
@@ -845,13 +1182,15 @@ enum SelType
 {
     SelUnknown = 0,
     SelVertex = 1,
-    SelVertexOrRoot = 64,
     SelRoot = 2,
+    SelVertexOrRoot = SelVertex | SelRoot,
     SelEdge = 4,
-    SelEdgeOrAxis = 128,
     SelHAxis = 8,
     SelVAxis = 16,
-    SelExternalEdge = 32
+    SelEdgeOrAxis = SelEdge | SelHAxis | SelVAxis,
+    SelExternalEdge = 32,
+    SelArc = 64,
+    SelExternalArc = 128
 };
 
 /**
@@ -861,32 +1200,44 @@ enum SelType
  * has to be a curve for the constraint to make sense. Thus filters are
  * changeable so that same filter can be kept on while in one mode.
  */
-class GenericConstraintSelection: public Gui::SelectionFilterGate
+class GenericConstraintSelection: public ExternalSelection
 {
-    App::DocumentObject* object;
+    App::DocumentObject* sketch;
 
 public:
     explicit GenericConstraintSelection(App::DocumentObject* obj)
-        : Gui::SelectionFilterGate(nullPointer())
-        , object(obj)
+        : ExternalSelection(obj)
+        , sketch(obj)
         , allowedSelTypes(0)
     {}
 
-    bool allow(App::Document*, App::DocumentObject* pObj, const char* sSubName) override
+    bool allow(App::Document* document, App::DocumentObject* pObj, const char* sSubName) override
     {
-        if (pObj != this->object) {
+        if (pObj != sketch) {
+            if (Base::Tools::isNullOrEmpty(sSubName)) {
+                return false;
+            }
+
+            const std::string element(sSubName);
+            if ((element.starts_with("Edge") && element.size() > 4
+                 && allowedSelTypes & (SelExternalEdge | SelExternalArc))
+                || (element.starts_with("Vertex") && element.size() > 6
+                    && allowedSelTypes & SelVertex)) {
+                return ExternalSelection::allow(document, pObj, sSubName);
+            }
             return false;
         }
-        if (!sSubName || sSubName[0] == '\0') {
+        if (Base::Tools::isNullOrEmpty(sSubName)) {
             return false;
         }
         std::string element(sSubName);
-        if ((allowedSelTypes & (SelRoot | SelVertexOrRoot) && element.substr(0, 9) == "RootPoint")
-            || (allowedSelTypes & (SelVertex | SelVertexOrRoot) && element.substr(0, 6) == "Vertex")
-            || (allowedSelTypes & (SelEdge | SelEdgeOrAxis) && element.substr(0, 4) == "Edge")
-            || (allowedSelTypes & (SelHAxis | SelEdgeOrAxis) && element.substr(0, 6) == "H_Axis")
-            || (allowedSelTypes & (SelVAxis | SelEdgeOrAxis) && element.substr(0, 6) == "V_Axis")
-            || (allowedSelTypes & SelExternalEdge && element.substr(0, 12) == "ExternalEdge")) {
+        if ((allowedSelTypes & SelRoot && element.substr(0, 9) == "RootPoint")
+            || (allowedSelTypes & SelVertex && element.substr(0, 6) == "Vertex")
+            || ((allowedSelTypes & (SelEdge | SelArc)) && element.substr(0, 4) == "Edge")
+            || (allowedSelTypes & SelHAxis && element.substr(0, 6) == "H_Axis")
+            || (allowedSelTypes & SelVAxis && element.substr(0, 6) == "V_Axis")
+            || ((allowedSelTypes & (SelExternalEdge | SelExternalArc))
+                && element.substr(0, 12) == "ExternalEdge")) {
             return true;
         }
 
@@ -903,6 +1254,72 @@ public:
 protected:
     int allowedSelTypes;
 };
+
+class DimensionExternalSelection: public ExternalSelection
+{
+public:
+    explicit DimensionExternalSelection(App::DocumentObject* sketch)
+        : ExternalSelection(sketch)
+        , sketch(sketch)
+    {}
+
+    bool allow(App::Document* document, App::DocumentObject* object, const char* subName) override
+    {
+        if (object == sketch) {
+            if (Base::Tools::isNullOrEmpty(subName)) {
+                return false;
+            }
+
+            constexpr auto prefixes = std::to_array<std::string_view>(
+                {"RootPoint", "H_Axis", "V_Axis", "Vertex", "Edge", "ExternalEdge"}
+            );
+            return std::ranges::any_of(prefixes, [subName](std::string_view prefix) {
+                return std::string_view(subName).starts_with(prefix);
+            });
+        }
+        if (Base::Tools::isNullOrEmpty(subName)) {
+            return false;
+        }
+
+        const std::string element(subName);
+        if ((!element.starts_with("Edge") || element.size() <= 4)
+            && (!element.starts_with("Vertex") || element.size() <= 6)) {
+            return false;
+        }
+
+        return ExternalSelection::allow(document, object, subName);
+    }
+
+private:
+    App::DocumentObject* sketch;
+};
+
+int findExternalReference(Sketcher::SketchObject* sketch,
+                          App::DocumentObject* source,
+                          const std::string& subName)
+{
+    const auto sourceReferences = sketch->ExternalGeometry.getValues();
+    const auto subReferences = sketch->ExternalGeometry.getSubValues();
+    for (size_t index = 0; index < sourceReferences.size(); ++index) {
+        if (sourceReferences[index] == source && subReferences[index] == subName) {
+            return GeoEnum::RefExt - static_cast<int>(index);
+        }
+    }
+
+    return GeoEnum::GeoUndef;
+}
+
+int addProjectedExternalReference(Sketcher::SketchObject* sketch,
+                                  App::DocumentObject* source,
+                                  const std::string& subName)
+{
+    Gui::cmdAppObjectArgs(sketch,
+                          "addExternal(\"%s\",\"%s\", False, False)",
+                          source->getNameInDocument(),
+                          subName.c_str());
+    tryAutoRecomputeIfNotSolve(sketch);
+    return findExternalReference(sketch, source, subName);
+}
 }// namespace SketcherGui
 
 /**
@@ -935,10 +1352,6 @@ protected:
      * generate sequences to be passed to applyConstraint().
      * Whenever any sequence is completed, applyConstraint() is called, so it's
      * best to keep them prefix-free.
-     * Be mindful that when SelVertex and SelRoot are given preference over
-     * SelVertexOrRoot, and similar for edges/axes. Thus if a vertex is selected
-     * when SelVertex and SelVertexOrRoot are both applicable, only sequences with
-     * SelVertex will be continue.
      *
      * TODO: Introduce structs to allow keeping first selection
      */
@@ -956,8 +1369,36 @@ protected:
 class DrawSketchHandlerGenConstraint: public DrawSketchHandler
 {
 public:
+    // Helper constants for all hint texts
+    static constexpr const char* PICK_EDGE_OR_FIRST_POINT = "%1 pick edge or first point";
+    static constexpr const char* PICK_EDGE_OR_SECOND_POINT = "%1 pick edge or second point";
+    static constexpr const char* PICK_FIRST_EDGE = "%1 pick first edge";
+    static constexpr const char* PICK_SECOND_EDGE = "%1 pick second edge";
+    static constexpr const char* PICK_SECOND_LINE_OR_POINT = "%1 pick second line or point";
+    static constexpr const char* PICK_SECOND_EDGE_OR_POINT = "%1 pick second edge or point";
+    static constexpr const char* PICK_SYMMETRY_POINT = "%1 pick symmetry point";
+    static constexpr const char* PICK_SYMMETRY_LINE_OR_POINT = "%1 pick symmetry line or point";
+    static constexpr const char* PICK_SYMMETRY_LINE = "%1 pick symmetry line";
+    static constexpr const char* PICK_SECOND_LINE = "%1 pick second line";
+    static constexpr const char* PICK_SECOND_POINT_OR_EDGE = "%1 pick second point or edge";
+    static constexpr const char* PICK_POINT_OR_EDGE = "%1 pick point or edge";
+    static constexpr const char* PICK_SECOND_POINT = "%1 pick second point";
+    static constexpr const char* PICK_EDGE = "%1 pick edge";
+    static constexpr const char* PICK_CIRCLE_OR_ARC = "%1 pick circle or arc";
+    static constexpr const char* PICK_EDGE_TO_BLOCK = "%1 pick edge to block";
+    static constexpr const char* PICK_POINT_TO_LOCK = "%1 pick point to lock";
+    static constexpr const char* PICK_POINT_OR_CURVE = "%1 pick point or curve";
+    static constexpr const char* PICK_SECOND_POINT_OR_CURVE = "%1 pick second point or curve";
+    static constexpr const char* PICK_OPTIONAL_TANGENT_POINT = "%1 pick optional tangent point";
+    static constexpr const char* PICK_OPTIONAL_PERPENDICULAR_POINT = "%1 pick optional perpendicular point";
+    static constexpr const char* PICK_LINE = "%1 pick line";
+    static constexpr const char* PICK_POINT = "%1 pick point";
+    static constexpr const char* PLACE_DIMENSION = "%1 place dimension";
+    static constexpr const char* MODE_HINT = "%1 switch mode";
+
     explicit DrawSketchHandlerGenConstraint(CmdSketcherConstraint* _cmd)
         : cmd(_cmd)
+        , lastOnSketchPos(0.f, 0.f)
         , seqIndex(0)
     {}
     ~DrawSketchHandlerGenConstraint() override
@@ -965,16 +1406,85 @@ public:
         Gui::Selection().rmvSelectionGate();
     }
 
-    void mouseMove(Base::Vector2d /*onSketchPos*/) override
-    {}
-
-    bool pressButton(Base::Vector2d /*onSketchPos*/) override
+    void deactivated() override
     {
+        Gui::MDIView* mdi = Gui::Application::Instance->activeDocument()->getActiveView();
+        if (auto* viewer = dynamic_cast<Gui::View3DInventor*>(mdi)) {
+            viewer->getViewer()->setSelectionEnabled(false);
+        }
+    }
+
+    void mouseMove(SnapManager::SnapHandle /*snapHandle*/) override
+    {
+        skipReleaseAfterExternalSelection = false;
+
+        if (Gui::Selection().getPreselection().pObjectName) {
+            applyCursor();
+        }
+    }
+
+    bool pressButton(Base::Vector2d onSketchPos) override
+    {
+        lastOnSketchPos = onSketchPos;
         return true;
+    }
+
+    bool onSelectionChanged(const Gui::SelectionChanges& msg) override
+    {
+        if (msg.Type != Gui::SelectionChanges::AddSelection || !msg.pObjectName || !msg.pSubName
+            || std::strcmp(msg.pObjectName, sketchgui->getSketchObject()->getNameInDocument()) == 0) {
+            return false;
+        }
+
+        const std::string subName(msg.pSubName);
+        const bool isEdge = subName.starts_with("Edge") && subName.size() > 4;
+        const bool isVertex = subName.starts_with("Vertex") && subName.size() > 6;
+        if (!isEdge && !isVertex) {
+            return false;
+        }
+
+        App::DocumentObject* source =
+            sketchgui->getSketchObject()->getDocument()->getObject(msg.pObjectName);
+        if (!source) {
+            return false;
+        }
+
+        const int externalGeoId = materializeExternalReference(source, subName);
+        if (externalGeoId == GeoEnum::GeoUndef) {
+            Gui::Selection().clearSelection();
+            return true;
+        }
+
+        SelIdPair selIdPair;
+        selIdPair.GeoId = externalGeoId;
+        selIdPair.PosId = isVertex ? Sketcher::PointPos::start : Sketcher::PointPos::none;
+
+        const Part::Geometry* geometry = sketchgui->getSketchObject()->getGeometry(externalGeoId);
+        if (!geometry) {
+            Gui::Selection().clearSelection();
+            return true;
+        }
+
+        SelType selectionType = isVertex ? SelVertex : SelExternalEdge;
+        if (isEdge && allowedSelTypes & SelExternalArc && isArcOfCircle(*geometry)) {
+            selectionType = SelExternalArc;
+        }
+
+        Gui::Selection().clearSelection();
+        skipReleaseAfterExternalSelection = true;
+        return selectGeometry(selIdPair,
+                              selectionType,
+                              "ExternalEdge" + std::to_string(GeoEnum::RefExt + 1 - externalGeoId),
+                              lastOnSketchPos);
     }
 
     bool releaseButton(Base::Vector2d onSketchPos) override
     {
+        if (skipReleaseAfterExternalSelection) {
+            skipReleaseAfterExternalSelection = false;
+            return true;
+        }
+
         SelIdPair selIdPair;
         selIdPair.GeoId = GeoEnum::GeoUndef;
         selIdPair.PosId = Sketcher::PointPos::none;
@@ -985,37 +1495,56 @@ public:
         int VtId = getPreselectPoint();
         int CrvId = getPreselectCurve();
         int CrsId = getPreselectCross();
-        if (allowedSelTypes & (SelRoot | SelVertexOrRoot) && CrsId == 0) {
+        if (allowedSelTypes & SelRoot && CrsId == 0) {
             selIdPair.GeoId = Sketcher::GeoEnum::RtPnt;
             selIdPair.PosId = Sketcher::PointPos::start;
-            newSelType = (allowedSelTypes & SelRoot) ? SelRoot : SelVertexOrRoot;
+            newSelType = SelRoot;
             ss << "RootPoint";
         }
-        else if (allowedSelTypes & (SelVertex | SelVertexOrRoot) && VtId >= 0) {
+        else if (allowedSelTypes & SelVertex && VtId >= 0) {
             sketchgui->getSketchObject()->getGeoVertexIndex(VtId, selIdPair.GeoId, selIdPair.PosId);
-            newSelType = (allowedSelTypes & SelVertex) ? SelVertex : SelVertexOrRoot;
+            newSelType = SelVertex;
             ss << "Vertex" << VtId + 1;
         }
-        else if (allowedSelTypes & (SelEdge | SelEdgeOrAxis) && CrvId >= 0) {
-            selIdPair.GeoId = CrvId;
-            newSelType = (allowedSelTypes & SelEdge) ? SelEdge : SelEdgeOrAxis;
-            ss << "Edge" << CrvId + 1;
+        else if ((allowedSelTypes & (SelEdge | SelArc)) && CrvId >= 0) {
+            const Part::Geometry* geom = sketchgui->getSketchObject()->getGeometry(CrvId);
+
+            if ((allowedSelTypes & SelArc) && geom && isArcOfCircle(*geom)) {
+                selIdPair.GeoId = CrvId;
+                newSelType = SelArc;
+                ss << "Edge" << CrvId + 1;
+            }
+            else if (allowedSelTypes & SelEdge) {
+                selIdPair.GeoId = CrvId;
+                newSelType = SelEdge;
+                ss << "Edge" << CrvId + 1;
+            }
         }
-        else if (allowedSelTypes & (SelHAxis | SelEdgeOrAxis) && CrsId == 1) {
+        else if (allowedSelTypes & SelHAxis && CrsId == 1) {
             selIdPair.GeoId = Sketcher::GeoEnum::HAxis;
-            newSelType = (allowedSelTypes & SelHAxis) ? SelHAxis : SelEdgeOrAxis;
+            newSelType = SelHAxis;
             ss << "H_Axis";
         }
-        else if (allowedSelTypes & (SelVAxis | SelEdgeOrAxis) && CrsId == 2) {
+        else if (allowedSelTypes & SelVAxis && CrsId == 2) {
             selIdPair.GeoId = Sketcher::GeoEnum::VAxis;
-            newSelType = (allowedSelTypes & SelVAxis) ? SelVAxis : SelEdgeOrAxis;
+            newSelType = SelVAxis;
             ss << "V_Axis";
         }
-        else if (allowedSelTypes & SelExternalEdge && CrvId <= Sketcher::GeoEnum::RefExt) {
+        else if ((allowedSelTypes & (SelExternalEdge | SelExternalArc))
+                 && CrvId <= Sketcher::GeoEnum::RefExt) {
             // TODO: Figure out how this works
-            selIdPair.GeoId = CrvId;
-            newSelType = SelExternalEdge;
-            ss << "ExternalEdge" << Sketcher::GeoEnum::RefExt + 1 - CrvId;
+            const Part::Geometry* geom = sketchgui->getSketchObject()->getGeometry(CrvId);
+
+            if ((allowedSelTypes & SelExternalArc) && geom && isArcOfCircle(*geom)) {
+                selIdPair.GeoId = CrvId;
+                newSelType = SelExternalArc;
+                ss << "ExternalEdge" << Sketcher::GeoEnum::RefExt + 1 - CrvId;
+            }
+            else if (allowedSelTypes & SelExternalEdge) {
+                selIdPair.GeoId = CrvId;
+                newSelType = SelExternalEdge;
+                ss << "ExternalEdge" << Sketcher::GeoEnum::RefExt + 1 - CrvId;
+            }
         }
 
         if (selIdPair.GeoId == GeoEnum::GeoUndef) {
@@ -1023,47 +1552,343 @@ public:
             selSeq.clear();
             resetOngoingSequences();
             Gui::Selection().clearSelection();
+            updateHint();
+            return true;
         }
-        else {
-            // If mouse is released on something allowed, select it and move forward
-            selSeq.push_back(selIdPair);
-            Gui::Selection().addSelection(sketchgui->getSketchObject()->getDocument()->getName(),
-                                          sketchgui->getSketchObject()->getNameInDocument(),
-                                          ss.str().c_str(),
-                                          onSketchPos.x,
-                                          onSketchPos.y,
-                                          0.f);
-            _tempOnSequences.clear();
-            allowedSelTypes = 0;
-            for (std::set<int>::iterator token = ongoingSequences.begin();
-                 token != ongoingSequences.end();
-                 ++token) {
-                if ((cmd->allowedSelSequences).at(*token).at(seqIndex) == newSelType) {
-                    if (seqIndex == (cmd->allowedSelSequences).at(*token).size() - 1) {
-                        // One of the sequences is completed. Pass to cmd->applyConstraint
-                        cmd->applyConstraint(selSeq, *token);// replace arg 2 by ongoingToken
-
-                        selSeq.clear();
-                        resetOngoingSequences();
-
-                        return true;
-                    }
-                    _tempOnSequences.insert(*token);
-                    allowedSelTypes =
-                        allowedSelTypes | (cmd->allowedSelSequences).at(*token).at(seqIndex + 1);
-                }
-            }
-
-            // Progress to next seqIndex
-            std::swap(_tempOnSequences, ongoingSequences);
-            seqIndex++;
-            selFilterGate->setAllowedSelTypes(allowedSelTypes);
-        }
-
-        return true;
+        return selectGeometry(selIdPair, newSelType, ss.str(), onSketchPos);
     }
 
+    std::list<Gui::InputHint> getToolHints() const override {
+    const std::string commandName = cmd->getName();
+    const int selectionStep = seqIndex;
+
+    // Special case for Sketcher_ConstrainPointOnObject to generate dynamic step hint
+    if (commandName == "Sketcher_ConstrainPointOnObject") {
+        if (selectionStep == 0) {
+            return {{QObject::tr(PICK_POINT_OR_EDGE), {Gui::InputHint::UserInput::MouseLeft}}};
+        } else if (selectionStep == 1 && !selSeq.empty()) {
+            if (isVertex(selSeq[0].GeoId, selSeq[0].PosId)) {
+                return {{QObject::tr(PICK_EDGE), {Gui::InputHint::UserInput::MouseLeft}}};
+            } else {
+                return {{QObject::tr(PICK_POINT), {Gui::InputHint::UserInput::MouseLeft}}};
+            }
+        }
+    }
+
+    // Special case for Sketcher_ConstrainAngle to generate context-aware hints
+    if (commandName == "Sketcher_ConstrainAngle") {
+        if (selectionStep == 0) {
+            return {{QObject::tr(PICK_EDGE_OR_FIRST_POINT), {Gui::InputHint::UserInput::MouseLeft}}};
+        } else if (selectionStep == 1 && !selSeq.empty()) {
+            if (isVertex(selSeq[0].GeoId, selSeq[0].PosId)) {
+                // Point + Edge + Edge workflow
+                return {{QObject::tr(PICK_FIRST_EDGE), {Gui::InputHint::UserInput::MouseLeft}}};
+            } else {
+                // Could be Line + Line or Edge + Point + Edge workflow
+                // Tell user what they can actually pick next
+                return {{QObject::tr(PICK_SECOND_LINE_OR_POINT), {Gui::InputHint::UserInput::MouseLeft}}};
+            }
+        } else if (selectionStep == 2 && !selSeq.empty()) {
+            if (isVertex(selSeq[0].GeoId, selSeq[0].PosId)) {
+                // Point + Edge + Edge workflow
+                return {{QObject::tr(PICK_SECOND_EDGE), {Gui::InputHint::UserInput::MouseLeft}}};
+            } else if (isVertex(selSeq[1].GeoId, selSeq[1].PosId)) {
+                // Edge + Point + Edge workflow
+                return {{QObject::tr(PICK_SECOND_EDGE), {Gui::InputHint::UserInput::MouseLeft}}};
+            }
+        }
+    }
+
+    // Special case for Sketcher_ConstrainPerpendicular to generate context-aware hints
+    if (commandName == "Sketcher_ConstrainPerpendicular") {
+        if (selectionStep == 0) {
+            return {{QObject::tr(PICK_EDGE_OR_FIRST_POINT), {Gui::InputHint::UserInput::MouseLeft}}};
+        } else if (selectionStep == 1 && !selSeq.empty()) {
+            if (isVertex(selSeq[0].GeoId, selSeq[0].PosId)) {
+                // Point + Edge + Edge workflow
+                return {{QObject::tr(PICK_FIRST_EDGE), {Gui::InputHint::UserInput::MouseLeft}}};
+            } else {
+                // Edge + Edge or Edge + Point + Edge workflow
+                return {{QObject::tr(PICK_SECOND_EDGE_OR_POINT), {Gui::InputHint::UserInput::MouseLeft}}};
+            }
+        } else if (selectionStep == 2 && !selSeq.empty()) {
+            if (isVertex(selSeq[0].GeoId, selSeq[0].PosId)) {
+                // Point + Edge + Edge workflow
+                return {{QObject::tr(PICK_SECOND_EDGE), {Gui::InputHint::UserInput::MouseLeft}}};
+            } else if (isVertex(selSeq[1].GeoId, selSeq[1].PosId)) {
+                // Edge + Point + Edge workflow
+                return {{QObject::tr(PICK_SECOND_EDGE), {Gui::InputHint::UserInput::MouseLeft}}};
+            }
+        }
+    }
+
+    // Special case for Sketcher_ConstrainTangent to generate context-aware hints
+    if (commandName == "Sketcher_ConstrainTangent") {
+        if (selectionStep == 0) {
+            return {{QObject::tr(PICK_EDGE_OR_FIRST_POINT), {Gui::InputHint::UserInput::MouseLeft}}};
+        } else if (selectionStep == 1 && !selSeq.empty()) {
+            if (isVertex(selSeq[0].GeoId, selSeq[0].PosId)) {
+                // Point + Edge + Edge workflow
+                return {{QObject::tr(PICK_FIRST_EDGE), {Gui::InputHint::UserInput::MouseLeft}}};
+            } else {
+                // Could be Edge + Edge or Edge + Point + Edge workflow
+                return {{QObject::tr(PICK_SECOND_EDGE_OR_POINT), {Gui::InputHint::UserInput::MouseLeft}}};
+            }
+        } else if (selectionStep == 2 && !selSeq.empty()) {
+            if (isVertex(selSeq[0].GeoId, selSeq[0].PosId)) {
+                // Point + Edge + Edge workflow
+                return {{QObject::tr(PICK_SECOND_EDGE), {Gui::InputHint::UserInput::MouseLeft}}};
+            } else if (isVertex(selSeq[1].GeoId, selSeq[1].PosId)) {
+                // Edge + Point + Edge workflow
+                return {{QObject::tr(PICK_SECOND_EDGE), {Gui::InputHint::UserInput::MouseLeft}}};
+            }
+        }
+    }
+
+    // Special case for Sketcher_ConstrainDistanceX to generate context-aware hints
+    if (commandName == "Sketcher_ConstrainDistanceX") {
+        if (selectionStep == 0) {
+            return {{QObject::tr(PICK_POINT_OR_EDGE), {Gui::InputHint::UserInput::MouseLeft}}};
+        } else if (selectionStep == 1 && !selSeq.empty()) {
+            if (isVertex(selSeq[0].GeoId, selSeq[0].PosId)) {
+                // Point + Point workflow
+                return {{QObject::tr(PICK_SECOND_POINT), {Gui::InputHint::UserInput::MouseLeft}}};
+            } else {
+                // Edge workflow - no second selection needed
+                return {{QObject::tr(PLACE_DIMENSION), {Gui::InputHint::UserInput::MouseLeft}}};
+            }
+        }
+    }
+
+    // Special case for Sketcher_ConstrainDistanceY to generate context-aware hints
+    if (commandName == "Sketcher_ConstrainDistanceY") {
+        if (selectionStep == 0) {
+            return {{QObject::tr(PICK_POINT_OR_EDGE), {Gui::InputHint::UserInput::MouseLeft}}};
+        } else if (selectionStep == 1 && !selSeq.empty()) {
+            if (isVertex(selSeq[0].GeoId, selSeq[0].PosId)) {
+                // Point + Point workflow
+                return {{QObject::tr(PICK_SECOND_POINT), {Gui::InputHint::UserInput::MouseLeft}}};
+            } else {
+                // Edge workflow - no second selection needed
+                return {{QObject::tr(PLACE_DIMENSION), {Gui::InputHint::UserInput::MouseLeft}}};
+            }
+        }
+    }
+
+    // Special case for Sketcher_ConstrainSymmetric to generate context-aware hints
+    if (commandName == "Sketcher_ConstrainSymmetric") {
+        if (selectionStep == 0) {
+            return {{QObject::tr(PICK_EDGE_OR_FIRST_POINT), {Gui::InputHint::UserInput::MouseLeft}}};
+        } else if (selectionStep == 1 && !selSeq.empty()) {
+            if (isVertex(selSeq[0].GeoId, selSeq[0].PosId)) {
+                // Point + Edge + Point or Point + Point + Edge/Point workflow
+                return {{QObject::tr(PICK_EDGE_OR_SECOND_POINT), {Gui::InputHint::UserInput::MouseLeft}}};
+            } else {
+                // Edge + Point workflow
+                return {{QObject::tr(PICK_SYMMETRY_POINT), {Gui::InputHint::UserInput::MouseLeft}}};
+            }
+        } else if (selectionStep == 2 && !selSeq.empty()) {
+            if (isVertex(selSeq[0].GeoId, selSeq[0].PosId) && isVertex(selSeq[1].GeoId, selSeq[1].PosId)) {
+                // Point + Point + Edge workflow
+                return {{QObject::tr(PICK_SYMMETRY_LINE_OR_POINT), {Gui::InputHint::UserInput::MouseLeft}}};
+            } else if (isVertex(selSeq[0].GeoId, selSeq[0].PosId) && !isVertex(selSeq[1].GeoId, selSeq[1].PosId)) {
+                // Point + Edge + Point workflow
+                return {{QObject::tr(PICK_POINT), {Gui::InputHint::UserInput::MouseLeft}}};
+            }
+        }
+    }
+
+    // For everything else, use the static table
+    return lookupConstraintHints(commandName, selectionStep);
+}
+
 private:
+    struct ConstraintHintEntry {
+        std::string commandName;    // FreeCAD command name (e.g., "Sketcher_ConstrainSymmetric")
+        int selectionStep;          // 0-indexed step in the selection sequence
+        std::list<Gui::InputHint> hints;  // Hint text and input types for this step
+    };
+
+    using ConstraintHintTable = std::vector<ConstraintHintEntry>;
+
+    // Constraint hint lookup table
+    // Format: {command_name, selection_step, {hint_text, input_types}}
+    // Steps are 0-indexed and correspond to DrawSketchHandlerGenConstraint::seqIndex
+    // Each step provides contextual guidance for what the user should select next
+    static ConstraintHintTable getConstraintHintTable() {
+        return {
+            // Coincident
+            {.commandName = "Sketcher_ConstrainCoincidentUnified",
+            .selectionStep = 0,
+            .hints = {{QObject::tr(PICK_POINT_OR_EDGE), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            {.commandName = "Sketcher_ConstrainCoincidentUnified",
+            .selectionStep = 1,
+            .hints = {{QObject::tr(PICK_SECOND_POINT_OR_EDGE), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            // Distance X/Y
+            {.commandName = "Sketcher_ConstrainDistanceX",
+            .selectionStep = 0,
+            .hints = {{QObject::tr(PICK_POINT_OR_EDGE), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            {.commandName = "Sketcher_ConstrainDistanceX",
+            .selectionStep = 1,
+            .hints = {{QObject::tr(PICK_SECOND_POINT_OR_EDGE), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            {.commandName = "Sketcher_ConstrainDistanceY",
+            .selectionStep = 0,
+            .hints = {{QObject::tr(PICK_POINT_OR_EDGE), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            {.commandName = "Sketcher_ConstrainDistanceY",
+            .selectionStep = 1,
+            .hints = {{QObject::tr(PICK_SECOND_POINT_OR_EDGE), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            // Horizontal/Vertical
+            {.commandName = "Sketcher_ConstrainHorizontal",
+            .selectionStep = 0,
+            .hints = {{QObject::tr(PICK_EDGE_OR_FIRST_POINT), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            {.commandName = "Sketcher_ConstrainHorizontal",
+            .selectionStep = 1,
+            .hints = {{QObject::tr(PICK_SECOND_POINT), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            {.commandName = "Sketcher_ConstrainVertical",
+            .selectionStep = 0,
+            .hints = {{QObject::tr(PICK_EDGE_OR_FIRST_POINT), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            {.commandName = "Sketcher_ConstrainVertical",
+            .selectionStep = 1,
+            .hints = {{QObject::tr(PICK_SECOND_POINT), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            {.commandName = "Sketcher_ConstrainHorVer",
+            .selectionStep = 0,
+            .hints = {{QObject::tr(PICK_EDGE_OR_FIRST_POINT), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            {.commandName = "Sketcher_ConstrainHorVer",
+            .selectionStep = 1,
+            .hints = {{QObject::tr(PICK_SECOND_POINT), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            // Block/Lock
+            {.commandName = "Sketcher_ConstrainBlock",
+            .selectionStep = 0,
+            .hints = {{QObject::tr(PICK_EDGE_TO_BLOCK), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            {.commandName = "Sketcher_ConstrainLock",
+            .selectionStep = 0,
+            .hints = {{QObject::tr(PICK_POINT_TO_LOCK), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            // Coincident (individual)
+            {.commandName = "Sketcher_ConstrainCoincident",
+            .selectionStep = 0,
+            .hints = {{QObject::tr(PICK_POINT_OR_CURVE), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            {.commandName = "Sketcher_ConstrainCoincident",
+            .selectionStep = 1,
+            .hints = {{QObject::tr(PICK_SECOND_POINT_OR_CURVE), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            {.commandName = "Sketcher_ConstrainEqual",
+            .selectionStep = 0,
+            .hints = {{QObject::tr(PICK_EDGE), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            {.commandName = "Sketcher_ConstrainEqual",
+            .selectionStep = 1,
+            .hints = {{QObject::tr(PICK_SECOND_EDGE), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            // Radius/Diameter
+            {.commandName = "Sketcher_ConstrainRadius",
+            .selectionStep = 0,
+            .hints = {{QObject::tr(PICK_CIRCLE_OR_ARC), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            {.commandName = "Sketcher_ConstrainDiameter",
+            .selectionStep = 0,
+            .hints = {{QObject::tr(PICK_CIRCLE_OR_ARC), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            {.commandName = "Sketcher_ConstrainRadiam",
+            .selectionStep = 0,
+            .hints = {{QObject::tr(PICK_CIRCLE_OR_ARC), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            // Angle
+            {.commandName = "Sketcher_ConstrainAngle",
+            .selectionStep = 0,
+            .hints = {{QObject::tr(PICK_EDGE_OR_FIRST_POINT), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            {.commandName = "Sketcher_ConstrainAngle",
+            .selectionStep = 1,
+            .hints = {{QObject::tr(PICK_SECOND_EDGE), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            {.commandName = "Sketcher_ConstrainAngle",
+            .selectionStep = 2,
+            .hints = {{QObject::tr(PICK_SECOND_EDGE), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            // Symmetry
+            {.commandName = "Sketcher_ConstrainSymmetric",
+            .selectionStep = 0,
+            .hints = {{QObject::tr(PICK_POINT), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            {.commandName = "Sketcher_ConstrainSymmetric",
+            .selectionStep = 1,
+            .hints = {{QObject::tr(PICK_SECOND_POINT), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            {.commandName = "Sketcher_ConstrainSymmetric",
+            .selectionStep = 2,
+            .hints = {{QObject::tr(PICK_SYMMETRY_LINE), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            // Tangent
+            {.commandName = "Sketcher_ConstrainTangent",
+            .selectionStep = 0,
+            .hints = {{QObject::tr(PICK_EDGE), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            {.commandName = "Sketcher_ConstrainTangent",
+            .selectionStep = 1,
+            .hints = {{QObject::tr(PICK_SECOND_EDGE), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            {.commandName = "Sketcher_ConstrainTangent",
+            .selectionStep = 2,
+            .hints = {{QObject::tr(PICK_OPTIONAL_TANGENT_POINT), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            // Perpendicular
+            {.commandName = "Sketcher_ConstrainPerpendicular",
+            .selectionStep = 0,
+            .hints = {{QObject::tr(PICK_EDGE), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            {.commandName = "Sketcher_ConstrainPerpendicular",
+            .selectionStep = 1,
+            .hints = {{QObject::tr(PICK_SECOND_EDGE), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            {.commandName = "Sketcher_ConstrainPerpendicular",
+            .selectionStep = 2,
+            .hints = {{QObject::tr(PICK_OPTIONAL_PERPENDICULAR_POINT), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            // Parallel
+            {.commandName = "Sketcher_ConstrainParallel",
+            .selectionStep = 0,
+            .hints = {{QObject::tr(PICK_LINE), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            {.commandName = "Sketcher_ConstrainParallel",
+            .selectionStep = 1,
+            .hints = {{QObject::tr(PICK_SECOND_LINE), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            // Distance
+            {.commandName = "Sketcher_ConstrainDistance",
+            .selectionStep = 0,
+            .hints = {{QObject::tr(PICK_POINT_OR_EDGE), {Gui::InputHint::UserInput::MouseLeft}}}},
+
+            {.commandName = "Sketcher_ConstrainDistance",
+            .selectionStep = 1,
+            .hints = {{QObject::tr(PICK_SECOND_POINT_OR_EDGE), {Gui::InputHint::UserInput::MouseLeft}}}},
+        };
+    }
+
+    static std::list<Gui::InputHint> lookupConstraintHints(const std::string& commandName, int selectionStep) {
+        const auto constraintHintTable = getConstraintHintTable();
+        auto it = std::ranges::find_if(constraintHintTable,
+                                [&commandName, selectionStep](const ConstraintHintEntry& entry) {
+                                    return entry.commandName == commandName && entry.selectionStep == selectionStep;
+                                });
+
+        return (it != constraintHintTable.end()) ? it->hints : std::list<Gui::InputHint>{};
+    }
+
     void activated() override
     {
         selFilterGate = new GenericConstraintSelection(sketchgui->getObject());
@@ -1075,6 +1900,11 @@ private:
         Gui::Selection().rmvSelectionGate();
         Gui::Selection().addSelectionGate(selFilterGate);
 
+        Gui::MDIView* mdi = Gui::Application::Instance->activeDocument()->getActiveView();
+        if (auto* viewer = dynamic_cast<Gui::View3DInventor*>(mdi)) {
+            viewer->getViewer()->setSelectionEnabled(true);
+        }
+
         // Constrain icon size in px
         qreal pixelRatio = devicePixelRatio();
         const unsigned long defaultCrosshairColor = 0xFFFFFF;
@@ -1082,8 +1912,8 @@ private:
         auto colorMapping = std::map<unsigned long, unsigned long>();
         colorMapping[defaultCrosshairColor] = color;
 
-        qreal fullIconWidth = 32 * pixelRatio;
-        qreal iconWidth = 16 * pixelRatio;
+        constexpr qreal fullIconWidth = 32;
+        constexpr qreal iconWidth = 16;
         QPixmap cursorPixmap =
                     Gui::BitmapFactory().pixmapFromSvg("Sketcher_Crosshair",
                                                        QSizeF(fullIconWidth, fullIconWidth),
@@ -1092,11 +1922,10 @@ private:
                                                           QSizeF(iconWidth, iconWidth));
         QPainter cursorPainter;
         cursorPainter.begin(&cursorPixmap);
-        cursorPainter.drawPixmap(16 * pixelRatio, 16 * pixelRatio, icon);
+        cursorPainter.drawPixmap(16, 16, icon);
         cursorPainter.end();
         int hotX = 8;
         int hotY = 8;
-        cursorPixmap.setDevicePixelRatio(pixelRatio);
         // only X11 needs hot point coordinates to be scaled
         if (qGuiApp->platformName() == QLatin1String("xcb")) {
             hotX *= pixelRatio;
@@ -1112,6 +1941,8 @@ protected:
 
     std::vector<SelIdPair> selSeq;
     unsigned int allowedSelTypes = 0;
+    Base::Vector2d lastOnSketchPos;
+    bool skipReleaseAfterExternalSelection = false;
 
     /// indices of currently ongoing sequences in cmd->allowedSequences
     std::set<int> ongoingSequences, _tempOnSequences;
@@ -1138,11 +1969,80 @@ protected:
 
         Gui::Selection().clearSelection();
     }
+
+    bool selectGeometry(const SelIdPair& selIdPair,
+                        SelType selectionType,
+                        const std::string& selectionName,
+                        Base::Vector2d onSketchPos)
+    {
+        selSeq.push_back(selIdPair);
+        Gui::Selection().addSelection(sketchgui->getSketchObject()->getDocument()->getName(),
+                                      sketchgui->getSketchObject()->getNameInDocument(),
+                                      selectionName.c_str(),
+                                      onSketchPos.x,
+                                      onSketchPos.y,
+                                      0.f);
+        _tempOnSequences.clear();
+        allowedSelTypes = 0;
+        for (int token : ongoingSequences) {
+            if ((cmd->allowedSelSequences).at(token).at(seqIndex) & selectionType) {
+                if (seqIndex == (cmd->allowedSelSequences).at(token).size() - 1) {
+                    cmd->applyConstraint(selSeq, token);
+
+                    selSeq.clear();
+                    resetOngoingSequences();
+                    updateHint();
+                    return true;
+                }
+                _tempOnSequences.insert(token);
+                allowedSelTypes =
+                    allowedSelTypes | (cmd->allowedSelSequences).at(token).at(seqIndex + 1);
+            }
+        }
+
+        std::swap(_tempOnSequences, ongoingSequences);
+        seqIndex++;
+        selFilterGate->setAllowedSelTypes(allowedSelTypes);
+        updateHint();
+
+        return true;
+    }
+
+    int materializeExternalReference(App::DocumentObject* source, const std::string& subName)
+    {
+        const int existingGeoId =
+            findExternalReference(sketchgui->getSketchObject(), source, subName);
+        if (existingGeoId != GeoEnum::GeoUndef) {
+            return existingGeoId;
+        }
+
+        try {
+            openCommand(QT_TRANSLATE_NOOP("Command", "Add external geometry"));
+            const int externalGeoId =
+                addProjectedExternalReference(sketchgui->getSketchObject(), source, subName);
+            commitCommand();
+            if (externalGeoId != GeoEnum::GeoUndef) {
+                return externalGeoId;
+            }
+        }
+        catch (const Base::Exception&) {
+            Gui::NotifyError(sketchgui,
+                             QT_TRANSLATE_NOOP("Notifications", "Error"),
+                             QT_TRANSLATE_NOOP("Notifications", "Failed to add external geometry"));
+            abortCommand();
+            return GeoEnum::GeoUndef;
+        }
+
+        Gui::NotifyError(sketchgui,
+                         QT_TRANSLATE_NOOP("Notifications", "Error"),
+                         QT_TRANSLATE_NOOP("Notifications", "Failed to add external geometry"));
+        return GeoEnum::GeoUndef;
+    }
 };
 
 void CmdSketcherConstraint::activated(int /*iMsg*/)
 {
-    ActivateHandler(getActiveGuiDocument(), new DrawSketchHandlerGenConstraint(this));
+    ActivateHandler(getActiveGuiDocument(), std::make_unique<DrawSketchHandlerGenConstraint>(this));
     getSelection().clearSelection();
 }
 
@@ -1157,7 +2057,7 @@ public:
         sAppModule = "Sketcher";
         sGroup = "Sketcher";
         sMenuText = QT_TR_NOOP("Dimension");
-        sToolTipText = QT_TR_NOOP("Dimension tools.");
+        sToolTipText = QT_TR_NOOP("Dimension tools");
         sWhatsThis = "Sketcher_CompDimensionTools";
         sStatusTip = sToolTipText;
         eType = ForEdit;
@@ -1167,14 +2067,14 @@ public:
 
         addCommand("Sketcher_Dimension");
         addCommand(); //separator
-        addCommand("Sketcher_ConstrainLock");
         addCommand("Sketcher_ConstrainDistanceX");
         addCommand("Sketcher_ConstrainDistanceY");
         addCommand("Sketcher_ConstrainDistance");
+        addCommand("Sketcher_ConstrainRadiam");
         addCommand("Sketcher_ConstrainRadius");
         addCommand("Sketcher_ConstrainDiameter");
-        addCommand("Sketcher_ConstrainRadiam");
         addCommand("Sketcher_ConstrainAngle");
+        addCommand("Sketcher_ConstrainLock");
     }
 
     void updateAction(int mode) override
@@ -1190,27 +2090,27 @@ public:
         case Reference:
             al[0]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_Dimension_Driven"));
             //al[1] is the separator
-            al[2]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_Lock_Driven"));
-            al[3]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_HorizontalDistance_Driven"));
-            al[4]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_VerticalDistance_Driven"));
-            al[5]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_Length_Driven"));
+            al[2]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_HorizontalDistance_Driven"));
+            al[3]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_VerticalDistance_Driven"));
+            al[4]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_Length_Driven"));
+            al[5]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_Radiam_Driven"));
             al[6]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_Radius_Driven"));
             al[7]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_Diameter_Driven"));
-            al[8]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_Radiam_Driven"));
-            al[9]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_InternalAngle_Driven"));
+            al[8]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_InternalAngle_Driven"));
+            al[9]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_Lock_Driven"));
             getAction()->setIcon(al[index]->icon());
             break;
         case Driving:
             al[0]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_Dimension"));
             //al[1] is the separator
-            al[2]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_Lock"));
-            al[3]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_HorizontalDistance"));
-            al[4]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_VerticalDistance"));
-            al[5]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_Length"));
+            al[2]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_HorizontalDistance"));
+            al[3]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_VerticalDistance"));
+            al[4]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_Length"));
+            al[5]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_Radiam"));
             al[6]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_Radius"));
             al[7]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_Diameter"));
-            al[8]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_Radiam"));
-            al[9]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_InternalAngle"));
+            al[8]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_InternalAngle"));
+            al[9]->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_Lock"));
             getAction()->setIcon(al[index]->icon());
             break;
         }
@@ -1219,51 +2119,121 @@ public:
     const char* className() const override { return "CmdSketcherCompDimensionTools"; }
 };
 
+// Comp for constrain tools =============================================
+
+class CmdSketcherCompConstrainTools : public Gui::GroupCommand
+{
+public:
+    CmdSketcherCompConstrainTools()
+        : GroupCommand("Sketcher_CompConstrainTools")
+    {
+        sAppModule = "Sketcher";
+        sGroup = "Sketcher";
+        sMenuText = QT_TR_NOOP("Constrain");
+        sToolTipText = QT_TR_NOOP("Constrain tools");
+        sWhatsThis = "Sketcher_CompConstrainTools";
+        sStatusTip = sToolTipText;
+        eType = ForEdit;
+
+        setCheckable(false);
+        setRememberLast(false);
+
+        addCommand("Sketcher_ConstrainCoincidentUnified");
+        addCommand("Sketcher_ConstrainHorVer");
+        addCommand("Sketcher_ConstrainParallel");
+        addCommand("Sketcher_ConstrainPerpendicular");
+        addCommand("Sketcher_ConstrainTangent");
+        addCommand("Sketcher_ConstrainEqual");
+        addCommand("Sketcher_ConstrainSymmetric");
+        addCommand("Sketcher_ConstrainBlock");
+    }
+    const char* className() const override { return "CmdSketcherCompConstrainTools"; }
+};
+
+// Comp for toggle constraint tools =============================================
+
+class CmdSketcherCompToggleConstraints : public Gui::GroupCommand
+{
+public:
+    CmdSketcherCompToggleConstraints()
+        : GroupCommand("Sketcher_CompToggleConstraints")
+    {
+        sAppModule = "Sketcher";
+        sGroup = "Sketcher";
+        sMenuText = QT_TR_NOOP("Toggle Constraints");
+        sToolTipText = QT_TR_NOOP("Toggle constrain tools");
+        sWhatsThis = "Sketcher_CompToggleConstraints";
+        sStatusTip = sToolTipText;
+        eType = ForEdit;
+
+        setCheckable(false);
+        setRememberLast(false);
+
+        addCommand("Sketcher_ToggleDrivingConstraint");
+        addCommand("Sketcher_ToggleActiveConstraint");
+
+    }
+    const char* className() const override
+    {
+        return "CmdSketcherCompToggleConstraints";
+    }
+    bool isActive() override
+    {
+        return isCommandActive(getActiveGuiDocument());
+    }
+};
+
 // Dimension tool =======================================================
 
 class GeomSelectionSizes
 {
 public:
-    GeomSelectionSizes(size_t s_pts, size_t s_lns, size_t s_cir, size_t s_ell) :
-        s_pts(s_pts), s_lns(s_lns), s_cir(s_cir), s_ell(s_ell) {}
+    GeomSelectionSizes(size_t s_pts, size_t s_lns, size_t s_cir, size_t s_ell, size_t s_spl) :
+        s_pts(s_pts), s_lns(s_lns), s_cir(s_cir), s_ell(s_ell), s_spl(s_spl) {}
     ~GeomSelectionSizes() {}
 
     bool hasPoints()        const { return s_pts > 0; }
     bool hasLines()         const { return s_lns > 0; }
     bool hasCirclesOrArcs() const { return s_cir > 0; }
     bool hasEllipseAndCo()  const { return s_ell > 0; }
+    bool hasSplineAndCo()   const { return s_spl > 0; }
 
-    bool has1Point()             const { return s_pts == 1 && s_lns == 0 && s_cir == 0 && s_ell == 0; }
-    bool has2Points()            const { return s_pts == 2 && s_lns == 0 && s_cir == 0 && s_ell == 0; }
-    bool has1Point1Line()        const { return s_pts == 1 && s_lns == 1 && s_cir == 0 && s_ell == 0; }
-    bool has3Points()            const { return s_pts == 3 && s_lns == 0 && s_cir == 0 && s_ell == 0; }
-    bool has4MorePoints()        const { return s_pts >= 4 && s_lns == 0 && s_cir == 0 && s_ell == 0; }
-    bool has2Points1Line()       const { return s_pts == 2 && s_lns == 1 && s_cir == 0 && s_ell == 0; }
-    bool has3MorePoints1Line()   const { return s_pts >= 3 && s_lns == 1 && s_cir == 0 && s_ell == 0; }
-    bool has1Point1Circle()      const { return s_pts == 1 && s_lns == 0 && s_cir == 1 && s_ell == 0; }
-    bool has1MorePoint1Ellipse() const { return s_pts >= 1 && s_lns == 0 && s_cir == 0 && s_ell == 1; }
+    bool has1Point()             const { return s_pts == 1 && s_lns == 0 && s_cir == 0 && s_ell == 0 && s_spl == 0; }
+    bool has2Points()            const { return s_pts == 2 && s_lns == 0 && s_cir == 0 && s_ell == 0 && s_spl == 0; }
+    bool has1Point1Line()        const { return s_pts == 1 && s_lns == 1 && s_cir == 0 && s_ell == 0 && s_spl == 0; }
+    bool has3Points()            const { return s_pts == 3 && s_lns == 0 && s_cir == 0 && s_ell == 0 && s_spl == 0; }
+    bool has4MorePoints()        const { return s_pts >= 4 && s_lns == 0 && s_cir == 0 && s_ell == 0 && s_spl == 0; }
+    bool has2Points1Line()       const { return s_pts == 2 && s_lns == 1 && s_cir == 0 && s_ell == 0 && s_spl == 0; }
+    bool has3MorePoints1Line()   const { return s_pts >= 3 && s_lns == 1 && s_cir == 0 && s_ell == 0 && s_spl == 0; }
+    bool has1Point1Circle()      const { return s_pts == 1 && s_lns == 0 && s_cir == 1 && s_ell == 0 && s_spl == 0; }
+    bool has1MorePoint1Ellipse() const { return s_pts >= 1 && s_lns == 0 && s_cir == 0 && s_ell == 1 && s_spl == 0; }
 
-    bool has1Line()              const { return s_pts == 0 && s_lns == 1 && s_cir == 0 && s_ell == 0; }
-    bool has2Lines()             const { return s_pts == 0 && s_lns == 2 && s_cir == 0 && s_ell == 0; }
-    bool has3MoreLines()         const { return s_pts == 0 && s_lns >= 3 && s_cir == 0 && s_ell == 0; }
-    bool has1Line1Circle()       const { return s_pts == 0 && s_lns == 1 && s_cir == 1 && s_ell == 0; }
-    bool has1Line2Circles()      const { return s_pts == 0 && s_lns == 1 && s_cir == 2 && s_ell == 0; }
-    bool has1Line1Ellipse()      const { return s_pts == 0 && s_lns == 1 && s_cir == 0 && s_ell == 1; }
+    bool has1Line()              const { return s_pts == 0 && s_lns == 1 && s_cir == 0 && s_ell == 0 && s_spl == 0; }
+    bool has2Lines()             const { return s_pts == 0 && s_lns == 2 && s_cir == 0 && s_ell == 0 && s_spl == 0; }
+    bool has3MoreLines()         const { return s_pts == 0 && s_lns >= 3 && s_cir == 0 && s_ell == 0 && s_spl == 0; }
+    bool has1Line1Circle()       const { return s_pts == 0 && s_lns == 1 && s_cir == 1 && s_ell == 0 && s_spl == 0; }
+    bool has1Line2Circles()      const { return s_pts == 0 && s_lns == 1 && s_cir == 2 && s_ell == 0 && s_spl == 0; }
+    bool has1Line1Ellipse()      const { return s_pts == 0 && s_lns == 1 && s_cir == 0 && s_ell == 1 && s_spl == 0; }
 
-    bool has1Circle()            const { return s_pts == 0 && s_lns == 0 && s_cir == 1 && s_ell == 0; }
-    bool has2Circles()           const { return s_pts == 0 && s_lns == 0 && s_cir == 2 && s_ell == 0; }
-    bool has3MoreCircles()       const { return s_pts == 0 && s_lns == 0 && s_cir >= 3 && s_ell == 0; }
-    bool has1Circle1Ellipse()    const { return s_pts == 0 && s_lns == 0 && s_cir == 1 && s_ell == 1; }
+    bool has1Circle()            const { return s_pts == 0 && s_lns == 0 && s_cir == 1 && s_ell == 0 && s_spl == 0; }
+    bool has2Circles()           const { return s_pts == 0 && s_lns == 0 && s_cir == 2 && s_ell == 0 && s_spl == 0; }
+    bool has3MoreCircles()       const { return s_pts == 0 && s_lns == 0 && s_cir >= 3 && s_ell == 0 && s_spl == 0; }
+    bool has1Circle1Ellipse()    const { return s_pts == 0 && s_lns == 0 && s_cir == 1 && s_ell == 1 && s_spl == 0; }
 
-    bool has1Ellipse()           const { return s_pts == 0 && s_lns == 0 && s_cir == 0 && s_ell == 1; }
-    bool has2MoreEllipses()      const { return s_pts == 0 && s_lns == 0 && s_cir == 0 && s_ell >= 2; }
+    bool has1Ellipse()           const { return s_pts == 0 && s_lns == 0 && s_cir == 0 && s_ell == 1 && s_spl == 0; }
+    bool has2MoreEllipses()      const { return s_pts == 0 && s_lns == 0 && s_cir == 0 && s_ell >= 2 && s_spl == 0; }
+    bool has1Point1Spline1MoreEdge()   const { return s_pts == 1 && s_spl >= 1 && (s_lns + s_cir + s_ell + s_spl) == 2; }
 
-    size_t s_pts, s_lns, s_cir, s_ell;
+    size_t s_pts, s_lns, s_cir, s_ell, s_spl;
 };
 
 class DrawSketchHandlerDimension : public DrawSketchHandler
 {
 public:
+    // Helper constants for hint texts
+    static constexpr const char* PICK_POINT_OR_EDGE = "%1 pick point/edge";
+    static constexpr const char* PICK_SECOND_POINT_OR_EDGE_OR_CLICK_TO_FINISH =
+        "%1 pick next point/edge, or empty space to finish";
     explicit DrawSketchHandlerDimension(std::vector<std::string> SubNames)
         : specialConstraint(SpecialConstraint::None)
         , availableConstraint(AvailableConstraint::FIRST)
@@ -1272,8 +2242,10 @@ public:
         , selLine({})
         , selCircleArc({})
         , selEllipseAndCo({})
+        , selSplineAndCo({})
         , initialSelection(std::move(SubNames))
-        , numberOfConstraintsCreated(0)
+        , cstrIndexes({})
+        , singleCircleReverseOrder(false)
     {
     }
     ~DrawSketchHandlerDimension() override
@@ -1295,9 +2267,15 @@ public:
         None
     };
 
+    struct ExternalReference {
+        App::DocumentObject* source;
+        std::string subName;
+        int geoId;
+    };
+
     void activated() override
     {
-        Gui::Command::openCommand(QT_TRANSLATE_NOOP("Command", "Dimension"));
+        openCommand(QT_TRANSLATE_NOOP("Command", "Dimension"));
 
         Obj = sketchgui->getSketchObject();
 
@@ -1308,17 +2286,16 @@ public:
         auto colorMapping = std::map<unsigned long, unsigned long>();
         colorMapping[defaultCrosshairColor] = color;
 
-        qreal fullIconWidth = 32 * pixelRatio;
-        qreal iconWidth = 16 * pixelRatio;
-        QPixmap cursorPixmap = Gui::BitmapFactory().pixmapFromSvg("Sketcher_Crosshair", QSizeF(fullIconWidth, fullIconWidth), colorMapping),
-            icon = Gui::BitmapFactory().pixmapFromSvg("Constraint_Dimension", QSizeF(iconWidth, iconWidth));
+        constexpr qreal fullIconWidth = 32;
+        constexpr qreal iconWidth = 16;
+        QPixmap cursorPixmap = Gui::BitmapFactory().pixmapFromSvg("Sketcher_Crosshair", QSizeF(fullIconWidth, fullIconWidth), colorMapping);
+        QPixmap icon = Gui::BitmapFactory().pixmapFromSvg("Constraint_Dimension", QSizeF(iconWidth, iconWidth));
         QPainter cursorPainter;
         cursorPainter.begin(&cursorPixmap);
-        cursorPainter.drawPixmap(16 * pixelRatio, 16 * pixelRatio, icon);
+        cursorPainter.drawPixmap(16, 16, icon);
         cursorPainter.end();
         int hotX = 8;
         int hotY = 8;
-        cursorPixmap.setDevicePixelRatio(pixelRatio);
         // only X11 needs hot point coordinates to be scaled
         if (qGuiApp->platformName() == QLatin1String("xcb")) {
             hotX *= pixelRatio;
@@ -1326,44 +2303,59 @@ public:
         }
         setCursor(cursorPixmap, hotX, hotY, false);
 
+        Gui::MDIView* mdi = Gui::Application::Instance->activeDocument()->getActiveView();
+        if (auto* viewer = dynamic_cast<Gui::View3DInventor*>(mdi)) {
+            viewer->getViewer()->setSelectionEnabled(true);
+        }
+
+        Gui::Selection().rmvSelectionGate();
+        Gui::Selection().addSelectionGate(new DimensionExternalSelection(sketchgui->getObject()));
+
         handleInitialSelection();
     }
 
     void deactivated() override
     {
-        Gui::Command::abortCommand();
-        Obj->solve();
+        abortCommand();
+        externalReferences.clear();
+        skipReleaseAfterExternalSelection = false;
+        Gui::Selection().rmvSelectionGate();
+
+        Gui::MDIView* mdi = Gui::Application::Instance->activeDocument()->getActiveView();
+        if (auto* viewer = dynamic_cast<Gui::View3DInventor*>(mdi)) {
+            viewer->getViewer()->setSelectionEnabled(false);
+        }
+
+        if (availableConstraint != AvailableConstraint::FIRST) {
+            Obj->solve();
+        }
         sketchgui->draw(false, false); // Redraw
     }
 
     void registerPressedKey(bool pressed, int key) override
     {
         if (key == SoKeyboardEvent::M && pressed) {
-            if (availableConstraint == AvailableConstraint::FIRST) {
-                availableConstraint = AvailableConstraint::SECOND;
-            }
-            else if (availableConstraint == AvailableConstraint::SECOND) {
-                availableConstraint = AvailableConstraint::THIRD;
-            }
-            else if (availableConstraint == AvailableConstraint::THIRD) {
-                availableConstraint = AvailableConstraint::FOURTH;
-            }
-            else if (availableConstraint == AvailableConstraint::FOURTH) {
-                availableConstraint = AvailableConstraint::FIFTH;
-            }
-            else if (availableConstraint == AvailableConstraint::FIFTH || availableConstraint == AvailableConstraint::RESET) {
-                availableConstraint = AvailableConstraint::FIRST;
-            }
+            availableConstraint = nextConstraint(availableConstraint);
             makeAppropriateConstraint(previousOnSketchPos);
+            updateHint();
         }
         else {
             DrawSketchHandler::registerPressedKey(pressed, key);
         }
     }
 
-    void mouseMove(Base::Vector2d onSketchPos) override
+    void mouseMove(SnapManager::SnapHandle snapHandle) override
     {
-        const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
+        skipReleaseAfterExternalSelection = false;
+
+        if (hasBeenAborted()) {
+            resetTool();
+            return;
+        }
+
+        //All snap Positions except of edges, because it results in jumps on angle constraints
+        SnapType mask = static_cast<SnapType>(static_cast<int>(SnapType::All) & ~static_cast<int>(SnapType::Edge));
+        Base::Vector2d onSketchPos = snapHandle.compute(mask);
         previousOnSketchPos = onSketchPos;
 
         //Change distance constraint based on position of mouse.
@@ -1371,24 +2363,32 @@ public:
             updateDistanceType(onSketchPos);
 
         //Move constraints
-        if (numberOfConstraintsCreated > 0) {
+        if (!cstrIndexes.empty()) {
             bool oneMoved = false;
-            for (int i = 0; i < numberOfConstraintsCreated; i++) {
-                if (ConStr[ConStr.size() - 1 - i]->isDimensional()) {
+            const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
+            int lastConstrIndex = static_cast<int>(ConStr.size()) - 1;
+            for (int index : cstrIndexes) {
+                if (ConStr[index]->isDimensional()) {
                     Base::Vector2d pointWhereToMove = onSketchPos;
 
                     if (specialConstraint == SpecialConstraint::Block) {
-                        if (i == 0)
-                            pointWhereToMove.x = Obj->getPoint(selPoints[0].GeoId, selPoints[0].PosId).x;
-                        else
+                        if (index == lastConstrIndex)
                             pointWhereToMove.y = Obj->getPoint(selPoints[0].GeoId, selPoints[0].PosId).y;
+                        else
+                            pointWhereToMove.x = Obj->getPoint(selPoints[0].GeoId, selPoints[0].PosId).x;
                     }
-                    moveConstraint(ConStr.size() - 1 - i, pointWhereToMove);
+                    moveConstraint(index, pointWhereToMove, OffsetConstraint);
                     oneMoved = true;
                 }
             }
             if (oneMoved)
                 sketchgui->draw(false, false); // Redraw
+        }
+
+        // External selections use the normal viewer preselection mechanism, which otherwise
+        // replaces the Dimension cursor with the viewer cursor.
+        if (Gui::Selection().getPreselection().pObjectName) {
+            applyCursor();
         }
     }
 
@@ -1398,15 +2398,65 @@ public:
         return true;
     }
 
+    bool onSelectionChanged(const Gui::SelectionChanges& msg) override
+    {
+        if (msg.Type != Gui::SelectionChanges::AddSelection || !msg.pObjectName || !msg.pSubName
+            || std::strcmp(msg.pObjectName, Obj->getNameInDocument()) == 0) {
+            return false;
+        }
+
+        const std::string subName(msg.pSubName);
+        const bool isEdge = subName.starts_with("Edge") && subName.size() > 4;
+        const bool isVertex = subName.starts_with("Vertex") && subName.size() > 6;
+        if (!isEdge && !isVertex) {
+            return false;
+        }
+
+        App::DocumentObject* source = Obj->getDocument()->getObject(msg.pObjectName);
+        if (!source) {
+            return false;
+        }
+
+        const int extGeoId = materializeExternalReference(source, subName);
+        if (extGeoId == GeoEnum::GeoUndef) {
+            Gui::Selection().clearSelection();
+            return true;
+        }
+
+        const Part::Geometry* geometry = Obj->getGeometry(extGeoId);
+        if (!geometry) {
+            Gui::Selection().clearSelection();
+            return true;
+        }
+
+        SelIdPair selection;
+        selection.GeoId = extGeoId;
+        selection.PosId = isVertex ? Sketcher::PointPos::start : Sketcher::PointPos::none;
+
+        Gui::Selection().clearSelection();
+        // The mapped external name is not available until this selection notification returns.
+        selectGeometry(selection,
+                       geometry->getTypeId(),
+                       "ExternalEdge" + std::to_string(GeoEnum::RefExt + 1 - extGeoId),
+                       previousOnSketchPos,
+                       false);
+        skipReleaseAfterExternalSelection = true;
+        return true;
+    }
+
     bool releaseButton(Base::Vector2d onSketchPos) override
     {
-        Q_UNUSED(onSketchPos);
+        if (skipReleaseAfterExternalSelection) {
+            skipReleaseAfterExternalSelection = false;
+            return true;
+        }
+
         availableConstraint = AvailableConstraint::FIRST;
         SelIdPair selIdPair;
         selIdPair.GeoId = GeoEnum::GeoUndef;
         selIdPair.PosId = Sketcher::PointPos::none;
         std::stringstream ss;
-        Base::Type newselGeoType = Base::Type::badType();
+        Base::Type newselGeoType = Base::Type::BadType;
 
         int VtId = getPreselectPoint();
         int CrvId = getPreselectCurve();
@@ -1454,7 +2504,16 @@ public:
             return true;
         }
 
-        std::vector<SelIdPair>& selVector = getSelectionVector(newselGeoType);
+        return selectGeometry(selIdPair, newselGeoType, ss.str(), onSketchPos);
+    }
+
+    bool selectGeometry(const SelIdPair& selIdPair,
+                        Base::Type geometryType,
+                        const std::string& selectionName,
+                        Base::Vector2d onSketchPos,
+                        bool selectInView = true)
+    {
+        std::vector<SelIdPair>& selVector = getSelectionVector(geometryType);
 
         if (notSelectedYet(selIdPair)) {
             //add the geometry to its type vector. Temporarily if not selAllowed
@@ -1464,9 +2523,10 @@ public:
 
             if (selAllowed) {
                 // If mouse is released on something allowed, select it
-                Gui::Selection().addSelection(Obj->getDocument()->getName(),
-                    Obj->getNameInDocument(),
-                    ss.str().c_str(), onSketchPos.x, onSketchPos.y, 0.f);
+                if (selectInView) {
+                    sketchgui->addSelection2(
+                        selectionName.c_str(), onSketchPos.x, onSketchPos.y, 0.f);
+                }
                 sketchgui->draw(false, false); // Redraw
             }
             else {
@@ -1483,13 +2543,43 @@ public:
                 restartCommand(QT_TRANSLATE_NOOP("Command", "Dimension"));
             }
 
-            Gui::Selection().rmvSelection(Obj->getDocument()->getName(),
-                Obj->getNameInDocument(),
-                ss.str().c_str());
+            if (selectInView) {
+                sketchgui->rmvSelection(selectionName.c_str());
+            }
             sketchgui->draw(false, false); // Redraw
         }
+
+        updateHint();
         return true;
     }
+
+    void quit() override
+    {
+        if (!cstrIndexes.empty()) {
+            // if a constraint is being made, then we cancel the dimension but not the tool.
+            resetTool();
+            sketchgui->draw(false, false); // Redraw
+        }
+        else {
+            DrawSketchHandler::quit();
+        }
+    }
+
+    std::list<Gui::InputHint> getToolHints() const override
+    {
+        const Gui::InputHint pickHint {
+            QObject::tr(selectionEmpty() ? PICK_POINT_OR_EDGE
+                                         : PICK_SECOND_POINT_OR_EDGE_OR_CLICK_TO_FINISH),
+            {Gui::InputHint::UserInput::MouseLeft}
+        };
+        const QString modeHint = getNextModeHint();
+        if (modeHint.isEmpty()) {
+            return {pickHint};
+        }
+
+        return {pickHint, {modeHint, {Gui::InputHint::UserInput::KeyM}}};
+    }
+
 protected:
     SpecialConstraint specialConstraint;
     AvailableConstraint availableConstraint;
@@ -1500,12 +2590,230 @@ protected:
     std::vector<SelIdPair> selLine;
     std::vector<SelIdPair> selCircleArc;
     std::vector<SelIdPair> selEllipseAndCo;
+    std::vector<SelIdPair> selSplineAndCo;
 
     std::vector<std::string> initialSelection;
+    std::vector<ExternalReference> externalReferences;
 
-    int numberOfConstraintsCreated;
+    std::vector<int> cstrIndexes;
+    bool singleCircleReverseOrder;
+    bool skipReleaseAfterExternalSelection = false;
 
     Sketcher::SketchObject* Obj;
+
+    static AvailableConstraint nextConstraint(AvailableConstraint constraint)
+    {
+        switch (constraint) {
+            case AvailableConstraint::FIRST:
+                return AvailableConstraint::SECOND;
+            case AvailableConstraint::SECOND:
+                return AvailableConstraint::THIRD;
+            case AvailableConstraint::THIRD:
+                return AvailableConstraint::FOURTH;
+            case AvailableConstraint::FOURTH:
+                return AvailableConstraint::FIFTH;
+            case AvailableConstraint::FIFTH:
+            case AvailableConstraint::RESET:
+                return AvailableConstraint::FIRST;
+        }
+
+        return AvailableConstraint::FIRST;
+    }
+
+    QString getNextModeHint() const
+    {
+        const GeomSelectionSizes selection(selPoints.size(),
+                                           selLine.size(),
+                                           selCircleArc.size(),
+                                           selEllipseAndCo.size(),
+                                           selSplineAndCo.size());
+        const AvailableConstraint next = nextConstraint(availableConstraint);
+        const char* mode = getModeHint(selection, next);
+
+        return mode ? QApplication::translate("SketcherGui::DrawSketchHandlerDimension", mode)
+                    : QString();
+    }
+
+    const char* getModeHint(const GeomSelectionSizes& selection, AvailableConstraint constraint) const
+    {
+        if (selection.hasPoints()) {
+            if (selection.has1Point()) {
+                return modeHintFor({{AvailableConstraint::FIRST, QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to distance")},
+                                    {AvailableConstraint::SECOND, QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to lock")}},
+                                   constraint);
+            }
+            if (selection.has2Points()) {
+                return modeHintFor({{AvailableConstraint::FIRST, QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to distance")},
+                                    {AvailableConstraint::SECOND, QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to horizontal")},
+                                    {AvailableConstraint::THIRD, QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to vertical")}},
+                                   constraint);
+            }
+            if (selection.has1Point1Line()) {
+                return modeHintFor({{AvailableConstraint::FIRST, QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to distance")},
+                                    {AvailableConstraint::SECOND, QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to symmetry")}},
+                                   constraint);
+            }
+            if (selection.has3Points()) {
+                return modeHintFor({{AvailableConstraint::FIRST, QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to horizontal")},
+                                    {AvailableConstraint::SECOND, QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to vertical")},
+                                    {AvailableConstraint::THIRD, QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to symmetry")}},
+                                   constraint);
+            }
+            if (selection.has4MorePoints()) {
+                return horizontalVerticalHint(constraint);
+            }
+            if (selection.has2Points1Line()) {
+                return modeHintFor({{AvailableConstraint::FIRST, QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to symmetry")},
+                                    {AvailableConstraint::SECOND, QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to distance")}},
+                                   constraint);
+            }
+        }
+        else if (selection.hasLines()) {
+            if (selection.has1Line()) {
+                return modeHintFor({{AvailableConstraint::FIRST, QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to length")},
+                                    {AvailableConstraint::SECOND, QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to horizontal")},
+                                    {AvailableConstraint::THIRD, QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to vertical")},
+                                    {AvailableConstraint::FOURTH, QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to block")}},
+                                   constraint);
+            }
+            if (selection.has2Lines()) {
+                return modeHintFor({{AvailableConstraint::FIRST, getTwoLineFirstModeHint()},
+                                    {AvailableConstraint::SECOND, QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to equal length")}},
+                                   constraint);
+            }
+        }
+        else if (selection.hasCirclesOrArcs()) {
+            if (selection.has1Circle()) {
+                return getSingleCircleModeHint(constraint);
+            }
+            if (selection.has2Circles()) {
+                return modeHintFor({{AvailableConstraint::FIRST, QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to distance")},
+                                    {AvailableConstraint::SECOND, getTwoCircleSecondModeHint()},
+                                    {AvailableConstraint::THIRD, QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to equal radius")}},
+                                   constraint);
+            }
+        }
+
+        return nullptr;
+    }
+
+    const char* getTwoLineFirstModeHint() const
+    {
+        int geoId1 = selLine[0].GeoId;
+        int geoId2 = selLine[1].GeoId;
+        Sketcher::PointPos posId1 = Sketcher::PointPos::none;
+        Sketcher::PointPos posId2 = Sketcher::PointPos::none;
+        double angle = 0.0;
+
+        if (calculateAngle(Obj, geoId1, geoId2, posId1, posId2, angle) && angle == 0.0) {
+            return QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to distance");
+        }
+
+        return QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to angle");
+    }
+
+    const char* getTwoCircleSecondModeHint() const
+    {
+        const int geoId1 = selCircleArc[0].GeoId;
+        const int geoId2 = selCircleArc[1].GeoId;
+
+        if (areBothPointsOrSegmentsFixed(Obj, geoId1, geoId2)
+            || Obj->arePointsCoincident(geoId1,
+                                        Sketcher::PointPos::mid,
+                                        geoId2,
+                                        Sketcher::PointPos::mid)
+            || geoId1 == geoId2) {
+            return QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to equal radius");
+        }
+
+        return QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to concentric distance");
+    }
+
+    const char* getSingleCircleModeHint(AvailableConstraint constraint) const
+    {
+        const int geoId = selCircleArc[0].GeoId;
+        const Part::Geometry* geom = Obj->getGeometry(geoId);
+        if (!geom) {
+            return nullptr;
+        }
+
+        if (singleCircleReverseOrder) {
+            return modeHintFor({{AvailableConstraint::FIRST, QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to arc angle")},
+                                {AvailableConstraint::SECOND, QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to arc length")},
+                                {AvailableConstraint::THIRD, radiusDiameterHint(geoId, true)},
+                                {AvailableConstraint::FOURTH, radiusDiameterHint(geoId, false)}},
+                               constraint);
+        }
+
+        if (isArcOfCircle(*geom)) {
+            return modeHintFor({{AvailableConstraint::FIRST, radiusDiameterHint(geoId, true)},
+                                {AvailableConstraint::SECOND, radiusDiameterHint(geoId, false)},
+                                {AvailableConstraint::THIRD, QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to arc angle")},
+                                {AvailableConstraint::FOURTH, QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to arc length")}},
+                               constraint);
+        }
+
+        return modeHintFor({{AvailableConstraint::FIRST, radiusDiameterHint(geoId, true)},
+                            {AvailableConstraint::SECOND, radiusDiameterHint(geoId, false)}},
+                           constraint);
+    }
+
+    const char* radiusDiameterHint(int geoId, bool firstCstr) const
+    {
+        const Part::Geometry* geom = Obj->getGeometry(geoId);
+        if (!geom) {
+            return nullptr;
+        }
+
+        if (isBsplinePole(geom)) {
+            return QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to weight");
+        }
+
+        ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
+            "User parameter:BaseApp/Preferences/Mod/Sketcher/dimensioning");
+        const bool dimensioningDiameter = hGrp->GetBool("DimensioningDiameter", true);
+        const bool dimensioningRadius = hGrp->GetBool("DimensioningRadius", true);
+        const bool isCircleGeom = !isArcOfCircle(*geom);
+
+        if ((firstCstr && dimensioningRadius && !dimensioningDiameter)
+            || (!firstCstr && !dimensioningRadius && dimensioningDiameter)
+            || (firstCstr && dimensioningRadius && dimensioningDiameter && !isCircleGeom)
+            || (!firstCstr && dimensioningRadius && dimensioningDiameter && isCircleGeom)) {
+            return QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to radius");
+        }
+
+        return QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to diameter");
+    }
+
+    const char* horizontalVerticalHint(AvailableConstraint constraint) const
+    {
+        return modeHintFor({{AvailableConstraint::FIRST, QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to horizontal")},
+                            {AvailableConstraint::SECOND, QT_TRANSLATE_NOOP("SketcherGui::DrawSketchHandlerDimension", "%1 switch to vertical")}},
+                           constraint);
+    }
+
+    static const char* modeHintFor(
+        const std::initializer_list<std::pair<AvailableConstraint, const char*>>& modes,
+        AvailableConstraint constraint)
+    {
+        for (const auto& [mode, hint] : modes) {
+            if (mode == constraint) {
+                return hint;
+            }
+        }
+
+        return nullptr;
+    }
+
+    void clearRefVectors()
+    {
+        selPoints.clear();
+        selLine.clear();
+        selCircleArc.clear();
+        selEllipseAndCo.clear();
+        selSplineAndCo.clear();
+        singleCircleReverseOrder = false;
+    }
 
     void handleInitialSelection()
     {
@@ -1520,7 +2828,7 @@ protected:
             SelIdPair selIdPair;
             getIdsFromName(selElement, Obj, selIdPair.GeoId, selIdPair.PosId);
 
-            Base::Type newselGeoType = Base::Type::badType();
+            Base::Type newselGeoType = Base::Type::BadType;
             if (isEdge(selIdPair.GeoId, selIdPair.PosId)) {
                 const Part::Geometry* geo = Obj->getGeometry(selIdPair.GeoId);
                 newselGeoType = geo->getTypeId();
@@ -1535,29 +2843,60 @@ protected:
             selVector.push_back(selIdPair);
         }
 
+        // Remove redundant coincident points from the selection
+        // This ensures box-selecting a junction of multiple lines is treated as 1 point.
+        filterCoincidentPoints();
+
         // See if the selection is valid
         bool selAllowed = makeAppropriateConstraint(Base::Vector2d(0.,0.));
 
         if (!selAllowed) {
-            selPoints.clear();
-            selLine.clear();
-            selCircleArc.clear();
-            selEllipseAndCo.clear();
+            clearRefVectors();
         }
+    }
+
+    void filterCoincidentPoints()
+    {
+        if (selPoints.size() < 2) {
+            return;
+        }
+
+        std::vector<SelIdPair> filteredPoints;
+
+        for (const auto& p : selPoints) {
+            bool isRedundant = false;
+            for (const auto& kept : filteredPoints) {
+                if (Obj->arePointsCoincident(p.GeoId, p.PosId, kept.GeoId, kept.PosId)) {
+                    isRedundant = true;
+                    break;
+                }
+            }
+
+            if (!isRedundant) {
+                filteredPoints.push_back(p);
+            }
+        }
+
+        selPoints = std::move(filteredPoints);
     }
 
     void finalizeCommand()
     {
+        if (hasBeenAborted()) {
+            resetTool();
+            return;
+        }
+
         // Ask for the value of datum constraints
         ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath("User parameter:BaseApp/Preferences/Mod/Sketcher");
         bool show = hGrp->GetBool("ShowDialogOnDistanceConstraint", true);
         const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
 
         bool commandHandledInEditDatum = false;
-        for (int i = numberOfConstraintsCreated - 1; i >= 0; i--) {
-            if (show && ConStr[ConStr.size() - 1 - i]->isDimensional() && ConStr[ConStr.size() - 1 - i]->isDriving) {
+        for (int index : cstrIndexes | boost::adaptors::reversed) {
+            if (show && ConStr[index]->isDimensional() && ConStr[index]->isDriving) {
                 commandHandledInEditDatum = true;
-                EditDatumDialog editDatumDialog(sketchgui, ConStr.size() - 1 - i);
+                EditDatumDialog editDatumDialog(currentTransactionID, sketchgui, index);
                 editDatumDialog.exec();
                 if (!editDatumDialog.isSuccess()) {
                     break;
@@ -1565,28 +2904,22 @@ protected:
             }
         }
 
-        if (!commandHandledInEditDatum)
-            Gui::Command::commitCommand();
+        if (!commandHandledInEditDatum) {
+            commitCommand();
+        }
 
         // This code enables the continuous creation mode.
         bool continuousMode = hGrp->GetBool("ContinuousCreationMode", true);
         if (continuousMode) {
-            Gui::Selection().clearSelection();
-            Gui::Command::openCommand(QT_TRANSLATE_NOOP("Command", "Dimension"));
-            numberOfConstraintsCreated = 0;
-            specialConstraint = SpecialConstraint::None;
-            previousOnSketchPos = Base::Vector2d(0.f, 0.f);
-            selPoints.clear();
-            selLine.clear();
-            selCircleArc.clear();
-            selEllipseAndCo.clear();
+            resetTool();
         }
         else {
             sketchgui->purgeHandler(); // no code after this line, Handler get deleted in ViewProvider
         }
     }
 
-    std::vector<SelIdPair>& getSelectionVector(Base::Type selGeoType) {
+    std::vector<SelIdPair>& getSelectionVector(Base::Type selGeoType)
+    {
         if (selGeoType == Part::GeomPoint::getClassTypeId()) {
             return selPoints;
         }
@@ -1602,6 +2935,9 @@ protected:
             selGeoType == Part::GeomArcOfHyperbola::getClassTypeId() ||
             selGeoType == Part::GeomArcOfParabola::getClassTypeId()) {
             return selEllipseAndCo;
+        }
+        else if (selGeoType == Part::GeomBSplineCurve::getClassTypeId()) {
+            return selSplineAndCo;
         }
 
         static std::vector<SelIdPair> emptyVector;
@@ -1625,7 +2961,7 @@ protected:
             && !contains(selEllipseAndCo, elem);
     }
 
-    bool selectionEmpty()
+    bool selectionEmpty() const
     {
         return selPoints.empty() && selLine.empty() && selCircleArc.empty() && selEllipseAndCo.empty();
     }
@@ -1633,12 +2969,13 @@ protected:
     bool makeAppropriateConstraint(Base::Vector2d onSketchPos) {
         bool selAllowed = false;
 
-        GeomSelectionSizes selection(selPoints.size(), selLine.size(), selCircleArc.size(), selEllipseAndCo.size());
+        GeomSelectionSizes selection(selPoints.size(), selLine.size(), selCircleArc.size(), selEllipseAndCo.size(), selSplineAndCo.size());
 
         if (selection.hasPoints()) {
             if (selection.has1Point()) { makeCts_1Point(selAllowed, onSketchPos); }
             else if (selection.has2Points()) { makeCts_2Point(selAllowed, onSketchPos); }
             else if (selection.has1Point1Line()) { makeCts_1Point1Line(selAllowed, onSketchPos); }
+            else if (selection.has1Point1Spline1MoreEdge()) { makeCts_1Point1Spline1MoreEdge(selAllowed);}
             else if (selection.has3Points()) { makeCts_3Point(selAllowed, selection.s_pts); }
             else if (selection.has4MorePoints()) { makeCts_4MorePoint(selAllowed, selection.s_pts); }
             else if (selection.has2Points1Line()) { makeCts_2Point1Line(selAllowed, onSketchPos, selection.s_pts); }
@@ -1671,9 +3008,13 @@ protected:
     {
         //distance, lock
         if (availableConstraint == AvailableConstraint::FIRST) {
+            selAllowed = true;
+            if(selPoints[0].GeoId == Sketcher::GeoEnum::RtPnt) {
+                // Cannot do distance to origin if origin selected
+                return;
+            }
             restartCommand(QT_TRANSLATE_NOOP("Command", "Add 'Distance to origin' constraint"));
             createDistanceConstrain(selPoints[0].GeoId, selPoints[0].PosId, Sketcher::GeoEnum::RtPnt, Sketcher::PointPos::start, onSketchPos);
-            selAllowed = true;
         }
         if (availableConstraint == AvailableConstraint::SECOND) {
             restartCommand(QT_TRANSLATE_NOOP("Command", "Add lock constraint"));
@@ -1741,6 +3082,17 @@ protected:
         }
     }
 
+    void makeCts_1Point1Spline1MoreEdge(bool& /*selAllowed*/)
+    {
+        //angle
+        if (availableConstraint == AvailableConstraint::FIRST) {
+            // FIXME: Once everything is implemented uncomment restartCommand and setAllowed
+            // restartCommand(QT_TRANSLATE_NOOP("Command", "Add 'Angle' constraint"));
+            // TODO: Find the appropriate geoids and call createAngleConstrain
+            // selAllowed = true;
+        }
+    }
+
     void makeCts_4MorePoint(bool& selAllowed, size_t s_pts)
     {
         //Horizontal, vertical
@@ -1792,10 +3144,8 @@ protected:
 
     void makeCts_1Point1Circle(bool& selAllowed, Base::Vector2d onSketchPos)
     {
-        //Distance. For now only circles not arcs!
-        const Part::Geometry* geom = Obj->getGeometry(selCircleArc[0].GeoId);
-
-        if (availableConstraint == AvailableConstraint::FIRST && isCircle(*geom)) {
+        //Distance
+        if (availableConstraint == AvailableConstraint::FIRST) {
             restartCommand(QT_TRANSLATE_NOOP("Command", "Add length constraint"));
             createDistanceConstrain(selPoints[0].GeoId, selPoints[0].PosId, selCircleArc[0].GeoId, selCircleArc[0].PosId, onSketchPos);
             selAllowed = true;
@@ -1885,10 +3235,8 @@ protected:
 
     void makeCts_1Line1Circle(bool& selAllowed, Base::Vector2d onSketchPos)
     {
-        //Distance. For now only circles not arcs!
-        const Part::Geometry* geom = Obj->getGeometry(selCircleArc[0].GeoId);
-
-        if (availableConstraint == AvailableConstraint::FIRST && isCircle(*geom)) {
+        //Distance
+        if (availableConstraint == AvailableConstraint::FIRST) {
             restartCommand(QT_TRANSLATE_NOOP("Command", "Add length constraint"));
             createDistanceConstrain(selCircleArc[0].GeoId, selCircleArc[0].PosId, selLine[0].GeoId, selLine[0].PosId, onSketchPos); //Line second parameter
             selAllowed = true;
@@ -1920,63 +3268,61 @@ protected:
     void makeCts_1Circle(bool& selAllowed, Base::Vector2d onSketchPos)
     {
         int geoId = selCircleArc[0].GeoId;
-        bool reverseOrder = isRadiusDoF(geoId);
+        singleCircleReverseOrder = isRadiusDoF(geoId);
 
-        if (availableConstraint == AvailableConstraint::FIRST) {
-            if (!reverseOrder) {
-                restartCommand(QT_TRANSLATE_NOOP("Command", "Add Radius constraint"));
-                createRadiusDiameterConstrain(geoId, onSketchPos, true);
-            }
-            else {
+        if (singleCircleReverseOrder) {
+            if (availableConstraint == AvailableConstraint::FIRST) {
                 restartCommand(QT_TRANSLATE_NOOP("Command", "Add arc angle constraint"));
                 createArcAngleConstrain(geoId, onSketchPos);
+                selAllowed = true;
             }
-            selAllowed = true;
-        }
-        if (availableConstraint == AvailableConstraint::SECOND) {
-            restartCommand(QT_TRANSLATE_NOOP("Command", "Add Radius constraint"));
-            createRadiusDiameterConstrain(geoId, onSketchPos, reverseOrder);
-            if (!isArcOfCircle(*Obj->getGeometry(geoId))) {
-                //This way if key is pressed again it goes back to FIRST
+            if (availableConstraint == AvailableConstraint::SECOND) {
+                restartCommand(QT_TRANSLATE_NOOP("Command", "Add arc length constraint"));
+                createArcLengthConstrain(geoId, onSketchPos);
+            }
+            if (availableConstraint == AvailableConstraint::THIRD) {
+                restartCommand(QT_TRANSLATE_NOOP("Command", "Add radius constraint"));
+                createRadiusDiameterConstrain(geoId, onSketchPos, true);
+            }
+            if (availableConstraint == AvailableConstraint::FOURTH) {
+                restartCommand(QT_TRANSLATE_NOOP("Command", "Add radius constraint"));
+                createRadiusDiameterConstrain(geoId, onSketchPos, false);
                 availableConstraint = AvailableConstraint::RESET;
             }
         }
-        if (availableConstraint == AvailableConstraint::THIRD) {
-            if (!reverseOrder) {
-                restartCommand(QT_TRANSLATE_NOOP("Command", "Add arc angle constraint"));
-                createArcAngleConstrain(geoId, onSketchPos);
+        else {
+            if (availableConstraint == AvailableConstraint::FIRST) {
+                restartCommand(QT_TRANSLATE_NOOP("Command", "Add radius constraint"));
+                createRadiusDiameterConstrain(geoId, onSketchPos, true);
+                selAllowed = true;
             }
-            else {
-                restartCommand(QT_TRANSLATE_NOOP("Command", "Add Radius constraint"));
+            if (availableConstraint == AvailableConstraint::SECOND) {
+                restartCommand(QT_TRANSLATE_NOOP("Command", "Add radius constraint"));
                 createRadiusDiameterConstrain(geoId, onSketchPos, false);
-            }
-            availableConstraint = AvailableConstraint::RESET;
-        }
-        /*
-            bool firstCstr = true;
-            if (availableConstraint != AvailableConstraint::FIRST) {
-                firstCstr = false;
-                if (!isArcOfCircle(*geom)) {
+                if (!isArcOfCircle(*Obj->getGeometry(geoId))) {
                     //This way if key is pressed again it goes back to FIRST
                     availableConstraint = AvailableConstraint::RESET;
                 }
-            }*/
+            }
+            if (availableConstraint == AvailableConstraint::THIRD) {
+                restartCommand(QT_TRANSLATE_NOOP("Command", "Add arc angle constraint"));
+                createArcAngleConstrain(geoId, onSketchPos);
+            }
+            if (availableConstraint == AvailableConstraint::FOURTH) {
+                restartCommand(QT_TRANSLATE_NOOP("Command", "Add arc length constraint"));
+                createArcLengthConstrain(geoId, onSketchPos);
+                availableConstraint = AvailableConstraint::RESET;
+            }
+        }
+
     }
 
     void makeCts_2Circle(bool& selAllowed, Base::Vector2d onSketchPos)
     {
         //Distance, radial distance, equality
-        //Distance: For now only circles not arcs!
-        const Part::Geometry* geom = Obj->getGeometry(selCircleArc[0].GeoId);
-        const Part::Geometry* geom2 = Obj->getGeometry(selCircleArc[1].GeoId);
         if (availableConstraint == AvailableConstraint::FIRST) {
-            if (isCircle(*geom) && isCircle(*geom2)) {
-                restartCommand(QT_TRANSLATE_NOOP("Command", "Add length constraint"));
-                createDistanceConstrain(selCircleArc[0].GeoId, selCircleArc[0].PosId, selCircleArc[1].GeoId, selCircleArc[1].PosId, onSketchPos);
-            }
-            else {
-                availableConstraint = AvailableConstraint::THIRD;
-            }
+            restartCommand(QT_TRANSLATE_NOOP("Command", "Add length constraint"));
+            createDistanceConstrain(selCircleArc[0].GeoId, selCircleArc[0].PosId, selCircleArc[1].GeoId, selCircleArc[1].PosId, onSketchPos);
             selAllowed = true;
         }
         if (availableConstraint == AvailableConstraint::SECOND) {
@@ -2053,9 +3399,8 @@ protected:
             specialConstraint = SpecialConstraint::LineOr2PointsDistance;
         }
 
-        bool arebothpointsorsegmentsfixed = isPointOrSegmentFixed(Obj, GeoId1) && isPointOrSegmentFixed(Obj, GeoId2);
-
-        if (PosId1 != Sketcher::PointPos::none && PosId2 == Sketcher::PointPos::none) { // Point-line case and point-circle
+        // Point-line case and point-circle/arc
+        if (PosId1 != Sketcher::PointPos::none && PosId2 == Sketcher::PointPos::none) {
             Base::Vector3d pnt = Obj->getPoint(GeoId1, PosId1);
             double ActDist = 0.;
             const Part::Geometry* geom = Obj->getGeometry(GeoId2);
@@ -2073,40 +3418,63 @@ protected:
                 Base::Vector3d di = ct - pnt;
                 ActDist = std::abs(di.Length() - circle->getRadius());
             }
+            else if (isArcOfCircle(*geom)) {
+                auto arc = static_cast<const Part::GeomArcOfCircle*>(geom);
+                Base::Vector3d ct = arc->getCenter();
+                Base::Vector3d di = ct - pnt;
+                ActDist = std::abs(di.Length() - arc->getRadius());
+            }
 
-            Gui::cmdAppObjectArgs(Obj, "addConstraint(Sketcher.Constraint('Distance',%d,%d,%d,%f)) ",
+            Gui::cmdAppObjectArgs(Obj, "addConstraint(Sketcher.Constraint('Distance',%d,%d,%d,%.8g)) ",
                 GeoId1, static_cast<int>(PosId1), GeoId2, ActDist);
         }
-        else if (PosId1 == Sketcher::PointPos::none && PosId2 == Sketcher::PointPos::none) { // Circle - line, circle - circle cases
+        // Circle/arc - line, circle/arc - circle/arc cases
+        else if (PosId1 == Sketcher::PointPos::none && PosId2 == Sketcher::PointPos::none) {
             const Part::Geometry* geo1 = Obj->getGeometry(GeoId1);
             const Part::Geometry* geo2 = Obj->getGeometry(GeoId2);
-
-            if (isCircle(*geo1) && isLineSegment(*geo2)) { // Circle - line case
-                auto circleSeg = static_cast<const Part::GeomCircle*>(geo1);
-                double radius = circleSeg->getRadius();
-                Base::Vector3d center = circleSeg->getCenter();
-
+            double radius1 {};
+            double radius2 {};
+            Base::Vector3d center1, center2;
+            if (isCircle(*geo1)) {
+                auto conic = static_cast<const Part::GeomCircle*>(geo1);
+                radius1 = conic->getRadius();
+                center1 = conic->getCenter();
+            }
+            else if (isArcOfCircle(*geo1)) {
+                auto conic = static_cast<const Part::GeomArcOfCircle*>(geo1);
+                radius1 = conic->getRadius();
+                center1 = conic->getCenter();
+            }
+            if (isCircle(*geo2)) {
+                auto conic = static_cast<const Part::GeomCircle*>(geo2);
+                radius2 = conic->getRadius();
+                center2 = conic->getCenter();
+            }
+            else if (isArcOfCircle(*geo2)){
+                auto conic = static_cast<const Part::GeomArcOfCircle*>(geo2);
+                radius2 = conic->getRadius();
+                center2 = conic->getCenter();
+            }
+            // Circle/arc - line case
+            if ((isCircle(*geo1) || isArcOfCircle(*geo1)) && isLineSegment(*geo2)) {
                 auto lineSeg = static_cast<const Part::GeomLineSegment*>(geo2);
                 Base::Vector3d pnt1 = lineSeg->getStartPoint();
                 Base::Vector3d pnt2 = lineSeg->getEndPoint();
                 Base::Vector3d d = pnt2 - pnt1;
-                double ActDist =
-                    std::abs(-center.x * d.y + center.y * d.x + pnt1.x * pnt2.y - pnt2.x * pnt1.y)
-                    / d.Length()
-                    - radius;
+                double ActDist = std::abs(
+                            std::abs(-center1.x * d.y + center1.y * d.x + pnt1.x * pnt2.y - pnt2.x * pnt1.y)
+                            / d.Length()
+                            - radius1);
 
-                Gui::cmdAppObjectArgs(Obj, "addConstraint(Sketcher.Constraint('Distance',%d,%d,%f))",
-                    GeoId1, GeoId2, ActDist);
+                Gui::cmdAppObjectArgs(Obj,
+                                      "addConstraint(Sketcher.Constraint('Distance',%d,%d,%.8g))",
+                                      GeoId1,
+                                      GeoId2,
+                                      ActDist);
             }
-            else if (isCircle(*geo1) && isCircle(*geo2)) { // Circle - circle case
-                auto circleSeg1 = static_cast<const Part::GeomCircle*>(geo1);
-                double radius1 = circleSeg1->getRadius();
-                Base::Vector3d center1 = circleSeg1->getCenter();
-
-                auto circleSeg2 = static_cast<const Part::GeomCircle*>(geo2);
-                double radius2 = circleSeg2->getRadius();
-                Base::Vector3d center2 = circleSeg2->getCenter();
-
+            // Circle/arc - circle/arc case
+            else if ((isCircle(*geo1) || isArcOfCircle(*geo1))
+                     && (isCircle(*geo2) || isArcOfCircle(*geo2))) {
                 double ActDist = 0.;
 
                 Base::Vector3d intercenter = center1 - center2;
@@ -2123,28 +3491,27 @@ protected:
                     ActDist = bigradius - smallradius - intercenterdistance;
                 }
 
-                Gui::cmdAppObjectArgs(Obj, "addConstraint(Sketcher.Constraint('Distance',%d,%d,%f))",
-                    GeoId1, GeoId2, ActDist);
+                Gui::cmdAppObjectArgs(Obj,
+                                      "addConstraint(Sketcher.Constraint('Distance',%d,%d,%.8g))",
+                                      GeoId1,
+                                      GeoId2,
+                                      ActDist);
             }
         }
-        else { //both points
+        else {  // both points
             Base::Vector3d pnt1 = Obj->getPoint(GeoId1, PosId1);
             Base::Vector3d pnt2 = Obj->getPoint(GeoId2, PosId2);
 
-            Gui::cmdAppObjectArgs(Obj, "addConstraint(Sketcher.Constraint('Distance',%d,%d,%d,%d,%f)) ",
-                GeoId1, static_cast<int>(PosId1), GeoId2, static_cast<int>(PosId2), (pnt2 - pnt1).Length());
+            Gui::cmdAppObjectArgs(Obj,
+                                  "addConstraint(Sketcher.Constraint('Distance',%d,%d,%d,%d,%.8g)) ",
+                                  GeoId1,
+                                  static_cast<int>(PosId1),
+                                  GeoId2,
+                                  static_cast<int>(PosId2),
+                                  (pnt2 - pnt1).Length());
         }
 
-        const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-        if (arebothpointsorsegmentsfixed
-            || GeoId1 <= Sketcher::GeoEnum::RefExt
-            || constraintCreationMode == Reference) {
-            // it is a constraint on a external line, make it non-driving
-            Gui::cmdAppObjectArgs(Obj, "setDriving(%i,%s)", ConStr.size() - 1, "False");
-        }
-
-        numberOfConstraintsCreated++;
-        moveConstraint(ConStr.size() - 1, onSketchPos);
+        finishDimensionCreation(GeoId1, GeoId2, onSketchPos);
     }
 
     void createDistanceXYConstrain(Sketcher::ConstraintType type, int GeoId1, Sketcher::PointPos PosId1, int GeoId2, Sketcher::PointPos PosId2, Base::Vector2d onSketchPos) {
@@ -2165,23 +3532,15 @@ protected:
         }
 
         if (type == Sketcher::DistanceY) {
-            Gui::cmdAppObjectArgs(Obj, "addConstraint(Sketcher.Constraint('DistanceY',%d,%d,%d,%d,%f)) ",
+            Gui::cmdAppObjectArgs(Obj, "addConstraint(Sketcher.Constraint('DistanceY',%d,%d,%d,%d,%.8g)) ",
                 GeoId1, static_cast<int>(PosId1), GeoId2, static_cast<int>(PosId2), ActLength);
         }
         else {
-            Gui::cmdAppObjectArgs(Obj, "addConstraint(Sketcher.Constraint('DistanceX',%d,%d,%d,%d,%f)) ",
+            Gui::cmdAppObjectArgs(Obj, "addConstraint(Sketcher.Constraint('DistanceX',%d,%d,%d,%d,%.8g)) ",
                 GeoId1, static_cast<int>(PosId1), GeoId2, static_cast<int>(PosId2), ActLength);
         }
 
-        const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-        if (areBothPointsOrSegmentsFixed(Obj, GeoId1, GeoId2) || constraintCreationMode == Reference) {
-            // it is a constraint on a external line, make it non-driving
-            Gui::cmdAppObjectArgs(Obj, "setDriving(%i,%s)",
-                ConStr.size() - 1, "False");
-        }
-
-        numberOfConstraintsCreated++;
-        moveConstraint(ConStr.size() - 1, onSketchPos);
+        finishDimensionCreation(GeoId1, GeoId2, onSketchPos);
     }
 
     void createRadiusDiameterConstrain(int GeoId, Base::Vector2d onSketchPos, bool firstCstr) {
@@ -2204,7 +3563,7 @@ protected:
         }
 
         if (isBsplinePole(geom)) {
-            Gui::cmdAppObjectArgs(Obj, "addConstraint(Sketcher.Constraint('Weight',%d,%f)) ",
+            Gui::cmdAppObjectArgs(Obj, "addConstraint(Sketcher.Constraint('Weight',%d,%.8g)) ",
                 GeoId, radius);
         }
         else {
@@ -2216,24 +3575,16 @@ protected:
                 (!firstCstr && !dimensioningRadius && dimensioningDiameter) ||
                 (firstCstr && dimensioningRadius && dimensioningDiameter && !isCircleGeom) ||
                 (!firstCstr && dimensioningRadius && dimensioningDiameter && isCircleGeom) ) {
-                Gui::cmdAppObjectArgs(Obj, "addConstraint(Sketcher.Constraint('Radius',%d,%f)) ",
+                Gui::cmdAppObjectArgs(Obj, "addConstraint(Sketcher.Constraint('Radius',%d,%.8g)) ",
                     GeoId, radius);
             }
             else {
-                Gui::cmdAppObjectArgs(Obj, "addConstraint(Sketcher.Constraint('Diameter',%d,%f)) ",
+                Gui::cmdAppObjectArgs(Obj, "addConstraint(Sketcher.Constraint('Diameter',%d,%.8g)) ",
                     GeoId, radius * 2);
             }
         }
 
-        const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-        bool fixed = isPointOrSegmentFixed(Obj, GeoId);
-        if (fixed || constraintCreationMode == Reference || GeoId <= Sketcher::GeoEnum::RefExt) {
-            Gui::cmdAppObjectArgs(Obj, "setDriving(%i,%s)", ConStr.size() - 1, "False");
-        }
-
-        moveConstraint(ConStr.size() - 1, onSketchPos);
-
-        numberOfConstraintsCreated ++;
+        finishDimensionCreation(GeoId, GeoEnum::GeoUndef, onSketchPos);
     }
 
     bool createCoincidenceConstrain(int GeoId1, Sketcher::PointPos PosId1, int GeoId2, Sketcher::PointPos PosId2) {
@@ -2248,7 +3599,7 @@ protected:
             Gui::cmdAppObjectArgs(sketchgui->getObject(), "addConstraint(Sketcher.Constraint('Coincident', %d, %d, %d, %d)) ",
                 GeoId1, static_cast<int>(PosId1), GeoId2, static_cast<int>(PosId2));
 
-            numberOfConstraintsCreated++;
+            addConstraintIndex();
             return true;
         }
         return false;
@@ -2278,7 +3629,7 @@ protected:
 
         Gui::cmdAppObjectArgs(Obj, "addConstraint(Sketcher.Constraint('Equal',%d,%d)) ",
             GeoId1, GeoId2);
-        numberOfConstraintsCreated++;
+        addConstraintIndex();
     }
 
     void createAngleConstrain(int GeoId1, int GeoId2, Base::Vector2d onSketchPos) {
@@ -2290,7 +3641,6 @@ protected:
             return;
         }
 
-
         if (ActAngle == 0.0) {
             //Here we are sure that GeoIds are lines. So 0.0 means that lines are parallel, we change to distance
             restartCommand(QT_TRANSLATE_NOOP("Command", "Add Distance constraint"));
@@ -2298,41 +3648,58 @@ protected:
             return;
         }
 
-        Gui::cmdAppObjectArgs(Obj, "addConstraint(Sketcher.Constraint('Angle',%d,%d,%d,%d,%f)) ",
+        Gui::cmdAppObjectArgs(Obj, "addConstraint(Sketcher.Constraint('Angle',%d,%d,%d,%d,%.8g)) ",
             GeoId1, static_cast<int>(PosId1), GeoId2, static_cast<int>(PosId2), ActAngle);
 
-        const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-        if (areBothPointsOrSegmentsFixed(Obj, GeoId1, GeoId2) || constraintCreationMode == Reference) {
-            // it is a constraint on a external line, make it non-driving
+        finishDimensionCreation(GeoId1, GeoId2, onSketchPos);
+    }
 
-            Gui::cmdAppObjectArgs(Obj, "setDriving(%i,%s)", ConStr.size() - 1, "False");
+    void createArcLengthConstrain(int GeoId, Base::Vector2d onSketchPos) {
+        const Part::Geometry* geom = Obj->getGeometry(GeoId);
+        if (!isArcOfCircle(*geom)) {
+            return;
         }
-        numberOfConstraintsCreated++;
-        moveConstraint(ConStr.size() - 1, onSketchPos);
+
+        const auto* arc = static_cast<const Part::GeomArcOfCircle*>(geom);
+        double ActLength = arc->getAngle(false) * arc->getRadius();
+
+        Gui::cmdAppObjectArgs(Obj, "addConstraint(Sketcher.Constraint('Distance',%d,%.8g))",
+            GeoId, ActLength);
+
+        finishDimensionCreation(GeoId, GeoEnum::GeoUndef, onSketchPos);
     }
 
     void createArcAngleConstrain(int GeoId, Base::Vector2d onSketchPos) {
         const Part::Geometry* geom = Obj->getGeometry(GeoId);
-        if (isArcOfCircle(*geom)) {
-
-            const auto* arc = static_cast<const Part::GeomArcOfCircle*>(geom);
-            double angle = arc->getAngle(/*EmulateCCWXY=*/true);
-
-            Gui::cmdAppObjectArgs(Obj, "addConstraint(Sketcher.Constraint('Angle',%d,%f))",
-                GeoId, angle);
-
-            const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-            if (isPointOrSegmentFixed(Obj, GeoId) || constraintCreationMode == Reference) {
-                // it is a constraint on a external line, make it non-driving
-                Gui::cmdAppObjectArgs(Obj, "setDriving(%i,%s)", ConStr.size() - 1, "False");
-            }
-            numberOfConstraintsCreated++;
-            moveConstraint(ConStr.size() - 1, onSketchPos);
+        if (!isArcOfCircle(*geom)) {
+            return;
         }
+
+        const auto* arc = static_cast<const Part::GeomArcOfCircle*>(geom);
+        double angle = arc->getAngle(/*EmulateCCWXY=*/true);
+
+        Gui::cmdAppObjectArgs(Obj, "addConstraint(Sketcher.Constraint('Angle',%d,%.8g))",
+            GeoId, angle);
+
+        finishDimensionCreation(GeoId, GeoEnum::GeoUndef, onSketchPos);
     }
 
     void createVerticalConstrain(int GeoId1, Sketcher::PointPos PosId1, int GeoId2, Sketcher::PointPos PosId2) {
         if (selLine.size() == 1) {
+            // If the line is horizontal (should be without constraint if we're here), then we need to modify
+            // its point or we'll get a null line.
+            const Part::Geometry* geo = Obj->getGeometry(GeoId1);
+            if (!(geo->is<Part::GeomLineSegment>())) {
+                return;
+            }
+            auto* line = static_cast<const Part::GeomLineSegment*>(geo);
+
+            Base::Vector3d p1 = line->getStartPoint();
+            Base::Vector3d p2 = line->getEndPoint();
+            if (fabs(p1.y - p2.y) < Precision::Confusion()) { // effectively vertical
+                p2 = p1 + (p2 - p1).Length() * Base::Vector3d(0.0, 1.0, 0.0);
+                Gui::cmdAppObjectArgs(Obj, "moveGeometry(%d,2,App.Vector(%f, %f, 0),0) ", GeoId1, p2.x, p2.y);
+            }
             Gui::cmdAppObjectArgs(sketchgui->getObject(), "addConstraint(Sketcher.Constraint('Vertical',%d)) ", GeoId1);
         }
         else { //2points
@@ -2342,12 +3709,26 @@ protected:
             Gui::cmdAppObjectArgs(sketchgui->getObject(), "addConstraint(Sketcher.Constraint('Vertical',%d,%d,%d,%d)) "
                 , GeoId1, static_cast<int>(PosId1), GeoId2, static_cast<int>(PosId2));
         }
-        numberOfConstraintsCreated++;
+        addConstraintIndex();
         tryAutoRecompute(Obj);
     }
     void createHorizontalConstrain(int GeoId1, Sketcher::PointPos PosId1, int GeoId2, Sketcher::PointPos PosId2) {
         if (selLine.size() == 1) {
-            Gui::cmdAppObjectArgs(sketchgui->getObject(), "addConstraint(Sketcher.Constraint('Horizontal',%d)) ", GeoId1);
+            // If the line is vertical (should be without constraint if we're here), then we need to modify
+            // its point or we'll get a null line.
+            const Part::Geometry* geo = Obj->getGeometry(GeoId1);
+            if (!(geo->is<Part::GeomLineSegment>())) {
+                return;
+            }
+            auto* line = static_cast<const Part::GeomLineSegment*>(geo);
+
+            Base::Vector3d p1 = line->getStartPoint();
+            Base::Vector3d p2 = line->getEndPoint();
+            if (fabs(p1.x - p2.x) < Precision::Confusion()) { // effectively vertical
+                p2 = p1 + (p2 - p1).Length() * Base::Vector3d(1.0, 0.0, 0.0);
+                Gui::cmdAppObjectArgs(Obj, "moveGeometry(%d,2,App.Vector(%f, %f, 0),0) ", GeoId1, p2.x, p2.y);
+            }
+            Gui::cmdAppObjectArgs(Obj, "addConstraint(Sketcher.Constraint('Horizontal',%d)) ", GeoId1);
         }
         else { //2points
             if (areBothPointsOrSegmentsFixed(Obj, GeoId1, GeoId2)) {
@@ -2356,14 +3737,14 @@ protected:
             Gui::cmdAppObjectArgs(sketchgui->getObject(), "addConstraint(Sketcher.Constraint('Horizontal',%d,%d,%d,%d)) "
                 , GeoId1, static_cast<int>(PosId1), GeoId2, static_cast<int>(PosId2));
         }
-        numberOfConstraintsCreated++;
+        addConstraintIndex();
         tryAutoRecompute(Obj);
     }
 
     void createBlockConstrain(int GeoId) {
         Gui::cmdAppObjectArgs(sketchgui->getObject(), "addConstraint(Sketcher.Constraint('Block',%d)) ", GeoId);
 
-        numberOfConstraintsCreated++;
+        addConstraintIndex();
         tryAutoRecompute(Obj);
     }
 
@@ -2408,7 +3789,7 @@ protected:
                 Gui::cmdAppObjectArgs(Obj, "addConstraint(Sketcher.Constraint('Symmetric',%d,%d,%d,%d,%d)) ",
                     GeoId1, static_cast<int>(PosId1), GeoId2, static_cast<int>(PosId2), GeoId3);
 
-                numberOfConstraintsCreated++;
+                addConstraintIndex();
                 tryAutoRecompute(Obj);
             }
         }
@@ -2432,7 +3813,7 @@ protected:
             Gui::cmdAppObjectArgs(Obj, "addConstraint(Sketcher.Constraint('Symmetric',%d,%d,%d,%d,%d,%d)) ",
                 GeoId1, static_cast<int>(PosId1), GeoId2, static_cast<int>(PosId2), GeoId3, static_cast<int>(PosId3));
 
-            numberOfConstraintsCreated++;
+            addConstraintIndex();
             tryAutoRecompute(Obj);
         }
     }
@@ -2462,13 +3843,23 @@ protected:
             pnt2 = Obj->getPoint(selPoints[1].GeoId, selPoints[1].PosId);
         }
 
+        bool isHorizontal = std::abs(pnt1.y - pnt2.y) < Precision::Confusion();
+        bool isVertical = std::abs(pnt1.x - pnt2.x) < Precision::Confusion();
+
         double minX, minY, maxX, maxY;
         minX = min(pnt1.x, pnt2.x);
         maxX = max(pnt1.x, pnt2.x);
         minY = min(pnt1.y, pnt2.y);
         maxY = max(pnt1.y, pnt2.y);
-        if (onSketchPos.x > minX && onSketchPos.x < maxX
-            && (onSketchPos.y < minY || onSketchPos.y > maxY) && type != Sketcher::DistanceX) {
+
+        bool isInDistanceXZone = onSketchPos.x > minX && onSketchPos.x < maxX
+            && (onSketchPos.y < minY || onSketchPos.y > maxY);
+        bool isInDistanceYZone = onSketchPos.y > minY && onSketchPos.y < maxY
+            && (onSketchPos.x < minX || onSketchPos.x > maxX);
+        bool isInDistanceZone = ((onSketchPos.y < minY || onSketchPos.y > maxY) && (onSketchPos.x < minX || onSketchPos.x > maxX))
+            || (onSketchPos.y > minY && onSketchPos.y < maxY && onSketchPos.x > minX && onSketchPos.x < maxX);
+
+        if ((isHorizontal || isInDistanceXZone) && type != Sketcher::DistanceX) {
             restartCommand(QT_TRANSLATE_NOOP("Command", "Add DistanceX constraint"));
             specialConstraint = SpecialConstraint::LineOr2PointsDistance;
             if (selLine.size() == 1) {
@@ -2478,8 +3869,7 @@ protected:
                 createDistanceXYConstrain(Sketcher::DistanceX, selPoints[0].GeoId, selPoints[0].PosId, selPoints[1].GeoId, selPoints[1].PosId, onSketchPos);
             }
         }
-        else if (onSketchPos.y > minY && onSketchPos.y < maxY
-            && (onSketchPos.x < minX || onSketchPos.x > maxX) && type != Sketcher::DistanceY) {
+        else if ((isVertical || isInDistanceYZone) && type != Sketcher::DistanceY) {
             restartCommand(QT_TRANSLATE_NOOP("Command", "Add DistanceY constraint"));
             specialConstraint = SpecialConstraint::LineOr2PointsDistance;
             if (selLine.size() == 1) {
@@ -2489,8 +3879,7 @@ protected:
                 createDistanceXYConstrain(Sketcher::DistanceY, selPoints[0].GeoId, selPoints[0].PosId, selPoints[1].GeoId, selPoints[1].PosId, onSketchPos);
             }
         }
-        else if ((((onSketchPos.y < minY || onSketchPos.y > maxY) && (onSketchPos.x < minX || onSketchPos.x > maxX))
-            || (onSketchPos.y > minY && onSketchPos.y < maxY && onSketchPos.x > minX && onSketchPos.x < maxX)) && type != Sketcher::Distance) {
+        else if (isInDistanceZone && !isHorizontal && !isVertical && type != Sketcher::Distance) {
             restartCommand(QT_TRANSLATE_NOOP("Command", "Add Distance constraint"));
             if (selLine.size() == 1) {
                 createDistanceConstrain(selLine[0].GeoId, Sketcher::PointPos::start, selLine[0].GeoId, Sketcher::PointPos::end, onSketchPos);
@@ -2509,12 +3898,14 @@ protected:
     bool isRadiusDoF(int geoId)
     {
         const Part::Geometry* geo = Obj->getGeometry(geoId);
-        if (!isArcOfCircle(*geo)) {
+        if (!geo || !isArcOfCircle(*geo)) {
             return false;
         }
 
         //make sure we are not taking into account the constraint created in previous mode.
-        Gui::Command::abortCommand();
+        if (externalReferences.empty()) {
+            abortCommand();
+        }
         Obj->solve();
 
         auto solvext = Obj->getSolvedSketch().getSolverExtension(geoId);
@@ -2528,14 +3919,125 @@ protected:
         return false;
     }
 
+    void finishDimensionCreation(int GeoId1, int GeoId2, Base::Vector2d onSketchPos)
+    {
+        bool fixed = GeoId2 == GeoEnum::GeoUndef ? isPointOrSegmentFixed(Obj, GeoId1) : areBothPointsOrSegmentsFixed(Obj, GeoId1, GeoId2);
+
+        int index = Obj->Constraints.getValues().size() - 1;
+        if (fixed || constraintCreationMode == Reference) {
+            Gui::cmdAppObjectArgs(Obj, "setDriving(%i,%s)", index, "False");
+        }
+
+        addConstraintIndex();
+        moveConstraint(index, onSketchPos);
+    }
+
+    void addConstraintIndex()
+    {
+        cstrIndexes.push_back(Obj->Constraints.getValues().size() - 1);
+    }
+
+    bool hasBeenAborted()
+    {
+        // User can abort the command with Undo (ctrl-Z)
+        if (!cstrIndexes.empty()) {
+            int lastConstrIndex = Obj->Constraints.getSize() - 1;
+            if (cstrIndexes.back() != lastConstrIndex) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    int materializeExternalReference(App::DocumentObject* source, const std::string& subName)
+    {
+        const int existingGeoId = findExternalReference(Obj, source, subName);
+        if (existingGeoId != GeoEnum::GeoUndef) {
+            return existingGeoId;
+        }
+
+        const int externalGeoId = addProjectedExternalReference(Obj, source, subName);
+        if (externalGeoId == GeoEnum::GeoUndef) {
+            Gui::NotifyError(
+                sketchgui,
+                QT_TRANSLATE_NOOP("Notifications", "Error"),
+                QT_TRANSLATE_NOOP("Notifications", "Failed to add external geometry"));
+            return GeoEnum::GeoUndef;
+        }
+
+        externalReferences.push_back({source, subName, externalGeoId});
+        return externalGeoId;
+    }
+
+    void restoreExternalReferences()
+    {
+        bool restored = false;
+        for (auto& reference : externalReferences) {
+            const int geoId = findExternalReference(Obj, reference.source, reference.subName);
+            if (geoId != GeoEnum::GeoUndef) {
+                reference.geoId = geoId;
+                continue;
+            }
+
+            if (addProjectedExternalReference(Obj, reference.source, reference.subName)
+                != GeoEnum::GeoUndef) {
+                restored = true;
+            }
+        }
+
+        if (!restored) {
+            return;
+        }
+
+        for (auto& reference : externalReferences) {
+            const int restoredGeoId = findExternalReference(Obj, reference.source, reference.subName);
+            if (restoredGeoId != GeoEnum::GeoUndef) {
+                updateExternalReferenceGeoId(reference.geoId, restoredGeoId);
+                reference.geoId = restoredGeoId;
+            }
+        }
+    }
+
+    void updateExternalReferenceGeoId(int oldGeoId, int newGeoId)
+    {
+        auto updateGeoId = [oldGeoId, newGeoId](std::vector<SelIdPair>& selections) {
+            for (auto& selection : selections) {
+                if (selection.GeoId == oldGeoId) {
+                    selection.GeoId = newGeoId;
+                }
+            }
+        };
+
+        updateGeoId(selPoints);
+        updateGeoId(selLine);
+        updateGeoId(selCircleArc);
+        updateGeoId(selEllipseAndCo);
+        updateGeoId(selSplineAndCo);
+    }
+
     void restartCommand(const char* cstrName) {
         specialConstraint = SpecialConstraint::None;
-        Gui::Command::abortCommand();
+        abortCommand();
         Obj->solve();
         sketchgui->draw(false, false); // Redraw
-        Gui::Command::openCommand(cstrName);
+        openCommand(cstrName);
+        restoreExternalReferences();
 
-        numberOfConstraintsCreated = 0;
+        cstrIndexes.clear();
+    }
+
+    void resetTool()
+    {
+        abortCommand();
+        externalReferences.clear();
+        skipReleaseAfterExternalSelection = false;
+        Gui::Selection().clearSelection();
+        openCommand(QT_TRANSLATE_NOOP("Command", "Dimension"));
+        cstrIndexes.clear();
+        specialConstraint = SpecialConstraint::None;
+        previousOnSketchPos = Base::Vector2d(0.f, 0.f);
+        clearRefVectors();
     }
 };
 
@@ -2547,9 +4049,7 @@ CmdSketcherDimension::CmdSketcherDimension()
     sAppModule = "Sketcher";
     sGroup = "Sketcher";
     sMenuText = QT_TR_NOOP("Dimension");
-    sToolTipText = QT_TR_NOOP("Constrain contextually based on your selection.\n"
-        "Depending on your selection you might have several constraints available. You can cycle through them using M key.\n"
-        "Left clicking on empty space will validate the current constraint. Right clicking or pressing Esc will cancel.");
+    sToolTipText = QT_TR_NOOP("Constrains contextually based on the selection. The type can be changed with the M key.");
     sWhatsThis = "Sketcher_Dimension";
     sStatusTip = sToolTipText;
     sPixmap = "Constraint_Dimension";
@@ -2560,7 +4060,6 @@ CmdSketcherDimension::CmdSketcherDimension()
 void CmdSketcherDimension::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
-    App::AutoTransaction::setEnable(false);
 
     // get the selection
     std::vector<Gui::SelectionObject> selection = getSelection().getSelectionEx();
@@ -2571,7 +4070,7 @@ void CmdSketcherDimension::activated(int iMsg)
         SubNames = selection[0].getSubNames();
     }
 
-    ActivateHandler(getActiveGuiDocument(), new DrawSketchHandlerDimension(SubNames));
+    ActivateHandler(getActiveGuiDocument(), std::make_unique<DrawSketchHandlerDimension>(SubNames));
 }
 
 void CmdSketcherDimension::updateAction(int mode)
@@ -2603,8 +4102,8 @@ public:
     {
         sAppModule = "Sketcher";
         sGroup = "Sketcher";
-        sMenuText = QT_TR_NOOP("Horizontal/Vertical");
-        sToolTipText = QT_TR_NOOP("Constrains a single line to either horizontal or vertical.");
+        sMenuText = QT_TR_NOOP("Horizontal/Vertical Constraint");
+        sToolTipText = QT_TR_NOOP("Constrains the selected elements either horizontally or vertically");
         sWhatsThis = "Sketcher_CompHorVer";
         sStatusTip = sToolTipText;
         eType = ForEdit;
@@ -2617,7 +4116,15 @@ public:
         addCommand("Sketcher_ConstrainVertical");
     }
 
-    const char* className() const override { return "CmdSketcherCompDimensionTools"; }
+    const char* className() const override
+    {
+        return "CmdSketcherCompHorizontalVertical";
+    }
+
+    bool isActive() override
+    {
+        return isCommandActive(getActiveGuiDocument());
+    }
 };
 
 // ============================================================================
@@ -2649,40 +4156,48 @@ bool canHorVerBlock(Sketcher::SketchObject* Obj, int geoId)
             Gui::TranslatedUserWarning(
                 Obj,
                 QObject::tr("Impossible constraint"),
-                QObject::tr("The selected edge already has a Block constraint!"));
+                QObject::tr("The selected edge already has a block constraint!"));
             return false;
         }
     }
     return true;
 }
 
+// Capture the selection before releasing the previous handler, which may clear it.
+static std::optional<Gui::SelectionObject> getConstraintSelection(CmdSketcherConstraint* cmd)
+{
+    auto selection = cmd->getSelection().getSelectionEx();
+    ReleaseHandler(cmd->getActiveGuiDocument());
+    if (selection.size() == 1
+        && selection[0].isObjectTypeOf(Sketcher::SketchObject::getClassTypeId())) {
+        return std::move(selection[0]);
+    }
+
+    ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
+        "User parameter:BaseApp/Preferences/Mod/Sketcher");
+    if (hGrp->GetBool("ContinuousConstraintMode", true)) {
+        ActivateHandler(cmd->getActiveGuiDocument(),
+                        std::make_unique<DrawSketchHandlerGenConstraint>(cmd));
+        cmd->getSelection().clearSelection();
+    }
+    else {
+        Gui::TranslatedUserWarning(cmd->getActiveGuiDocument(),
+                                   QObject::tr("Wrong selection"),
+                                   QObject::tr("Select geometry from a single sketch."));
+    }
+    return std::nullopt;
+}
+
 void horVerActivated(CmdSketcherConstraint* cmd, std::string type)
 {
-    // get the selection
-    std::vector<Gui::SelectionObject> selection = Gui::Command::getSelection().getSelectionEx();
-
-    // only one sketch with its subelements are allowed to be selected
-    if (selection.size() != 1
-        || !selection[0].isObjectTypeOf(Sketcher::SketchObject::getClassTypeId())) {
-        ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
-            "User parameter:BaseApp/Preferences/Mod/Sketcher");
-        bool constraintMode = hGrp->GetBool("ContinuousConstraintMode", true);
-
-        if (constraintMode) {
-            ActivateHandler(cmd->getActiveGuiDocument(), new DrawSketchHandlerGenConstraint(cmd));
-            Gui::Command::getSelection().clearSelection();
-        }
-        else {
-            Gui::TranslatedUserWarning(cmd->getActiveGuiDocument(),
-                QObject::tr("Wrong selection"),
-                QObject::tr("Select an edge from the sketch."));
-        }
+    auto selection = getConstraintSelection(cmd);
+    if (!selection) {
         return;
     }
 
     // get the needed lists and objects
-    const std::vector<std::string>& SubNames = selection[0].getSubNames();
-    auto* Obj = static_cast<Sketcher::SketchObject*>(selection[0].getObject());
+    const std::vector<std::string>& SubNames = selection->getSubNames();
+    auto* Obj = static_cast<Sketcher::SketchObject*>(selection->getObject());
 
     std::vector<int> edgegeoids;
     std::vector<int> pointgeoids;
@@ -2721,11 +4236,11 @@ void horVerActivated(CmdSketcherConstraint* cmd, std::string type)
         }
     }
 
-    if (edgegeoids.empty() && pointgeoids.empty()) {
+    if (edgegeoids.empty() && pointgeoids.size() < 2) {
         Gui::TranslatedUserWarning(
             Obj,
             QObject::tr("Impossible constraint"),
-            QObject::tr("The selected item(s) can't accept a horizontal or vertical constraint!"));
+            QObject::tr("The selected items cannot be constrained horizontally or vertically!"));
         return;
     }
 
@@ -2733,7 +4248,7 @@ void horVerActivated(CmdSketcherConstraint* cmd, std::string type)
     if (!edgegeoids.empty()) {
         // undo command open
         const char* cmdName = type == "Horizontal" ? "Add horizontal constraint" : type == "Vertical" ? "Add vertical constraint" : "Add horizontal/vertical constraint";
-        Gui::Command::openCommand(QT_TRANSLATE_NOOP("Command", cmdName));
+        cmd->openCommand(QT_TRANSLATE_NOOP("Command", cmdName));
         for (auto& geoId : edgegeoids) {
             std::string typeToApply = type;
             if (type == "HorVer") {
@@ -2743,7 +4258,7 @@ void horVerActivated(CmdSketcherConstraint* cmd, std::string type)
                 typeToApply = fabs(sin(angle)) < fabs(cos(angle)) ? "Horizontal" : "Vertical";
             }
 
-            Gui::cmdAppObjectArgs(selection[0].getObject(),
+            Gui::cmdAppObjectArgs(selection->getObject(),
                 "addConstraint(Sketcher.Constraint('%s',%d))",
                 typeToApply,
                 geoId);
@@ -2752,7 +4267,7 @@ void horVerActivated(CmdSketcherConstraint* cmd, std::string type)
     else if (fixedpoints <= 1) {// pointgeoids
         // undo command open
         const char* cmdName = type == "Horizontal" ? "Add horizontal alignment" : type == "Vertical" ? "Add vertical alignment" : "Add horizontal/vertical alignment";
-        Gui::Command::openCommand(QT_TRANSLATE_NOOP("Command", cmdName));
+        cmd->openCommand(QT_TRANSLATE_NOOP("Command", cmdName));
         std::vector<int>::iterator it;
         std::vector<Sketcher::PointPos>::iterator itp;
         for (it = pointgeoids.begin(), itp = pointpos.begin();
@@ -2767,7 +4282,7 @@ void horVerActivated(CmdSketcherConstraint* cmd, std::string type)
                 typeToApply = fabs(sin(angle)) < fabs(cos(angle)) ? "Horizontal" : "Vertical";
             }
 
-            Gui::cmdAppObjectArgs(selection[0].getObject(),
+            Gui::cmdAppObjectArgs(selection->getObject(),
                 "addConstraint(Sketcher.Constraint('%s',%d,%d,%d,%d))",
                 typeToApply,
                 *it,
@@ -2783,13 +4298,8 @@ void horVerActivated(CmdSketcherConstraint* cmd, std::string type)
                 "Select a maximum of one fixed point!"));
         return;
     }
-    // finish the transaction and update
-    Gui::Command::commitCommand();
 
-    tryAutoRecompute(Obj);
-
-    // clear the selection (convenience)
-    Gui::Command::getSelection().clearSelection();
+    finishTransactionAndUpdate(cmd, Obj);
 }
 
 void horVerApplyConstraint(CmdSketcherConstraint* cmd, std::string type, std::vector<SelIdPair>& selSeq, int seqIndex)
@@ -2831,17 +4341,15 @@ void horVerApplyConstraint(CmdSketcherConstraint* cmd, std::string type, std::ve
             }
 
             const char* cmdName = typeToApply == "Horizontal" ? "Add horizontal constraint" : "Add vertical constraint";
-            Gui::Command::openCommand(QT_TRANSLATE_NOOP("Command", cmdName));
+            cmd->openCommand(QT_TRANSLATE_NOOP("Command", cmdName));
 
             // issue the actual commands to create the constraint
             Gui::cmdAppObjectArgs(sketchgui->getObject(),
                 "addConstraint(Sketcher.Constraint('%s',%d))",
                 typeToApply,
                 CrvId);
-            // finish the transaction and update
-            Gui::Command::commitCommand();
 
-            tryAutoRecompute(Obj);
+            finishTransactionAndUpdate(cmd, Obj);
         }
 
         break;
@@ -2872,7 +4380,7 @@ void horVerApplyConstraint(CmdSketcherConstraint* cmd, std::string type, std::ve
 
         // undo command open
         const char* cmdName = type == "Horizontal" ? "Add horizontal alignment" : "Add vertical alignment";
-        Gui::Command::openCommand(QT_TRANSLATE_NOOP("Command", cmdName));
+        cmd->openCommand(QT_TRANSLATE_NOOP("Command", cmdName));
 
         // issue the actual commands to create the constraint
         Gui::cmdAppObjectArgs(sketchgui->getObject(),
@@ -2882,10 +4390,8 @@ void horVerApplyConstraint(CmdSketcherConstraint* cmd, std::string type, std::ve
             static_cast<int>(PosId1),
             GeoId2,
             static_cast<int>(PosId2));
-        // finish the transaction and update
-        Gui::Command::commitCommand();
 
-        tryAutoRecompute(Obj);
+        finishTransactionAndUpdate(cmd, Obj);
 
         break;
     }
@@ -2913,15 +4419,15 @@ CmdSketcherConstrainHorVer::CmdSketcherConstrainHorVer()
 {
     sAppModule = "Sketcher";
     sGroup = "Sketcher";
-    sMenuText = QT_TR_NOOP("Horizontal/Vertical");
-    sToolTipText = QT_TR_NOOP("Constrains a single line to either horizontal or vertical, whichever is closer to current alignment.");
+    sMenuText = QT_TR_NOOP("Horizontal/Vertical Constraint");
+    sToolTipText = QT_TR_NOOP("Constrains the selected elements either horizontally or vertically, based on their closest alignment");
     sWhatsThis = "Sketcher_ConstrainHorVer";
     sStatusTip = sToolTipText;
     sPixmap = "Constraint_HorVer";
     sAccel = "A";
     eType = ForEdit;
 
-    allowedSelSequences = { {SelEdge}, {SelVertex, SelVertexOrRoot}, {SelRoot, SelVertex} };
+    allowedSelSequences = { {SelEdge}, {SelVertexOrRoot, SelVertexOrRoot} };
 }
 
 void CmdSketcherConstrainHorVer::activated(int iMsg)
@@ -2959,15 +4465,15 @@ CmdSketcherConstrainHorizontal::CmdSketcherConstrainHorizontal()
 {
     sAppModule = "Sketcher";
     sGroup = "Sketcher";
-    sMenuText = QT_TR_NOOP("Constrain horizontally");
-    sToolTipText = QT_TR_NOOP("Create a horizontal constraint on the selected item");
+    sMenuText = QT_TR_NOOP("Horizontal Constraint");
+    sToolTipText = QT_TR_NOOP("Constrains the selected elements horizontally");
     sWhatsThis = "Sketcher_ConstrainHorizontal";
     sStatusTip = sToolTipText;
     sPixmap = "Constraint_Horizontal";
     sAccel = "H";
     eType = ForEdit;
 
-    allowedSelSequences = {{SelEdge}, {SelVertex, SelVertexOrRoot}, {SelRoot, SelVertex}};
+    allowedSelSequences = {{SelEdge}, {SelVertexOrRoot, SelVertexOrRoot}};
 }
 
 void CmdSketcherConstrainHorizontal::activated(int iMsg)
@@ -3004,15 +4510,15 @@ CmdSketcherConstrainVertical::CmdSketcherConstrainVertical()
 {
     sAppModule = "Sketcher";
     sGroup = "Sketcher";
-    sMenuText = QT_TR_NOOP("Constrain vertically");
-    sToolTipText = QT_TR_NOOP("Create a vertical constraint on the selected item");
+    sMenuText = QT_TR_NOOP("Vertical Constraint");
+    sToolTipText = QT_TR_NOOP("Constrains the selected elements vertically");
     sWhatsThis = "Sketcher_ConstrainVertical";
     sStatusTip = sToolTipText;
     sPixmap = "Constraint_Vertical";
     sAccel = "V";
     eType = ForEdit;
 
-    allowedSelSequences = {{SelEdge}, {SelVertex, SelVertexOrRoot}, {SelRoot, SelVertex}};
+    allowedSelSequences = {{SelEdge}, {SelVertexOrRoot, SelVertexOrRoot}};
 }
 
 void CmdSketcherConstrainVertical::activated(int iMsg)
@@ -3050,10 +4556,8 @@ CmdSketcherConstrainLock::CmdSketcherConstrainLock()
 {
     sAppModule = "Sketcher";
     sGroup = "Sketcher";
-    sMenuText = QT_TR_NOOP("Constrain lock");
-    sToolTipText = QT_TR_NOOP("Create both a horizontal "
-                              "and a vertical distance constraint\n"
-                              "on the selected vertex");
+    sMenuText = QT_TR_NOOP("Lock Position");
+    sToolTipText = QT_TR_NOOP("Constrains the selected vertices by adding horizontal and vertical distance constraints");
     sWhatsThis = "Sketcher_ConstrainLock";
     sStatusTip = sToolTipText;
     sPixmap = "Constraint_Lock";
@@ -3067,31 +4571,14 @@ void CmdSketcherConstrainLock::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
 
-    // get the selection
-    std::vector<Gui::SelectionObject> selection = getSelection().getSelectionEx();
-
-    // only one sketch with its subelements are allowed to be selected
-    if (selection.size() != 1
-        || !selection[0].isObjectTypeOf(Sketcher::SketchObject::getClassTypeId())) {
-        ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
-            "User parameter:BaseApp/Preferences/Mod/Sketcher");
-        bool constraintMode = hGrp->GetBool("ContinuousConstraintMode", true);
-
-        if (constraintMode) {
-            ActivateHandler(getActiveGuiDocument(), new DrawSketchHandlerGenConstraint(this));
-            getSelection().clearSelection();
-        }
-        else {
-            Gui::TranslatedUserWarning(getActiveGuiDocument(),
-                                       QObject::tr("Wrong selection"),
-                                       QObject::tr("Select vertices from the sketch."));
-        }
+    auto selection = getConstraintSelection(this);
+    if (!selection) {
         return;
     }
 
     // get the needed lists and objects
-    const std::vector<std::string>& SubNames = selection[0].getSubNames();
-    Sketcher::SketchObject* Obj = static_cast<Sketcher::SketchObject*>(selection[0].getObject());
+    const std::vector<std::string>& SubNames = selection->getSubNames();
+    auto* Obj = static_cast<Sketcher::SketchObject*>(selection->getObject());
 
     std::vector<int> GeoId;
     std::vector<Sketcher::PointPos> PosId;
@@ -3107,18 +4594,10 @@ void CmdSketcherConstrainLock::activated(int iMsg)
         if ((it != std::prev(SubNames.end())
              && (isEdge(GeoIdt, PosIdt) || (GeoIdt < 0 && GeoIdt >= Sketcher::GeoEnum::VAxis)))
             || (it == std::prev(SubNames.end()) && isEdge(GeoIdt, PosIdt))) {
-            if (selection.size() == 1) {
-                Gui::TranslatedUserWarning(
-                    Obj,
-                    QObject::tr("Wrong selection"),
-                    QObject::tr("Select one vertex from the sketch other than the origin."));
-            }
-            else {
-                Gui::TranslatedUserWarning(Obj,
-                                           QObject::tr("Wrong selection"),
-                                           QObject::tr("Select only vertices from the sketch. The "
-                                                       "last selected vertex may be the origin."));
-            }
+            Gui::TranslatedUserWarning(
+                Obj,
+                QObject::tr("Wrong selection"),
+                QObject::tr("Select one vertex from the sketch other than the origin."));
             // clear the selection (convenience)
             getSelection().clearSelection();
             return;
@@ -3139,13 +4618,13 @@ void CmdSketcherConstrainLock::activated(int iMsg)
 
         // undo command open
         openCommand(QT_TRANSLATE_NOOP("Command", "Add 'Lock' constraint"));
-        Gui::cmdAppObjectArgs(selection[0].getObject(),
-                              "addConstraint(Sketcher.Constraint('DistanceX',%d,%d,%f))",
+        Gui::cmdAppObjectArgs(selection->getObject(),
+                              "addConstraint(Sketcher.Constraint('DistanceX',%d,%d,%.8g))",
                               GeoId[0],
                               static_cast<int>(PosId[0]),
                               pnt.x);
-        Gui::cmdAppObjectArgs(selection[0].getObject(),
-                              "addConstraint(Sketcher.Constraint('DistanceY',%d,%d,%f))",
+        Gui::cmdAppObjectArgs(selection->getObject(),
+                              "addConstraint(Sketcher.Constraint('DistanceY',%d,%d,%.8g))",
                               GeoId[0],
                               static_cast<int>(PosId[0]),
                               pnt.y);
@@ -3156,12 +4635,12 @@ void CmdSketcherConstrainLock::activated(int iMsg)
             || constraintCreationMode == Reference) {
             // it is a constraint on a external line, make it non-driving
 
-            Gui::cmdAppObjectArgs(selection[0].getObject(),
+            Gui::cmdAppObjectArgs(selection->getObject(),
                                   "setDriving(%d,%s)",
                                   lastconstraintindex - 1,
                                   "False");
 
-            Gui::cmdAppObjectArgs(selection[0].getObject(),
+            Gui::cmdAppObjectArgs(selection->getObject(),
                                   "setDriving(%d,%s)",
                                   lastconstraintindex,
                                   "False");
@@ -3193,16 +4672,16 @@ void CmdSketcherConstrainLock::activated(int iMsg)
 
             // undo command open
             openCommand(QT_TRANSLATE_NOOP("Command", "Add relative 'Lock' constraint"));
-            Gui::cmdAppObjectArgs(selection[0].getObject(),
-                                  "addConstraint(Sketcher.Constraint('DistanceX',%d,%d,%d,%d,%f))",
+            Gui::cmdAppObjectArgs(selection->getObject(),
+                                  "addConstraint(Sketcher.Constraint('DistanceX',%d,%d,%d,%d,%.8g))",
                                   *itg,
                                   static_cast<int>(*itp),
                                   GeoId.back(),
                                   static_cast<int>(PosId.back()),
                                   pntr.x - pnt.x);
 
-            Gui::cmdAppObjectArgs(selection[0].getObject(),
-                                  "addConstraint(Sketcher.Constraint('DistanceY',%d,%d,%d,%d,%f))",
+            Gui::cmdAppObjectArgs(selection->getObject(),
+                                  "addConstraint(Sketcher.Constraint('DistanceY',%d,%d,%d,%d,%.8g))",
                                   *itg,
                                   static_cast<int>(*itp),
                                   GeoId.back(),
@@ -3213,12 +4692,12 @@ void CmdSketcherConstrainLock::activated(int iMsg)
             if ((refpointfixed && pointfixed) || constraintCreationMode == Reference) {
                 // it is a constraint on a external line, make it non-driving
 
-                Gui::cmdAppObjectArgs(selection[0].getObject(),
+                Gui::cmdAppObjectArgs(selection->getObject(),
                                       "setDriving(%d,%s)",
                                       lastconstraintindex - 1,
                                       "False");
 
-                Gui::cmdAppObjectArgs(selection[0].getObject(),
+                Gui::cmdAppObjectArgs(selection->getObject(),
                                       "setDriving(%d,%s)",
                                       lastconstraintindex,
                                       "False");
@@ -3226,12 +4705,7 @@ void CmdSketcherConstrainLock::activated(int iMsg)
         }
     }
 
-    // finish the transaction and update
-    commitCommand();
-    tryAutoRecompute(Obj);
-
-    // clear the selection (convenience)
-    getSelection().clearSelection();
+    finishTransactionAndUpdate(this, Obj);
 }
 
 void CmdSketcherConstrainLock::applyConstraint(std::vector<SelIdPair>& selSeq, int seqIndex)
@@ -3257,14 +4731,14 @@ void CmdSketcherConstrainLock::applyConstraint(std::vector<SelIdPair>& selSeq, i
             Base::Vector3d pnt = Obj->getPoint(selSeq.front().GeoId, selSeq.front().PosId);
 
             // undo command open
-            Gui::Command::openCommand(QT_TRANSLATE_NOOP("Command", "Add fixed constraint"));
+            openCommand(QT_TRANSLATE_NOOP("Command", "Add fixed constraint"));
             Gui::cmdAppObjectArgs(sketchgui->getObject(),
-                                  "addConstraint(Sketcher.Constraint('DistanceX', %d, %d, %f))",
+                                  "addConstraint(Sketcher.Constraint('DistanceX', %d, %d, %.8g))",
                                   selSeq.front().GeoId,
                                   static_cast<int>(selSeq.front().PosId),
                                   pnt.x);
             Gui::cmdAppObjectArgs(sketchgui->getObject(),
-                                  "addConstraint(Sketcher.Constraint('DistanceY', %d, %d, %f))",
+                                  "addConstraint(Sketcher.Constraint('DistanceY', %d, %d, %.8g))",
                                   selSeq.front().GeoId,
                                   static_cast<int>(selSeq.front().PosId),
                                   pnt.y);
@@ -3285,7 +4759,7 @@ void CmdSketcherConstrainLock::applyConstraint(std::vector<SelIdPair>& selSeq, i
             }
 
             // finish the transaction and update
-            Gui::Command::commitCommand();
+            commitCommand();
 
             ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
                 "User parameter:BaseApp/Preferences/Mod/Sketcher");
@@ -3298,20 +4772,21 @@ void CmdSketcherConstrainLock::applyConstraint(std::vector<SelIdPair>& selSeq, i
     }
 }
 
+static void updateDimensionIcon(Gui::Command* cmd, int mode, const char* icon)
+{
+    if (!cmd->getAction() || (mode != Driving && mode != Reference)) {
+        return;
+    }
+    std::string name = icon;
+    if (mode == Reference) {
+        name += "_Driven";
+    }
+    cmd->getAction()->setIcon(Gui::BitmapFactory().iconFromTheme(name.c_str()));
+}
+
 void CmdSketcherConstrainLock::updateAction(int mode)
 {
-    switch (mode) {
-        case Reference:
-            if (getAction()) {
-                getAction()->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_Lock_Driven"));
-            }
-            break;
-        case Driving:
-            if (getAction()) {
-                getAction()->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_Lock"));
-            }
-            break;
-    }
+    updateDimensionIcon(this, mode, "Constraint_Lock");
 }
 
 // ======================================================================================
@@ -3337,8 +4812,8 @@ CmdSketcherConstrainBlock::CmdSketcherConstrainBlock()
 {
     sAppModule = "Sketcher";
     sGroup = "Sketcher";
-    sMenuText = QT_TR_NOOP("Constrain block");
-    sToolTipText = QT_TR_NOOP("Block the selected edge from moving");
+    sMenuText = QT_TR_NOOP("Block Constraint");
+    sToolTipText = QT_TR_NOOP("Constrains the selected edges as fixed");
     sWhatsThis = "Sketcher_ConstrainBlock";
     sStatusTip = sToolTipText;
     sPixmap = "Constraint_Block";
@@ -3352,38 +4827,21 @@ void CmdSketcherConstrainBlock::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
 
-    // get the selection
-    std::vector<Gui::SelectionObject> selection = getSelection().getSelectionEx();
-
-    // only one sketch with its subelements are allowed to be selected
-    if (selection.size() != 1
-        || !selection[0].isObjectTypeOf(Sketcher::SketchObject::getClassTypeId())) {
-        ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
-            "User parameter:BaseApp/Preferences/Mod/Sketcher");
-        bool constraintMode = hGrp->GetBool("ContinuousConstraintMode", true);
-
-        if (constraintMode) {
-            ActivateHandler(getActiveGuiDocument(), new DrawSketchHandlerGenConstraint(this));
-            getSelection().clearSelection();
-        }
-        else {
-            Gui::TranslatedUserWarning(getActiveGuiDocument(),
-                                       QObject::tr("Wrong selection"),
-                                       QObject::tr("Select vertices from the sketch."));
-        }
+    auto selection = getConstraintSelection(this);
+    if (!selection) {
         return;
     }
 
     // get the needed lists and objects
-    const std::vector<std::string>& SubNames = selection[0].getSubNames();
-    Sketcher::SketchObject* Obj = static_cast<Sketcher::SketchObject*>(selection[0].getObject());
+    const std::vector<std::string>& SubNames = selection->getSubNames();
+    auto* Obj = static_cast<Sketcher::SketchObject*>(selection->getObject());
 
     // Check that the solver does not report redundant/conflicting constraints
-    if (Obj->getLastSolverStatus() != GCS::Success || Obj->getLastHasConflicts()
+    if (Obj->getLastSolverStatus() != GCS::SolveStatus::Success || Obj->getLastHasConflicts()
         || Obj->getLastHasRedundancies()) {
         Gui::TranslatedUserWarning(Obj,
                                    QObject::tr("Wrong solver status"),
-                                   QObject::tr("A Block constraint cannot be added "
+                                   QObject::tr("A block constraint cannot be added "
                                                "if the sketch is unsolved "
                                                "or there are redundant and "
                                                "conflicting constraints."));
@@ -3393,23 +4851,15 @@ void CmdSketcherConstrainBlock::activated(int iMsg)
     std::vector<int> GeoId;
     const std::vector<Sketcher::Constraint*>& vals = Obj->Constraints.getValues();
 
-    for (std::vector<std::string>::const_iterator it = SubNames.begin(); it != SubNames.end();
-         ++it) {
+    for (auto& subname : SubNames) {
         int GeoIdt;
         Sketcher::PointPos PosIdt;
-        getIdsFromName((*it), Obj, GeoIdt, PosIdt);
+        getIdsFromName(subname, Obj, GeoIdt, PosIdt);
 
         if (isVertex(GeoIdt, PosIdt) || GeoIdt < 0) {
-            if (selection.size() == 1) {
-                Gui::TranslatedUserWarning(Obj,
-                                           QObject::tr("Wrong selection"),
-                                           QObject::tr("Select one edge from the sketch."));
-            }
-            else {
-                Gui::TranslatedUserWarning(Obj,
-                                           QObject::tr("Wrong selection"),
-                                           QObject::tr("Select only edges from the sketch."));
-            }
+            Gui::TranslatedUserWarning(Obj,
+                                       QObject::tr("Wrong selection"),
+                                       QObject::tr("Select one edge from the sketch."));
             // clear the selection
             getSelection().clearSelection();
             return;
@@ -3420,7 +4870,7 @@ void CmdSketcherConstrainBlock::activated(int iMsg)
             Gui::TranslatedUserWarning(
                 Obj,
                 QObject::tr("Double constraint"),
-                QObject::tr("The selected edge already has a Block constraint!"));
+                QObject::tr("The selected edge already has a block constraint!"));
             return;
         }
 
@@ -3429,19 +4879,18 @@ void CmdSketcherConstrainBlock::activated(int iMsg)
 
     for (std::vector<int>::iterator itg = GeoId.begin(); itg != GeoId.end(); ++itg) {
         // undo command open
-        openCommand(QT_TRANSLATE_NOOP("Command", "Add 'Block' constraint"));
+        openCommand(QT_TRANSLATE_NOOP("Command", "Add Block constraint"));
 
         bool safe = addConstraintSafely(Obj, [&]() {
             Gui::cmdAppObjectArgs(Obj, "addConstraint(Sketcher.Constraint('Block',%d))", (*itg));
         });
 
         if (!safe) {
+            abortCommand();
             return;
         }
-        else {
-            commitCommand();
-            tryAutoRecompute(Obj);
-        }
+        commitCommand();
+        tryAutoRecompute(Obj);
     }
 
     // clear the selection (convenience)
@@ -3457,7 +4906,7 @@ void CmdSketcherConstrainBlock::applyConstraint(std::vector<SelIdPair>& selSeq, 
             SketcherGui::ViewProviderSketch* sketchgui =
                 static_cast<SketcherGui::ViewProviderSketch*>(getActiveGuiDocument()->getInEdit());
 
-            auto Obj = static_cast<Sketcher::SketchObject*>(sketchgui->getObject());
+            auto Obj = sketchgui->getObject<Sketcher::SketchObject>();
 
             // check if the edge already has a Block constraint
             const std::vector<Sketcher::Constraint*>& vals = Obj->Constraints.getValues();
@@ -3473,7 +4922,7 @@ void CmdSketcherConstrainBlock::applyConstraint(std::vector<SelIdPair>& selSeq, 
                 Gui::TranslatedUserWarning(
                     Obj,
                     QObject::tr("Double constraint"),
-                    QObject::tr("The selected edge already has a Block constraint!"));
+                    QObject::tr("The selected edge already has a block constraint!"));
                 return;
             }
 
@@ -3487,12 +4936,11 @@ void CmdSketcherConstrainBlock::applyConstraint(std::vector<SelIdPair>& selSeq, 
             });
 
             if (!safe) {
+                abortCommand();
                 return;
             }
-            else {
-                commitCommand();
-                tryAutoRecompute(Obj);
-            }
+
+            finishTransactionAndUpdate(this, Obj);
         } break;
         default:
             break;
@@ -3500,6 +4948,24 @@ void CmdSketcherConstrainBlock::applyConstraint(std::vector<SelIdPair>& selSeq, 
 }
 
 // ======================================================================================
+
+namespace
+{
+struct ConstraintDiagnosticIdentity {
+    std::optional<int> invalidDiagnosticNumber;
+    ConstraintType type {None};
+    InternalAlignmentType alignmentType {Undef};
+    int orientation {0};
+    double value {0.0};
+    bool driving {true};
+    bool active {true};
+    bool virtualSpace {false};
+    int alignmentIndex {-1};
+    std::vector<GeoElementId> elements;
+
+    bool operator==(const ConstraintDiagnosticIdentity&) const = default;
+};
+}  // namespace
 
 class CmdSketcherConstrainCoincidentUnified : public CmdSketcherConstraint
 {
@@ -3519,6 +4985,19 @@ protected:
         Both
     };
 
+    enum class CoincidentSelectionResult {
+        Valid,
+        AlreadyCoincident,
+        WouldCollapseGeometry,
+    };
+
+    struct CoincidentSolveStatus {
+        SketchSolveStatus status {SketchSolveStatus::Success};
+        std::vector<ConstraintDiagnosticIdentity> redundantIdentities;
+        std::vector<ConstraintDiagnosticIdentity> conflictingIdentities;
+        std::vector<ConstraintDiagnosticIdentity> malformedIdentities;
+    };
+
     void activated(int iMsg) override;
     void onActivated(CoincicenceType type);
     void activatedCoincident(SketchObject* obj, std::vector<SelIdPair> points, std::vector<SelIdPair> curves);
@@ -3531,6 +5010,19 @@ protected:
     // returns true if a substitution took place
     static bool substituteConstraintCombinationsPointOnObject(SketchObject* Obj, int GeoId1, PointPos PosId1, int GeoId2);
     static bool substituteConstraintCombinationsCoincident(SketchObject* Obj, int GeoId1, PointPos PosId1, int GeoId2, PointPos PosId2);
+
+    CoincidentSelectionResult validateCoincidentSelection(SketchObject* obj,
+                                                          int GeoId1,
+                                                          PointPos PosId1,
+                                                          int GeoId2,
+                                                          PointPos PosId2);
+    void showCoincidentSelectionWarning(SketchObject* obj, CoincidentSelectionResult result);
+    void showCoincidentSolveWarning(SketchObject* obj, SketchSolveStatus result);
+    CoincidentSolveStatus getCoincidentSolveStatus(SketchObject* obj);
+    CoincidentSolveStatus getCoincidentSolveStatus(SketchObject* obj, SketchSolveStatus result);
+    bool abortIfCoincidentSolveRejected(SketchObject* obj, const CoincidentSolveStatus& before);
+    static bool shouldRejectCoincidentSolve(const CoincidentSolveStatus& before,
+                                            const CoincidentSolveStatus& after);
 };
 
 CmdSketcherConstrainCoincidentUnified::CmdSketcherConstrainCoincidentUnified(const char* initName)
@@ -3538,28 +5030,26 @@ CmdSketcherConstrainCoincidentUnified::CmdSketcherConstrainCoincidentUnified(con
 {
     sAppModule = "Sketcher";
     sGroup = "Sketcher";
-    sMenuText = QT_TR_NOOP("Constrain coincident");
-    sToolTipText = QT_TR_NOOP("Create a coincident constraint between points, or fix a point on an edge, "
-        "or a concentric constraint between circles, arcs, and ellipses");
+    sMenuText = QT_TR_NOOP("Coincident Constraint");
+    sToolTipText = QT_TR_NOOP("Constrains the selected elements to be coincident");
     sWhatsThis = "Sketcher_ConstrainCoincidentUnified";
     sStatusTip = sToolTipText;
     sPixmap = "Constraint_Coincident";
 
     ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
         "User parameter:BaseApp/Preferences/Mod/Sketcher/Constraints");
-    sAccel = hGrp->GetBool("UnifiedCoincident", false) ? "C" :"C,O";
+    sAccel = hGrp->GetBool("UnifiedCoincident", true) ? "C" :"C,O";
 
     eType = ForEdit;
 
-    allowedSelSequences = { {SelVertex, SelEdgeOrAxis},
+    allowedSelSequences = {{SelVertex, SelEdgeOrAxis},
                            {SelRoot, SelEdge},
                            {SelVertex, SelExternalEdge},
                            {SelEdge, SelVertexOrRoot},
                            {SelEdgeOrAxis, SelVertex},
                            {SelExternalEdge, SelVertex},
 
-                           {SelVertex, SelVertexOrRoot},
-                           {SelRoot, SelVertex},
+                           {SelVertexOrRoot, SelVertexOrRoot},
                            {SelEdge, SelEdge},
                            {SelEdge, SelExternalEdge},
                            {SelExternalEdge, SelEdge} };
@@ -3575,7 +5065,9 @@ bool CmdSketcherConstrainCoincidentUnified::substituteConstraintCombinationsPoin
         if ((*it)->Type == Sketcher::Tangent && (*it)->FirstPos == Sketcher::PointPos::none
             && (*it)->SecondPos == Sketcher::PointPos::none && (*it)->Third == GeoEnum::GeoUndef
             && (((*it)->First == GeoId1 && (*it)->Second == GeoId2)
-                || ((*it)->Second == GeoId1 && (*it)->First == GeoId2))) {
+                || ((*it)->Second == GeoId1 && (*it)->First == GeoId2))
+            && (PosId1 == Sketcher::PointPos::start
+                || PosId1 == Sketcher::PointPos::end)) {
 
             // NOTE: This function does not either open or commit a command as it is used for group
             // addition it relies on such infrastructure being provided by the caller.
@@ -3611,6 +5103,12 @@ bool CmdSketcherConstrainCoincidentUnified::substituteConstraintCombinationsCoin
         if ((*it)->Type == Sketcher::Tangent && (*it)->Third == GeoEnum::GeoUndef
             && (((*it)->First == GeoId1 && (*it)->Second == GeoId2)
                 || ((*it)->Second == GeoId1 && (*it)->First == GeoId2))) {
+            if (!(PosId1 == Sketcher::PointPos::start
+                  || PosId1 == Sketcher::PointPos::end)
+                || !(PosId2 == Sketcher::PointPos::start
+                     || PosId2 == Sketcher::PointPos::end)) {
+                continue;
+            }
             if ((*it)->FirstPos == Sketcher::PointPos::none
                 && (*it)->SecondPos == Sketcher::PointPos::none) {
 
@@ -3629,7 +5127,6 @@ bool CmdSketcherConstrainCoincidentUnified::substituteConstraintCombinationsCoin
                 notifyConstraintSubstitutions(
                     QObject::tr("Endpoint to endpoint tangency was applied instead."));
 
-                getSelection().clearSelection();
                 return true;
             }
             else if (isBsplineKnot(Obj, GeoId1) != isBsplineKnot(Obj, GeoId2)) {
@@ -3649,7 +5146,6 @@ bool CmdSketcherConstrainCoincidentUnified::substituteConstraintCombinationsCoin
                     notifyConstraintSubstitutions(
                         QObject::tr("B-spline knot to endpoint tangency was applied instead."));
 
-                    getSelection().clearSelection();
                     return true;
                 }
             }
@@ -3679,29 +5175,14 @@ void CmdSketcherConstrainCoincidentUnified::onActivated(CoincicenceType type)
             " points for pointOnObject, or several points for coincidence, or several conics for concentricity.");
     }
 
-    // get the selection
-    std::vector<Gui::SelectionObject> selection = getSelection().getSelectionEx();
-
-    // only one sketch with its subelements are allowed to be selected
-    if (selection.size() != 1
-        || !selection[0].isObjectTypeOf(Sketcher::SketchObject::getClassTypeId())) {
-        ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
-            "User parameter:BaseApp/Preferences/Mod/Sketcher");
-        bool constraintMode = hGrp->GetBool("ContinuousConstraintMode", true);
-
-        if (constraintMode) {
-            ActivateHandler(getActiveGuiDocument(), new DrawSketchHandlerGenConstraint(this));
-            getSelection().clearSelection();
-        }
-        else {
-            Gui::TranslatedUserWarning(getActiveGuiDocument(), QObject::tr("Wrong selection"), errorMess);
-        }
+    auto selection = getConstraintSelection(this);
+    if (!selection) {
         return;
     }
 
     // get the needed lists and objects
-    const std::vector<std::string>& SubNames = selection[0].getSubNames();
-    Sketcher::SketchObject* Obj = static_cast<Sketcher::SketchObject*>(selection[0].getObject());
+    const std::vector<std::string>& SubNames = selection->getSubNames();
+    auto* Obj = static_cast<Sketcher::SketchObject*>(selection->getObject());
 
     // count curves and points
     std::vector<SelIdPair> points;
@@ -3750,8 +5231,7 @@ void CmdSketcherConstrainCoincidentUnified::activatedPointOnObject(SketchObject*
                     QObject::tr("Wrong selection"),
                     QObject::tr("Select an edge that is not a B-spline weight."));
                 abortCommand();
-
-                continue;
+                return;
             }
 
             if (substituteConstraintCombinationsPointOnObject(obj,
@@ -3779,14 +5259,8 @@ void CmdSketcherConstrainCoincidentUnified::activatedPointOnObject(SketchObject*
         abortCommand();
         Gui::TranslatedUserWarning(obj,
             QObject::tr("Wrong selection"),
-            QObject::tr("None of the selected points were constrained "
-                "onto the respective curves, "
-                "because they are parts "
-                "of the same element, "
-                "because they are both external geometry, "
-                "or because the edge is not eligible."));
+            QObject::tr("None of the selected points were constrained onto the respective curves, because they are part of the same element, they are both external geometry, or the edge is not eligible."));
     }
-    return;
 }
 
 void CmdSketcherConstrainCoincidentUnified::activatedCoincident(SketchObject* obj, std::vector<SelIdPair> points, std::vector<SelIdPair> curves)
@@ -3817,6 +5291,8 @@ void CmdSketcherConstrainCoincidentUnified::activatedCoincident(SketchObject* ob
 
     // undo command open
     bool constraintsAdded = false;
+    auto beforeSolve = getCoincidentSolveStatus(obj);
+    CoincidentSelectionResult lastRejectedSelection = CoincidentSelectionResult::Valid;
     openCommand(QT_TRANSLATE_NOOP("Command", "Add coincident constraint"));
 
     for (std::size_t i = 1; i < vecOfSelIdToUse.size(); i++) {
@@ -3838,10 +5314,8 @@ void CmdSketcherConstrainCoincidentUnified::activatedCoincident(SketchObject* ob
             break;
         }
 
-        // check if this coincidence is already enforced (even indirectly)
-        bool constraintExists = obj->arePointsCoincident(GeoId1, PosId1, GeoId2, PosId2);
-
-        if (!constraintExists) {
+        auto validation = validateCoincidentSelection(obj, GeoId1, PosId1, GeoId2, PosId2);
+        if (validation == CoincidentSelectionResult::Valid) {
             constraintsAdded = true;
             Gui::cmdAppObjectArgs(obj,
                 "addConstraint(Sketcher.Constraint('Coincident',%d,%d,%d,%d))",
@@ -3850,20 +5324,24 @@ void CmdSketcherConstrainCoincidentUnified::activatedCoincident(SketchObject* ob
                 GeoId2,
                 static_cast<int>(PosId2));
         }
+        else {
+            lastRejectedSelection = validation;
+        }
     }
 
     // finish or abort the transaction and update
     if (constraintsAdded) {
+        if (abortIfCoincidentSolveRejected(obj, beforeSolve)) {
+            return;
+        }
         commitCommand();
+        tryAutoRecompute(obj);
+        getSelection().clearSelection();
     }
     else {
         abortCommand();
+        showCoincidentSelectionWarning(obj, lastRejectedSelection);
     }
-
-    tryAutoRecompute(obj);
-
-    // clear the selection (convenience)
-    getSelection().clearSelection();
 }
 
 void CmdSketcherConstrainCoincidentUnified::applyConstraint(std::vector<SelIdPair>& selSeq, int seqIndex)
@@ -3877,11 +5355,10 @@ void CmdSketcherConstrainCoincidentUnified::applyConstraint(std::vector<SelIdPai
     case 5:// {SelExternalEdge, SelVertex}
         applyConstraintPointOnObject(selSeq, seqIndex);
         break;
-    case 6:// {SelVertex, SelVertexOrRoot}
-    case 7:// {SelRoot, SelVertex}
-    case 8:// {SelEdge, SelEdge}
-    case 9:// {SelEdge, SelExternalEdge}
-    case 10:// {SelExternalEdge, SelEdge}
+    case 6:// {SelVertexOrRoot, SelVertexOrRoot}
+    case 7:// {SelEdge, SelEdge}
+    case 8:// {SelEdge, SelExternalEdge}
+    case 9:// {SelExternalEdge, SelEdge}
         seqIndex -= 6;
         applyConstraintCoincident(selSeq, seqIndex);
         break;
@@ -3951,8 +5428,7 @@ void CmdSketcherConstrainCoincidentUnified::applyConstraintPointOnObject(std::ve
                 GeoIdCrv);
         }
 
-        commitCommand();
-        tryAutoRecompute(Obj);
+        finishTransactionAndUpdate(this, Obj);
     }
     else {
         abortCommand();
@@ -3963,7 +5439,6 @@ void CmdSketcherConstrainCoincidentUnified::applyConstraintPointOnObject(std::ve
                 "either because they are parts of the same element, "
                 "or because they are both external geometry."));
     }
-    return;
 }
 
 void CmdSketcherConstrainCoincidentUnified::applyConstraintCoincident(std::vector<SelIdPair>& selSeq, int seqIndex)
@@ -3976,13 +5451,12 @@ void CmdSketcherConstrainCoincidentUnified::applyConstraintCoincident(std::vecto
     Sketcher::PointPos PosId1 = selSeq.at(0).PosId, PosId2 = selSeq.at(1).PosId;
 
     switch (seqIndex) {
-    case 0:// {SelVertex, SelVertexOrRoot}
-    case 1:// {SelRoot, SelVertex}
+    case 0:// {SelVertexOrRoot, SelVertexOrRoot}
         // Nothing specific.
         break;
-    case 2:// {SelEdge, SelEdge}
-    case 3:// {SelEdge, SelExternalEdge}
-    case 4:// {SelExternalEdge, SelEdge}
+    case 1:// {SelEdge, SelEdge}
+    case 2:// {SelEdge, SelExternalEdge}
+    case 3:// {SelExternalEdge, SelEdge}
         // Concentric for circles, ellipse, arc, arcofEllipse only.
         if (!isGeoConcentricCompatible(Obj->getGeometry(GeoId1))
             || !isGeoConcentricCompatible(Obj->getGeometry(GeoId2))) {
@@ -4006,12 +5480,17 @@ void CmdSketcherConstrainCoincidentUnified::applyConstraintCoincident(std::vecto
     }
 
     // undo command open
-    Gui::Command::openCommand(QT_TRANSLATE_NOOP("Command", "Add coincident constraint"));
+    openCommand(QT_TRANSLATE_NOOP("Command", "Add coincident constraint"));
+    auto beforeSolve = getCoincidentSolveStatus(Obj);
 
-    // check if this coincidence is already enforced (even indirectly)
-    bool constraintExists = Obj->arePointsCoincident(GeoId1, PosId1, GeoId2, PosId2);
-    if (substituteConstraintCombinationsCoincident(Obj, GeoId1, PosId1, GeoId2, PosId2)) {}
-    else if (!constraintExists && (GeoId1 != GeoId2)) {
+    if (!substituteConstraintCombinationsCoincident(Obj, GeoId1, PosId1, GeoId2, PosId2)) {
+        auto validation = validateCoincidentSelection(Obj, GeoId1, PosId1, GeoId2, PosId2);
+        if (validation != CoincidentSelectionResult::Valid) {
+            abortCommand();
+            showCoincidentSelectionWarning(Obj, validation);
+            return;
+        }
+
         Gui::cmdAppObjectArgs(sketchgui->getObject(),
             "addConstraint(Sketcher.Constraint('Coincident', %d, %d, %d, %d))",
             GeoId1,
@@ -4019,14 +5498,289 @@ void CmdSketcherConstrainCoincidentUnified::applyConstraintCoincident(std::vecto
             GeoId2,
             static_cast<int>(PosId2));
     }
-    else {
-        Gui::Command::abortCommand();
+    if (abortIfCoincidentSolveRejected(Obj, beforeSolve)) {
         return;
     }
-    Gui::Command::commitCommand();
-    tryAutoRecompute(Obj);
+
+    finishTransactionAndUpdate(this, Obj);
 }
 
+CmdSketcherConstrainCoincidentUnified::CoincidentSelectionResult
+CmdSketcherConstrainCoincidentUnified::validateCoincidentSelection(SketchObject* obj,
+                                                                   int GeoId1,
+                                                                   PointPos PosId1,
+                                                                   int GeoId2,
+                                                                   PointPos PosId2)
+{
+    // check if this coincidence is already enforced (even indirectly)
+    bool constraintExists = obj->arePointsCoincident(GeoId1, PosId1, GeoId2, PosId2);
+    if (constraintExists) {
+        return CoincidentSelectionResult::AlreadyCoincident;
+    }
+
+    auto firstPoints = obj->getAllCoincidentPoints(GeoId1, PosId1);
+    auto secondPoints = obj->getAllCoincidentPoints(GeoId2, PosId2);
+    firstPoints.emplace(GeoId1, PosId1);
+    secondPoints.emplace(GeoId2, PosId2);
+
+    // Joining the groups must not collapse an element, even when its endpoints
+    // are selected through coincident points belonging to other elements.
+    for (const auto& [geoId, posId] : firstPoints) {
+        if (secondPoints.contains(geoId)) {
+            const Part::Geometry* geo = obj->getGeometry(geoId);
+            if (!geo || !geo->is<Part::GeomBSplineCurve>()) {
+                return CoincidentSelectionResult::WouldCollapseGeometry;
+            }
+        }
+    }
+
+    return CoincidentSelectionResult::Valid;
+}
+
+void CmdSketcherConstrainCoincidentUnified::showCoincidentSelectionWarning(
+    SketchObject* obj, CoincidentSelectionResult result)
+{
+    switch (result) {
+        case CoincidentSelectionResult::AlreadyCoincident:
+            Gui::TranslatedUserWarning(
+                obj,
+                QObject::tr("Coincident constraint not added"),
+                QObject::tr("The selected points are already coincident."));
+            break;
+        case CoincidentSelectionResult::WouldCollapseGeometry:
+            Gui::TranslatedUserWarning(
+                obj,
+                QObject::tr("Coincident constraint not added"),
+                QObject::tr("Cannot add a coincident constraint because it would collapse geometry "
+                            "to zero length."));
+            break;
+        case CoincidentSelectionResult::Valid:
+            break;
+    }
+}
+
+void CmdSketcherConstrainCoincidentUnified::showCoincidentSolveWarning(SketchObject* obj,
+                                                                       SketchSolveStatus result)
+{
+    switch (result) {
+        case SketchSolveStatus::RedundantConstraints:
+            Gui::TranslatedUserWarning(
+                obj,
+                QObject::tr("Coincident constraint not added"),
+                QObject::tr("Cannot add the coincident constraint because it would create redundant "
+                            "constraints."));
+            break;
+        case SketchSolveStatus::ConflictingConstraints:
+            Gui::TranslatedUserWarning(
+                obj,
+                QObject::tr("Coincident constraint not added"),
+                QObject::tr("Cannot add the coincident constraint because it would conflict with "
+                            "existing constraints."));
+            break;
+        case SketchSolveStatus::Overconstrained:
+            Gui::TranslatedUserWarning(
+                obj,
+                QObject::tr("Coincident constraint not added"),
+                QObject::tr("Cannot add the coincident constraint because it would over-constrain "
+                            "the sketch."));
+            break;
+        case SketchSolveStatus::MalformedConstraints:
+            Gui::TranslatedUserWarning(
+                obj,
+                QObject::tr("Wrong selection"),
+                QObject::tr("Cannot add the coincident constraint because the sketch has malformed "
+                            "constraints."));
+            break;
+        case SketchSolveStatus::SolverError:
+            Gui::TranslatedUserWarning(
+                obj,
+                QObject::tr("Wrong selection"),
+                QObject::tr("Cannot add the coincident constraint because the solver failed to "
+                            "converge."));
+            break;
+        case SketchSolveStatus::InvalidGeometry:
+            Gui::TranslatedUserWarning(
+                obj,
+                QObject::tr("Wrong selection"),
+                QObject::tr("Cannot add the coincident constraint because the sketch contains "
+                            "constraints that refer to invalid geometry."));
+            break;
+        case SketchSolveStatus::Success:
+            break;
+    }
+}
+
+namespace
+{
+ConstraintDiagnosticIdentity getConstraintDiagnosticIdentity(const Constraint& constraint)
+{
+    ConstraintDiagnosticIdentity identity;
+    identity.type = constraint.Type;
+    identity.alignmentType = constraint.AlignmentType;
+    identity.orientation = constraint.Orientation.toUnderlyingType();
+    identity.value = constraint.getValue();
+    identity.driving = constraint.isDriving;
+    identity.active = constraint.isActive;
+    identity.virtualSpace = constraint.isInVirtualSpace;
+    identity.alignmentIndex = constraint.InternalAlignmentIndex;
+    identity.elements.reserve(constraint.getElementsSize());
+
+    for (size_t i = 0; i < constraint.getElementsSize(); ++i) {
+        identity.elements.push_back(constraint.getElement(i));
+    }
+
+    return identity;
+}
+
+std::vector<ConstraintDiagnosticIdentity> getConstraintDiagnosticIdentities(
+    const SketchObject* obj,
+    const std::vector<int>& constraintNumbers)
+{
+    const auto& constraints = obj->Constraints.getValues();
+    std::vector<ConstraintDiagnosticIdentity> identities;
+    identities.reserve(constraintNumbers.size());
+
+    for (const int constraintNumber : constraintNumbers) {
+        const int constraintIndex = constraintNumber - 1;
+        if (constraintIndex >= 0 && constraintIndex < static_cast<int>(constraints.size())) {
+            identities.push_back(getConstraintDiagnosticIdentity(*constraints[constraintIndex]));
+        }
+        else {
+            // Preserve unexpected solver diagnostics as distinct entries rather than silently
+            // treating an invalid diagnostic index as an existing constraint.
+            ConstraintDiagnosticIdentity identity;
+            identity.invalidDiagnosticNumber = constraintNumber;
+            identities.push_back(std::move(identity));
+        }
+    }
+
+    return identities;
+}
+
+int getCoincidentSolveStatusSeverity(SketchSolveStatus status)
+{
+    // Redundancy is a solvable issue; each following status prevents progressively more reliable
+    // solving. Invalid geometry is highest because constraint references cannot be trusted.
+    switch (status) {
+        case SketchSolveStatus::Success:
+            return 0;
+        case SketchSolveStatus::RedundantConstraints:
+            return 1;
+        case SketchSolveStatus::ConflictingConstraints:
+            return 2;
+        case SketchSolveStatus::Overconstrained:
+            return 3;
+        case SketchSolveStatus::MalformedConstraints:
+        case SketchSolveStatus::SolverError:
+            return 4;
+        case SketchSolveStatus::InvalidGeometry:
+            return 5;
+    }
+
+    return 5;
+}
+}  // namespace
+
+CmdSketcherConstrainCoincidentUnified::CoincidentSolveStatus
+CmdSketcherConstrainCoincidentUnified::getCoincidentSolveStatus(SketchObject* obj)
+{
+    if (obj->Constraints.hasInvalidGeometry()) {
+        return getCoincidentSolveStatus(obj, SketchSolveStatus::InvalidGeometry);
+    }
+
+    auto result = SketchSolveStatus::Success;
+    if (obj->getLastHasRedundancies()) {
+        result = SketchSolveStatus::RedundantConstraints;
+    }
+    if (obj->getLastDoF() < 0) {
+        result = SketchSolveStatus::Overconstrained;
+    }
+    else if (obj->getLastHasConflicts()) {
+        result = SketchSolveStatus::ConflictingConstraints;
+    }
+    else if (obj->getLastHasMalformedConstraints()) {
+        result = SketchSolveStatus::MalformedConstraints;
+    }
+    else if (obj->getLastSolverStatus() != GCS::SolveStatus::Success) {
+        result = SketchSolveStatus::SolverError;
+    }
+    return getCoincidentSolveStatus(obj, result);
+}
+
+CmdSketcherConstrainCoincidentUnified::CoincidentSolveStatus
+CmdSketcherConstrainCoincidentUnified::getCoincidentSolveStatus(SketchObject* obj,
+                                                                SketchSolveStatus status)
+{
+    // Property-level geometry validity is authoritative even when solve() reports a different
+    // status for the same invalid constraint list.
+    if (obj->Constraints.hasInvalidGeometry()) {
+        status = SketchSolveStatus::InvalidGeometry;
+    }
+
+    return {status,
+            getConstraintDiagnosticIdentities(obj, obj->getLastRedundant()),
+            getConstraintDiagnosticIdentities(obj, obj->getLastConflicting()),
+            getConstraintDiagnosticIdentities(obj, obj->getLastMalformedConstraints())};
+}
+
+bool CmdSketcherConstrainCoincidentUnified::shouldRejectCoincidentSolve(
+    const CoincidentSolveStatus& before,
+    const CoincidentSolveStatus& after)
+{
+    if (after.status == SketchSolveStatus::Success) {
+        return false;
+    }
+
+    if (after.status == SketchSolveStatus::InvalidGeometry) {
+        return true;
+    }
+
+    if (getCoincidentSolveStatusSeverity(after.status)
+        > getCoincidentSolveStatusSeverity(before.status)) {
+        return true;
+    }
+
+    const auto introducesDiagnostic = [](const auto& beforeDiagnostics,
+                                         const auto& afterDiagnostics) {
+        auto unmatchedBefore = beforeDiagnostics;
+        for (const auto& afterDiagnostic : afterDiagnostics) {
+            auto existing = std::ranges::find(unmatchedBefore, afterDiagnostic);
+            if (existing == unmatchedBefore.end()) {
+                return true;
+            }
+            unmatchedBefore.erase(existing);
+        }
+        return false;
+    };
+
+    return introducesDiagnostic(before.redundantIdentities, after.redundantIdentities)
+        || introducesDiagnostic(before.conflictingIdentities, after.conflictingIdentities)
+        || introducesDiagnostic(before.malformedIdentities, after.malformedIdentities);
+}
+
+bool CmdSketcherConstrainCoincidentUnified::abortIfCoincidentSolveRejected(
+    SketchObject* obj,
+    const CoincidentSolveStatus& before)
+{
+    if (before.status == SketchSolveStatus::InvalidGeometry) {
+        abortCommand();
+        tryAutoRecomputeIfNotSolve(obj);
+        showCoincidentSolveWarning(obj, SketchSolveStatus::InvalidGeometry);
+        return true;
+    }
+
+    auto solveResult = obj->solve();
+    auto after = getCoincidentSolveStatus(obj, solveResult);
+
+    if (!shouldRejectCoincidentSolve(before, after)) {
+        return false;
+    }
+
+    abortCommand();
+    tryAutoRecomputeIfNotSolve(obj);
+    showCoincidentSolveWarning(obj, after.status);
+    return true;
+}
 
 // ======================================================================================
 
@@ -4051,19 +5805,17 @@ CmdSketcherConstrainCoincident::CmdSketcherConstrainCoincident()
 {
     sAppModule = "Sketcher";
     sGroup = "Sketcher";
-    sMenuText = QT_TR_NOOP("Constrain coincident");
-    sToolTipText = QT_TR_NOOP("Create a coincident constraint between points, or a concentric "
-                              "constraint between circles, arcs, and ellipses");
+    sMenuText = QT_TR_NOOP("Coincident Constraint");
+    sToolTipText = QT_TR_NOOP("Constrains the selected elements to be coincident");
     sWhatsThis = "Sketcher_ConstrainCoincident";
     sStatusTip = sToolTipText;
     sPixmap = "Constraint_PointOnPoint";
     ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
         "User parameter:BaseApp/Preferences/Mod/Sketcher/Constraints");
-    sAccel = hGrp->GetBool("UnifiedCoincident", false) ? "C,C" : "C";
+    sAccel = hGrp->GetBool("UnifiedCoincident", true) ? "C,C" : "C";
     eType = ForEdit;
 
-    allowedSelSequences = {{SelVertex, SelVertexOrRoot},
-                           {SelRoot, SelVertex},
+    allowedSelSequences = {{SelVertexOrRoot, SelVertexOrRoot},
                            {SelEdge, SelEdge},
                            {SelEdge, SelExternalEdge},
                            {SelExternalEdge, SelEdge}};
@@ -4103,8 +5855,8 @@ CmdSketcherConstrainPointOnObject::CmdSketcherConstrainPointOnObject()
 {
     sAppModule = "Sketcher";
     sGroup = "Sketcher";
-    sMenuText = QT_TR_NOOP("Constrain point onto object");
-    sToolTipText = QT_TR_NOOP("Fix a point onto an object");
+    sMenuText = QT_TR_NOOP("Point-On-Object Constraint");
+    sToolTipText = QT_TR_NOOP("Constrains the selected point onto the selected object");
     sWhatsThis = "Sketcher_ConstrainPointOnObject";
     sStatusTip = sToolTipText;
     sPixmap = "Constraint_PointOnObject";
@@ -4155,55 +5907,34 @@ CmdSketcherConstrainDistance::CmdSketcherConstrainDistance()
 {
     sAppModule = "Sketcher";
     sGroup = "Sketcher";
-    sMenuText = QT_TR_NOOP("Constrain distance");
-    sToolTipText = QT_TR_NOOP("Fix a length of a line or the distance between a line and a vertex "
-        "or between two circles");
+    sMenuText = QT_TR_NOOP("Distance Dimension");
+    sToolTipText = QT_TR_NOOP("Constrains the vertical distance between two points, or from a point to the origin if one is selected");
     sWhatsThis = "Sketcher_ConstrainDistance";
     sStatusTip = sToolTipText;
     sPixmap = "Constraint_Length";
     sAccel = "K, D";
     eType = ForEdit;
 
-    allowedSelSequences = { {SelVertex, SelVertexOrRoot},
-                           {SelRoot, SelVertex},
+    allowedSelSequences = {{SelVertexOrRoot, SelVertexOrRoot},
                            {SelEdge},
                            {SelExternalEdge},
                            {SelVertex, SelEdgeOrAxis},
                            {SelRoot, SelEdge},
-                           {SelVertex, SelExternalEdge},
-                           {SelRoot, SelExternalEdge},
-                           {SelEdge, SelEdge} };
+                           {SelVertexOrRoot, SelExternalEdge},
+                           {SelEdge, SelEdge}};
 }
 
 void CmdSketcherConstrainDistance::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
-    // get the selection
-    std::vector<Gui::SelectionObject> selection = getSelection().getSelectionEx();
-
-    // only one sketch with its subelements are allowed to be selected
-    if (selection.size() != 1
-        || !selection[0].isObjectTypeOf(Sketcher::SketchObject::getClassTypeId())) {
-        ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
-            "User parameter:BaseApp/Preferences/Mod/Sketcher");
-        bool constraintMode = hGrp->GetBool("ContinuousConstraintMode", true);
-
-        if (constraintMode) {
-            ActivateHandler(getActiveGuiDocument(), new DrawSketchHandlerGenConstraint(this));
-
-            getSelection().clearSelection();
-        }
-        else {
-            Gui::TranslatedUserWarning(getActiveGuiDocument(),
-                QObject::tr("Wrong selection"),
-                QObject::tr("Select vertices from the sketch."));
-        }
+    auto selection = getConstraintSelection(this);
+    if (!selection) {
         return;
     }
 
     // get the needed lists and objects
-    const std::vector<std::string>& SubNames = selection[0].getSubNames();
-    Sketcher::SketchObject* Obj = static_cast<Sketcher::SketchObject*>(selection[0].getObject());
+    const std::vector<std::string>& SubNames = selection->getSubNames();
+    auto* Obj = static_cast<Sketcher::SketchObject*>(selection->getObject());
 
     if (SubNames.empty() || SubNames.size() > 2) {
         Gui::TranslatedUserWarning(Obj,
@@ -4239,8 +5970,8 @@ void CmdSketcherConstrainDistance::activated(int iMsg)
 
             openCommand(
                 QT_TRANSLATE_NOOP("Command", "Add distance from horizontal axis constraint"));
-            Gui::cmdAppObjectArgs(selection[0].getObject(),
-                "addConstraint(Sketcher.Constraint('DistanceY',%d,%d,%d,%d,%f))",
+            Gui::cmdAppObjectArgs(selection->getObject(),
+                "addConstraint(Sketcher.Constraint('DistanceY',%d,%d,%d,%d,%.8g))",
                 GeoId1,
                 static_cast<int>(PosId1),
                 GeoId2,
@@ -4251,8 +5982,8 @@ void CmdSketcherConstrainDistance::activated(int iMsg)
             PosId1 = Sketcher::PointPos::start;
 
             openCommand(QT_TRANSLATE_NOOP("Command", "Add distance from vertical axis constraint"));
-            Gui::cmdAppObjectArgs(selection[0].getObject(),
-                "addConstraint(Sketcher.Constraint('DistanceX',%d,%d,%d,%d,%f))",
+            Gui::cmdAppObjectArgs(selection->getObject(),
+                "addConstraint(Sketcher.Constraint('DistanceX',%d,%d,%d,%d,%.8g))",
                 GeoId1,
                 static_cast<int>(PosId1),
                 GeoId2,
@@ -4263,8 +5994,8 @@ void CmdSketcherConstrainDistance::activated(int iMsg)
             Base::Vector3d pnt1 = Obj->getPoint(GeoId1, PosId1);
 
             openCommand(QT_TRANSLATE_NOOP("Command", "Add point to point distance constraint"));
-            Gui::cmdAppObjectArgs(selection[0].getObject(),
-                "addConstraint(Sketcher.Constraint('Distance',%d,%d,%d,%d,%f))",
+            Gui::cmdAppObjectArgs(selection->getObject(),
+                "addConstraint(Sketcher.Constraint('Distance',%d,%d,%d,%d,%.8g))",
                 GeoId1,
                 static_cast<int>(PosId1),
                 GeoId2,
@@ -4272,19 +6003,8 @@ void CmdSketcherConstrainDistance::activated(int iMsg)
                 (pnt2 - pnt1).Length());
         }
 
-        if (arebothpointsorsegmentsfixed || constraintCreationMode == Reference) {
-            // it is a constraint on a external line, make it non-driving
-            const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-
-            Gui::cmdAppObjectArgs(selection[0].getObject(),
-                "setDriving(%d,%s)",
-                ConStr.size() - 1,
-                "False");
-            finishDatumConstraint(this, Obj, false);
-        }
-        else {
-            finishDatumConstraint(this, Obj, true);
-        }
+        finishDrivingDatumConstraint(
+            this, Obj, arebothpointsorsegmentsfixed || constraintCreationMode == Reference);
         return;
     }
     else if ((isVertex(GeoId1, PosId1) && isEdge(GeoId2, PosId2))
@@ -4305,28 +6025,16 @@ void CmdSketcherConstrainDistance::activated(int iMsg)
                 std::abs(-pnt.x * d.y + pnt.y * d.x + pnt1.x * pnt2.y - pnt2.x * pnt1.y)
                 / d.Length();
 
-            openCommand(QT_TRANSLATE_NOOP("Command", "Add point to line Distance constraint"));
-            Gui::cmdAppObjectArgs(selection[0].getObject(),
-                "addConstraint(Sketcher.Constraint('Distance',%d,%d,%d,%f))",
+            openCommand(QT_TRANSLATE_NOOP("Command", "Add point to line distance constraint"));
+            Gui::cmdAppObjectArgs(selection->getObject(),
+                "addConstraint(Sketcher.Constraint('Distance',%d,%d,%d,%.8g))",
                 GeoId1,
                 static_cast<int>(PosId1),
                 GeoId2,
                 ActDist);
 
-            if (arebothpointsorsegmentsfixed
-                || constraintCreationMode
-                == Reference) {// it is a constraint on a external line, make it non-driving
-                const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-
-                Gui::cmdAppObjectArgs(selection[0].getObject(),
-                    "setDriving(%d,%s)",
-                    ConStr.size() - 1,
-                    "False");
-                finishDatumConstraint(this, Obj, false);
-            }
-            else {
-                finishDatumConstraint(this, Obj, true);
-            }
+            finishDrivingDatumConstraint(
+                this, Obj, arebothpointsorsegmentsfixed || constraintCreationMode == Reference);
 
             return;
         }
@@ -4335,28 +6043,16 @@ void CmdSketcherConstrainDistance::activated(int iMsg)
             Base::Vector3d d = center - pnt;
             double ActDist = std::abs(d.Length() - radius);
 
-            openCommand(QT_TRANSLATE_NOOP("Command", "Add point to circle Distance constraint"));
-            Gui::cmdAppObjectArgs(selection[0].getObject(),
-                "addConstraint(Sketcher.Constraint('Distance',%d,%d,%d,%f))",
+            openCommand(QT_TRANSLATE_NOOP("Command", "Add point to circle distance constraint"));
+            Gui::cmdAppObjectArgs(selection->getObject(),
+                "addConstraint(Sketcher.Constraint('Distance',%d,%d,%d,%.8g))",
                 GeoId1,
                 static_cast<int>(PosId1),
                 GeoId2,
                 ActDist);
 
-            if (arebothpointsorsegmentsfixed
-                || constraintCreationMode
-                == Reference) {// it is a constraint on a external line, make it non-driving
-                const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-
-                Gui::cmdAppObjectArgs(selection[0].getObject(),
-                    "setDriving(%d,%s)",
-                    ConStr.size() - 1,
-                    "False");
-                finishDatumConstraint(this, Obj, false);
-            }
-            else {
-                finishDatumConstraint(this, Obj, true);
-            }
+            finishDrivingDatumConstraint(
+                this, Obj, arebothpointsorsegmentsfixed || constraintCreationMode == Reference);
 
             return;
         }
@@ -4387,26 +6083,14 @@ void CmdSketcherConstrainDistance::activated(int iMsg)
             }
 
             openCommand(QT_TRANSLATE_NOOP("Command", "Add circle to circle distance constraint"));
-            Gui::cmdAppObjectArgs(selection[0].getObject(),
-                                  "addConstraint(Sketcher.Constraint('Distance',%d,%d,%f))",
+            Gui::cmdAppObjectArgs(selection->getObject(),
+                                  "addConstraint(Sketcher.Constraint('Distance',%d,%d,%.8g))",
                                   GeoId1,
                                   GeoId2,
                                   ActDist);
 
-            if (arebothpointsorsegmentsfixed
-                || constraintCreationMode
-                    == Reference) {// it is a constraint on a external line, make it non-driving
-                const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-
-                Gui::cmdAppObjectArgs(selection[0].getObject(),
-                                      "setDriving(%d,%s)",
-                                      ConStr.size() - 1,
-                                      "False");
-                finishDatumConstraint(this, Obj, false);
-            }
-            else {
-                finishDatumConstraint(this, Obj, true);
-            }
+            finishDrivingDatumConstraint(
+                this, Obj, arebothpointsorsegmentsfixed || constraintCreationMode == Reference);
 
             return;
         }
@@ -4430,8 +6114,8 @@ void CmdSketcherConstrainDistance::activated(int iMsg)
                 - radius;
 
             openCommand(QT_TRANSLATE_NOOP("Command", "Add circle to line distance constraint"));
-            Gui::cmdAppObjectArgs(selection[0].getObject(),
-                "addConstraint(Sketcher.Constraint('Distance',%d,%d,%f)) ",
+            Gui::cmdAppObjectArgs(selection->getObject(),
+                "addConstraint(Sketcher.Constraint('Distance',%d,%d,%.8g)) ",
                 GeoId1,
                 GeoId2,
                 ActDist);
@@ -4441,7 +6125,7 @@ void CmdSketcherConstrainDistance::activated(int iMsg)
                 == Reference) {// it is a constraint on a external line, make it non-driving
                 const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
 
-                Gui::cmdAppObjectArgs(selection[0].getObject(),
+                Gui::cmdAppObjectArgs(selection->getObject(),
                     "setDriving(%i,%s)",
                     ConStr.size() - 1,
                     "False");
@@ -4478,25 +6162,30 @@ void CmdSketcherConstrainDistance::activated(int iMsg)
             double ActLength = (lineSeg->getEndPoint() - lineSeg->getStartPoint()).Length();
 
             openCommand(QT_TRANSLATE_NOOP("Command", "Add length constraint"));
-            Gui::cmdAppObjectArgs(selection[0].getObject(),
-                "addConstraint(Sketcher.Constraint('Distance',%d,%f))",
+            Gui::cmdAppObjectArgs(selection->getObject(),
+                "addConstraint(Sketcher.Constraint('Distance',%d,%.8g))",
                 GeoId1,
                 ActLength);
 
             // it is a constraint on a external line, make it non-driving
-            if (arebothpointsorsegmentsfixed || GeoId1 <= Sketcher::GeoEnum::RefExt
-                || constraintCreationMode == Reference) {
-                const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
+            finishDrivingDatumConstraint(
+                this, Obj, arebothpointsorsegmentsfixed || GeoId1 <= Sketcher::GeoEnum::RefExt || constraintCreationMode == Reference);
 
-                Gui::cmdAppObjectArgs(selection[0].getObject(),
-                    "setDriving(%d,%s)",
-                    ConStr.size() - 1,
-                    "False");
-                finishDatumConstraint(this, Obj, false);
-            }
-            else {
-                finishDatumConstraint(this, Obj, true);
-            }
+            return;
+        }
+        else if (isArcOfCircle(*geom)) {
+            auto arc = static_cast<const Part::GeomArcOfCircle*>(geom);
+            double ActLength = arc->getAngle(false) * arc->getRadius();
+
+            openCommand(QT_TRANSLATE_NOOP("Command", "Add length constraint"));
+            Gui::cmdAppObjectArgs(selection->getObject(),
+                "addConstraint(Sketcher.Constraint('Distance',%d,%.8g))",
+                GeoId1,
+                ActLength);
+
+            // it is a constraint on a external line, make it non-driving
+            finishDrivingDatumConstraint(
+                this, Obj, arebothpointsorsegmentsfixed || GeoId1 <= Sketcher::GeoEnum::RefExt || constraintCreationMode == Reference);
 
             return;
         }
@@ -4521,8 +6210,7 @@ void CmdSketcherConstrainDistance::applyConstraint(std::vector<SelIdPair>& selSe
     bool arebothpointsorsegmentsfixed = areBothPointsOrSegmentsFixed(Obj, GeoId1, GeoId2);
 
     switch (seqIndex) {
-    case 0:// {SelVertex, SelVertexOrRoot}
-    case 1:// {SelRoot, SelVertex}
+    case 0:// {SelVertexOrRoot, SelVertexOrRoot}
     {
         GeoId1 = selSeq.at(0).GeoId;
         GeoId2 = selSeq.at(1).GeoId;
@@ -4538,7 +6226,7 @@ void CmdSketcherConstrainDistance::applyConstraint(std::vector<SelIdPair>& selSe
                 QT_TRANSLATE_NOOP("Command", "Add distance from horizontal axis constraint"));
             Gui::cmdAppObjectArgs(
                 Obj,
-                "addConstraint(Sketcher.Constraint('DistanceY',%d,%d,%d,%d,%f))",
+                "addConstraint(Sketcher.Constraint('DistanceY',%d,%d,%d,%d,%.8g))",
                 GeoId1,
                 static_cast<int>(PosId1),
                 GeoId2,
@@ -4552,7 +6240,7 @@ void CmdSketcherConstrainDistance::applyConstraint(std::vector<SelIdPair>& selSe
                 QT_TRANSLATE_NOOP("Command", "Add distance from vertical axis constraint"));
             Gui::cmdAppObjectArgs(
                 Obj,
-                "addConstraint(Sketcher.Constraint('DistanceX',%d,%d,%d,%d,%f))",
+                "addConstraint(Sketcher.Constraint('DistanceX',%d,%d,%d,%d,%.8g))",
                 GeoId1,
                 static_cast<int>(PosId1),
                 GeoId2,
@@ -4565,7 +6253,7 @@ void CmdSketcherConstrainDistance::applyConstraint(std::vector<SelIdPair>& selSe
             openCommand(QT_TRANSLATE_NOOP("Command", "Add point to point distance constraint"));
             Gui::cmdAppObjectArgs(
                 Obj,
-                "addConstraint(Sketcher.Constraint('Distance',%d,%d,%d,%d,%f))",
+                "addConstraint(Sketcher.Constraint('Distance',%d,%d,%d,%d,%.8g))",
                 GeoId1,
                 static_cast<int>(PosId1),
                 GeoId2,
@@ -4573,21 +6261,13 @@ void CmdSketcherConstrainDistance::applyConstraint(std::vector<SelIdPair>& selSe
                 (pnt2 - pnt1).Length());
         }
 
-        if (arebothpointsorsegmentsfixed || constraintCreationMode == Reference) {
-            // it is a constraint on a external line, make it non-driving
-            const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-
-            Gui::cmdAppObjectArgs(Obj, "setDriving(%d,%s)", ConStr.size() - 1, "False");
-            finishDatumConstraint(this, Obj, false);
-        }
-        else {
-            finishDatumConstraint(this, Obj, true);
-        }
+        finishDrivingDatumConstraint(
+            this, Obj, arebothpointsorsegmentsfixed || constraintCreationMode == Reference);
 
         return;
     }
-    case 2:// {SelEdge}
-    case 3:// {SelExternalEdge}
+    case 1:// {SelEdge}
+    case 2:// {SelExternalEdge}
     {
         GeoId1 = selSeq.at(0).GeoId;
 
@@ -4595,27 +6275,25 @@ void CmdSketcherConstrainDistance::applyConstraint(std::vector<SelIdPair>& selSe
 
         const Part::Geometry* geom = Obj->getGeometry(GeoId1);
 
-        if (isLineSegment(*geom)) {
-            auto lineSeg = static_cast<const Part::GeomLineSegment*>(geom);
-            double ActLength = (lineSeg->getEndPoint() - lineSeg->getStartPoint()).Length();
+        if (isLineSegment(*geom) || isArcOfCircle(*geom)) {
+            double ActLength = 0.;
+            if (isLineSegment(*geom)) {
+                auto lineSeg = static_cast<const Part::GeomLineSegment*>(geom);
+                ActLength = (lineSeg->getEndPoint() - lineSeg->getStartPoint()).Length();
+            }
+            else if (isArcOfCircle(*geom)) {
+                auto arc = static_cast<const Part::GeomArcOfCircle*>(geom);
+                ActLength = arc->getAngle(false) * arc->getRadius();
+            }
 
             openCommand(QT_TRANSLATE_NOOP("Command", "Add length constraint"));
             Gui::cmdAppObjectArgs(Obj,
-                "addConstraint(Sketcher.Constraint('Distance',%d,%f))",
+                "addConstraint(Sketcher.Constraint('Distance',%d,%.8g))",
                 GeoId1,
                 ActLength);
 
-            if (arebothpointsorsegmentsfixed || GeoId1 <= Sketcher::GeoEnum::RefExt
-                || constraintCreationMode == Reference) {
-                // it is a constraint on a external line, make it non-driving
-                const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-
-                Gui::cmdAppObjectArgs(Obj, "setDriving(%d,%s)", ConStr.size() - 1, "False");
-                finishDatumConstraint(this, Obj, false);
-            }
-            else {
-                finishDatumConstraint(this, Obj, true);
-            }
+            finishDrivingDatumConstraint(
+                this, Obj, arebothpointsorsegmentsfixed || GeoId1 <= Sketcher::GeoEnum::RefExt || constraintCreationMode == Reference);
         }
         else if (isCircle(*geom)) {
             // allow this selection but do nothing as it needs 2 circles or 1 circle and 1 line
@@ -4629,10 +6307,9 @@ void CmdSketcherConstrainDistance::applyConstraint(std::vector<SelIdPair>& selSe
 
         return;
     }
-    case 4:// {SelVertex, SelEdgeOrAxis}
-    case 5:// {SelRoot, SelEdge}
-    case 6:// {SelVertex, SelExternalEdge}
-    case 7:// {SelRoot, SelExternalEdge}
+    case 3:// {SelVertex, SelEdgeOrAxis}
+    case 4:// {SelRoot, SelEdge}
+    case 5:// {SelVertexOrRoot, SelExternalEdge}
     {
         GeoId1 = selSeq.at(0).GeoId;
         GeoId2 = selSeq.at(1).GeoId;
@@ -4650,29 +6327,21 @@ void CmdSketcherConstrainDistance::applyConstraint(std::vector<SelIdPair>& selSe
                 std::abs(-pnt.x * d.y + pnt.y * d.x + pnt1.x * pnt2.y - pnt2.x * pnt1.y)
                 / d.Length();
 
-            openCommand(QT_TRANSLATE_NOOP("Command", "Add point to line Distance constraint"));
+            openCommand(QT_TRANSLATE_NOOP("Command", "Add point to line distance constraint"));
             Gui::cmdAppObjectArgs(Obj,
-                "addConstraint(Sketcher.Constraint('Distance',%d,%d,%d,%f))",
+                "addConstraint(Sketcher.Constraint('Distance',%d,%d,%d,%.8g))",
                 GeoId1,
                 static_cast<int>(PosId1),
                 GeoId2,
                 ActDist);
 
-            if (arebothpointsorsegmentsfixed || constraintCreationMode == Reference) {
-                // it is a constraint on a external line, make it non-driving
-                const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-
-                Gui::cmdAppObjectArgs(Obj, "setDriving(%d,%s)", ConStr.size() - 1, "False");
-                finishDatumConstraint(this, Obj, false);
-            }
-            else {
-                finishDatumConstraint(this, Obj, true);
-            }
+            finishDrivingDatumConstraint(
+                this, Obj, arebothpointsorsegmentsfixed || constraintCreationMode == Reference);
         }
 
         return;
     }
-    case 8:// {SelEdge, SelEdge}
+    case 6:// {SelEdge, SelEdge}
     {
         GeoId1 = selSeq.at(0).GeoId;
         GeoId2 = selSeq.at(1).GeoId;
@@ -4707,22 +6376,13 @@ void CmdSketcherConstrainDistance::applyConstraint(std::vector<SelIdPair>& selSe
             openCommand(
                 QT_TRANSLATE_NOOP("Command", "Add circle to circle distance constraint"));
             Gui::cmdAppObjectArgs(Obj,
-                "addConstraint(Sketcher.Constraint('Distance',%d,%d,%f))",
+                "addConstraint(Sketcher.Constraint('Distance',%d,%d,%.8g))",
                 GeoId1,
                 GeoId2,
                 ActDist);
 
-            if (arebothpointsorsegmentsfixed
-                || constraintCreationMode
-                == Reference) {// it is a constraint on a external line, make it non-driving
-                const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-
-                Gui::cmdAppObjectArgs(Obj, "setDriving(%d,%s)", ConStr.size() - 1, "False");
-                finishDatumConstraint(this, Obj, false);
-            }
-            else {
-                finishDatumConstraint(this, Obj, true);
-            }
+            finishDrivingDatumConstraint(
+                this, Obj, arebothpointsorsegmentsfixed || constraintCreationMode == Reference);
 
             return;
         }
@@ -4741,19 +6401,7 @@ void CmdSketcherConstrainDistance::applyConstraint(std::vector<SelIdPair>& selSe
 
 void CmdSketcherConstrainDistance::updateAction(int mode)
 {
-    switch (mode) {
-    case Reference:
-        if (getAction()) {
-            getAction()->setIcon(
-                Gui::BitmapFactory().iconFromTheme("Constraint_Length_Driven"));
-        }
-        break;
-    case Driving:
-        if (getAction()) {
-            getAction()->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_Length"));
-        }
-        break;
-    }
+    updateDimensionIcon(this, mode, "Constraint_Length");
 }
 
 // ======================================================================================
@@ -4780,9 +6428,8 @@ CmdSketcherConstrainDistanceX::CmdSketcherConstrainDistanceX()
 {
     sAppModule = "Sketcher";
     sGroup = "Sketcher";
-    sMenuText = QT_TR_NOOP("Constrain horizontal distance");
-    sToolTipText = QT_TR_NOOP("Fix the horizontal distance "
-                              "between two points or line ends");
+    sMenuText = QT_TR_NOOP("Horizontal Dimension");
+    sToolTipText = QT_TR_NOOP("Constrains the horizontal distance between two points, or from a point to the origin if only one is selected");
     sWhatsThis = "Sketcher_ConstrainDistanceX";
     sStatusTip = sToolTipText;
     sPixmap = "Constraint_HorizontalDistance";
@@ -4790,41 +6437,21 @@ CmdSketcherConstrainDistanceX::CmdSketcherConstrainDistanceX()
     eType = ForEdit;
 
     // Can't do single vertex because its a prefix for 2 vertices
-    allowedSelSequences = {{SelVertex, SelVertexOrRoot},
-                           {SelRoot, SelVertex},
+    allowedSelSequences = {{SelVertexOrRoot, SelVertexOrRoot},
                            {SelEdge},
                            {SelExternalEdge}};
 }
 
-void CmdSketcherConstrainDistanceX::activated(int iMsg)
+static void activateCoordinateDistanceConstraint(CmdSketcherConstraint* cmd, bool horizontal)
 {
-    Q_UNUSED(iMsg);
-    // get the selection
-    std::vector<Gui::SelectionObject> selection = getSelection().getSelectionEx();
-
-    // only one sketch with its subelements are allowed to be selected
-    if (selection.size() != 1
-        || !selection[0].isObjectTypeOf(Sketcher::SketchObject::getClassTypeId())) {
-        ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
-            "User parameter:BaseApp/Preferences/Mod/Sketcher");
-        bool constraintMode = hGrp->GetBool("ContinuousConstraintMode", true);
-
-        if (constraintMode) {
-            ActivateHandler(getActiveGuiDocument(), new DrawSketchHandlerGenConstraint(this));
-            getSelection().clearSelection();
-        }
-        else {
-            // TODO: Get the exact message from git history and put it here
-            Gui::TranslatedUserWarning(getActiveGuiDocument(),
-                                       QObject::tr("Wrong selection"),
-                                       QObject::tr("Select the right things from the sketch."));
-        }
+    auto selection = getConstraintSelection(cmd);
+    if (!selection) {
         return;
     }
 
     // get the needed lists and objects
-    const std::vector<std::string>& SubNames = selection[0].getSubNames();
-    Sketcher::SketchObject* Obj = static_cast<Sketcher::SketchObject*>(selection[0].getObject());
+    const std::vector<std::string>& SubNames = selection->getSubNames();
+    auto* Obj = static_cast<Sketcher::SketchObject*>(selection->getObject());
 
     if (SubNames.empty() || SubNames.size() > 2) {
         Gui::TranslatedUserWarning(
@@ -4848,22 +6475,25 @@ void CmdSketcherConstrainDistanceX::activated(int iMsg)
         std::swap(PosId1, PosId2);
     }
 
-    if (GeoId1 == Sketcher::GeoEnum::HAxis && PosId1 == Sketcher::PointPos::none) {
-        // reject horizontal axis from selection
+    if (GeoId1 == (horizontal ? Sketcher::GeoEnum::HAxis : Sketcher::GeoEnum::VAxis)
+        && PosId1 == Sketcher::PointPos::none) {
+        // Reject the axis parallel to the requested coordinate.
         GeoId1 = GeoEnum::GeoUndef;
     }
-    else if (GeoId1 == Sketcher::GeoEnum::VAxis && PosId1 == Sketcher::PointPos::none) {
+    else if (GeoId1 == (horizontal ? Sketcher::GeoEnum::VAxis : Sketcher::GeoEnum::HAxis)
+             && PosId1 == Sketcher::PointPos::none) {
         GeoId1 = Sketcher::GeoEnum::HAxis;
         PosId1 = Sketcher::PointPos::start;
     }
 
     if (isEdge(GeoId1, PosId1) && GeoId2 == GeoEnum::GeoUndef) {
-        // horizontal length of a line
+        // Coordinate length of a line.
         if (GeoId1 < 0 && GeoId1 >= Sketcher::GeoEnum::VAxis) {
             Gui::TranslatedUserWarning(
                 Obj,
                 QObject::tr("Wrong selection"),
-                QObject::tr("Cannot add a horizontal length constraint on an axis!"));
+                horizontal ? QObject::tr("Cannot add a horizontal length constraint on an axis!")
+                           : QObject::tr("Cannot add a vertical length constraint on an axis!"));
             return;
         }
 
@@ -4879,10 +6509,10 @@ void CmdSketcherConstrainDistanceX::activated(int iMsg)
         }
     }
     if (isVertex(GeoId1, PosId1) && isVertex(GeoId2, PosId2)) {
-        // point to point horizontal distance
+        // Coordinate distance between two points.
         Base::Vector3d pnt1 = Obj->getPoint(GeoId1, PosId1);
         Base::Vector3d pnt2 = Obj->getPoint(GeoId2, PosId2);
-        double ActLength = pnt2.x - pnt1.x;
+        double ActLength = horizontal ? pnt2.x - pnt1.x : pnt2.y - pnt1.y;
 
         // negative sign avoidance: swap the points to make value positive
         if (ActLength < -Precision::Confusion()) {
@@ -4892,68 +6522,53 @@ void CmdSketcherConstrainDistanceX::activated(int iMsg)
             ActLength = -ActLength;
         }
 
-        openCommand(
-            QT_TRANSLATE_NOOP("Command", "Add point to point horizontal distance constraint"));
-        Gui::cmdAppObjectArgs(selection[0].getObject(),
-                              "addConstraint(Sketcher.Constraint('DistanceX',%d,%d,%d,%d,%f))",
+        cmd->openCommand(horizontal
+            ? QT_TRANSLATE_NOOP("Command", "Add point to point horizontal distance constraint")
+            : QT_TRANSLATE_NOOP("Command", "Add point to point vertical distance constraint"));
+        Gui::cmdAppObjectArgs(selection->getObject(),
+                              "addConstraint(Sketcher.Constraint('%s',%d,%d,%d,%d,%.8g))",
+                              horizontal ? "DistanceX" : "DistanceY",
                               GeoId1,
                               static_cast<int>(PosId1),
                               GeoId2,
                               static_cast<int>(PosId2),
                               ActLength);
 
-        if (arebothpointsorsegmentsfixed || constraintCreationMode == Reference) {
-            // it is a constraint on a external line, make it non-driving
-            const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-
-            Gui::cmdAppObjectArgs(selection[0].getObject(),
-                                  "setDriving(%d,%s)",
-                                  ConStr.size() - 1,
-                                  "False");
-            finishDatumConstraint(this, Obj, false);
-        }
-        else {
-            finishDatumConstraint(this, Obj, true);
-        }
+        finishDrivingDatumConstraint(
+            cmd, Obj, arebothpointsorsegmentsfixed || constraintCreationMode == Reference);
 
         return;
     }
     else if (isVertex(GeoId1, PosId1) && GeoId2 == GeoEnum::GeoUndef) {
-        // point on fixed x-coordinate
+        // Coordinate of a point relative to the origin.
 
         if (GeoId1 < 0 && GeoId1 >= Sketcher::GeoEnum::VAxis) {
             Gui::TranslatedUserWarning(
                 Obj,
                 QObject::tr("Wrong selection"),
-                QObject::tr("Cannot add a fixed x-coordinate constraint on the origin point!"));
+                horizontal ? QObject::tr("Cannot add a fixed x-coordinate constraint on the origin point!")
+                           : QObject::tr("Cannot add a fixed y-coordinate constraint on the origin point!"));
             return;
         }
 
         Base::Vector3d pnt = Obj->getPoint(GeoId1, PosId1);
-        double ActX = pnt.x;
+        double coordinate = horizontal ? pnt.x : pnt.y;
 
         arebothpointsorsegmentsfixed = isPointOrSegmentFixed(Obj, GeoId1);
 
-        openCommand(QT_TRANSLATE_NOOP("Command", "Add fixed x-coordinate constraint"));
-        Gui::cmdAppObjectArgs(selection[0].getObject(),
-                              "addConstraint(Sketcher.Constraint('DistanceX',%d,%d,%f))",
+        cmd->openCommand(horizontal
+            ? QT_TRANSLATE_NOOP("Command", "Add fixed x-coordinate constraint")
+            : QT_TRANSLATE_NOOP("Command", "Add fixed y-coordinate constraint"));
+        Gui::cmdAppObjectArgs(selection->getObject(),
+                              "addConstraint(Sketcher.Constraint('%s',%d,%d,%.8g))",
+                              horizontal ? "DistanceX" : "DistanceY",
                               GeoId1,
                               static_cast<int>(PosId1),
-                              ActX);
+                              coordinate);
 
-        if (arebothpointsorsegmentsfixed || constraintCreationMode == Reference) {
-            // it is a constraint on a external line, make it non-driving
-            const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-
-            Gui::cmdAppObjectArgs(selection[0].getObject(),
-                                  "setDriving(%d,%s)",
-                                  ConStr.size() - 1,
-                                  "False");
-            finishDatumConstraint(this, Obj, false);
-        }
-        else {
-            finishDatumConstraint(this, Obj, true);
-        }
+        finishDrivingDatumConstraint(
+            cmd, Obj, GeoId1 <= Sketcher::GeoEnum::RefExt || arebothpointsorsegmentsfixed
+                || constraintCreationMode == Reference);
 
         return;
     }
@@ -4965,18 +6580,26 @@ void CmdSketcherConstrainDistanceX::activated(int iMsg)
     return;
 }
 
-void CmdSketcherConstrainDistanceX::applyConstraint(std::vector<SelIdPair>& selSeq, int seqIndex)
+void CmdSketcherConstrainDistanceX::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+    activateCoordinateDistanceConstraint(this, true);
+}
+
+static void applyCoordinateDistanceConstraint(Gui::Command* cmd,
+                                              const std::vector<SelIdPair>& selSeq,
+                                              int seqIndex,
+                                              bool horizontal)
 {
     SketcherGui::ViewProviderSketch* sketchgui =
-        static_cast<SketcherGui::ViewProviderSketch*>(getActiveGuiDocument()->getInEdit());
+        static_cast<SketcherGui::ViewProviderSketch*>(cmd->getActiveGuiDocument()->getInEdit());
     Sketcher::SketchObject* Obj = sketchgui->getSketchObject();
 
     int GeoId1 = GeoEnum::GeoUndef, GeoId2 = GeoEnum::GeoUndef;
     Sketcher::PointPos PosId1 = Sketcher::PointPos::none, PosId2 = Sketcher::PointPos::none;
 
     switch (seqIndex) {
-        case 0:// {SelVertex, SelVertexOrRoot}
-        case 1:// {SelRoot, SelVertex}
+        case 0:// {SelVertexOrRoot, SelVertexOrRoot}
         {
             GeoId1 = selSeq.at(0).GeoId;
             GeoId2 = selSeq.at(1).GeoId;
@@ -4984,8 +6607,8 @@ void CmdSketcherConstrainDistanceX::applyConstraint(std::vector<SelIdPair>& selS
             PosId2 = selSeq.at(1).PosId;
             break;
         }
-        case 2:// {SelEdge}
-        case 3:// {SelExternalEdge}
+        case 1:// {SelEdge}
+        case 2:// {SelExternalEdge}
         {
             GeoId1 = GeoId2 = selSeq.at(0).GeoId;
             PosId1 = Sketcher::PointPos::start;
@@ -5010,7 +6633,7 @@ void CmdSketcherConstrainDistanceX::applyConstraint(std::vector<SelIdPair>& selS
 
     Base::Vector3d pnt1 = Obj->getPoint(GeoId1, PosId1);
     Base::Vector3d pnt2 = Obj->getPoint(GeoId2, PosId2);
-    double ActLength = pnt2.x - pnt1.x;
+    double ActLength = horizontal ? pnt2.x - pnt1.x : pnt2.y - pnt1.y;
 
     // negative sign avoidance: swap the points to make value positive
     if (ActLength < -Precision::Confusion()) {
@@ -5020,43 +6643,30 @@ void CmdSketcherConstrainDistanceX::applyConstraint(std::vector<SelIdPair>& selS
         ActLength = -ActLength;
     }
 
-    openCommand(QT_TRANSLATE_NOOP("Command", "Add point to point horizontal distance constraint"));
+    cmd->openCommand(horizontal
+        ? QT_TRANSLATE_NOOP("Command", "Add point to point horizontal distance constraint")
+        : QT_TRANSLATE_NOOP("Command", "Add point to point vertical distance constraint"));
     Gui::cmdAppObjectArgs(Obj,
-                          "addConstraint(Sketcher.Constraint('DistanceX',%d,%d,%d,%d,%f))",
+                          "addConstraint(Sketcher.Constraint('%s',%d,%d,%d,%d,%.8g))",
+                          horizontal ? "DistanceX" : "DistanceY",
                           GeoId1,
                           static_cast<int>(PosId1),
                           GeoId2,
                           static_cast<int>(PosId2),
                           ActLength);
 
-    if (areBothPointsOrSegmentsFixed(Obj, GeoId1, GeoId2) || constraintCreationMode == Reference) {
-        // it is a constraint on a external line, make it non-driving
-        const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
+    finishDrivingDatumConstraint(
+        cmd, Obj, areBothPointsOrSegmentsFixed(Obj, GeoId1, GeoId2) || constraintCreationMode == Reference);
+}
 
-        Gui::cmdAppObjectArgs(Obj, "setDriving(%d,%s)", ConStr.size() - 1, "False");
-        finishDatumConstraint(this, Obj, false);
-    }
-    else {
-        finishDatumConstraint(this, Obj, true);
-    }
+void CmdSketcherConstrainDistanceX::applyConstraint(std::vector<SelIdPair>& selSeq, int seqIndex)
+{
+    applyCoordinateDistanceConstraint(this, selSeq, seqIndex, true);
 }
 
 void CmdSketcherConstrainDistanceX::updateAction(int mode)
 {
-    switch (mode) {
-        case Reference:
-            if (getAction()) {
-                getAction()->setIcon(
-                    Gui::BitmapFactory().iconFromTheme("Constraint_HorizontalDistance_Driven"));
-            }
-            break;
-        case Driving:
-            if (getAction()) {
-                getAction()->setIcon(
-                    Gui::BitmapFactory().iconFromTheme("Constraint_HorizontalDistance"));
-            }
-            break;
-    }
+    updateDimensionIcon(this, mode, "Constraint_HorizontalDistance");
 }
 
 
@@ -5084,8 +6694,8 @@ CmdSketcherConstrainDistanceY::CmdSketcherConstrainDistanceY()
 {
     sAppModule = "Sketcher";
     sGroup = "Sketcher";
-    sMenuText = QT_TR_NOOP("Constrain vertical distance");
-    sToolTipText = QT_TR_NOOP("Fix the vertical distance between two points or line ends");
+    sMenuText = QT_TR_NOOP("Vertical Dimension");
+    sToolTipText = QT_TR_NOOP("Constrains the vertical distance between two points, or from a point to the origin if only one is selected");
     sWhatsThis = "Sketcher_ConstrainDistanceY";
     sStatusTip = sToolTipText;
     sPixmap = "Constraint_VerticalDistance";
@@ -5093,8 +6703,7 @@ CmdSketcherConstrainDistanceY::CmdSketcherConstrainDistanceY()
     eType = ForEdit;
 
     // Can't do single vertex because its a prefix for 2 vertices
-    allowedSelSequences = {{SelVertex, SelVertexOrRoot},
-                           {SelRoot, SelVertex},
+    allowedSelSequences = {{SelVertexOrRoot, SelVertexOrRoot},
                            {SelEdge},
                            {SelExternalEdge}};
 }
@@ -5102,261 +6711,17 @@ CmdSketcherConstrainDistanceY::CmdSketcherConstrainDistanceY()
 void CmdSketcherConstrainDistanceY::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
-    // get the selection
-    std::vector<Gui::SelectionObject> selection = getSelection().getSelectionEx();
-
-    // only one sketch with its subelements are allowed to be selected
-    if (selection.size() != 1
-        || !selection[0].isObjectTypeOf(Sketcher::SketchObject::getClassTypeId())) {
-        ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
-            "User parameter:BaseApp/Preferences/Mod/Sketcher");
-        bool constraintMode = hGrp->GetBool("ContinuousConstraintMode", true);
-
-        if (constraintMode) {
-            ActivateHandler(getActiveGuiDocument(), new DrawSketchHandlerGenConstraint(this));
-            getSelection().clearSelection();
-        }
-        else {
-            // TODO: Get the exact message from git history and put it here
-            Gui::TranslatedUserWarning(getActiveGuiDocument(),
-                                       QObject::tr("Wrong selection"),
-                                       QObject::tr("Select the right things from the sketch."));
-        }
-        return;
-    }
-
-    // get the needed lists and objects
-    const std::vector<std::string>& SubNames = selection[0].getSubNames();
-    Sketcher::SketchObject* Obj = static_cast<Sketcher::SketchObject*>(selection[0].getObject());
-
-    if (SubNames.empty() || SubNames.size() > 2) {
-        Gui::TranslatedUserWarning(
-            Obj,
-            QObject::tr("Wrong selection"),
-            QObject::tr("Select exactly one line or up to two points from the sketch."));
-        return;
-    }
-
-    int GeoId1, GeoId2 = GeoEnum::GeoUndef;
-    Sketcher::PointPos PosId1, PosId2 = Sketcher::PointPos::none;
-    getIdsFromName(SubNames[0], Obj, GeoId1, PosId1);
-    if (SubNames.size() == 2) {
-        getIdsFromName(SubNames[1], Obj, GeoId2, PosId2);
-    }
-
-    bool arebothpointsorsegmentsfixed = areBothPointsOrSegmentsFixed(Obj, GeoId1, GeoId2);
-
-    if (GeoId2 == Sketcher::GeoEnum::HAxis || GeoId2 == Sketcher::GeoEnum::VAxis) {
-        std::swap(GeoId1, GeoId2);
-        std::swap(PosId1, PosId2);
-    }
-
-    if (GeoId1 == Sketcher::GeoEnum::VAxis
-        && PosId1 == Sketcher::PointPos::none) {// reject vertical axis from selection
-        GeoId1 = GeoEnum::GeoUndef;
-    }
-    else if (GeoId1 == Sketcher::GeoEnum::HAxis && PosId1 == Sketcher::PointPos::none) {
-        PosId1 = Sketcher::PointPos::start;
-    }
-
-    if (isEdge(GeoId1, PosId1) && GeoId2 == GeoEnum::GeoUndef) {// vertical length of a line
-        if (GeoId1 < 0 && GeoId1 >= Sketcher::GeoEnum::VAxis) {
-            Gui::TranslatedUserWarning(
-                Obj,
-                QObject::tr("Wrong selection"),
-                QObject::tr("Cannot add a vertical length constraint on an axis!"));
-            return;
-        }
-
-        arebothpointsorsegmentsfixed = isPointOrSegmentFixed(Obj, GeoId1);
-
-        const Part::Geometry* geom = Obj->getGeometry(GeoId1);
-
-        if (isLineSegment(*geom)) {
-            // convert to as if two endpoints of the line have been selected
-            PosId1 = Sketcher::PointPos::start;
-            GeoId2 = GeoId1;
-            PosId2 = Sketcher::PointPos::end;
-        }
-    }
-
-    if (isVertex(GeoId1, PosId1) && isVertex(GeoId2, PosId2)) {
-        // point to point vertical distance
-        Base::Vector3d pnt1 = Obj->getPoint(GeoId1, PosId1);
-        Base::Vector3d pnt2 = Obj->getPoint(GeoId2, PosId2);
-        double ActLength = pnt2.y - pnt1.y;
-
-        // negative sign avoidance: swap the points to make value positive
-        if (ActLength < -Precision::Confusion()) {
-            std::swap(GeoId1, GeoId2);
-            std::swap(PosId1, PosId2);
-            std::swap(pnt1, pnt2);
-            ActLength = -ActLength;
-        }
-
-        openCommand(
-            QT_TRANSLATE_NOOP("Command", "Add point to point vertical distance constraint"));
-        Gui::cmdAppObjectArgs(selection[0].getObject(),
-                              "addConstraint(Sketcher.Constraint('DistanceY',%d,%d,%d,%d,%f))",
-                              GeoId1,
-                              static_cast<int>(PosId1),
-                              GeoId2,
-                              static_cast<int>(PosId2),
-                              ActLength);
-
-        if (arebothpointsorsegmentsfixed || constraintCreationMode == Reference) {
-            // it is a constraint on a external line, make it non-driving
-            const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-
-            Gui::cmdAppObjectArgs(selection[0].getObject(),
-                                  "setDriving(%d,%s)",
-                                  ConStr.size() - 1,
-                                  "False");
-            finishDatumConstraint(this, Obj, false);
-        }
-        else {
-            finishDatumConstraint(this, Obj, true);
-        }
-
-        return;
-    }
-    else if (isVertex(GeoId1, PosId1) && GeoId2 == GeoEnum::GeoUndef) {
-        // point on fixed y-coordinate
-        if (GeoId1 < 0 && GeoId1 >= Sketcher::GeoEnum::VAxis) {
-            Gui::TranslatedUserWarning(
-                Obj,
-                QObject::tr("Wrong selection"),
-                QObject::tr("Cannot add a fixed y-coordinate constraint on the origin point!"));
-            return;
-        }
-
-        Base::Vector3d pnt = Obj->getPoint(GeoId1, PosId1);
-        double ActY = pnt.y;
-
-        openCommand(QT_TRANSLATE_NOOP("Command", "Add fixed y-coordinate constraint"));
-        Gui::cmdAppObjectArgs(selection[0].getObject(),
-                              "addConstraint(Sketcher.Constraint('DistanceY',%d,%d,%f))",
-                              GeoId1,
-                              static_cast<int>(PosId1),
-                              ActY);
-
-        if (GeoId1 <= Sketcher::GeoEnum::RefExt || constraintCreationMode == Reference) {
-            // it is a constraint on a external line, make it non-driving
-            const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-
-            Gui::cmdAppObjectArgs(selection[0].getObject(),
-                                  "setDriving(%d,%s)",
-                                  ConStr.size() - 1,
-                                  "False");
-            finishDatumConstraint(this, Obj, false);
-        }
-        else {
-            finishDatumConstraint(this, Obj, true);
-        }
-
-        return;
-    }
-
-    Gui::TranslatedUserWarning(
-        Obj,
-        QObject::tr("Wrong selection"),
-        QObject::tr("Select exactly one line or up to two points from the sketch."));
-    return;
+    activateCoordinateDistanceConstraint(this, false);
 }
 
 void CmdSketcherConstrainDistanceY::applyConstraint(std::vector<SelIdPair>& selSeq, int seqIndex)
 {
-    SketcherGui::ViewProviderSketch* sketchgui =
-        static_cast<SketcherGui::ViewProviderSketch*>(getActiveGuiDocument()->getInEdit());
-    Sketcher::SketchObject* Obj = sketchgui->getSketchObject();
-
-    int GeoId1 = GeoEnum::GeoUndef, GeoId2 = GeoEnum::GeoUndef;
-    Sketcher::PointPos PosId1 = Sketcher::PointPos::none, PosId2 = Sketcher::PointPos::none;
-
-    switch (seqIndex) {
-        case 0:// {SelVertex, SelVertexOrRoot}
-        case 1:// {SelRoot, SelVertex}
-        {
-            GeoId1 = selSeq.at(0).GeoId;
-            GeoId2 = selSeq.at(1).GeoId;
-            PosId1 = selSeq.at(0).PosId;
-            PosId2 = selSeq.at(1).PosId;
-            break;
-        }
-        case 2:// {SelEdge}
-        case 3:// {SelExternalEdge}
-        {
-            GeoId1 = GeoId2 = selSeq.at(0).GeoId;
-            PosId1 = Sketcher::PointPos::start;
-            PosId2 = Sketcher::PointPos::end;
-
-            const Part::Geometry* geom = Obj->getGeometry(GeoId1);
-
-            if (! isLineSegment(*geom)) {
-                Gui::TranslatedUserWarning(
-                    Obj,
-                    QObject::tr("Wrong selection"),
-                    QObject::tr(
-                        "This constraint only makes sense on a line segment or a pair of points."));
-                return;
-            }
-
-            break;
-        }
-        default:
-            break;
-    }
-
-    Base::Vector3d pnt1 = Obj->getPoint(GeoId1, PosId1);
-    Base::Vector3d pnt2 = Obj->getPoint(GeoId2, PosId2);
-    double ActLength = pnt2.y - pnt1.y;
-
-    // negative sign avoidance: swap the points to make value positive
-    if (ActLength < -Precision::Confusion()) {
-        std::swap(GeoId1, GeoId2);
-        std::swap(PosId1, PosId2);
-        std::swap(pnt1, pnt2);
-        ActLength = -ActLength;
-    }
-
-    openCommand(QT_TRANSLATE_NOOP("Command", "Add point to point vertical distance constraint"));
-    Gui::cmdAppObjectArgs(Obj,
-                          "addConstraint(Sketcher.Constraint('DistanceY',%d,%d,%d,%d,%f))",
-                          GeoId1,
-                          static_cast<int>(PosId1),
-                          GeoId2,
-                          static_cast<int>(PosId2),
-                          ActLength);
-
-    if (areBothPointsOrSegmentsFixed(Obj, GeoId1, GeoId2)
-        || constraintCreationMode
-            == Reference) {// it is a constraint on a external line, make it non-driving
-        const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-
-        Gui::cmdAppObjectArgs(Obj, "setDriving(%d,%s)", ConStr.size() - 1, "False");
-        finishDatumConstraint(this, Obj, false);
-    }
-    else {
-        finishDatumConstraint(this, Obj, true);
-    }
+    applyCoordinateDistanceConstraint(this, selSeq, seqIndex, false);
 }
 
 void CmdSketcherConstrainDistanceY::updateAction(int mode)
 {
-    switch (mode) {
-        case Reference:
-            if (getAction()) {
-                getAction()->setIcon(
-                    Gui::BitmapFactory().iconFromTheme("Constraint_VerticalDistance_Driven"));
-            }
-            break;
-        case Driving:
-            if (getAction()) {
-                getAction()->setIcon(
-                    Gui::BitmapFactory().iconFromTheme("Constraint_VerticalDistance"));
-            }
-            break;
-    }
+    updateDimensionIcon(this, mode, "Constraint_VerticalDistance");
 }
 
 //=================================================================================
@@ -5382,8 +6747,8 @@ CmdSketcherConstrainParallel::CmdSketcherConstrainParallel()
 {
     sAppModule = "Sketcher";
     sGroup = "Sketcher";
-    sMenuText = QT_TR_NOOP("Constrain parallel");
-    sToolTipText = QT_TR_NOOP("Create a parallel constraint between two lines");
+    sMenuText = QT_TR_NOOP("Parallel Constraint");
+    sToolTipText = QT_TR_NOOP("Constrains the selected lines to be parallel");
     sWhatsThis = "Sketcher_ConstrainParallel";
     sStatusTip = sToolTipText;
     sPixmap = "Constraint_Parallel";
@@ -5400,56 +6765,24 @@ CmdSketcherConstrainParallel::CmdSketcherConstrainParallel()
 void CmdSketcherConstrainParallel::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
-    // get the selection
-    std::vector<Gui::SelectionObject> selection = getSelection().getSelectionEx();
-
-    // only one sketch with its subelements are allowed to be selected
-    if (selection.size() != 1
-        || !selection[0].isObjectTypeOf(Sketcher::SketchObject::getClassTypeId())) {
-        ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
-            "User parameter:BaseApp/Preferences/Mod/Sketcher");
-        bool constraintMode = hGrp->GetBool("ContinuousConstraintMode", true);
-
-        if (constraintMode) {
-            ActivateHandler(getActiveGuiDocument(), new DrawSketchHandlerGenConstraint(this));
-            getSelection().clearSelection();
-        }
-        else {
-            // TODO: Get the exact message from git history and put it here
-            Gui::TranslatedUserWarning(getActiveGuiDocument(),
-                                       QObject::tr("Wrong selection"),
-                                       QObject::tr("Select two or more lines from the sketch."));
-        }
+    auto selection = getConstraintSelection(this);
+    if (!selection) {
         return;
     }
 
-    // get the needed lists and objects
-    const std::vector<std::string>& SubNames = selection[0].getSubNames();
-    Sketcher::SketchObject* Obj = static_cast<Sketcher::SketchObject*>(selection[0].getObject());
+    auto* Obj = static_cast<Sketcher::SketchObject*>(selection->getObject());
 
     // go through the selected subelements
-
-    if (SubNames.size() < 2) {
-        Gui::TranslatedUserWarning(Obj,
-                                   QObject::tr("Wrong selection"),
-                                   QObject::tr("Select at least two lines from the sketch."));
-        return;
-    }
-
     std::vector<int> ids;
     bool hasAlreadyExternal = false;
-    for (std::vector<std::string>::const_iterator it = SubNames.begin(); it != SubNames.end();
-         ++it) {
+    for (auto& subname : selection->getSubNames()) {
 
         int GeoId;
         Sketcher::PointPos PosId;
-        getIdsFromName(*it, Obj, GeoId, PosId);
+        getIdsFromName(subname, Obj, GeoId, PosId);
 
         if (!isEdge(GeoId, PosId)) {
-            Gui::TranslatedUserWarning(Obj,
-                                       QObject::tr("Wrong selection"),
-                                       QObject::tr("Select a valid line."));
-            return;
+            continue;
         }
         else if (isPointOrSegmentFixed(Obj, GeoId)) {
             if (hasAlreadyExternal) {
@@ -5464,30 +6797,32 @@ void CmdSketcherConstrainParallel::activated(int iMsg)
         // Check that the curve is a line segment
         const Part::Geometry* geo = Obj->getGeometry(GeoId);
 
-        if (! isLineSegment(*geo)) {
+        if (!isLineSegment(*geo)) {
             Gui::TranslatedUserWarning(Obj,
-                                       QObject::tr("Wrong selection"),
-                                       QObject::tr("The selected edge is not a valid line."));
+                QObject::tr("Wrong selection"),
+                QObject::tr("One selected edge is not a valid line."));
             return;
         }
         ids.push_back(GeoId);
     }
 
+    if (ids.size() < 2) {
+        Gui::TranslatedUserWarning(Obj,
+            QObject::tr("Wrong selection"),
+            QObject::tr("Select at least two lines from the sketch."));
+        return;
+    }
+
     // undo command open
     openCommand(QT_TRANSLATE_NOOP("Command", "Add parallel constraint"));
     for (int i = 0; i < int(ids.size() - 1); i++) {
-        Gui::cmdAppObjectArgs(selection[0].getObject(),
+        Gui::cmdAppObjectArgs(selection->getObject(),
                               "addConstraint(Sketcher.Constraint('Parallel',%d,%d))",
                               ids[i],
                               ids[i + 1]);
     }
-    // finish the transaction and update
-    commitCommand();
 
-    tryAutoRecompute(Obj);
-
-    // clear the selection (convenience)
-    getSelection().clearSelection();
+    finishTransactionAndUpdate(this, Obj);
 }
 
 void CmdSketcherConstrainParallel::applyConstraint(std::vector<SelIdPair>& selSeq, int seqIndex)
@@ -5523,9 +6858,8 @@ void CmdSketcherConstrainParallel::applyConstraint(std::vector<SelIdPair>& selSe
                                   "addConstraint(Sketcher.Constraint('Parallel',%d,%d))",
                                   GeoId1,
                                   GeoId2);
-            // finish the transaction and update
-            commitCommand();
-            tryAutoRecompute(Obj);
+
+            finishTransactionAndUpdate(this, Obj);
     }
 }
 
@@ -5552,8 +6886,8 @@ CmdSketcherConstrainPerpendicular::CmdSketcherConstrainPerpendicular()
 {
     sAppModule = "Sketcher";
     sGroup = "Sketcher";
-    sMenuText = QT_TR_NOOP("Constrain perpendicular");
-    sToolTipText = QT_TR_NOOP("Create a perpendicular constraint between two lines");
+    sMenuText = QT_TR_NOOP("Perpendicular Constraint");
+    sToolTipText = QT_TR_NOOP("Constrains the selected lines to be perpendicular");
     sWhatsThis = "Sketcher_ConstrainPerpendicular";
     sStatusTip = sToolTipText;
     sPixmap = "Constraint_Perpendicular";
@@ -5580,41 +6914,14 @@ void CmdSketcherConstrainPerpendicular::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
 
-    // get the selection
-    std::vector<Gui::SelectionObject> selection = getSelection().getSelectionEx();
-
-    // only one sketch with its subelements are allowed to be selected
-    if (selection.size() != 1
-        || !selection[0].isObjectTypeOf(Sketcher::SketchObject::getClassTypeId())) {
-        ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
-            "User parameter:BaseApp/Preferences/Mod/Sketcher");
-        bool constraintMode = hGrp->GetBool("ContinuousConstraintMode", true);
-
-        if (constraintMode) {
-            ActivateHandler(getActiveGuiDocument(), new DrawSketchHandlerGenConstraint(this));
-            getSelection().clearSelection();
-        }
-        else {
-            // TODO: Get the exact message from git history and put it here
-            QString strBasicHelp =
-                QObject::tr("There is a number of ways this constraint can be applied.\n\n"
-                            "Accepted combinations: two curves; an endpoint and a curve; two "
-                            "endpoints; two curves and a point.",
-                            /*disambig.:*/ "perpendicular constraint");
-            QString strError =
-                QObject::tr("Select some geometry from the sketch.", "perpendicular constraint");
-            strError.append(QString::fromLatin1("\n\n"));
-            strError.append(strBasicHelp);
-            Gui::TranslatedUserWarning(getActiveGuiDocument(),
-                                       QObject::tr("Wrong selection"),
-                                       std::move(strError));
-        }
+    auto selection = getConstraintSelection(this);
+    if (!selection) {
         return;
     }
 
     // get the needed lists and objects
-    const std::vector<std::string>& SubNames = selection[0].getSubNames();
-    Sketcher::SketchObject* Obj = dynamic_cast<Sketcher::SketchObject*>(selection[0].getObject());
+    const std::vector<std::string>& SubNames = selection->getSubNames();
+    auto* Obj = dynamic_cast<Sketcher::SketchObject*>(selection->getObject());
 
     if (!Obj || (SubNames.size() != 2 && SubNames.size() != 3)) {
         Gui::TranslatedUserWarning(Obj,
@@ -5635,85 +6942,112 @@ void CmdSketcherConstrainPerpendicular::activated(int iMsg)
         return;
     }
 
-    if (SubNames.size() == 3) {// perpendicular via point
+    if (SubNames.size() == 3) {
         getIdsFromName(SubNames[2], Obj, GeoId3, PosId3);
-        // let's sink the point to be GeoId3. We want to keep the order the two curves have been
-        // selected in.
-        if (isVertex(GeoId1, PosId1)) {
-            std::swap(GeoId1, GeoId2);
-            std::swap(PosId1, PosId2);
-        };
-        if (isVertex(GeoId2, PosId2)) {
-            std::swap(GeoId2, GeoId3);
-            std::swap(PosId2, PosId3);
-        };
-
-        if (isEdge(GeoId1, PosId1) && isEdge(GeoId2, PosId2) && isVertex(GeoId3, PosId3)) {
-
-            if (isBsplinePole(Obj, GeoId1) || isBsplinePole(Obj, GeoId2)) {
-                Gui::TranslatedUserWarning(
-                    Obj,
-                    QObject::tr("Wrong selection"),
-                    QObject::tr("Select an edge that is not a B-spline weight."));
-                return;
-            }
-
+        if (isVertex(GeoId1, PosId1) && isVertex(GeoId2, PosId2) && isEdge(GeoId3, PosId3)) {
+            // point point line perpendicularity
             openCommand(QT_TRANSLATE_NOOP("Command", "Add perpendicular constraint"));
+            Gui::cmdAppObjectArgs(
+                selection->getObject(),
+                "addConstraint(Sketcher.Constraint('Perpendicular',%d,%d,%d,%d,%d))",
+                GeoId1,
+                static_cast<int>(PosId1),
+                GeoId2,
+                static_cast<int>(PosId2),
+                GeoId3);
 
-            bool safe = addConstraintSafely(Obj, [&]() {
-                // add missing point-on-object constraints
-                if (!IsPointAlreadyOnCurve(GeoId1, GeoId3, PosId3, Obj)) {
+            removeRedundantPointOnObject(Obj, GeoId1, GeoId2, GeoId3);
+            finishTransactionAndUpdate(this, Obj);
+            return;
+        } else {
+            // perpendicular via point
+            // let's sink the point to be GeoId3. We want to keep the order the two curves have been
+            // selected in.
+            if (isVertex(GeoId1, PosId1)) {
+                std::swap(GeoId1, GeoId2);
+                std::swap(PosId1, PosId2);
+            }
+            if (isVertex(GeoId2, PosId2)) {
+                std::swap(GeoId2, GeoId3);
+                std::swap(PosId2, PosId3);
+            }
+
+            if (isEdge(GeoId1, PosId1) && isEdge(GeoId2, PosId2) && isVertex(GeoId3, PosId3)) {
+
+                if (isBsplinePole(Obj, GeoId1) || isBsplinePole(Obj, GeoId2)) {
+                    Gui::TranslatedUserWarning(
+                        Obj,
+                        QObject::tr("Wrong selection"),
+                        QObject::tr("Select an edge that is not a B-spline weight."));
+                    return;
+                }
+
+                openCommand(QT_TRANSLATE_NOOP("Command", "Add perpendicular constraint"));
+
+                bool safe = addConstraintSafely(Obj, [&]() {
+                    // add missing point-on-object constraints
+                    if (!IsPointAlreadyOnCurve(GeoId1, GeoId3, PosId3, Obj)) {
+                        const Part::Geometry *geom1 = Obj->getGeometry(GeoId1);
+                        if (!(geom1 && isBSplineCurve(*geom1))) {
+                            Gui::cmdAppObjectArgs(
+                                selection->getObject(),
+                                "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
+                                GeoId3,
+                                static_cast<int>(PosId3),
+                                GeoId1);
+                        }
+                    }
+
+                    if (!IsPointAlreadyOnCurve(GeoId2, GeoId3, PosId3, Obj)) {
+                        const Part::Geometry *geom2 = Obj->getGeometry(GeoId2);
+                        if (!(geom2 && isBSplineCurve(*geom2))) {
+                            Gui::cmdAppObjectArgs(
+                                selection->getObject(),
+                                "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
+                                GeoId3,
+                                static_cast<int>(PosId3),
+                                GeoId2);
+                        }
+                    }
+
+                    if (!IsPointAlreadyOnCurve(
+                            GeoId1,
+                            GeoId3,
+                            PosId3,
+                            Obj)) {
+                        // FIXME: it's a good idea to add a check if the sketch is solved
+                        const Part::Geometry *geom1 = Obj->getGeometry(GeoId1);
+                        if (!(geom1 && isBSplineCurve(*geom1))) {
+                            Gui::cmdAppObjectArgs(
+                                selection->getObject(),
+                                "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
+                                GeoId3,
+                                static_cast<int>(PosId3),
+                                GeoId1);
+                        }
+                    }
+
                     Gui::cmdAppObjectArgs(
-                        selection[0].getObject(),
-                        "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
-                        GeoId3,
-                        static_cast<int>(PosId3),
-                        GeoId1);
-                };
-
-                if (!IsPointAlreadyOnCurve(GeoId2, GeoId3, PosId3, Obj)) {
-                    Gui::cmdAppObjectArgs(
-                        selection[0].getObject(),
-                        "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
-                        GeoId3,
-                        static_cast<int>(PosId3),
-                        GeoId2);
-                };
-
-                if (!IsPointAlreadyOnCurve(
+                        selection->getObject(),
+                        "addConstraint(Sketcher.Constraint('PerpendicularViaPoint',%d,%d,%d,%d))",
                         GeoId1,
+                        GeoId2,
                         GeoId3,
-                        PosId3,
-                        Obj)) {// FIXME: it's a good idea to add a check if the sketch is solved
-                    Gui::cmdAppObjectArgs(
-                        selection[0].getObject(),
-                        "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
-                        GeoId3,
-                        static_cast<int>(PosId3),
-                        GeoId1);
-                };
+                        static_cast<int>(PosId3));
 
-                Gui::cmdAppObjectArgs(
-                    selection[0].getObject(),
-                    "addConstraint(Sketcher.Constraint('PerpendicularViaPoint',%d,%d,%d,%d))",
-                    GeoId1,
-                    GeoId2,
-                    GeoId3,
-                    static_cast<int>(PosId3));
-            });
+                    removeRedundantPointOnObject(Obj, GeoId1, GeoId2, GeoId3);
+                });
 
-            if (!safe) {
+                if (!safe) {
+                    return;
+                }
+
+                finishTransactionAndUpdate(this, Obj);
+
                 return;
             }
-            else {
-                commitCommand();
-                tryAutoRecompute(Obj);
-            }
 
-            getSelection().clearSelection();
-
-            return;
-        };
+        }
 
         Gui::TranslatedUserWarning(
             Obj,
@@ -5746,16 +7080,13 @@ void CmdSketcherConstrainPerpendicular::activated(int iMsg)
             }// end of code supports simple B-spline endpoint tangency
 
             openCommand(QT_TRANSLATE_NOOP("Command", "Add perpendicular constraint"));
-            Gui::cmdAppObjectArgs(selection[0].getObject(),
+            Gui::cmdAppObjectArgs(selection->getObject(),
                                   "addConstraint(Sketcher.Constraint('Perpendicular',%d,%d,%d,%d))",
                                   GeoId1,
                                   static_cast<int>(PosId1),
                                   GeoId2,
                                   static_cast<int>(PosId2));
-            commitCommand();
-            tryAutoRecompute(Obj);
-
-            getSelection().clearSelection();
+            finishTransactionAndUpdate(this, Obj);
             return;
         }
         else if ((isVertex(GeoId1, PosId1) && isEdge(GeoId2, PosId2))
@@ -5776,15 +7107,6 @@ void CmdSketcherConstrainPerpendicular::activated(int iMsg)
 
             const Part::Geometry* geom2 = Obj->getGeometry(GeoId2);
 
-            if (geom2 && isBSplineCurve(*geom2)) {
-                // unsupported until normal to B-spline at any point implemented.
-                Gui::TranslatedUserWarning(
-                    Obj,
-                    QObject::tr("Wrong selection"),
-                    QObject::tr("Perpendicular to B-spline edge currently unsupported."));
-                return;
-            }
-
             if (isBsplinePole(geom2)) {
                 Gui::TranslatedUserWarning(
                     Obj,
@@ -5794,15 +7116,13 @@ void CmdSketcherConstrainPerpendicular::activated(int iMsg)
             }
 
             openCommand(QT_TRANSLATE_NOOP("Command", "Add perpendicularity constraint"));
-            Gui::cmdAppObjectArgs(selection[0].getObject(),
+            Gui::cmdAppObjectArgs(selection->getObject(),
                                   "addConstraint(Sketcher.Constraint('Perpendicular',%d,%d,%d))",
                                   GeoId1,
                                   static_cast<int>(PosId1),
                                   GeoId2);
-            commitCommand();
-            tryAutoRecompute(Obj);
 
-            getSelection().clearSelection();
+            finishTransactionAndUpdate(this, Obj);
             return;
         }
         else if (isEdge(GeoId1, PosId1)
@@ -5822,14 +7142,14 @@ void CmdSketcherConstrainPerpendicular::activated(int iMsg)
                 return;
             }
 
-            if (isBSplineCurve(*geo1) || isBSplineCurve(*geo2)) {
-                // unsupported until tangent to B-spline at any point implemented.
-                Gui::TranslatedUserWarning(
-                    Obj,
-                    QObject::tr("Wrong selection"),
-                    QObject::tr("Perpendicular to B-spline edge currently unsupported."));
-                return;
-            }
+            // if (isBSplineCurve(*geo1) || isBSplineCurve(*geo2)) {
+            //     // unsupported until tangent to B-spline at any point implemented.
+            //     Gui::TranslatedUserWarning(
+            //         Obj,
+            //         QObject::tr("Wrong selection"),
+            //         QObject::tr("Perpendicular to B-spline edge currently unsupported."));
+            //     return;
+            // }
 
             if (isLineSegment(*geo1)) {
                 std::swap(GeoId1, GeoId2);
@@ -5922,21 +7242,21 @@ void CmdSketcherConstrainPerpendicular::activated(int iMsg)
                 try {
                     // Add a point
                     Gui::cmdAppObjectArgs(Obj,
-                                          "addGeometry(Part.Point(App.Vector(%f,%f,0)))",
+                                          "addGeometry(Part.Point(App.Vector(%f,%f,0)), True)",
                                           PoO.x,
                                           PoO.y);
                     int GeoIdPoint = Obj->getHighestCurveIndex();
 
                     // Point on first object (ellipse, arc of ellipse)
                     Gui::cmdAppObjectArgs(
-                        selection[0].getObject(),
+                        selection->getObject(),
                         "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
                         GeoIdPoint,
                         static_cast<int>(Sketcher::PointPos::start),
                         GeoId1);
                     // Point on second object
                     Gui::cmdAppObjectArgs(
-                        selection[0].getObject(),
+                        selection->getObject(),
                         "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
                         GeoIdPoint,
                         static_cast<int>(Sketcher::PointPos::start),
@@ -5954,33 +7274,26 @@ void CmdSketcherConstrainPerpendicular::activated(int iMsg)
                     Gui::NotifyUserError(Obj,
                                          QT_TRANSLATE_NOOP("Notifications", "Invalid Constraint"),
                                          e.what());
-                    Gui::Command::abortCommand();
+                    abortCommand();
 
                     tryAutoRecompute(Obj);
                     return;
                 }
 
-                commitCommand();
-                tryAutoRecompute(Obj);
-
-                getSelection().clearSelection();
+                finishTransactionAndUpdate(this, Obj);
                 return;
             }
 
             openCommand(QT_TRANSLATE_NOOP("Command", "Add perpendicular constraint"));
-            Gui::cmdAppObjectArgs(selection[0].getObject(),
+            Gui::cmdAppObjectArgs(selection->getObject(),
                                   "addConstraint(Sketcher.Constraint('Perpendicular',%d,%d))",
                                   GeoId1,
                                   GeoId2);
-            commitCommand();
-            tryAutoRecompute(Obj);
 
-            getSelection().clearSelection();
+            finishTransactionAndUpdate(this, Obj);
             return;
         }
     }
-
-    return;
 }
 
 void CmdSketcherConstrainPerpendicular::applyConstraint(std::vector<SelIdPair>& selSeq,
@@ -6023,14 +7336,14 @@ void CmdSketcherConstrainPerpendicular::applyConstraint(std::vector<SelIdPair>& 
                 return;
             }
 
-            if (isBSplineCurve(*geo1) || isBSplineCurve(*geo2)) {
-                // unsupported until tangent to B-spline at any point implemented.
-                Gui::TranslatedUserWarning(
-                    Obj,
-                    QObject::tr("Wrong selection"),
-                    QObject::tr("Perpendicular to B-spline edge currently unsupported."));
-                return;
-            }
+            // if (isBSplineCurve(*geo1) || isBSplineCurve(*geo2)) {
+            //     // unsupported until tangent to B-spline at any point implemented.
+            //     Gui::TranslatedUserWarning(
+            //         Obj,
+            //         QObject::tr("Wrong selection"),
+            //         QObject::tr("Perpendicular to B-spline edge currently unsupported."));
+            //     return;
+            // }
 
             if (isLineSegment(*geo1)) {
                 std::swap(GeoId1, GeoId2);
@@ -6123,7 +7436,7 @@ void CmdSketcherConstrainPerpendicular::applyConstraint(std::vector<SelIdPair>& 
                 try {
                     // Add a point
                     Gui::cmdAppObjectArgs(Obj,
-                                          "addGeometry(Part.Point(App.Vector(%f,%f,0)))",
+                                          "addGeometry(Part.Point(App.Vector(%f,%f,0)), True)",
                                           PoO.x,
                                           PoO.y);
                     int GeoIdPoint = Obj->getHighestCurveIndex();
@@ -6151,19 +7464,15 @@ void CmdSketcherConstrainPerpendicular::applyConstraint(std::vector<SelIdPair>& 
                         GeoId2,
                         GeoIdPoint,
                         static_cast<int>(Sketcher::PointPos::start));
-
-                    commitCommand();
                 }
                 catch (const Base::Exception& e) {
                     Gui::NotifyUserError(Obj,
                                          QT_TRANSLATE_NOOP("Notifications", "Invalid Constraint"),
                                          e.what());
-                    Gui::Command::abortCommand();
+                    abortCommand();
                 }
 
-                tryAutoRecompute(Obj);
-
-                getSelection().clearSelection();
+                finishTransactionAndUpdate(this, Obj);
                 return;
             }
 
@@ -6172,9 +7481,7 @@ void CmdSketcherConstrainPerpendicular::applyConstraint(std::vector<SelIdPair>& 
                                   "addConstraint(Sketcher.Constraint('Perpendicular',%d,%d))",
                                   GeoId1,
                                   GeoId2);
-            commitCommand();
-
-            tryAutoRecompute(Obj);
+            finishTransactionAndUpdate(this, Obj);
             return;
         }
         case 4:// {SelVertexOrRoot, SelEdge, SelEdgeOrAxis}
@@ -6228,35 +7535,41 @@ void CmdSketcherConstrainPerpendicular::applyConstraint(std::vector<SelIdPair>& 
         bool safe = addConstraintSafely(Obj, [&]() {
             // add missing point-on-object constraints
             if (!IsPointAlreadyOnCurve(GeoId1, GeoId3, PosId3, Obj)) {
-                Gui::cmdAppObjectArgs(
-                    Obj,
-                    "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
-                    GeoId3,
-                    static_cast<int>(PosId3),
-                    GeoId1);
-            };
+                const Part::Geometry *geom1 = Obj->getGeometry(GeoId1);
+                if (!(geom1 && isBSplineCurve(*geom1))) {
+                    Gui::cmdAppObjectArgs(
+                        Obj,
+                        "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
+                        GeoId3,
+                        static_cast<int>(PosId3),
+                        GeoId1);
+                }
+            }
 
             if (!IsPointAlreadyOnCurve(GeoId2, GeoId3, PosId3, Obj)) {
-                Gui::cmdAppObjectArgs(
-                    Obj,
-                    "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
-                    GeoId3,
-                    static_cast<int>(PosId3),
-                    GeoId2);
-            };
+                const Part::Geometry *geom2 = Obj->getGeometry(GeoId2);
+                if (!(geom2 && isBSplineCurve(*geom2))) {
+                    Gui::cmdAppObjectArgs(
+                        Obj,
+                        "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
+                        GeoId3,
+                        static_cast<int>(PosId3),
+                        GeoId2);
+                }
+            }
 
-            if (!IsPointAlreadyOnCurve(
-                    GeoId1,
-                    GeoId3,
-                    PosId3,
-                    Obj)) {// FIXME: it's a good idea to add a check if the sketch is solved
-                Gui::cmdAppObjectArgs(
-                    Obj,
-                    "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
-                    GeoId3,
-                    static_cast<int>(PosId3),
-                    GeoId1);
-            };
+            if (!IsPointAlreadyOnCurve(GeoId1, GeoId3, PosId3, Obj)) {
+                // FIXME: it's a good idea to add a check if the sketch is solved
+                const Part::Geometry *geom1 = Obj->getGeometry(GeoId1);
+                if (!(geom1 && isBSplineCurve(*geom1))) {
+                    Gui::cmdAppObjectArgs(
+                        Obj,
+                        "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
+                        GeoId3,
+                        static_cast<int>(PosId3),
+                        GeoId1);
+                }
+            }
 
             Gui::cmdAppObjectArgs(
                 Obj,
@@ -6265,20 +7578,18 @@ void CmdSketcherConstrainPerpendicular::applyConstraint(std::vector<SelIdPair>& 
                 GeoId2,
                 GeoId3,
                 static_cast<int>(PosId3));
+
+            removeRedundantPointOnObject(Obj, GeoId1, GeoId2, GeoId3);
         });
 
         if (!safe) {
+            abortCommand();
             return;
         }
-        else {
-            commitCommand();
-            tryAutoRecompute(Obj);
-        }
-
-        getSelection().clearSelection();
+        finishTransactionAndUpdate(this, Obj);
 
         return;
-    };
+    }
 }
 
 // ======================================================================================
@@ -6298,7 +7609,7 @@ protected:
     void activated(int iMsg) override;
     void applyConstraint(std::vector<SelIdPair>& selSeq, int seqIndex) override;
     // returns true if a substitution took place
-    static bool substituteConstraintCombinations(SketchObject* Obj, int GeoId1, int GeoId2);
+    bool substituteConstraintCombinations(SketchObject* Obj, int GeoId1, int GeoId2);
 };
 
 CmdSketcherConstrainTangent::CmdSketcherConstrainTangent()
@@ -6306,8 +7617,8 @@ CmdSketcherConstrainTangent::CmdSketcherConstrainTangent()
 {
     sAppModule = "Sketcher";
     sGroup = "Sketcher";
-    sMenuText = QT_TR_NOOP("Constrain tangent");
-    sToolTipText = QT_TR_NOOP("Create a tangent constraint between two entities");
+    sMenuText = QT_TR_NOOP("Tangent/Collinear Constraint");
+    sToolTipText = QT_TR_NOOP("Constrains the selected elements to be tangent or collinear");
     sWhatsThis = "Sketcher_ConstrainTangent";
     sStatusTip = sToolTipText;
     sPixmap = "Constraint_Tangent";
@@ -6341,14 +7652,17 @@ bool CmdSketcherConstrainTangent::substituteConstraintCombinations(SketchObject*
          ++it, ++cid) {
         if ((*it)->Type == Sketcher::Coincident
             && (((*it)->First == GeoId1 && (*it)->Second == GeoId2)
-                || ((*it)->Second == GeoId1 && (*it)->First == GeoId2))) {
-
+                || ((*it)->Second == GeoId1 && (*it)->First == GeoId2))
+            && ((*it)->FirstPos == Sketcher::PointPos::start
+                || (*it)->FirstPos == Sketcher::PointPos::end)
+            && ((*it)->SecondPos == Sketcher::PointPos::start
+                || (*it)->SecondPos == Sketcher::PointPos::end)) {
             // save values because 'doEndpointTangency' changes the
             // constraint property and thus invalidates this iterator
             int first = (*it)->First;
             int firstpos = static_cast<int>((*it)->FirstPos);
 
-            Gui::Command::openCommand(
+            openCommand(
                 QT_TRANSLATE_NOOP("Command", "Swap coincident+tangency with ptp tangency"));
 
             doEndpointTangency(Obj, (*it)->First, (*it)->Second, (*it)->FirstPos, (*it)->SecondPos);
@@ -6368,11 +7682,12 @@ bool CmdSketcherConstrainTangent::substituteConstraintCombinations(SketchObject*
         }
         else if ((*it)->Type == Sketcher::PointOnObject
                  && (((*it)->First == GeoId1 && (*it)->Second == GeoId2)
-                     || ((*it)->Second == GeoId1 && (*it)->First == GeoId2))) {
-
-            Gui::Command::openCommand(
+                     || ((*it)->Second == GeoId1 && (*it)->First == GeoId2))
+                 && ((*it)->FirstPos == Sketcher::PointPos::start
+                     || (*it)->FirstPos == Sketcher::PointPos::end)) {
+            openCommand(
                 QT_TRANSLATE_NOOP("Command",
-                                  "Swap PointOnObject+tangency with point to curve tangency"));
+                                  "Swap point on object and tangency with point to curve tangency"));
 
             doEndpointToEdgeTangency(Obj, (*it)->First, (*it)->FirstPos, (*it)->Second);
 
@@ -6402,40 +7717,14 @@ void CmdSketcherConstrainTangent::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
 
-    // get the selection
-    std::vector<Gui::SelectionObject> selection = getSelection().getSelectionEx();
-
-    // only one sketch with its subelements are allowed to be selected
-    if (selection.size() != 1
-        || !selection[0].isObjectTypeOf(Sketcher::SketchObject::getClassTypeId())) {
-        ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
-            "User parameter:BaseApp/Preferences/Mod/Sketcher");
-        bool constraintMode = hGrp->GetBool("ContinuousConstraintMode", true);
-
-        if (constraintMode) {
-            ActivateHandler(getActiveGuiDocument(), new DrawSketchHandlerGenConstraint(this));
-            getSelection().clearSelection();
-        }
-        else {
-            QString strBasicHelp =
-                QObject::tr("There are a number of ways this constraint can be applied.\n\n"
-                            "Accepted combinations: two curves; an endpoint and a curve; two "
-                            "endpoints; two curves and a point.",
-                            /*disambig.:*/ "tangent constraint");
-            QString strError =
-                QObject::tr("Select some geometry from the sketch.", "tangent constraint");
-            strError.append(QString::fromLatin1("\n\n"));
-            strError.append(strBasicHelp);
-            Gui::TranslatedUserWarning(getActiveGuiDocument(),
-                                       QObject::tr("Wrong selection"),
-                                       std::move(strError));
-        }
+    auto selection = getConstraintSelection(this);
+    if (!selection) {
         return;
     }
 
     // get the needed lists and objects
-    const std::vector<std::string>& SubNames = selection[0].getSubNames();
-    Sketcher::SketchObject* Obj = static_cast<Sketcher::SketchObject*>(selection[0].getObject());
+    const std::vector<std::string>& SubNames = selection->getSubNames();
+    auto* Obj = static_cast<Sketcher::SketchObject*>(selection->getObject());
 
     if (SubNames.size() != 2 && SubNames.size() != 3) {
         Gui::TranslatedUserWarning(Obj,
@@ -6462,11 +7751,11 @@ void CmdSketcherConstrainTangent::activated(int iMsg)
         if (isVertex(GeoId1, PosId1)) {
             std::swap(GeoId1, GeoId2);
             std::swap(PosId1, PosId2);
-        };
+        }
         if (isVertex(GeoId2, PosId2)) {
             std::swap(GeoId2, GeoId3);
             std::swap(PosId2, PosId3);
-        };
+        }
 
         if (isEdge(GeoId1, PosId1) && isEdge(GeoId2, PosId2) && isVertex(GeoId3, PosId3)) {
 
@@ -6483,57 +7772,62 @@ void CmdSketcherConstrainTangent::activated(int iMsg)
             bool safe = addConstraintSafely(Obj, [&]() {
                 // add missing point-on-object constraints
                 if (!IsPointAlreadyOnCurve(GeoId1, GeoId3, PosId3, Obj)) {
-                    Gui::cmdAppObjectArgs(
-                        selection[0].getObject(),
-                        "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
-                        GeoId3,
-                        static_cast<int>(PosId3),
-                        GeoId1);
-                };
+                    const Part::Geometry *geom1 = Obj->getGeometry(GeoId1);
+                    if (!(geom1 && isBSplineCurve(*geom1))) {
+                        Gui::cmdAppObjectArgs(
+                            selection->getObject(),
+                            "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
+                            GeoId3,
+                            static_cast<int>(PosId3),
+                            GeoId1);
+                    }
+                }
 
                 if (!IsPointAlreadyOnCurve(GeoId2, GeoId3, PosId3, Obj)) {
-                    Gui::cmdAppObjectArgs(
-                        selection[0].getObject(),
-                        "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
-                        GeoId3,
-                        static_cast<int>(PosId3),
-                        GeoId2);
-                };
+                    const Part::Geometry *geom2 = Obj->getGeometry(GeoId2);
+                    if (!(geom2 && isBSplineCurve(*geom2))) {
+                        Gui::cmdAppObjectArgs(
+                            selection->getObject(),
+                            "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
+                            GeoId3,
+                            static_cast<int>(PosId3),
+                            GeoId2);
+                    }
+                }
 
-                if (!IsPointAlreadyOnCurve(
-                        GeoId1,
-                        GeoId3,
-                        PosId3,
-                        Obj)) {// FIXME: it's a good idea to add a check if the sketch is solved
-                    Gui::cmdAppObjectArgs(
-                        selection[0].getObject(),
-                        "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
-                        GeoId3,
-                        static_cast<int>(PosId3),
-                        GeoId1);
-                };
+                if (!IsPointAlreadyOnCurve(GeoId1, GeoId3, PosId3, Obj)) {
+                    // FIXME: it's a good idea to add a check if the sketch is solved
+                    const Part::Geometry *geom1 = Obj->getGeometry(GeoId1);
+                    if (!(geom1 && isBSplineCurve(*geom1))) {
+                        Gui::cmdAppObjectArgs(
+                            selection->getObject(),
+                            "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
+                            GeoId3,
+                            static_cast<int>(PosId3),
+                            GeoId1);
+                    }
+                }
 
                 Gui::cmdAppObjectArgs(
-                    selection[0].getObject(),
+                    selection->getObject(),
                     "addConstraint(Sketcher.Constraint('TangentViaPoint',%d,%d,%d,%d))",
                     GeoId1,
                     GeoId2,
                     GeoId3,
                     static_cast<int>(PosId3));
+
+                removeRedundantPointOnObject(Obj, GeoId1, GeoId2, GeoId3);
             });
 
             if (!safe) {
+                abortCommand();
                 return;
             }
-            else {
-                commitCommand();
-                tryAutoRecompute(Obj);
-            }
 
-            getSelection().clearSelection();
+            finishTransactionAndUpdate(this, Obj);
 
             return;
-        };
+        }
 
         Gui::TranslatedUserWarning(
             Obj,
@@ -6574,10 +7868,7 @@ void CmdSketcherConstrainTangent::activated(int iMsg)
 
             openCommand(QT_TRANSLATE_NOOP("Command", "Add tangent constraint"));
             doEndpointTangency(Obj, GeoId1, GeoId2, PosId1, PosId2);
-            commitCommand();
-            tryAutoRecompute(Obj);
-
-            getSelection().clearSelection();
+            finishTransactionAndUpdate(this, Obj);
             return;
         }
         else if ((isVertex(GeoId1, PosId1) && isEdge(GeoId2, PosId2))
@@ -6612,15 +7903,6 @@ void CmdSketcherConstrainTangent::activated(int iMsg)
 
             const Part::Geometry* geom2 = Obj->getGeometry(GeoId2);
 
-            if (geom2 && isBSplineCurve(*geom2)) {
-                // unsupported until tangent to B-spline at any point implemented.
-                Gui::TranslatedUserWarning(
-                    Obj,
-                    QObject::tr("Wrong selection"),
-                    QObject::tr("Tangency to B-spline edge currently unsupported."));
-                return;
-            }
-
             if (isBsplinePole(geom2)) {
                 Gui::TranslatedUserWarning(
                     Obj,
@@ -6629,16 +7911,15 @@ void CmdSketcherConstrainTangent::activated(int iMsg)
                 return;
             }
 
-            openCommand(QT_TRANSLATE_NOOP("Command", "Add tangent constraint"));
-            Gui::cmdAppObjectArgs(selection[0].getObject(),
-                                  "addConstraint(Sketcher.Constraint('Tangent',%d,%d,%d))",
-                                  GeoId1,
-                                  static_cast<int>(PosId1),
-                                  GeoId2);
-            commitCommand();
-            tryAutoRecompute(Obj);
-
-            getSelection().clearSelection();
+            if (!substituteConstraintCombinations(Obj, GeoId1, GeoId2)) {
+                openCommand(QT_TRANSLATE_NOOP("Command", "Add tangent constraint"));
+                Gui::cmdAppObjectArgs(selection->getObject(),
+                                      "addConstraint(Sketcher.Constraint('Tangent',%d,%d,%d))",
+                                      GeoId1,
+                                      static_cast<int>(PosId1),
+                                      GeoId2);
+                finishTransactionAndUpdate(this, Obj);
+            }
             return;
         }
         else if (isEdge(GeoId1, PosId1)
@@ -6646,15 +7927,6 @@ void CmdSketcherConstrainTangent::activated(int iMsg)
 
             const Part::Geometry* geom1 = Obj->getGeometry(GeoId1);
             const Part::Geometry* geom2 = Obj->getGeometry(GeoId2);
-
-            if (geom1 && geom2 && (isBSplineCurve(*geom1) || isBSplineCurve(*geom2))) {
-                // unsupported until tangent to B-spline at any point implemented.
-                Gui::TranslatedUserWarning(
-                    Obj,
-                    QObject::tr("Wrong selection"),
-                    QObject::tr("Tangency to B-spline edge currently unsupported."));
-                return;
-            }
 
             if (isBsplinePole(geom1) || isBsplinePole(geom2)) {
                 Gui::TranslatedUserWarning(
@@ -6682,37 +7954,45 @@ void CmdSketcherConstrainTangent::activated(int iMsg)
                 geom2 = Obj->getGeometry(GeoId2);
 
                 if (isEllipse(*geom2) || isArcOfEllipse(*geom2) || isCircle(*geom2) || isArcOfCircle(*geom2)) {
-                    Gui::Command::openCommand(
+                    openCommand(
                         QT_TRANSLATE_NOOP("Command", "Add tangent constraint point"));
-                    makeTangentToEllipseviaNewPoint(Obj,
+                    closeAndRecompute(currentTransactionID,
+                                      !makeTangentToEllipseviaNewPoint(Obj,
                                                     static_cast<const Part::GeomEllipse*>(geom1),
                                                     geom2,
                                                     GeoId1,
-                                                    GeoId2);
+                                                    GeoId2),
+                                      Obj);
+
                     getSelection().clearSelection();
                     return;
                 }
                 else if (isArcOfHyperbola(*geom2)) {
-                    Gui::Command::openCommand(
+                    openCommand(
                         QT_TRANSLATE_NOOP("Command", "Add tangent constraint point"));
-                    makeTangentToArcOfHyperbolaviaNewPoint(
-                        Obj,
-                        static_cast<const Part::GeomArcOfHyperbola*>(geom2),
-                        geom1,
-                        GeoId2,
-                        GeoId1);
+                    closeAndRecompute(currentTransactionID,
+                                      !makeTangentToArcOfHyperbolaviaNewPoint(Obj,
+                                            static_cast<const Part::GeomArcOfHyperbola*>(geom2),
+                                            geom1,
+                                            GeoId2,
+                                            GeoId1),
+                                      Obj);
+
                     getSelection().clearSelection();
                     return;
                 }
                 else if (isArcOfParabola(*geom2)) {
-                    Gui::Command::openCommand(
+                    openCommand(
                         QT_TRANSLATE_NOOP("Command", "Add tangent constraint point"));
-                    makeTangentToArcOfParabolaviaNewPoint(
-                        Obj,
-                        static_cast<const Part::GeomArcOfParabola*>(geom2),
-                        geom1,
-                        GeoId2,
-                        GeoId1);
+                    closeAndRecompute(currentTransactionID,
+                                      !makeTangentToArcOfParabolaviaNewPoint(
+                                            Obj,
+                                            static_cast<const Part::GeomArcOfParabola*>(geom2),
+                                            geom1,
+                                            GeoId2,
+                                            GeoId1),
+                                      Obj);
+
                     getSelection().clearSelection();
                     return;
                 }
@@ -6729,27 +8009,32 @@ void CmdSketcherConstrainTangent::activated(int iMsg)
                 if (isArcOfHyperbola(*geom2) || isArcOfEllipse(*geom2)
                     || isCircle(*geom2) || isArcOfCircle(*geom2) || isLineSegment(*geom2)) {
 
-                    Gui::Command::openCommand(
+                    openCommand(
                         QT_TRANSLATE_NOOP("Command", "Add tangent constraint point"));
-                    makeTangentToArcOfEllipseviaNewPoint(
-                        Obj,
-                        static_cast<const Part::GeomArcOfEllipse*>(geom1),
-                        geom2,
-                        GeoId1,
-                        GeoId2);
+                    closeAndRecompute(currentTransactionID,
+                                      !makeTangentToArcOfEllipseviaNewPoint(
+                                            Obj,
+                                            static_cast<const Part::GeomArcOfEllipse*>(geom1),
+                                            geom2,
+                                            GeoId1,
+                                            GeoId2),
+                                      Obj);
 
                     getSelection().clearSelection();
                     return;
                 }
                 else if (isArcOfParabola(*geom2)) {
-                    Gui::Command::openCommand(
+                    openCommand(
                         QT_TRANSLATE_NOOP("Command", "Add tangent constraint point"));
-                    makeTangentToArcOfParabolaviaNewPoint(
-                        Obj,
-                        static_cast<const Part::GeomArcOfParabola*>(geom2),
-                        geom1,
-                        GeoId2,
-                        GeoId1);
+                    closeAndRecompute(currentTransactionID,
+                                      !makeTangentToArcOfParabolaviaNewPoint(
+                                            Obj,
+                                            static_cast<const Part::GeomArcOfParabola*>(geom2),
+                                            geom1,
+                                            GeoId2,
+                                            GeoId1),
+                                      Obj);
+
                     getSelection().clearSelection();
                     return;
                 }
@@ -6766,26 +8051,32 @@ void CmdSketcherConstrainTangent::activated(int iMsg)
                 if (isArcOfHyperbola(*geom2) || isArcOfEllipse(*geom2) || isCircle(*geom2)
                     || isArcOfCircle(*geom2) || isLineSegment(*geom2)) {
 
-                    Gui::Command::openCommand(
+                    openCommand(
                         QT_TRANSLATE_NOOP("Command", "Add tangent constraint point"));
-                    makeTangentToArcOfHyperbolaviaNewPoint(
-                        Obj,
-                        static_cast<const Part::GeomArcOfHyperbola*>(geom1),
-                        geom2,
-                        GeoId1,
-                        GeoId2);
+                    closeAndRecompute(currentTransactionID,
+                                      !makeTangentToArcOfHyperbolaviaNewPoint(
+                                            Obj,
+                                            static_cast<const Part::GeomArcOfHyperbola*>(geom1),
+                                            geom2,
+                                            GeoId1,
+                                            GeoId2),
+                                      Obj);
+
                     getSelection().clearSelection();
                     return;
                 }
                 else if (isArcOfParabola(*geom2)) {
-                    Gui::Command::openCommand(
+                    openCommand(
                         QT_TRANSLATE_NOOP("Command", "Add tangent constraint point"));
-                    makeTangentToArcOfParabolaviaNewPoint(
-                        Obj,
-                        static_cast<const Part::GeomArcOfParabola*>(geom2),
-                        geom1,
-                        GeoId2,
-                        GeoId1);
+                    closeAndRecompute(currentTransactionID,
+                                      !makeTangentToArcOfParabolaviaNewPoint(
+                                                Obj,
+                                                static_cast<const Part::GeomArcOfParabola*>(geom2),
+                                                geom1,
+                                                GeoId2,
+                                                GeoId1),
+                                      Obj);
+
                     getSelection().clearSelection();
                     return;
                 }
@@ -6803,28 +8094,36 @@ void CmdSketcherConstrainTangent::activated(int iMsg)
                     || isArcOfEllipse(*geom2) || isCircle(*geom2)
                     || isArcOfCircle(*geom2) || isLineSegment(*geom2)) {
 
-                    Gui::Command::openCommand(
+                    openCommand(
                         QT_TRANSLATE_NOOP("Command", "Add tangent constraint point"));
-                    makeTangentToArcOfParabolaviaNewPoint(
-                        Obj,
-                        static_cast<const Part::GeomArcOfParabola*>(geom1),
-                        geom2,
-                        GeoId1,
-                        GeoId2);
+                    closeAndRecompute(currentTransactionID,
+                                      !makeTangentToArcOfParabolaviaNewPoint(
+                                                Obj,
+                                                static_cast<const Part::GeomArcOfParabola*>(geom1),
+                                                geom2,
+                                                GeoId1,
+                                                GeoId2),
+                                      Obj);
+
                     getSelection().clearSelection();
                     return;
                 }
             }
+            else if (geom1 && geom2 && (isBSplineCurve(*geom1) || isBSplineCurve(*geom2))) {
+                Gui::TranslatedUserWarning(
+                    Obj,
+                    QObject::tr("Wrong selection"),
+                    QObject::tr("Only tangent-via-point is supported with a B-spline."));
+                getSelection().clearSelection();
+                return;
+            }
 
             openCommand(QT_TRANSLATE_NOOP("Command", "Add tangent constraint"));
-            Gui::cmdAppObjectArgs(selection[0].getObject(),
+            Gui::cmdAppObjectArgs(selection->getObject(),
                                   "addConstraint(Sketcher.Constraint('Tangent',%d,%d))",
                                   GeoId1,
                                   GeoId2);
-            commitCommand();
-            tryAutoRecompute(Obj);
-
-            getSelection().clearSelection();
+            finishTransactionAndUpdate(this, Obj);
             return;
         }
     }
@@ -6851,6 +8150,13 @@ void CmdSketcherConstrainTangent::applyConstraint(std::vector<SelIdPair>& selSeq
             GeoId1 = selSeq.at(0).GeoId;
             GeoId2 = selSeq.at(1).GeoId;
 
+            if (GeoId1 == GeoId2 && selSeq.at(0).PosId == selSeq.at(1).PosId) {
+                Gui::TranslatedUserWarning(Obj,
+                                           QObject::tr("Wrong selection"),
+                                           QObject::tr("Geometry cannot be tangent to itself"));
+                return;
+            }
+
             // check if the edge already has a Block constraint
             if (areBothPointsOrSegmentsFixed(Obj, GeoId1, GeoId2)) {
                 showNoConstraintBetweenFixedGeometry(Obj);
@@ -6859,15 +8165,6 @@ void CmdSketcherConstrainTangent::applyConstraint(std::vector<SelIdPair>& selSeq
 
             const Part::Geometry* geom1 = Obj->getGeometry(GeoId1);
             const Part::Geometry* geom2 = Obj->getGeometry(GeoId2);
-
-            if (geom1 && geom2 && (isBSplineCurve(*geom1) || isBSplineCurve(*geom2))) {
-                // unsupported until tangent to B-spline at any point implemented.
-                Gui::TranslatedUserWarning(
-                    Obj,
-                    QObject::tr("Wrong selection"),
-                    QObject::tr("Tangency to B-spline edge currently unsupported."));
-                return;
-            }
 
             if (isBsplinePole(geom1) || isBsplinePole(geom2)) {
                 Gui::TranslatedUserWarning(
@@ -6897,37 +8194,46 @@ void CmdSketcherConstrainTangent::applyConstraint(std::vector<SelIdPair>& selSeq
                 if (isEllipse(*geom2) || isArcOfEllipse(*geom2)
                     || isCircle(*geom2) || isArcOfCircle(*geom2)) {
 
-                    Gui::Command::openCommand(
+                    openCommand(
                         QT_TRANSLATE_NOOP("Command", "Add tangent constraint point"));
-                    makeTangentToEllipseviaNewPoint(Obj,
-                                                    static_cast<const Part::GeomEllipse*>(geom1),
-                                                    geom2,
-                                                    GeoId1,
-                                                    GeoId2);
+                    closeAndRecompute(currentTransactionID,
+                                      !makeTangentToEllipseviaNewPoint(Obj,
+                                                static_cast<const Part::GeomEllipse*>(geom1),
+                                                geom2,
+                                                GeoId1,
+                                                GeoId2),
+                                      Obj);
+
                     getSelection().clearSelection();
                     return;
                 }
                 else if (isArcOfHyperbola(*geom2)) {
-                    Gui::Command::openCommand(
+                    openCommand(
                         QT_TRANSLATE_NOOP("Command", "Add tangent constraint point"));
-                    makeTangentToArcOfHyperbolaviaNewPoint(
-                        Obj,
-                        static_cast<const Part::GeomArcOfHyperbola*>(geom2),
-                        geom1,
-                        GeoId2,
-                        GeoId1);
+                    closeAndRecompute(currentTransactionID,
+                                      !makeTangentToArcOfHyperbolaviaNewPoint(
+                                                Obj,
+                                                static_cast<const Part::GeomArcOfHyperbola*>(geom2),
+                                                geom1,
+                                                GeoId2,
+                                                GeoId1),
+                                      Obj);
+
                     getSelection().clearSelection();
                     return;
                 }
                 else if (isArcOfParabola(*geom2)) {
-                    Gui::Command::openCommand(
+                    openCommand(
                         QT_TRANSLATE_NOOP("Command", "Add tangent constraint point"));
-                    makeTangentToArcOfParabolaviaNewPoint(
-                        Obj,
-                        static_cast<const Part::GeomArcOfParabola*>(geom2),
-                        geom1,
-                        GeoId2,
-                        GeoId1);
+                    closeAndRecompute(currentTransactionID,
+                                      !makeTangentToArcOfParabolaviaNewPoint(
+                                                Obj,
+                                                static_cast<const Part::GeomArcOfParabola*>(geom2),
+                                                geom1,
+                                                GeoId2,
+                                                GeoId1),
+                                      Obj);
+
                     getSelection().clearSelection();
                     return;
                 }
@@ -6944,26 +8250,32 @@ void CmdSketcherConstrainTangent::applyConstraint(std::vector<SelIdPair>& selSeq
                 if (isArcOfHyperbola(*geom2) || isArcOfEllipse(*geom2) || isCircle(*geom2)
                    || isArcOfCircle(*geom2) || isLineSegment(*geom2)) {
 
-                    Gui::Command::openCommand(
+                    openCommand(
                         QT_TRANSLATE_NOOP("Command", "Add tangent constraint point"));
-                    makeTangentToArcOfHyperbolaviaNewPoint(
-                        Obj,
-                        static_cast<const Part::GeomArcOfHyperbola*>(geom1),
-                        geom2,
-                        GeoId1,
-                        GeoId2);
+                    closeAndRecompute(currentTransactionID,
+                                      !makeTangentToArcOfHyperbolaviaNewPoint(
+                                                Obj,
+                                                static_cast<const Part::GeomArcOfHyperbola*>(geom1),
+                                                geom2,
+                                                GeoId1,
+                                                GeoId2),
+                                      Obj);
+
                     getSelection().clearSelection();
                     return;
                 }
                 else if (isArcOfParabola(*geom2)) {
-                    Gui::Command::openCommand(
+                    openCommand(
                         QT_TRANSLATE_NOOP("Command", "Add tangent constraint point"));
-                    makeTangentToArcOfParabolaviaNewPoint(
-                        Obj,
-                        static_cast<const Part::GeomArcOfParabola*>(geom2),
-                        geom1,
-                        GeoId2,
-                        GeoId1);
+                    closeAndRecompute(currentTransactionID,
+                                      !makeTangentToArcOfParabolaviaNewPoint(
+                                                Obj,
+                                                static_cast<const Part::GeomArcOfParabola*>(geom2),
+                                                geom1,
+                                                GeoId2,
+                                                GeoId1),
+                                      Obj);
+
                     getSelection().clearSelection();
                     return;
                 }
@@ -6980,14 +8292,17 @@ void CmdSketcherConstrainTangent::applyConstraint(std::vector<SelIdPair>& selSeq
                 if (isArcOfParabola(*geom2) || isArcOfHyperbola(*geom2) || isArcOfEllipse(*geom2)
                    || isCircle(*geom2) || isArcOfCircle(*geom2) || isLineSegment(*geom2)) {
 
-                    Gui::Command::openCommand(
+                    openCommand(
                         QT_TRANSLATE_NOOP("Command", "Add tangent constraint point"));
-                    makeTangentToArcOfParabolaviaNewPoint(
-                        Obj,
-                        static_cast<const Part::GeomArcOfParabola*>(geom1),
-                        geom2,
-                        GeoId1,
-                        GeoId2);
+                    closeAndRecompute(currentTransactionID,
+                                      !makeTangentToArcOfParabolaviaNewPoint(
+                                                Obj,
+                                                static_cast<const Part::GeomArcOfParabola*>(geom1),
+                                                geom2,
+                                                GeoId1,
+                                                GeoId2),
+                                      Obj);
+
                     getSelection().clearSelection();
                     return;
                 }
@@ -6998,8 +8313,7 @@ void CmdSketcherConstrainTangent::applyConstraint(std::vector<SelIdPair>& selSeq
                                   "addConstraint(Sketcher.Constraint('Tangent',%d,%d))",
                                   GeoId1,
                                   GeoId2);
-            commitCommand();
-            tryAutoRecompute(Obj);
+            finishTransactionAndUpdate(this, Obj);
 
             return;
         }
@@ -7070,10 +8384,7 @@ void CmdSketcherConstrainTangent::applyConstraint(std::vector<SelIdPair>& selSeq
                                   static_cast<int>(PosId1),
                                   GeoId2,
                                   static_cast<int>(PosId2));
-            commitCommand();
-            tryAutoRecompute(Obj);
-
-            getSelection().clearSelection();
+            finishTransactionAndUpdate(this, Obj);
             return;
         }
         default:
@@ -7101,35 +8412,41 @@ void CmdSketcherConstrainTangent::applyConstraint(std::vector<SelIdPair>& selSeq
         bool safe = addConstraintSafely(Obj, [&]() {
             // add missing point-on-object constraints
             if (!IsPointAlreadyOnCurve(GeoId1, GeoId3, PosId3, Obj)) {
-                Gui::cmdAppObjectArgs(
-                    Obj,
-                    "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
-                    GeoId3,
-                    static_cast<int>(PosId3),
-                    GeoId1);
-            };
+                const Part::Geometry *geom1 = Obj->getGeometry(GeoId1);
+                if (!(geom1 && isBSplineCurve(*geom1))) {
+                    Gui::cmdAppObjectArgs(
+                        Obj,
+                        "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
+                        GeoId3,
+                        static_cast<int>(PosId3),
+                        GeoId1);
+                }
+            }
 
             if (!IsPointAlreadyOnCurve(GeoId2, GeoId3, PosId3, Obj)) {
-                Gui::cmdAppObjectArgs(
-                    Obj,
-                    "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
-                    GeoId3,
-                    static_cast<int>(PosId3),
-                    GeoId2);
-            };
+                const Part::Geometry *geom2 = Obj->getGeometry(GeoId2);
+                if (!(geom2 && isBSplineCurve(*geom2))) {
+                    Gui::cmdAppObjectArgs(
+                        Obj,
+                        "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
+                        GeoId3,
+                        static_cast<int>(PosId3),
+                        GeoId2);
+                }
+            }
 
-            if (!IsPointAlreadyOnCurve(
-                    GeoId1,
-                    GeoId3,
-                    PosId3,
-                    Obj)) {// FIXME: it's a good idea to add a check if the sketch is solved
-                Gui::cmdAppObjectArgs(
-                    Obj,
-                    "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
-                    GeoId3,
-                    static_cast<int>(PosId3),
-                    GeoId1);
-            };
+            if (!IsPointAlreadyOnCurve(GeoId1, GeoId3, PosId3, Obj)) {
+                // FIXME: it's a good idea to add a check if the sketch is solved
+                const Part::Geometry *geom1 = Obj->getGeometry(GeoId1);
+                if (!(geom1 && isBSplineCurve(*geom1))) {
+                    Gui::cmdAppObjectArgs(
+                        Obj,
+                        "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
+                        GeoId3,
+                        static_cast<int>(PosId3),
+                        GeoId1);
+                }
+            }
 
             Gui::cmdAppObjectArgs(
                 Obj,
@@ -7138,86 +8455,72 @@ void CmdSketcherConstrainTangent::applyConstraint(std::vector<SelIdPair>& selSeq
                 GeoId2,
                 GeoId3,
                 static_cast<int>(PosId3));
+
+            removeRedundantPointOnObject(Obj, GeoId1, GeoId2, GeoId3);
         });
 
         if (!safe) {
+            abortCommand();
             return;
         }
-        else {
-            commitCommand();
-            tryAutoRecompute(Obj);
-        }
-
-        getSelection().clearSelection();
-
-        return;
-    };
+        finishTransactionAndUpdate(this, Obj);
+    }
 }
 
 // ======================================================================================
 
-class CmdSketcherConstrainRadius: public CmdSketcherConstraint
+enum class RadialDimension
 {
-public:
-    CmdSketcherConstrainRadius();
-    ~CmdSketcherConstrainRadius() override
-    {}
-    void updateAction(int mode) override;
-    const char* className() const override
-    {
-        return "CmdSketcherConstrainRadius";
-    }
-
-protected:
-    void activated(int iMsg) override;
-    void applyConstraint(std::vector<SelIdPair>& selSeq, int seqIndex) override;
+    Radius,
+    Diameter,
+    Radiam
 };
 
-CmdSketcherConstrainRadius::CmdSketcherConstrainRadius()
-    : CmdSketcherConstraint("Sketcher_ConstrainRadius")
+static const char* radialDimensionCommand(RadialDimension dimension)
 {
-    sAppModule = "Sketcher";
-    sGroup = "Sketcher";
-    sMenuText = QT_TR_NOOP("Constrain radius");
-    sToolTipText = QT_TR_NOOP("Fix the radius of a circle or an arc");
-    sWhatsThis = "Sketcher_ConstrainRadius";
-    sStatusTip = sToolTipText;
-    sPixmap = "Constraint_Radius";
-    sAccel = "K, R";
-    eType = ForEdit;
-
-    allowedSelSequences = {{SelEdge}, {SelExternalEdge}};
+    switch (dimension) {
+        case RadialDimension::Radius:
+            return QT_TRANSLATE_NOOP("Command", "Add radius constraint");
+        case RadialDimension::Diameter:
+            return QT_TRANSLATE_NOOP("Command", "Add diameter constraint");
+        case RadialDimension::Radiam:
+            return QT_TRANSLATE_NOOP("Command", "Add radiam constraint");
+    }
+    return nullptr;
 }
 
-void CmdSketcherConstrainRadius::activated(int iMsg)
+static void addRadialDimension(SketchObject* obj,
+                              RadialDimension dimension,
+                              int geoId,
+                              double radius,
+                              bool fixedSelection = false)
 {
-    Q_UNUSED(iMsg);
-    // get the selection
-    std::vector<Gui::SelectionObject> selection = getSelection().getSelectionEx();
+    const auto* geom = obj->getGeometry(geoId);
+    const char* type = "Radius";
+    if (dimension == RadialDimension::Diameter
+        || (dimension == RadialDimension::Radiam && isCircle(*geom)
+            && (fixedSelection || !isBsplinePole(geom)))) {
+        // Preserve Radiam's existing diameter treatment of fixed selected pole circles.
+        type = "Diameter";
+        radius *= 2;
+    }
+    else if (isBsplinePole(geom)) {
+        type = "Weight";
+    }
+    Gui::cmdAppObjectArgs(obj, "addConstraint(Sketcher.Constraint('%s',%d,%.8g))",
+                          type, geoId, radius);
+}
 
-    // only one sketch with its subelements are allowed to be selected
-    if (selection.size() != 1
-        || !selection[0].isObjectTypeOf(Sketcher::SketchObject::getClassTypeId())) {
-        ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
-            "User parameter:BaseApp/Preferences/Mod/Sketcher");
-        bool constraintMode = hGrp->GetBool("ContinuousConstraintMode", true);
-
-        if (constraintMode) {
-            ActivateHandler(getActiveGuiDocument(), new DrawSketchHandlerGenConstraint(this));
-            getSelection().clearSelection();
-        }
-        else {
-            // TODO: Get the exact message from git history and put it here
-            Gui::TranslatedUserWarning(getActiveGuiDocument(),
-                                       QObject::tr("Wrong selection"),
-                                       QObject::tr("Select the right things from the sketch."));
-        }
+static void activateRadialDimension(CmdSketcherConstraint* cmd, RadialDimension dimension)
+{
+    auto selection = getConstraintSelection(cmd);
+    if (!selection) {
         return;
     }
 
     // get the needed lists and objects
-    const std::vector<std::string>& SubNames = selection[0].getSubNames();
-    Sketcher::SketchObject* Obj = static_cast<Sketcher::SketchObject*>(selection[0].getObject());
+    const std::vector<std::string>& SubNames = selection->getSubNames();
+    auto* Obj = static_cast<Sketcher::SketchObject*>(selection->getObject());
 
     if (SubNames.empty()) {
         Gui::TranslatedUserWarning(
@@ -7234,17 +8537,16 @@ void CmdSketcherConstrainRadius::activated(int iMsg)
     bool poles = false;
     bool nonpoles = false;
 
-    for (std::vector<std::string>::const_iterator it = SubNames.begin(); it != SubNames.end();
-         ++it) {
+    for (auto& subname : SubNames) {
         bool issegmentfixed = false;
         int GeoId;
 
-        if (it->size() > 4 && it->substr(0, 4) == "Edge") {
-            GeoId = std::atoi(it->substr(4, 4000).c_str()) - 1;
+        if (subname.size() > 4 && subname.substr(0, 4) == "Edge") {
+            GeoId = std::atoi(subname.substr(4, 4000).c_str()) - 1;
             issegmentfixed = isPointOrSegmentFixed(Obj, GeoId);
         }
-        else if (it->size() > 4 && it->substr(0, 12) == "ExternalEdge") {
-            GeoId = -std::atoi(it->substr(12, 4000).c_str()) - 2;
+        else if (subname.size() > 4 && subname.substr(0, 12) == "ExternalEdge") {
+            GeoId = -std::atoi(subname.substr(12, 4000).c_str()) - 2;
             issegmentfixed = true;
         }
         else {
@@ -7269,6 +8571,14 @@ void CmdSketcherConstrainRadius::activated(int iMsg)
         else if (geom && isCircle(*geom)) {
             auto circle = static_cast<const Part::GeomCircle*>(geom);
             double radius = circle->getRadius();
+
+            if (dimension == RadialDimension::Diameter && isBsplinePole(geom)) {
+                Gui::TranslatedUserWarning(
+                    Obj,
+                    QObject::tr("Wrong selection"),
+                    QObject::tr("Select an edge that is not a B-spline weight."));
+                continue;
+            }
 
             if (issegmentfixed) {
                 externalGeoIdRadiusMap.emplace_back(GeoId, radius);
@@ -7298,7 +8608,7 @@ void CmdSketcherConstrainRadius::activated(int iMsg)
         Gui::TranslatedUserWarning(
             Obj,
             QObject::tr("Wrong selection"),
-            QObject::tr("Select either only one or more B-Spline poles or only one or more arcs or "
+            QObject::tr("Select either only one or more B-spline poles or only one or more arcs or "
                         "circles from the sketch, but not mixed."));
         return;
     }
@@ -7309,7 +8619,7 @@ void CmdSketcherConstrainRadius::activated(int iMsg)
 
     if (!externalGeoIdRadiusMap.empty()) {
         // Create the non-driving radius constraints now
-        openCommand(QT_TRANSLATE_NOOP("Command", "Add radius constraint"));
+        cmd->openCommand(radialDimensionCommand(dimension));
         commandopened = true;
         unsigned int constrSize = 0;
 
@@ -7317,30 +8627,19 @@ void CmdSketcherConstrainRadius::activated(int iMsg)
              it != externalGeoIdRadiusMap.end();
              ++it) {
 
-            if (nonpoles) {
-                Gui::cmdAppObjectArgs(selection[0].getObject(),
-                                      "addConstraint(Sketcher.Constraint('Radius',%d,%f))",
-                                      it->first,
-                                      it->second);
-            }
-            else {
-                Gui::cmdAppObjectArgs(selection[0].getObject(),
-                                      "addConstraint(Sketcher.Constraint('Weight',%d,%f))",
-                                      it->first,
-                                      it->second);
-            }
+            addRadialDimension(Obj, dimension, it->first, it->second, true);
 
             const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
 
             constrSize = ConStr.size();
 
-            Gui::cmdAppObjectArgs(selection[0].getObject(),
+            Gui::cmdAppObjectArgs(selection->getObject(),
                                   "setDriving(%d,%s)",
                                   constrSize - 1,
                                   "False");
         }
 
-        finishDatumConstraint(this, Obj, false, externalGeoIdRadiusMap.size());
+        finishDatumConstraint(cmd, Obj, false, externalGeoIdRadiusMap.size());
 
         commitNeeded = true;
         updateNeeded = true;
@@ -7353,56 +8652,34 @@ void CmdSketcherConstrainRadius::activated(int iMsg)
             double radius = geoIdRadiusMap.front().second;
 
             if (!commandopened) {
-                openCommand(QT_TRANSLATE_NOOP("Command", "Add radius constraint"));
+                cmd->openCommand(radialDimensionCommand(dimension));
             }
 
             // Add the equality constraints
             for (std::vector<std::pair<int, double>>::iterator it = geoIdRadiusMap.begin() + 1;
                  it != geoIdRadiusMap.end();
                  ++it) {
-                Gui::cmdAppObjectArgs(selection[0].getObject(),
+                Gui::cmdAppObjectArgs(selection->getObject(),
                                       "addConstraint(Sketcher.Constraint('Equal',%d,%d))",
                                       refGeoId,
                                       it->first);
             }
 
-            if (nonpoles) {
-                Gui::cmdAppObjectArgs(selection[0].getObject(),
-                                      "addConstraint(Sketcher.Constraint('Radius',%d,%f))",
-                                      refGeoId,
-                                      radius);
-            }
-            else {
-                Gui::cmdAppObjectArgs(selection[0].getObject(),
-                                      "addConstraint(Sketcher.Constraint('Weight',%d,%f))",
-                                      refGeoId,
-                                      radius);
-            }
+            addRadialDimension(Obj, dimension, refGeoId, radius);
         }
         else {
             // Create the radius constraints now
             if (!commandopened) {
-                openCommand(QT_TRANSLATE_NOOP("Command", "Add radius constraint"));
+                cmd->openCommand(radialDimensionCommand(dimension));
             }
             for (std::vector<std::pair<int, double>>::iterator it = geoIdRadiusMap.begin();
                  it != geoIdRadiusMap.end();
                  ++it) {
-                if (nonpoles) {
-                    Gui::cmdAppObjectArgs(selection[0].getObject(),
-                                          "addConstraint(Sketcher.Constraint('Radius',%d,%f))",
-                                          it->first,
-                                          it->second);
-                }
-                else {
-                    Gui::cmdAppObjectArgs(selection[0].getObject(),
-                                          "addConstraint(Sketcher.Constraint('Weight',%d,%f))",
-                                          it->first,
-                                          it->second);
-                }
+                addRadialDimension(Obj, dimension, it->first, it->second);
 
                 if (constraintCreationMode == Reference) {
                     const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-                    Gui::cmdAppObjectArgs(selection[0].getObject(),
+                    Gui::cmdAppObjectArgs(selection->getObject(),
                                           "setDriving(%d,%s)",
                                           ConStr.size() - 1,
                                           "False");
@@ -7410,14 +8687,14 @@ void CmdSketcherConstrainRadius::activated(int iMsg)
             }
         }
 
-        finishDatumConstraint(this, Obj, constraintCreationMode == Driving);
+        finishDatumConstraint(cmd, Obj, constraintCreationMode == Driving);
 
         // updateActive();
-        getSelection().clearSelection();
+        cmd->getSelection().clearSelection();
     }
 
     if (commitNeeded) {
-        commitCommand();
+        cmd->commitCommand();
     }
 
     if (updateNeeded) {
@@ -7425,10 +8702,13 @@ void CmdSketcherConstrainRadius::activated(int iMsg)
     }
 }
 
-void CmdSketcherConstrainRadius::applyConstraint(std::vector<SelIdPair>& selSeq, int seqIndex)
+static void applyRadialDimension(Gui::Command* cmd,
+                                const std::vector<SelIdPair>& selSeq,
+                                int seqIndex,
+                                RadialDimension dimension)
 {
     SketcherGui::ViewProviderSketch* sketchgui =
-        static_cast<SketcherGui::ViewProviderSketch*>(getActiveGuiDocument()->getInEdit());
+        static_cast<SketcherGui::ViewProviderSketch*>(cmd->getActiveGuiDocument()->getInEdit());
     Sketcher::SketchObject* Obj = sketchgui->getSketchObject();
 
     int GeoId = selSeq.at(0).GeoId;
@@ -7458,23 +8738,16 @@ void CmdSketcherConstrainRadius::applyConstraint(std::vector<SelIdPair>& selSeq,
                 return;
             }
 
-            // Create the radius constraint now
-            openCommand(QT_TRANSLATE_NOOP("Command", "Add radius constraint"));
-
-            bool ispole = isBsplinePole(geom);
-
-            if (ispole) {
-                Gui::cmdAppObjectArgs(Obj,
-                                      "addConstraint(Sketcher.Constraint('Weight',%d,%f))",
-                                      GeoId,
-                                      radius);
+            if (dimension == RadialDimension::Diameter && isBsplinePole(geom)) {
+                Gui::TranslatedUserWarning(
+                    Obj,
+                    QObject::tr("Wrong selection"),
+                    QObject::tr("Select an edge that is not a B-spline weight."));
+                return;
             }
-            else {
-                Gui::cmdAppObjectArgs(Obj,
-                                      "addConstraint(Sketcher.Constraint('Radius',%d,%f))",
-                                      GeoId,
-                                      radius);
-            }
+
+            cmd->openCommand(radialDimensionCommand(dimension));
+            addRadialDimension(Obj, dimension, GeoId, radius);
 
             const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
 
@@ -7486,12 +8759,12 @@ void CmdSketcherConstrainRadius::applyConstraint(std::vector<SelIdPair>& selSeq,
                                     // constraint driving.
             }
 
-            finishDatumConstraint(this, Obj, constraintCreationMode == Driving && !fixed);
+            finishDatumConstraint(cmd, Obj, constraintCreationMode == Driving && !fixed);
 
             // updateActive();
-            getSelection().clearSelection();
+            cmd->getSelection().clearSelection();
 
-            commitCommand();
+            cmd->commitCommand();
 
             if (updateNeeded) {
                 tryAutoRecomputeIfNotSolve(
@@ -7501,21 +8774,53 @@ void CmdSketcherConstrainRadius::applyConstraint(std::vector<SelIdPair>& selSeq,
     }
 }
 
+class CmdSketcherConstrainRadius: public CmdSketcherConstraint
+{
+public:
+    CmdSketcherConstrainRadius();
+    ~CmdSketcherConstrainRadius() override
+    {}
+    void updateAction(int mode) override;
+    const char* className() const override
+    {
+        return "CmdSketcherConstrainRadius";
+    }
+
+protected:
+    void activated(int iMsg) override;
+    void applyConstraint(std::vector<SelIdPair>& selSeq, int seqIndex) override;
+};
+
+CmdSketcherConstrainRadius::CmdSketcherConstrainRadius()
+    : CmdSketcherConstraint("Sketcher_ConstrainRadius")
+{
+    sAppModule = "Sketcher";
+    sGroup = "Sketcher";
+    sMenuText = QT_TR_NOOP("Radius Dimension");
+    sToolTipText = QT_TR_NOOP("Constrains the radius of the selected circle or arc");
+    sWhatsThis = "Sketcher_ConstrainRadius";
+    sStatusTip = sToolTipText;
+    sPixmap = "Constraint_Radius";
+    sAccel = "K, R";
+    eType = ForEdit;
+
+    allowedSelSequences = {{SelEdge}, {SelExternalEdge}};
+}
+
+void CmdSketcherConstrainRadius::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+    activateRadialDimension(this, RadialDimension::Radius);
+}
+
+void CmdSketcherConstrainRadius::applyConstraint(std::vector<SelIdPair>& selSeq, int seqIndex)
+{
+    applyRadialDimension(this, selSeq, seqIndex, RadialDimension::Radius);
+}
+
 void CmdSketcherConstrainRadius::updateAction(int mode)
 {
-    switch (mode) {
-        case Reference:
-            if (getAction()) {
-                getAction()->setIcon(
-                    Gui::BitmapFactory().iconFromTheme("Constraint_Radius_Driven"));
-            }
-            break;
-        case Driving:
-            if (getAction()) {
-                getAction()->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_Radius"));
-            }
-            break;
-    }
+    updateDimensionIcon(this, mode, "Constraint_Radius");
 }
 
 // ======================================================================================
@@ -7542,8 +8847,8 @@ CmdSketcherConstrainDiameter::CmdSketcherConstrainDiameter()
 {
     sAppModule = "Sketcher";
     sGroup = "Sketcher";
-    sMenuText = QT_TR_NOOP("Constrain diameter");
-    sToolTipText = QT_TR_NOOP("Fix the diameter of a circle or an arc");
+    sMenuText = QT_TR_NOOP("Diameter Dimension");
+    sToolTipText = QT_TR_NOOP("Constrains the diameter of the selected circle or arc");
     sWhatsThis = "Sketcher_ConstrainDiameter";
     sStatusTip = sToolTipText;
     sPixmap = "Constraint_Diameter";
@@ -7556,285 +8861,17 @@ CmdSketcherConstrainDiameter::CmdSketcherConstrainDiameter()
 void CmdSketcherConstrainDiameter::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
-    // get the selection
-    std::vector<Gui::SelectionObject> selection = getSelection().getSelectionEx();
-
-    // only one sketch with its subelements are allowed to be selected
-    if (selection.size() != 1
-        || !selection[0].isObjectTypeOf(Sketcher::SketchObject::getClassTypeId())) {
-        ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
-            "User parameter:BaseApp/Preferences/Mod/Sketcher");
-        bool constraintMode = hGrp->GetBool("ContinuousConstraintMode", true);
-
-        if (constraintMode) {
-            ActivateHandler(getActiveGuiDocument(), new DrawSketchHandlerGenConstraint(this));
-            getSelection().clearSelection();
-        }
-        else {
-            // TODO: Get the exact message from git history and put it here
-            Gui::TranslatedUserWarning(getActiveGuiDocument(),
-                                       QObject::tr("Wrong selection"),
-                                       QObject::tr("Select the right things from the sketch."));
-        }
-        return;
-    }
-
-    // get the needed lists and objects
-    const std::vector<std::string>& SubNames = selection[0].getSubNames();
-    Sketcher::SketchObject* Obj = static_cast<Sketcher::SketchObject*>(selection[0].getObject());
-
-    if (SubNames.empty()) {
-        Gui::TranslatedUserWarning(
-            Obj,
-            QObject::tr("Wrong selection"),
-            QObject::tr("Select one or more arcs or circles from the sketch."));
-        return;
-    }
-
-    // check for which selected geometry the constraint can be applied
-    std::vector<std::pair<int, double>> geoIdDiameterMap;
-    std::vector<std::pair<int, double>> externalGeoIdDiameterMap;
-
-    for (std::vector<std::string>::const_iterator it = SubNames.begin(); it != SubNames.end();
-         ++it) {
-        bool issegmentfixed = false;
-        int GeoId;
-
-        if (it->size() > 4 && it->substr(0, 4) == "Edge") {
-            GeoId = std::atoi(it->substr(4, 4000).c_str()) - 1;
-            issegmentfixed = isPointOrSegmentFixed(Obj, GeoId);
-        }
-        else if (it->size() > 4 && it->substr(0, 12) == "ExternalEdge") {
-            GeoId = -std::atoi(it->substr(12, 4000).c_str()) - 2;
-            issegmentfixed = true;
-        }
-        else {
-            continue;
-        }
-
-        const Part::Geometry* geom = Obj->getGeometry(GeoId);
-
-        if (geom && isArcOfCircle(*geom)) {
-            auto arc = static_cast<const Part::GeomArcOfCircle*>(geom);
-            double radius = arc->getRadius();
-
-            if (issegmentfixed) {
-                externalGeoIdDiameterMap.emplace_back(GeoId, 2 * radius);
-            }
-            else {
-                geoIdDiameterMap.emplace_back(GeoId, 2 * radius);
-            }
-        }
-        else if (geom && isCircle(*geom)) {
-            auto circle = static_cast<const Part::GeomCircle*>(geom);
-            double radius = circle->getRadius();
-
-            if (isBsplinePole(geom)) {
-                Gui::TranslatedUserWarning(
-                    Obj,
-                    QObject::tr("Wrong selection"),
-                    QObject::tr("Select an edge that is not a B-spline weight."));
-
-                continue;
-            }
-
-            if (issegmentfixed) {
-                externalGeoIdDiameterMap.emplace_back(GeoId, 2 * radius);
-            }
-            else {
-                geoIdDiameterMap.emplace_back(GeoId, 2 * radius);
-            }
-        }
-    }
-
-    if (geoIdDiameterMap.empty() && externalGeoIdDiameterMap.empty()) {
-        Gui::TranslatedUserWarning(
-            Obj,
-            QObject::tr("Wrong selection"),
-            QObject::tr("Select one or more arcs or circles from the sketch."));
-        return;
-    }
-
-    bool commitNeeded = false;
-    bool updateNeeded = false;
-    bool commandopened = false;
-
-    if (!externalGeoIdDiameterMap.empty()) {
-        // Create the non-driving radius constraints now
-        openCommand(QT_TRANSLATE_NOOP("Command", "Add diameter constraint"));
-        commandopened = true;
-        unsigned int constrSize = 0;
-
-        for (std::vector<std::pair<int, double>>::iterator it = externalGeoIdDiameterMap.begin();
-             it != externalGeoIdDiameterMap.end();
-             ++it) {
-            Gui::cmdAppObjectArgs(Obj,
-                                  "addConstraint(Sketcher.Constraint('Diameter',%d,%f))",
-                                  it->first,
-                                  it->second);
-
-            const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-
-            constrSize = ConStr.size();
-
-            Gui::cmdAppObjectArgs(Obj, "setDriving(%d,%s)", constrSize - 1, "False");
-        }
-
-        finishDatumConstraint(this, Obj, false, externalGeoIdDiameterMap.size());
-
-        commitNeeded = true;
-        updateNeeded = true;
-    }
-
-    if (!geoIdDiameterMap.empty()) {
-        if (geoIdDiameterMap.size() > 1 && constraintCreationMode == Driving) {
-
-            int refGeoId = geoIdDiameterMap.front().first;
-            double diameter = geoIdDiameterMap.front().second;
-
-            if (!commandopened) {
-                openCommand(QT_TRANSLATE_NOOP("Command", "Add diameter constraint"));
-            }
-
-            // Add the equality constraints
-            for (std::vector<std::pair<int, double>>::iterator it = geoIdDiameterMap.begin() + 1;
-                 it != geoIdDiameterMap.end();
-                 ++it) {
-                Gui::cmdAppObjectArgs(Obj,
-                                      "addConstraint(Sketcher.Constraint('Equal',%d,%d))",
-                                      refGeoId,
-                                      it->first);
-            }
-
-            Gui::cmdAppObjectArgs(Obj,
-                                  "addConstraint(Sketcher.Constraint('Diameter',%d,%f))",
-                                  refGeoId,
-                                  diameter);
-        }
-        else {
-            // Create the diameter constraints now
-            if (!commandopened) {
-                openCommand(QT_TRANSLATE_NOOP("Command", "Add diameter constraint"));
-            }
-            for (std::vector<std::pair<int, double>>::iterator it = geoIdDiameterMap.begin();
-                 it != geoIdDiameterMap.end();
-                 ++it) {
-                Gui::cmdAppObjectArgs(Obj,
-                                      "addConstraint(Sketcher.Constraint('Diameter',%d,%f))",
-                                      it->first,
-                                      it->second);
-
-                if (constraintCreationMode == Reference) {
-
-                    const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-
-                    Gui::cmdAppObjectArgs(Obj, "setDriving(%d,%s)", ConStr.size() - 1, "False");
-                }
-            }
-        }
-
-        finishDatumConstraint(this, Obj, constraintCreationMode == Driving);
-
-        // updateActive();
-        getSelection().clearSelection();
-    }
-
-    if (commitNeeded) {
-        commitCommand();
-    }
-
-    if (updateNeeded) {
-        tryAutoRecomputeIfNotSolve(Obj);// we have to update the solver after this aborted addition.
-    }
+    activateRadialDimension(this, RadialDimension::Diameter);
 }
 
 void CmdSketcherConstrainDiameter::applyConstraint(std::vector<SelIdPair>& selSeq, int seqIndex)
 {
-    SketcherGui::ViewProviderSketch* sketchgui =
-        static_cast<SketcherGui::ViewProviderSketch*>(getActiveGuiDocument()->getInEdit());
-    Sketcher::SketchObject* Obj = sketchgui->getSketchObject();
-
-    int GeoId = selSeq.at(0).GeoId;
-    double diameter = 0.0;
-
-    bool updateNeeded = false;
-
-    switch (seqIndex) {
-        case 0:// {SelEdge}
-        case 1:// {SelExternalEdge}
-        {
-            const Part::Geometry* geom = Obj->getGeometry(GeoId);
-
-            if (geom && isArcOfCircle(*geom)) {
-                auto arc = static_cast<const Part::GeomArcOfCircle*>(geom);
-                diameter = 2 * arc->getRadius();
-            }
-            else if (geom && isCircle(*geom)) {
-                auto circle = static_cast<const Part::GeomCircle*>(geom);
-                diameter = 2 * circle->getRadius();
-            }
-            else {
-                Gui::TranslatedUserWarning(
-                    Obj,
-                    QObject::tr("Wrong selection"),
-                    QObject::tr("Constraint only applies to arcs or circles."));
-                return;
-            }
-
-            if (isBsplinePole(geom)) {
-                Gui::TranslatedUserWarning(
-                    Obj,
-                    QObject::tr("Wrong selection"),
-                    QObject::tr("Select an edge that is not a B-spline weight."));
-                return;
-            }
-
-            // Create the diameter constraint now
-            openCommand(QT_TRANSLATE_NOOP("Command", "Add diameter constraint"));
-            Gui::cmdAppObjectArgs(Obj,
-                                  "addConstraint(Sketcher.Constraint('Diameter',%d,%f))",
-                                  GeoId,
-                                  diameter);
-
-            const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-
-            bool fixed = isPointOrSegmentFixed(Obj, GeoId);
-            if (fixed || constraintCreationMode == Reference) {
-                Gui::cmdAppObjectArgs(Obj, "setDriving(%d,%s)", ConStr.size() - 1, "False");
-                updateNeeded = true;// We do need to update the solver DoF after setting the
-                                    // constraint driving.
-            }
-
-            finishDatumConstraint(this, Obj, constraintCreationMode == Driving && !fixed);
-
-            // updateActive();
-            getSelection().clearSelection();
-
-            commitCommand();
-
-            if (updateNeeded) {
-                tryAutoRecomputeIfNotSolve(
-                    Obj);// we have to update the solver after this aborted addition.
-            }
-        }
-    }
+    applyRadialDimension(this, selSeq, seqIndex, RadialDimension::Diameter);
 }
 
 void CmdSketcherConstrainDiameter::updateAction(int mode)
 {
-    switch (mode) {
-        case Reference:
-            if (getAction()) {
-                getAction()->setIcon(
-                    Gui::BitmapFactory().iconFromTheme("Constraint_Diameter_Driven"));
-            }
-            break;
-        case Driving:
-            if (getAction()) {
-                getAction()->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_Diameter"));
-            }
-            break;
-    }
+    updateDimensionIcon(this, mode, "Constraint_Diameter");
 }
 
 // ======================================================================================
@@ -7861,9 +8898,8 @@ CmdSketcherConstrainRadiam::CmdSketcherConstrainRadiam()
 {
     sAppModule = "Sketcher";
     sGroup = "Sketcher";
-    sMenuText = QT_TR_NOOP("Constrain auto radius/diameter");
-    sToolTipText = QT_TR_NOOP(
-        "Fix the diameter if a circle is chosen, or the radius if an arc/spline pole is chosen");
+    sMenuText = QT_TR_NOOP("Radius/Diameter Dimension");
+    sToolTipText = QT_TR_NOOP("Constrains the radius of the selected arc or the diameter of the selected circle");
     sWhatsThis = "Sketcher_ConstrainRadiam";
     sStatusTip = sToolTipText;
     sPixmap = "Constraint_Radiam";
@@ -7876,350 +8912,17 @@ CmdSketcherConstrainRadiam::CmdSketcherConstrainRadiam()
 void CmdSketcherConstrainRadiam::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
-    // get the selection
-    std::vector<Gui::SelectionObject> selection = getSelection().getSelectionEx();
-
-    // only one sketch with its subelements are allowed to be selected
-    if (selection.size() != 1
-        || !selection[0].isObjectTypeOf(Sketcher::SketchObject::getClassTypeId())) {
-        ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
-            "User parameter:BaseApp/Preferences/Mod/Sketcher");
-        bool constraintMode = hGrp->GetBool("ContinuousConstraintMode", true);
-
-        if (constraintMode) {
-            ActivateHandler(getActiveGuiDocument(), new DrawSketchHandlerGenConstraint(this));
-            getSelection().clearSelection();
-        }
-        else {
-            // TODO: Get the exact message from git history and put it here
-            Gui::TranslatedUserWarning(getActiveGuiDocument(),
-                                       QObject::tr("Wrong selection"),
-                                       QObject::tr("Select the right things from the sketch."));
-        }
-        return;
-    }
-
-    // get the needed lists and objects
-    const std::vector<std::string>& SubNames = selection[0].getSubNames();
-    Sketcher::SketchObject* Obj = static_cast<Sketcher::SketchObject*>(selection[0].getObject());
-
-    if (SubNames.empty()) {
-        Gui::TranslatedUserWarning(
-            Obj,
-            QObject::tr("Wrong selection"),
-            QObject::tr("Select one or more arcs or circles from the sketch."));
-        return;
-    }
-
-    // check for which selected geometry the constraint can be applied
-    std::vector<std::pair<int, double>> geoIdRadiamMap;
-    std::vector<std::pair<int, double>> externalGeoIdRadiamMap;
-
-    bool poles = false;
-    bool nonpoles = false;
-
-    for (std::vector<std::string>::const_iterator it = SubNames.begin(); it != SubNames.end();
-         ++it) {
-        bool issegmentfixed = false;
-        int GeoId;
-
-        if (it->size() > 4 && it->substr(0, 4) == "Edge") {
-            GeoId = std::atoi(it->substr(4, 4000).c_str()) - 1;
-            issegmentfixed = isPointOrSegmentFixed(Obj, GeoId);
-        }
-        else if (it->size() > 4 && it->substr(0, 12) == "ExternalEdge") {
-            GeoId = -std::atoi(it->substr(12, 4000).c_str()) - 2;
-            issegmentfixed = true;
-        }
-        else {
-            continue;
-        }
-
-        const Part::Geometry* geom = Obj->getGeometry(GeoId);
-        double radius;
-
-        if (geom && isArcOfCircle(*geom)) {
-            auto arcir = static_cast<const Part::GeomArcOfCircle*>(geom);
-            radius = arcir->getRadius();
-            nonpoles = true;
-        }
-        else if (geom && isCircle(*geom)) {
-            auto arcir = static_cast<const Part::GeomCircle*>(geom);
-            radius = arcir->getRadius();
-            if (isBsplinePole(geom)) {
-                poles = true;
-            }
-            else {
-                nonpoles = true;
-            }
-        }
-        else {
-            continue;
-        }
-
-        if (issegmentfixed) {
-            externalGeoIdRadiamMap.emplace_back(GeoId, radius);
-        }
-        else {
-            geoIdRadiamMap.emplace_back(GeoId, radius);
-        }
-    }
-
-    if (geoIdRadiamMap.empty() && externalGeoIdRadiamMap.empty()) {
-        Gui::TranslatedUserWarning(
-            Obj,
-            QObject::tr("Wrong selection"),
-            QObject::tr("Select one or more arcs or circles from the sketch."));
-        return;
-    }
-
-    if (poles && nonpoles) {
-        Gui::TranslatedUserWarning(
-            Obj,
-            QObject::tr("Wrong selection"),
-            QObject::tr("Select either only one or more B-Spline poles or only one or more arcs or "
-                        "circles from the sketch, but not mixed."));
-        return;
-    }
-
-    bool commitNeeded = false;
-    bool updateNeeded = false;
-    bool commandopened = false;
-
-    if (!externalGeoIdRadiamMap.empty()) {
-        // Create the non-driving radiam constraints now
-        openCommand(QT_TRANSLATE_NOOP("Command", "Add radiam constraint"));
-        commandopened = true;
-        unsigned int constrSize = 0;
-
-        for (std::vector<std::pair<int, double>>::iterator it = externalGeoIdRadiamMap.begin();
-             it != externalGeoIdRadiamMap.end();
-             ++it) {
-            if (isArcOfCircle(*(Obj->getGeometry(it->first)))) {
-                if (nonpoles) {
-                    Gui::cmdAppObjectArgs(Obj,
-                                          "addConstraint(Sketcher.Constraint('Radius',%d,%f))",
-                                          it->first,
-                                          it->second);
-                }
-                else {
-                    Gui::cmdAppObjectArgs(Obj,
-                                          "addConstraint(Sketcher.Constraint('Weight',%d,%f))",
-                                          it->first,
-                                          it->second);
-                }
-            }
-            else {
-                Gui::cmdAppObjectArgs(Obj,
-                                      "addConstraint(Sketcher.Constraint('Diameter',%d,%f))",
-                                      it->first,
-                                      it->second * 2);
-            }
-
-            const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-
-            constrSize = ConStr.size();
-
-            Gui::cmdAppObjectArgs(Obj, "setDriving(%d,%s)", constrSize - 1, "False");
-        }
-
-        finishDatumConstraint(this, Obj, false, externalGeoIdRadiamMap.size());
-
-        commitNeeded = true;
-        updateNeeded = true;
-    }
-
-    if (!geoIdRadiamMap.empty()) {
-        if (geoIdRadiamMap.size() > 1 && constraintCreationMode == Driving) {
-
-            int refGeoId = geoIdRadiamMap.front().first;
-            double radiam = geoIdRadiamMap.front().second;
-
-            if (!commandopened) {
-                openCommand(QT_TRANSLATE_NOOP("Command", "Add radiam constraint"));
-            }
-
-            // Add the equality constraints
-            for (std::vector<std::pair<int, double>>::iterator it = geoIdRadiamMap.begin() + 1;
-                 it != geoIdRadiamMap.end();
-                 ++it) {
-                Gui::cmdAppObjectArgs(Obj,
-                                      "addConstraint(Sketcher.Constraint('Equal',%d,%d))",
-                                      refGeoId,
-                                      it->first);
-            }
-
-            if (poles) {
-                Gui::cmdAppObjectArgs(Obj,
-                                      "addConstraint(Sketcher.Constraint('Weight',%d,%f))",
-                                      refGeoId,
-                                      radiam);
-            }
-            else if (isCircle(*(Obj->getGeometry(refGeoId)))) {
-                Gui::cmdAppObjectArgs(Obj,
-                                      "addConstraint(Sketcher.Constraint('Diameter',%d,%f))",
-                                      refGeoId,
-                                      radiam * 2);
-            }
-            else {
-                Gui::cmdAppObjectArgs(Obj,
-                                      "addConstraint(Sketcher.Constraint('Radius',%d,%f))",
-                                      refGeoId,
-                                      radiam);
-            }
-        }
-        else {
-            // Create the radiam constraints now
-            if (!commandopened) {
-                openCommand(QT_TRANSLATE_NOOP("Command", "Add radiam constraint"));
-            }
-            for (std::vector<std::pair<int, double>>::iterator it = geoIdRadiamMap.begin();
-                 it != geoIdRadiamMap.end();
-                 ++it) {
-                if (poles) {
-                    Gui::cmdAppObjectArgs(Obj,
-                                          "addConstraint(Sketcher.Constraint('Weight',%d,%f))",
-                                          it->first,
-                                          it->second);
-                }
-                else if (isCircle(*(Obj->getGeometry(it->first)))){
-                    Gui::cmdAppObjectArgs(Obj,
-                                          "addConstraint(Sketcher.Constraint('Diameter',%d,%f))",
-                                          it->first,
-                                          it->second * 2);
-                }
-                else {
-                    Gui::cmdAppObjectArgs(Obj,
-                                          "addConstraint(Sketcher.Constraint('Radius',%d,%f))",
-                                          it->first,
-                                          it->second);
-                }
-
-                if (constraintCreationMode == Reference) {
-
-                    const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-
-                    Gui::cmdAppObjectArgs(Obj, "setDriving(%d,%s)", ConStr.size() - 1, "False");
-                }
-            }
-        }
-
-        finishDatumConstraint(this, Obj, constraintCreationMode == Driving);
-
-        // updateActive();
-        getSelection().clearSelection();
-    }
-
-    if (commitNeeded) {
-        commitCommand();
-    }
-
-    if (updateNeeded) {
-        tryAutoRecomputeIfNotSolve(Obj);// we have to update the solver after this aborted addition.
-    }
+    activateRadialDimension(this, RadialDimension::Radiam);
 }
 
 void CmdSketcherConstrainRadiam::applyConstraint(std::vector<SelIdPair>& selSeq, int seqIndex)
 {
-    SketcherGui::ViewProviderSketch* sketchgui =
-        static_cast<SketcherGui::ViewProviderSketch*>(getActiveGuiDocument()->getInEdit());
-    Sketcher::SketchObject* Obj = sketchgui->getSketchObject();
-
-    int GeoId = selSeq.at(0).GeoId;
-    double radiam = 0.0;
-
-    bool updateNeeded = false;
-
-    bool isCircleGeom = false;
-    bool isPole = false;
-
-    switch (seqIndex) {
-        case 0:// {SelEdge}
-        case 1:// {SelExternalEdge}
-        {
-            const Part::Geometry* geom = Obj->getGeometry(GeoId);
-
-            if (geom && isArcOfCircle(*geom)) {
-                auto arc = static_cast<const Part::GeomArcOfCircle*>(geom);
-                radiam = arc->getRadius();
-            }
-            else if (geom && isCircle(*geom)) {
-                auto circle = static_cast<const Part::GeomCircle*>(geom);
-                radiam = circle->getRadius();
-                isCircleGeom= true;
-                if (isBsplinePole(geom)) {
-                    isPole = true;
-                }
-            }
-            else {
-                Gui::TranslatedUserWarning(
-                    Obj,
-                    QObject::tr("Wrong selection"),
-                    QObject::tr("Constraint only applies to arcs or circles."));
-                return;
-            }
-
-            // Create the radiam constraint now
-            openCommand(QT_TRANSLATE_NOOP("Command", "Add radiam constraint"));
-
-            if (isPole) {
-                Gui::cmdAppObjectArgs(Obj,
-                                      "addConstraint(Sketcher.Constraint('Weight',%d,%f))",
-                                      GeoId,
-                                      radiam);
-            }
-            else if (isCircleGeom) {
-                Gui::cmdAppObjectArgs(Obj,
-                                      "addConstraint(Sketcher.Constraint('Diameter',%d,%f))",
-                                      GeoId,
-                                      radiam * 2);
-            }
-            else {
-                Gui::cmdAppObjectArgs(Obj,
-                                      "addConstraint(Sketcher.Constraint('Radius',%d,%f))",
-                                      GeoId,
-                                      radiam);
-            }
-
-            const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-
-            bool fixed = isPointOrSegmentFixed(Obj, GeoId);
-            if (fixed || constraintCreationMode == Reference) {
-                Gui::cmdAppObjectArgs(Obj, "setDriving(%d,%s)", ConStr.size() - 1, "False");
-                updateNeeded = true;// We do need to update the solver DoF after setting the
-                                    // constraint driving.
-            }
-
-            finishDatumConstraint(this, Obj, constraintCreationMode == Driving && !fixed);
-
-            // updateActive();
-            getSelection().clearSelection();
-
-            commitCommand();
-
-            if (updateNeeded) {
-                tryAutoRecomputeIfNotSolve(
-                    Obj);// we have to update the solver after this aborted addition.
-            }
-        }
-    }
+    applyRadialDimension(this, selSeq, seqIndex, RadialDimension::Radiam);
 }
 
 void CmdSketcherConstrainRadiam::updateAction(int mode)
 {
-    switch (mode) {
-        case Reference:
-            if (getAction()) {
-                getAction()->setIcon(
-                    Gui::BitmapFactory().iconFromTheme("Constraint_Radiam_Driven"));
-            }
-            break;
-        case Driving:
-            if (getAction()) {
-                getAction()->setIcon(Gui::BitmapFactory().iconFromTheme("Constraint_Radiam"));
-            }
-            break;
-    }
+    updateDimensionIcon(this, mode, "Constraint_Radiam");
 }
 
 // ======================================================================================
@@ -8231,8 +8934,8 @@ CmdSketcherCompConstrainRadDia::CmdSketcherCompConstrainRadDia()
 {
     sAppModule = "Sketcher";
     sGroup = "Sketcher";
-    sMenuText = QT_TR_NOOP("Constrain arc or circle");
-    sToolTipText = QT_TR_NOOP("Constrain an arc or a circle");
+    sMenuText = QT_TR_NOOP("Radius/Diameter Dimension");
+    sToolTipText = QT_TR_NOOP("Constrains the radius or diameter of an arc or a circle");
     sWhatsThis = "Sketcher_CompConstrainRadDia";
     sStatusTip = sToolTipText;
     sAccel = "R";
@@ -8344,9 +9047,9 @@ void CmdSketcherCompConstrainRadDia::languageChange()
     QAction* arc1 = a[0];
     arc1->setText(QApplication::translate("CmdSketcherCompConstrainRadDia", "Constrain radius"));
     arc1->setToolTip(QApplication::translate("Sketcher_ConstrainRadius",
-                                             "Fix the radius of a circle or an arc"));
+                                             "Fix the radius of an arc or a circle"));
     arc1->setStatusTip(QApplication::translate("Sketcher_ConstrainRadius",
-                                               "Fix the radius of a circle or an arc"));
+                                               "Fix the radius of an arc or a circle"));
     QAction* arc2 = a[1];
     arc2->setText(QApplication::translate("CmdSketcherCompConstrainRadDia", "Constrain diameter"));
     arc2->setToolTip(QApplication::translate("Sketcher_ConstrainDiameter",
@@ -8357,9 +9060,9 @@ void CmdSketcherCompConstrainRadDia::languageChange()
     arc3->setText(QApplication::translate("CmdSketcherCompConstrainRadDia",
                                           "Constrain auto radius/diameter"));
     arc3->setToolTip(QApplication::translate("Sketcher_ConstrainRadiam",
-                                             "Fix the radius/diameter of a circle or an arc"));
+                                             "Fix the radius/diameter of an arc or a circle"));
     arc3->setStatusTip(QApplication::translate("Sketcher_ConstrainRadiam",
-                                               "Fix the radius/diameter of a circle or an arc"));
+                                               "Fix the radius/diameter of an arc or a circle"));
 }
 
 bool CmdSketcherCompConstrainRadDia::isActive()
@@ -8391,8 +9094,8 @@ CmdSketcherConstrainAngle::CmdSketcherConstrainAngle()
 {
     sAppModule = "Sketcher";
     sGroup = "Sketcher";
-    sMenuText = QT_TR_NOOP("Constrain angle");
-    sToolTipText = QT_TR_NOOP("Fix the angle of a line or the angle between two lines");
+    sMenuText = QT_TR_NOOP("Angle Dimension");
+    sToolTipText = QT_TR_NOOP("Constrains the angle between two straight lines or between one line and the X-axis of the sketch if only one is selected");
     sWhatsThis = "Sketcher_ConstrainAngle";
     sStatusTip = sToolTipText;
     sPixmap = "Constraint_InternalAngle";
@@ -8413,39 +9116,23 @@ CmdSketcherConstrainAngle::CmdSketcherConstrainAngle()
                            {SelVertexOrRoot, SelEdgeOrAxis, SelEdge},
                            {SelVertexOrRoot, SelEdge, SelExternalEdge},
                            {SelVertexOrRoot, SelExternalEdge, SelEdge},
-                           {SelVertexOrRoot, SelExternalEdge, SelExternalEdge}};
+                           {SelVertexOrRoot, SelExternalEdge, SelExternalEdge},
+                           {SelArc},
+                           {SelExternalArc}};
 }
 
 void CmdSketcherConstrainAngle::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
     // TODO: comprehensive messages, like in CmdSketcherConstrainTangent
-    //  get the selection
-    std::vector<Gui::SelectionObject> selection = getSelection().getSelectionEx();
-
-    // only one sketch with its subelements are allowed to be selected
-    if (selection.size() != 1
-        || !selection[0].isObjectTypeOf(Sketcher::SketchObject::getClassTypeId())) {
-        ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
-            "User parameter:BaseApp/Preferences/Mod/Sketcher");
-        bool constraintMode = hGrp->GetBool("ContinuousConstraintMode", true);
-
-        if (constraintMode) {
-            ActivateHandler(getActiveGuiDocument(), new DrawSketchHandlerGenConstraint(this));
-            getSelection().clearSelection();
-        }
-        else {
-            // TODO: Get the exact message from git history and put it here
-            Gui::TranslatedUserWarning(getActiveGuiDocument(),
-                                       QObject::tr("Wrong selection"),
-                                       QObject::tr("Select the right things from the sketch."));
-        }
+    auto selection = getConstraintSelection(this);
+    if (!selection) {
         return;
     }
 
     // get the needed lists and objects
-    const std::vector<std::string>& SubNames = selection[0].getSubNames();
-    Sketcher::SketchObject* Obj = static_cast<Sketcher::SketchObject*>(selection[0].getObject());
+    const std::vector<std::string>& SubNames = selection->getSubNames();
+    auto* Obj = static_cast<Sketcher::SketchObject*>(selection->getObject());
 
     if (SubNames.empty() || SubNames.size() > 3) {
         Gui::TranslatedUserWarning(
@@ -8473,11 +9160,11 @@ void CmdSketcherConstrainAngle::activated(int iMsg)
         if (isVertex(GeoId1, PosId1)) {
             std::swap(GeoId1, GeoId2);
             std::swap(PosId1, PosId2);
-        };
+        }
         if (isVertex(GeoId2, PosId2)) {
             std::swap(GeoId2, GeoId3);
             std::swap(PosId2, PosId3);
-        };
+        }
 
         bool bothexternal = areBothPointsOrSegmentsFixed(Obj, GeoId1, GeoId2);
 
@@ -8497,32 +9184,38 @@ void CmdSketcherConstrainAngle::activated(int iMsg)
 
             // add missing point-on-object constraints
             if (!IsPointAlreadyOnCurve(GeoId1, GeoId3, PosId3, Obj)) {
-                Gui::cmdAppObjectArgs(
-                    selection[0].getObject(),
-                    "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
-                    GeoId3,
-                    static_cast<int>(PosId3),
-                    GeoId1);
+                const Part::Geometry *geom1 = Obj->getGeometry(GeoId1);
+                if (!(geom1 && isBSplineCurve(*geom1))) {
+                    Gui::cmdAppObjectArgs(
+                        selection->getObject(),
+                        "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
+                        GeoId3,
+                        static_cast<int>(PosId3),
+                        GeoId1);
+                }
             }
             if (!IsPointAlreadyOnCurve(GeoId2, GeoId3, PosId3, Obj)) {
-                Gui::cmdAppObjectArgs(
-                    selection[0].getObject(),
-                    "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
-                    GeoId3,
-                    static_cast<int>(PosId3),
-                    GeoId2);
+                const Part::Geometry *geom2 = Obj->getGeometry(GeoId2);
+                if (!(geom2 && isBSplineCurve(*geom2))) {
+                    Gui::cmdAppObjectArgs(
+                        selection->getObject(),
+                        "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
+                        GeoId3,
+                        static_cast<int>(PosId3),
+                        GeoId2);
+                }
             }
-            if (!IsPointAlreadyOnCurve(
-                    GeoId1,
-                    GeoId3,
-                    PosId3,
-                    Obj)) {// FIXME: it's a good idea to add a check if the sketch is solved
-                Gui::cmdAppObjectArgs(
-                    selection[0].getObject(),
-                    "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
-                    GeoId3,
-                    static_cast<int>(PosId3),
-                    GeoId1);
+            if (!IsPointAlreadyOnCurve(GeoId1, GeoId3, PosId3, Obj)) {
+                // FIXME: it's a good idea to add a check if the sketch is solved
+                const Part::Geometry *geom1 = Obj->getGeometry(GeoId1);
+                if (!(geom1 && isBSplineCurve(*geom1))) {
+                    Gui::cmdAppObjectArgs(
+                        selection->getObject(),
+                        "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
+                        GeoId3,
+                        static_cast<int>(PosId3),
+                        GeoId1);
+                }
             }
 
             // assuming point-on-curves have been solved, calculate the angle.
@@ -8539,31 +9232,21 @@ void CmdSketcherConstrainAngle::activated(int iMsg)
             }
 
             Gui::cmdAppObjectArgs(
-                selection[0].getObject(),
-                "addConstraint(Sketcher.Constraint('AngleViaPoint',%d,%d,%d,%d,%f))",
+                selection->getObject(),
+                "addConstraint(Sketcher.Constraint('AngleViaPoint',%d,%d,%d,%d,%.8g))",
                 GeoId1,
                 GeoId2,
                 GeoId3,
                 static_cast<int>(PosId3),
                 ActAngle);
 
-            if (bothexternal
-                || constraintCreationMode
-                    == Reference) {// it is a constraint on a external line, make it non-driving
-                const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
+            removeRedundantPointOnObject(Obj, GeoId1, GeoId2, GeoId3);
 
-                Gui::cmdAppObjectArgs(selection[0].getObject(),
-                                      "setDriving(%d,%s)",
-                                      ConStr.size() - 1,
-                                      "False");
-                finishDatumConstraint(this, Obj, false);
-            }
-            else {
-                finishDatumConstraint(this, Obj, true);
-            }
+            finishDrivingDatumConstraint(
+                this, Obj, bothexternal || constraintCreationMode == Reference);
 
             return;
-        };
+        }
     }
     else if (SubNames.size() < 3) {
 
@@ -8602,24 +9285,13 @@ void CmdSketcherConstrainAngle::activated(int iMsg)
                 double ActAngle = atan2(dir.y, dir.x);
 
                 openCommand(QT_TRANSLATE_NOOP("Command", "Add angle constraint"));
-                Gui::cmdAppObjectArgs(selection[0].getObject(),
-                                      "addConstraint(Sketcher.Constraint('Angle',%d,%f))",
+                Gui::cmdAppObjectArgs(selection->getObject(),
+                                      "addConstraint(Sketcher.Constraint('Angle',%d,%.8g))",
                                       GeoId1,
                                       ActAngle);
 
-                if (GeoId1 <= Sketcher::GeoEnum::RefExt || constraintCreationMode == Reference) {
-                    // it is a constraint on a external line, make it non-driving
-                    const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-
-                    Gui::cmdAppObjectArgs(selection[0].getObject(),
-                                          "setDriving(%d,%s)",
-                                          ConStr.size() - 1,
-                                          "False");
-                    finishDatumConstraint(this, Obj, false);
-                }
-                else {
-                    finishDatumConstraint(this, Obj, true);
-                }
+                finishDrivingDatumConstraint(
+                    this, Obj, GeoId1 <= Sketcher::GeoEnum::RefExt || constraintCreationMode == Reference);
 
                 return;
             }
@@ -8628,29 +9300,18 @@ void CmdSketcherConstrainAngle::activated(int iMsg)
                 double angle = arc->getAngle(/*EmulateCCWXY=*/true);
 
                 openCommand(QT_TRANSLATE_NOOP("Command", "Add angle constraint"));
-                Gui::cmdAppObjectArgs(selection[0].getObject(),
-                                      "addConstraint(Sketcher.Constraint('Angle',%d,%f))",
+                Gui::cmdAppObjectArgs(selection->getObject(),
+                                      "addConstraint(Sketcher.Constraint('Angle',%d,%.8g))",
                                       GeoId1,
                                       angle);
 
-                if (GeoId1 <= Sketcher::GeoEnum::RefExt || constraintCreationMode == Reference) {
-                    // it is a constraint on a external line, make it non-driving
-                    const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
-
-                    Gui::cmdAppObjectArgs(selection[0].getObject(),
-                                          "setDriving(%d,%s)",
-                                          ConStr.size() - 1,
-                                          "False");
-                    finishDatumConstraint(this, Obj, false);
-                }
-                else {
-                    finishDatumConstraint(this, Obj, true);
-                }
+                finishDrivingDatumConstraint(
+                    this, Obj, GeoId1 <= Sketcher::GeoEnum::RefExt || constraintCreationMode == Reference);
 
                 return;
             }
         }
-    };
+    }
 
     Gui::TranslatedUserWarning(
         Obj,
@@ -8706,6 +9367,29 @@ void CmdSketcherConstrainAngle::applyConstraint(std::vector<SelIdPair>& selSeq, 
             PosId3 = selSeq.at(0).PosId;
             break;
         }
+        case 15:// {SelArc}
+        case 16:// {SelExternalArc}
+        {
+            GeoId1 = selSeq.at(0).GeoId;
+
+            const Part::Geometry* geom = Obj->getGeometry(GeoId1);
+            if (geom && isArcOfCircle(*geom)) {
+                auto arc = static_cast<const Part::GeomArcOfCircle*>(geom);
+                double angle = arc->getAngle(/*EmulateCCWXY=*/true);
+
+                openCommand(QT_TRANSLATE_NOOP("Command", "Add angle constraint"));
+                Gui::cmdAppObjectArgs(Obj,
+                                      "addConstraint(Sketcher.Constraint('Angle',%d,%f))",
+                                      GeoId1,
+                                      angle);
+
+                finishDrivingDatumConstraint(
+                    this, Obj, GeoId1 <= Sketcher::GeoEnum::RefExt || constraintCreationMode == Reference);
+
+                return;
+            }
+            break;
+        }
     }
 
     bool bothexternal = areBothPointsOrSegmentsFixed(Obj, GeoId1, GeoId2);
@@ -8726,26 +9410,35 @@ void CmdSketcherConstrainAngle::applyConstraint(std::vector<SelIdPair>& selSeq, 
 
         // add missing point-on-object constraints
         if (!IsPointAlreadyOnCurve(GeoId1, GeoId3, PosId3, Obj)) {
-            Gui::cmdAppObjectArgs(Obj,
-                                  "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
-                                  GeoId3,
-                                  static_cast<int>(PosId3),
-                                  GeoId1);
+            const Part::Geometry *geom1 = Obj->getGeometry(GeoId1);
+            if (!(geom1 && isBSplineCurve(*geom1))) {
+                Gui::cmdAppObjectArgs(Obj,
+                                      "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
+                                      GeoId3,
+                                      static_cast<int>(PosId3),
+                                      GeoId1);
+            }
         }
         if (!IsPointAlreadyOnCurve(GeoId2, GeoId3, PosId3, Obj)) {
-            Gui::cmdAppObjectArgs(Obj,
-                                  "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
-                                  GeoId3,
-                                  static_cast<int>(PosId3),
-                                  GeoId2);
+            const Part::Geometry *geom2 = Obj->getGeometry(GeoId2);
+            if (!(geom2 && isBSplineCurve(*geom2))) {
+                Gui::cmdAppObjectArgs(Obj,
+                                      "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
+                                      GeoId3,
+                                      static_cast<int>(PosId3),
+                                      GeoId2);
+            }
         }
         if (!IsPointAlreadyOnCurve(GeoId1, GeoId3, PosId3, Obj)) {
             // FIXME: it's a good idea to add a check if the sketch is solved
-            Gui::cmdAppObjectArgs(Obj,
-                                  "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
-                                  GeoId3,
-                                  static_cast<int>(PosId3),
-                                  GeoId1);
+            const Part::Geometry *geom1 = Obj->getGeometry(GeoId1);
+            if (!(geom1 && isBSplineCurve(*geom1))) {
+                Gui::cmdAppObjectArgs(Obj,
+                                      "addConstraint(Sketcher.Constraint('PointOnObject',%d,%d,%d))",
+                                      GeoId3,
+                                      static_cast<int>(PosId3),
+                                      GeoId1);
+            }
         }
 
         // assuming point-on-curves have been solved, calculate the angle.
@@ -8762,44 +9455,25 @@ void CmdSketcherConstrainAngle::applyConstraint(std::vector<SelIdPair>& selSeq, 
         }
 
         Gui::cmdAppObjectArgs(Obj,
-                              "addConstraint(Sketcher.Constraint('AngleViaPoint',%d,%d,%d,%d,%f))",
+                              "addConstraint(Sketcher.Constraint('AngleViaPoint',%d,%d,%d,%d,%.8g))",
                               GeoId1,
                               GeoId2,
                               GeoId3,
                               static_cast<int>(PosId3),
                               ActAngle);
 
-        if (bothexternal || constraintCreationMode == Reference) {
-            // it is a constraint on a external line, make it non-driving
-            const std::vector<Sketcher::Constraint*>& ConStr = Obj->Constraints.getValues();
+        removeRedundantPointOnObject(Obj, GeoId1, GeoId2, GeoId3);
 
-            Gui::cmdAppObjectArgs(Obj, "setDriving(%d,%s)", ConStr.size() - 1, "False");
-            finishDatumConstraint(this, Obj, false);
-        }
-        else {
-            finishDatumConstraint(this, Obj, true);
-        }
+        finishDrivingDatumConstraint(
+            this, Obj, bothexternal || constraintCreationMode == Reference);
 
         return;
-    };
+    }
 }
 
 void CmdSketcherConstrainAngle::updateAction(int mode)
 {
-    switch (mode) {
-        case Reference:
-            if (getAction()) {
-                getAction()->setIcon(
-                    Gui::BitmapFactory().iconFromTheme("Constraint_InternalAngle_Driven"));
-            }
-            break;
-        case Driving:
-            if (getAction()) {
-                getAction()->setIcon(
-                    Gui::BitmapFactory().iconFromTheme("Constraint_InternalAngle"));
-            }
-            break;
-    }
+    updateDimensionIcon(this, mode, "Constraint_InternalAngle");
 }
 
 // ======================================================================================
@@ -8825,9 +9499,9 @@ CmdSketcherConstrainEqual::CmdSketcherConstrainEqual()
 {
     sAppModule = "Sketcher";
     sGroup = "Sketcher";
-    sMenuText = QT_TR_NOOP("Constrain equal");
+    sMenuText = QT_TR_NOOP("Equal Constraint");
     sToolTipText =
-        QT_TR_NOOP("Create an equality constraint between two lines or between circles and arcs");
+        QT_TR_NOOP("Constrains the selected edges or circles to be equal");
     sWhatsThis = "Sketcher_ConstrainEqual";
     sStatusTip = sToolTipText;
     sPixmap = "Constraint_EqualLength";
@@ -8842,31 +9516,14 @@ CmdSketcherConstrainEqual::CmdSketcherConstrainEqual()
 void CmdSketcherConstrainEqual::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
-    // get the selection
-    std::vector<Gui::SelectionObject> selection = getSelection().getSelectionEx();
-
-    // only one sketch with its subelements are allowed to be selected
-    if (selection.size() != 1
-        || !selection[0].isObjectTypeOf(Sketcher::SketchObject::getClassTypeId())) {
-        ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
-            "User parameter:BaseApp/Preferences/Mod/Sketcher");
-        bool constraintMode = hGrp->GetBool("ContinuousConstraintMode", true);
-
-        if (constraintMode) {
-            ActivateHandler(getActiveGuiDocument(), new DrawSketchHandlerGenConstraint(this));
-            getSelection().clearSelection();
-        }
-        else {
-            Gui::TranslatedUserWarning(getActiveGuiDocument()->getDocument(),
-                                       QObject::tr("Wrong selection"),
-                                       QObject::tr("Select two edges from the sketch."));
-        }
+    auto selection = getConstraintSelection(this);
+    if (!selection) {
         return;
     }
 
     // get the needed lists and objects
-    const std::vector<std::string>& SubNames = selection[0].getSubNames();
-    Sketcher::SketchObject* Obj = static_cast<Sketcher::SketchObject*>(selection[0].getObject());
+    const std::vector<std::string>& SubNames = selection->getSubNames();
+    auto* Obj = static_cast<Sketcher::SketchObject*>(selection->getObject());
 
     // go through the selected subelements
 
@@ -8882,12 +9539,11 @@ void CmdSketcherConstrainEqual::activated(int iMsg)
          hasAlreadyExternal = false;
     bool hyperbSel = false, parabSel = false, weightSel = false;
 
-    for (std::vector<std::string>::const_iterator it = SubNames.begin(); it != SubNames.end();
-         ++it) {
+    for (auto& subname : SubNames) {
 
         int GeoId;
         Sketcher::PointPos PosId;
-        getIdsFromName(*it, Obj, GeoId, PosId);
+        getIdsFromName(subname, Obj, GeoId, PosId);
 
         if (!isEdge(GeoId, PosId)) {
             Gui::TranslatedUserWarning(Obj,
@@ -8976,17 +9632,12 @@ void CmdSketcherConstrainEqual::activated(int iMsg)
     // undo command open
     openCommand(QT_TRANSLATE_NOOP("Command", "Add equality constraint"));
     for (int i = 0; i < int(ids.size() - 1); i++) {
-        Gui::cmdAppObjectArgs(selection[0].getObject(),
+        Gui::cmdAppObjectArgs(selection->getObject(),
                               "addConstraint(Sketcher.Constraint('Equal',%d,%d))",
                               ids[i],
                               ids[i + 1]);
     }
-    // finish the transaction and update
-    commitCommand();
-    tryAutoRecompute(Obj);
-
-    // clear the selection (convenience)
-    getSelection().clearSelection();
+    finishTransactionAndUpdate(this, Obj);
 }
 
 void CmdSketcherConstrainEqual::applyConstraint(std::vector<SelIdPair>& selSeq, int seqIndex)
@@ -9034,9 +9685,7 @@ void CmdSketcherConstrainEqual::applyConstraint(std::vector<SelIdPair>& selSeq, 
                                   "addConstraint(Sketcher.Constraint('Equal',%d,%d))",
                                   GeoId1,
                                   GeoId2);
-            // finish the transaction and update
-            commitCommand();
-            tryAutoRecompute(Obj);
+            finishTransactionAndUpdate(this, Obj);
 
             return;
         }
@@ -9061,6 +9710,14 @@ public:
 protected:
     void activated(int iMsg) override;
     void applyConstraint(std::vector<SelIdPair>& selSeq, int seqIndex) override;
+
+private:
+    bool hasEndpoints(const Part::Geometry& geom)
+    {
+        return isLineSegment(geom) || isArcOfCircle(geom) || isArcOfEllipse(geom)
+               || isArcOfHyperbola(geom) || isArcOfParabola(geom)
+               || (isBSplineCurve(geom) && !isPeriodicBSplineCurve(geom));
+    }
 };
 
 CmdSketcherConstrainSymmetric::CmdSketcherConstrainSymmetric()
@@ -9068,10 +9725,8 @@ CmdSketcherConstrainSymmetric::CmdSketcherConstrainSymmetric()
 {
     sAppModule = "Sketcher";
     sGroup = "Sketcher";
-    sMenuText = QT_TR_NOOP("Constrain symmetrical");
-    sToolTipText = QT_TR_NOOP("Create a symmetry constraint "
-                              "between two points\n"
-                              "with respect to a line or a third point");
+    sMenuText = QT_TR_NOOP("Symmetric Constraint");
+    sToolTipText = QT_TR_NOOP("Constrains the selected elements to be symmetric");
     sWhatsThis = "Sketcher_ConstrainSymmetric";
     sStatusTip = sToolTipText;
     sPixmap = "Constraint_Symmetric";
@@ -9080,59 +9735,38 @@ CmdSketcherConstrainSymmetric::CmdSketcherConstrainSymmetric()
 
     allowedSelSequences = {{SelEdge, SelVertexOrRoot},
                            {SelExternalEdge, SelVertex},
-                           {SelVertex, SelEdge, SelVertexOrRoot},
-                           {SelRoot, SelEdge, SelVertex},
-                           {SelVertex, SelExternalEdge, SelVertexOrRoot},
-                           {SelRoot, SelExternalEdge, SelVertex},
+                           {SelVertexOrRoot, SelEdge, SelVertexOrRoot},
+                           {SelVertexOrRoot, SelExternalEdge, SelVertexOrRoot},
                            {SelVertex, SelEdgeOrAxis, SelVertex},
-                           {SelVertex, SelVertexOrRoot, SelEdge},
-                           {SelRoot, SelVertex, SelEdge},
-                           {SelVertex, SelVertexOrRoot, SelExternalEdge},
-                           {SelRoot, SelVertex, SelExternalEdge},
+                           {SelVertexOrRoot, SelVertexOrRoot, SelEdge},
+                           {SelVertexOrRoot, SelVertexOrRoot, SelExternalEdge},
                            {SelVertex, SelVertex, SelEdgeOrAxis},
-                           {SelVertex, SelVertexOrRoot, SelVertex},
-                           {SelVertex, SelVertex, SelVertexOrRoot},
-                           {SelVertexOrRoot, SelVertex, SelVertex}};
+                           {SelVertexOrRoot, SelVertexOrRoot, SelVertexOrRoot},
+                           {SelEdge, SelEdgeOrAxis},
+                           {SelEdge, SelExternalEdge},
+                           {SelExternalEdge, SelEdge},
+                           {SelEdgeOrAxis, SelEdge}};
 }
 
 void CmdSketcherConstrainSymmetric::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
-    // get the selection
-    std::vector<Gui::SelectionObject> selection = getSelection().getSelectionEx();
-
-    // only one sketch with its subelements are allowed to be selected
-    if (selection.size() != 1
-        || !selection[0].isObjectTypeOf(Sketcher::SketchObject::getClassTypeId())) {
-        ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
-            "User parameter:BaseApp/Preferences/Mod/Sketcher");
-        bool constraintMode = hGrp->GetBool("ContinuousConstraintMode", true);
-
-        if (constraintMode) {
-            ActivateHandler(getActiveGuiDocument(), new DrawSketchHandlerGenConstraint(this));
-            getSelection().clearSelection();
-        }
-        else {
-            Gui::TranslatedUserWarning(
-                getActiveGuiDocument()->getDocument(),
-                QObject::tr("Wrong selection"),
-                QObject::tr("Select two points and a symmetry line, "
-                            "two points and a symmetry point "
-                            "or a line and a symmetry point from the sketch."));
-        }
+    auto selection = getConstraintSelection(this);
+    if (!selection) {
         return;
     }
 
     // get the needed lists and objects
-    const std::vector<std::string>& SubNames = selection[0].getSubNames();
-    Sketcher::SketchObject* Obj = static_cast<Sketcher::SketchObject*>(selection[0].getObject());
+    const std::vector<std::string>& SubNames = selection->getSubNames();
+    auto* Obj = static_cast<Sketcher::SketchObject*>(selection->getObject());
 
     if (SubNames.size() != 3 && SubNames.size() != 2) {
         Gui::TranslatedUserWarning(Obj,
                                    QObject::tr("Wrong selection"),
                                    QObject::tr("Select two points and a symmetry line, "
-                                               "two points and a symmetry point "
-                                               "or a line and a symmetry point from the sketch."));
+                                               "two points and a symmetry point, "
+                                               "an element and a symmetry line "
+                                               "or an element and a symmetry point from the sketch."));
         return;
     }
 
@@ -9150,45 +9784,69 @@ void CmdSketcherConstrainSymmetric::activated(int iMsg)
             std::swap(GeoId1, GeoId2);
             std::swap(PosId1, PosId2);
         }
-        if (isEdge(GeoId1, PosId1) && isVertex(GeoId2, PosId2)) {
-            const Part::Geometry* geom = Obj->getGeometry(GeoId1);
-
-            if (isLineSegment(*geom)) {
-                if (GeoId1 == GeoId2) {
-                    Gui::TranslatedUserWarning(Obj,
-                                               QObject::tr("Wrong selection"),
-                                               QObject::tr("Cannot add a symmetry constraint "
-                                                           "between a line and its end points."));
-                    return;
-                }
-
-                // undo command open
-                openCommand(QT_TRANSLATE_NOOP("Command", "Add symmetric constraint"));
-                Gui::cmdAppObjectArgs(
-                    selection[0].getObject(),
-                    "addConstraint(Sketcher.Constraint('Symmetric',%d,%d,%d,%d,%d,%d))",
-                    GeoId1,
-                    static_cast<int>(Sketcher::PointPos::start),
-                    GeoId1,
-                    static_cast<int>(Sketcher::PointPos::end),
-                    GeoId2,
-                    static_cast<int>(PosId2));
-
-                // finish the transaction and update
-                commitCommand();
-                tryAutoRecompute(Obj);
-
-                // clear the selection (convenience)
-                getSelection().clearSelection();
+        if (isEdge(GeoId1, PosId1) && isEdge(GeoId2, PosId2)) {
+            if (GeoId1 == Sketcher::GeoEnum::HAxis || GeoId1 == Sketcher::GeoEnum::VAxis) {
+                std::swap(GeoId1, GeoId2);
+                std::swap(PosId1, PosId2);
+            }
+        }
+        if (isEdge(GeoId1, PosId1) && (isVertex(GeoId2, PosId2) || isEdge(GeoId2, PosId2))) {
+            const Part::Geometry* geom1 = Obj->getGeometry(GeoId1);
+            if (!hasEndpoints(*geom1)) {
+                Gui::TranslatedUserWarning(
+                    Obj,
+                    QObject::tr("Wrong selection"),
+                    QObject::tr("Cannot add a symmetry constraint "
+                                "because the first selected element has no endpoints. "
+                                "Select a line or an open curve instead."));
                 return;
             }
+
+            const Part::Geometry* geom2 = Obj->getGeometry(GeoId2);
+            if (isEdge(GeoId2, PosId2) && !isLineSegment(*geom2)) {
+                Gui::TranslatedUserWarning(
+                    Obj,
+                    QObject::tr("Wrong selection"),
+                    QObject::tr("Cannot add a symmetry constraint "
+                                "because the second selected element is not a line. "
+                                "Select a line or an axis instead."));
+                return;
+            }
+
+            if (GeoId1 == GeoId2
+                && (isEdge(GeoId2, PosId2)
+                    || (isVertex(GeoId2, PosId2)
+                        && (PosId2 == Sketcher::PointPos::start || PosId2 == Sketcher::PointPos::end)) )) {
+                Gui::TranslatedUserWarning(
+                    Obj,
+                    QObject::tr("Wrong selection"),
+                    QObject::tr("Cannot add a symmetry constraint "
+                                "between an element and its end points!"));
+                return;
+            }
+
+            // undo command open
+            openCommand(QT_TRANSLATE_NOOP("Command", "Add symmetric constraint"));
+            Gui::cmdAppObjectArgs(
+                selection->getObject(),
+                "addConstraint(Sketcher.Constraint('Symmetric',%d,%d,%d,%d,%d,%d))",
+                GeoId1,
+                static_cast<int>(Sketcher::PointPos::start),
+                GeoId1,
+                static_cast<int>(Sketcher::PointPos::end),
+                GeoId2,
+                static_cast<int>(PosId2));
+
+            finishTransactionAndUpdate(this, Obj);
+            return;
         }
 
         Gui::TranslatedUserWarning(Obj,
                                    QObject::tr("Wrong selection"),
                                    QObject::tr("Select two points and a symmetry line, "
-                                               "two points and a symmetry point "
-                                               "or a line and a symmetry point from the sketch."));
+                                               "two points and a symmetry point, "
+                                               "an element and a symmetry line "
+                                               "or an element and a symmetry point from the sketch."));
         return;
     }
 
@@ -9224,7 +9882,7 @@ void CmdSketcherConstrainSymmetric::activated(int iMsg)
                 // undo command open
                 openCommand(QT_TRANSLATE_NOOP("Command", "Add symmetric constraint"));
                 Gui::cmdAppObjectArgs(
-                    selection[0].getObject(),
+                    selection->getObject(),
                     "addConstraint(Sketcher.Constraint('Symmetric',%d,%d,%d,%d,%d))",
                     GeoId1,
                     static_cast<int>(PosId1),
@@ -9232,12 +9890,7 @@ void CmdSketcherConstrainSymmetric::activated(int iMsg)
                     static_cast<int>(PosId2),
                     GeoId3);
 
-                // finish the transaction and update
-                commitCommand();
-                tryAutoRecompute(Obj);
-
-                // clear the selection (convenience)
-                getSelection().clearSelection();
+                finishTransactionAndUpdate(this, Obj);
                 return;
             }
         }
@@ -9245,7 +9898,7 @@ void CmdSketcherConstrainSymmetric::activated(int iMsg)
             // undo command open
             openCommand(QT_TRANSLATE_NOOP("Command", "Add symmetric constraint"));
             Gui::cmdAppObjectArgs(
-                selection[0].getObject(),
+                selection->getObject(),
                 "addConstraint(Sketcher.Constraint('Symmetric',%d,%d,%d,%d,%d,%d))",
                 GeoId1,
                 static_cast<int>(PosId1),
@@ -9254,12 +9907,7 @@ void CmdSketcherConstrainSymmetric::activated(int iMsg)
                 GeoId3,
                 static_cast<int>(PosId3));
 
-            // finish the transaction and update
-            commitCommand();
-            tryAutoRecompute(Obj);
-
-            // clear the selection (convenience)
-            getSelection().clearSelection();
+            finishTransactionAndUpdate(this, Obj);
             return;
         }
     }
@@ -9267,8 +9915,9 @@ void CmdSketcherConstrainSymmetric::activated(int iMsg)
     Gui::TranslatedUserWarning(Obj,
                                QObject::tr("Wrong selection"),
                                QObject::tr("Select two points and a symmetry line, "
-                                           "two points and a symmetry point "
-                                           "or a line and a symmetry point from the sketch."));
+                                           "two points and a symmetry point, "
+                                           "an element and a symmetry line "
+                                           "or an element and a symmetry point from the sketch."));
 }
 
 void CmdSketcherConstrainSymmetric::applyConstraint(std::vector<SelIdPair>& selSeq, int seqIndex)
@@ -9291,12 +9940,13 @@ void CmdSketcherConstrainSymmetric::applyConstraint(std::vector<SelIdPair>& selS
             PosId2 = Sketcher::PointPos::end;
             PosId3 = selSeq.at(1).PosId;
 
-            if (GeoId1 == GeoId3) {
+            if (GeoId1 == GeoId3
+                && (PosId2 == Sketcher::PointPos::start || PosId2 == Sketcher::PointPos::end)) {
                 Gui::TranslatedUserWarning(
                     Obj,
                     QObject::tr("Wrong selection"),
-                    QObject::tr(
-                        "Cannot add a symmetry constraint between a line and its end points!"));
+                    QObject::tr("Cannot add a symmetry constraint "
+                                "between an element and its end points!"));
                 return;
             }
 
@@ -9304,18 +9954,25 @@ void CmdSketcherConstrainSymmetric::applyConstraint(std::vector<SelIdPair>& selS
                 showNoConstraintBetweenFixedGeometry(Obj);
                 return;
             }
+
+            const Part::Geometry* geom = Obj->getGeometry(GeoId1);
+            if (!hasEndpoints(*geom)) {
+                Gui::TranslatedUserWarning(
+                    Obj,
+                    QObject::tr("Wrong selection"),
+                    QObject::tr("Cannot add a symmetry constraint "
+                                "because the first selected element has no endpoints. "
+                                "Select a line or an open curve instead."));
+                return;
+            }
             break;
         }
-        case 2: // {SelVertex, SelEdge, SelVertexOrRoot}
-        case 3: // {SelRoot, SelEdge, SelVertex}
-        case 4: // {SelVertex, SelExternalEdge, SelVertexOrRoot}
-        case 5: // {SelRoot, SelExternalEdge, SelVertex}
-        case 6: // {SelVertex, SelEdgeOrAxis, SelVertex}
-        case 7: // {SelVertex, SelVertexOrRoot,SelEdge}
-        case 8: // {SelRoot, SelVertex, SelEdge}
-        case 9: // {SelVertex, SelVertexOrRoot, SelExternalEdge}
-        case 10:// {SelRoot, SelVertex, SelExternalEdge}
-        case 11:// {SelVertex, SelVertex, SelEdgeOrAxis}
+        case 2:// {SelVertexOrRoot, SelEdge, SelVertexOrRoot}
+        case 3:// {SelVertexOrRoot, SelExternalEdge, SelVertexOrRoot}
+        case 4:// {SelVertex, SelEdgeOrAxis, SelVertex}
+        case 5:// {SelVertexOrRoot, SelVertexOrRoot, SelEdge}
+        case 6:// {SelVertexOrRoot, SelVertexOrRoot, SelExternalEdge}
+        case 7:// {SelVertex, SelVertex, SelEdgeOrAxis}
         {
             GeoId1 = selSeq.at(0).GeoId;
             GeoId2 = selSeq.at(2).GeoId;
@@ -9360,24 +10017,22 @@ void CmdSketcherConstrainSymmetric::applyConstraint(std::vector<SelIdPair>& selS
                     static_cast<int>(PosId2),
                     GeoId3);
 
-                // finish the transaction and update
-                commitCommand();
-                tryAutoRecompute(Obj);
+                finishTransactionAndUpdate(this, Obj);
             }
             else {
                 Gui::TranslatedUserWarning(
                     Obj,
                     QObject::tr("Wrong selection"),
                     QObject::tr("Select two points and a symmetry line, "
-                                "two points and a symmetry point "
-                                "or a line and a symmetry point from the sketch."));
+                                "two points and a symmetry point, "
+                                "an element and a symmetry line "
+                                "or an element and a symmetry point from the sketch."));
             }
             return;
         }
-        case 12:// {SelVertex, SelVertexOrRoot, SelVertex}
-        case 13:// {SelVertex, SelVertex, SelVertexOrRoot}
-        case 14:// {SelVertexOrRoot, SelVertex, SelVertex}
+        case 8:// {SelVertexOrRoot, SelVertexOrRoot, SelVertexOrRoot}
         {
+            // Simple point + point + point symmetry
             GeoId1 = selSeq.at(0).GeoId;
             GeoId2 = selSeq.at(1).GeoId;
             GeoId3 = selSeq.at(2).GeoId;
@@ -9387,6 +10042,72 @@ void CmdSketcherConstrainSymmetric::applyConstraint(std::vector<SelIdPair>& selS
 
             if (areAllPointsOrSegmentsFixed(Obj, GeoId1, GeoId2, GeoId3)) {
                 showNoConstraintBetweenFixedGeometry(Obj);
+                return;
+            }
+
+            // undo command open
+            openCommand(QT_TRANSLATE_NOOP("Command", "Add symmetric constraint"));
+            Gui::cmdAppObjectArgs(
+                Obj,
+                "addConstraint(Sketcher.Constraint('Symmetric',%d,%d,%d,%d,%d,%d))",
+                GeoId1,
+                static_cast<int>(PosId1),
+                GeoId2,
+                static_cast<int>(PosId2),
+                GeoId3,
+                static_cast<int>(PosId3));
+
+            finishTransactionAndUpdate(this, Obj);
+            return;
+        }
+        case 9:// {SelEdge, SelEdgeOrAxis}
+        case 10:// {SelEdge, SelExternalEdge}
+        case 11:// {SelExternalEdge, SelEdge}
+        case 12:// {SelEdgeOrAxis, SelEdge}
+        {
+            if (selSeq.at(0).GeoId == Sketcher::GeoEnum::HAxis || selSeq.at(0).GeoId == Sketcher::GeoEnum::VAxis) {
+                GeoId1 = GeoId2 = selSeq.at(1).GeoId;
+                GeoId3 = selSeq.at(0).GeoId;
+            } else {
+                GeoId1 = GeoId2 = selSeq.at(0).GeoId;
+                GeoId3 = selSeq.at(1).GeoId;
+            }
+            PosId1 = Sketcher::PointPos::start;
+            PosId2 = Sketcher::PointPos::end;
+            PosId3 = Sketcher::PointPos::none;
+
+            if (areAllPointsOrSegmentsFixed(Obj, GeoId1, GeoId2, GeoId3)) {
+                showNoConstraintBetweenFixedGeometry(Obj);
+                return;
+            }
+
+            if (GeoId1 == GeoId3) {
+                Gui::TranslatedUserWarning(
+                    Obj,
+                    QObject::tr("Wrong selection"),
+                    QObject::tr("Cannot add a symmetry constraint "
+                                "between an element and itself."));
+                return;
+            }
+
+            const Part::Geometry* geom1 = Obj->getGeometry(GeoId1);
+            if (!hasEndpoints(*geom1)) {
+                Gui::TranslatedUserWarning(
+                    Obj,
+                    QObject::tr("Wrong selection"),
+                    QObject::tr("Cannot add a symmetry constraint "
+                                "because the first selected element has no endpoints. "
+                                "Select a line or an open curve instead."));
+                return;
+            }
+            const Part::Geometry* geom3 = Obj->getGeometry(GeoId3);
+            if (!isLineSegment(*geom3)) {
+                Gui::TranslatedUserWarning(
+                    Obj,
+                    QObject::tr("Wrong selection"),
+                    QObject::tr("Cannot add a symmetry constraint "
+                                "because the second selected element is not a line. "
+                                "Select a line or an axis instead."));
                 return;
             }
             break;
@@ -9406,13 +10127,7 @@ void CmdSketcherConstrainSymmetric::applyConstraint(std::vector<SelIdPair>& selS
                           GeoId3,
                           static_cast<int>(PosId3));
 
-    // finish the transaction and update
-    commitCommand();
-
-    tryAutoRecompute(Obj);
-
-    // clear the selection (convenience)
-    getSelection().clearSelection();
+    finishTransactionAndUpdate(this, Obj);
     return;
 }
 
@@ -9425,10 +10140,8 @@ CmdSketcherConstrainSnellsLaw::CmdSketcherConstrainSnellsLaw()
 {
     sAppModule = "Sketcher";
     sGroup = "Sketcher";
-    sMenuText = QT_TR_NOOP("Constrain refraction (Snell's law)");
-    sToolTipText = QT_TR_NOOP("Create a refraction law (Snell's law)"
-                              "constraint between two endpoints of rays\n"
-                              "and an edge as an interface.");
+    sMenuText = QT_TR_NOOP("Refraction Constraint");
+    sToolTipText = QT_TR_NOOP("Constrains the selected elements based on the refraction law (Snell's Law)");
     sWhatsThis = "Sketcher_ConstrainSnellsLaw";
     sStatusTip = sToolTipText;
     sPixmap = "Constraint_SnellsLaw";
@@ -9442,6 +10155,7 @@ void CmdSketcherConstrainSnellsLaw::activated(int iMsg)
 
     // get the selection
     std::vector<Gui::SelectionObject> selection = getSelection().getSelectionEx();
+    ReleaseHandler(getActiveGuiDocument());
 
     // only one sketch with its subelements are allowed to be selected
     if (selection.size() != 1
@@ -9450,7 +10164,7 @@ void CmdSketcherConstrainSnellsLaw::activated(int iMsg)
                                       "and an edge representing a boundary. "
                                       "The first selected point corresponds "
                                       "to index n1, second to n2, "
-                                      "and datum value sets the ratio n2/n1.",
+                                      "and the value sets the ratio n2/n1.",
                                       "Constraint_SnellsLaw");
 
         const char dmbg[] = "Constraint_SnellsLaw";
@@ -9466,7 +10180,7 @@ void CmdSketcherConstrainSnellsLaw::activated(int iMsg)
     }
 
     // get the needed lists and objects
-    Sketcher::SketchObject* Obj = static_cast<Sketcher::SketchObject*>(selection[0].getObject());
+    auto* Obj = static_cast<Sketcher::SketchObject*>(selection[0].getObject());
     const std::vector<std::string>& SubNames = selection[0].getSubNames();
 
     if (SubNames.size() != 3) {
@@ -9509,18 +10223,18 @@ void CmdSketcherConstrainSnellsLaw::activated(int iMsg)
                                    QObject::tr("Wrong selection"),
                                    QObject::tr("Incompatible geometry is selected."));
         return;
-    };
+    }
 
     const Part::Geometry* geo = Obj->getGeometry(GeoId3);
 
-    if (geo && isBSplineCurve(*geo)) {
-        // unsupported until normal to B-spline at any point implemented.
-        Gui::TranslatedUserWarning(
-            Obj,
-            QObject::tr("Wrong selection"),
-            QObject::tr("SnellsLaw on B-spline edge is currently unsupported."));
-        return;
-    }
+    // if (geo && isBSplineCurve(*geo)) {
+    //     // unsupported until normal to B-spline at any point implemented.
+    //     Gui::TranslatedUserWarning(
+    //         Obj,
+    //         QObject::tr("Wrong selection"),
+    //         QObject::tr("SnellsLaw on B-spline edge is currently unsupported."));
+    //     return;
+    // }
 
     if (isBsplinePole(geo)) {
         Gui::TranslatedUserWarning(Obj,
@@ -9536,7 +10250,7 @@ void CmdSketcherConstrainSnellsLaw::activated(int iMsg)
     QDialog dlg(Gui::getMainWindow());
     Ui::InsertDatum ui_Datum;
     ui_Datum.setupUi(&dlg);
-    dlg.setWindowTitle(EditDatumDialog::tr("Refractive index ratio"));
+    dlg.setWindowTitle(EditDatumDialog::tr("Refractive Index Ratio"));
     ui_Datum.label->setText(EditDatumDialog::tr("Ratio n2/n1:"));
     Base::Quantity init_val;
     init_val.setUnit(Base::Unit());
@@ -9582,7 +10296,7 @@ void CmdSketcherConstrainSnellsLaw::activated(int iMsg)
 
         Gui::cmdAppObjectArgs(
             selection[0].getObject(),
-            "addConstraint(Sketcher.Constraint('SnellsLaw',%d,%d,%d,%d,%d,%.12f))",
+            "addConstraint(Sketcher.Constraint('SnellsLaw',%d,%d,%d,%d,%d,%.8g))",
             GeoId1,
             static_cast<int>(PosId1),
             GeoId2,
@@ -9600,20 +10314,305 @@ void CmdSketcherConstrainSnellsLaw::activated(int iMsg)
     });
 
     if (!safe) {
+        abortCommand();
         return;
     }
-    else {
-        commitCommand();
-        tryAutoRecompute(Obj);
-    }
-
-    // clear the selection (convenience)
-    getSelection().clearSelection();
+    finishTransactionAndUpdate(this, Obj);
 }
 
 bool CmdSketcherConstrainSnellsLaw::isActive()
 {
     return isCreateConstraintActive(getActiveGuiDocument());
+}
+
+// ======================================================================================
+
+DEF_STD_CMD_A(CmdSketcherConstrainGroup)
+
+CmdSketcherConstrainGroup::CmdSketcherConstrainGroup()
+    : Command("Sketcher_ConstrainGroup")
+{
+    sAppModule = "Sketcher";
+    sGroup = "Sketcher";
+    sMenuText = QT_TR_NOOP("Group Constraint");
+    sToolTipText = QT_TR_NOOP("Constrains the selected geometries together as a single entity."
+        "The position and size of the grouped geometries can be defined by constraining the construction line that is generated."
+        "Constraints applied to grouped edges are ignored as long as the Group constraint is here.");
+    sWhatsThis = "Sketcher_ConstrainGroup";
+    sStatusTip = sToolTipText;
+    sPixmap = "Constraint_Group";
+    sAccel = "K, G";
+    eType = ForEdit;
+}
+
+void CmdSketcherConstrainGroup::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+
+    // get the selection
+    std::vector<Gui::SelectionObject> selection = getSelection().getSelectionEx();
+    ReleaseHandler(getActiveGuiDocument());
+
+    // only one sketch with its subelements are allowed to be selected
+    if (selection.size() != 1
+        || !selection[0].isObjectTypeOf(Sketcher::SketchObject::getClassTypeId())) {
+        const char dmbg[] = "Constraint_Group";
+
+        QString strError = QObject::tr("Selected objects are not just geometry "
+                                       "from one sketch.",
+                                       dmbg);
+
+        Gui::TranslatedUserWarning(getActiveGuiDocument()->getDocument(),
+                                   QObject::tr("Wrong selection"),
+                                   std::move(strError));
+    }
+
+    // get the needed lists and objects
+    auto* Obj = static_cast<Sketcher::SketchObject*>(selection[0].getObject());
+    const std::vector<std::string>& SubNames = selection[0].getSubNames();
+
+    if (SubNames.empty()) {
+        Gui::TranslatedUserWarning(Obj,
+                                   QObject::tr("Wrong selection"),
+                                   QObject::tr("No geometries selected"));
+        return;
+    }
+
+    std::vector<Sketcher::GeoElementId> elts;
+
+    for (auto& subName : SubNames) {
+        int geoId;
+        Sketcher::PointPos posId;
+        getIdsFromName(subName, Obj, geoId, posId);
+
+        bool alreadyAdded = std::any_of(elts.begin(), elts.end(),
+                                [geoId](const Sketcher::GeoElementId& elem) {
+                                    return elem.GeoId == geoId;
+                                });
+
+        if (geoId < 0 || alreadyAdded || Obj->getGeometryFacade(geoId)->isInternalAligned()) {
+            continue;
+        }
+
+        elts.push_back(Sketcher::GeoElementId(geoId, Sketcher::PointPos::none));
+    }
+
+    if (elts.size() < 2) {
+        Base::Console().warning("Cannot create group : minimum 2 geometries must be selected.\n");
+        return;
+    }
+
+    openCommand(QT_TRANSLATE_NOOP("Command", "Add Group constraint"));
+
+    if (!addListConstraint(Obj, elts, "Group")) {
+        abortCommand();
+        return;
+    }
+
+    finishTransactionAndUpdate(this, Obj);
+}
+
+/**
+ * @brief Escapes a string for safe embedding within a single-quoted Python string literal.
+ *
+ * This function handles backslashes and single quotes.
+ *
+ * @param input The raw string to escape.
+ * @return A new string with special characters escaped.
+ */
+std::string SketcherGui::escapeForPython(const std::string& input)
+{
+    std::string result;
+    // Pre-allocating can be a small optimization if strings are long
+    result.reserve(input.length());
+
+    for (char c : input) {
+        if (c == '\\') {
+            result += "\\\\";
+        } else if (c == '\'') {
+            result += "\\'";
+        } else {
+            result += c;
+        }
+    }
+    return result;
+}
+
+bool SketcherGui::addListConstraint(Sketcher::SketchObject* Obj,
+                       std::vector<Sketcher::GeoElementId>& elts,
+                       const std::string& constraintType,
+                       Base::Vector2d frame_p1,
+                       Base::Vector2d frame_p2,
+                       bool isTextHeight,
+                       const std::string& text,
+                       const std::string& font)
+{
+
+    std::vector<int> geoIdsWithInternalGeos;
+    // The lambda defines the condition for REMOVAL.
+    // It returns 'true' if an element should be erased.
+    auto new_end = std::remove_if(elts.begin(), elts.end(),
+        [&](const Sketcher::GeoElementId& element) -> bool {
+            int geoId = element.GeoId;
+
+            // Condition 1: Check for invalid or already-aligned geometries.
+            // If true, this element should be removed.
+            if (geoId < 0 || Obj->getGeometryFacade(geoId)->isInternalAligned()) {
+                return true; // Mark for removal
+            }
+
+            // Condition 2: Check for internal geometries that need cleanup later.
+            // This does not mark the element for removal, but collects its ID.
+            const Part::Geometry* geo = Obj->getGeometry(geoId);
+            if (Obj->hasInternalGeometry(geo)) {
+                // Collect the ID for later processing.
+                geoIdsWithInternalGeos.push_back(geoId);
+            }
+
+            // If we reached here, the element is valid and should be kept.
+            return false; // Do not remove
+    });
+
+    // Actually erase the elements that were moved to the end.
+    elts.erase(new_end, elts.end());
+
+    if (elts.size() < 2) {
+        Base::Console().warning("Cannot create %s constraint: minimum 2 geometries.\n", constraintType.c_str());
+        return false;
+    }
+
+    if ((frame_p1 - frame_p2).Length() < Precision::Confusion()) {
+        // --- 1. Calculate Bounding Box ---
+        Bnd_Box totalBBox;
+        for (const auto& element : elts) {
+            const Part::Geometry* geo = Obj->getGeometry(element.GeoId);
+            if (geo) {
+                BRepBndLib::Add(geo->toShape(), totalBBox, false);
+            }
+        }
+
+        if (!totalBBox.HasFinitePart()) {
+            Base::Console().warning("Cannot create %s constraint: bounding box is infinite\n", constraintType.c_str());
+            return false;
+        }
+
+        gp_Pnt min_pnt = totalBBox.CornerMin();
+        gp_Pnt max_pnt = totalBBox.CornerMax();
+
+        // --- 2. Define and create the Construction Line "Frame" ---
+        frame_p1 = Base::Vector2d(min_pnt.X(), min_pnt.Y());
+        frame_p2 = Base::Vector2d(min_pnt.X(), max_pnt.Y());
+    }
+
+    Gui::cmdAppObjectArgs(Obj,
+                          "addGeometry(Part.LineSegment(App.Vector(%f,%f,0), App.Vector(%f,%f,0)), True)",
+                          frame_p1.x, frame_p1.y, frame_p2.x, frame_p2.y);
+
+    int frameGeoId = Obj->getHighestCurveIndex();
+
+    // --- 3. Prepend the Frame to the Element List ---
+    elts.insert(elts.begin(), Sketcher::GeoElementId(frameGeoId, Sketcher::PointPos::none));
+
+    // --- 4. Create the Python list of elements as a string ---
+    std::stringstream elements_list_ss;
+    elements_list_ss << "[";
+    if (!elts.empty()) {
+        for (size_t i = 0; i < elts.size() - 1; ++i) {
+            elements_list_ss << elts[i].GeoId << ", " << elts[i].posIdAsInt() << ", ";
+        }
+        elements_list_ss << elts.back().GeoId << ", " << elts.back().posIdAsInt();
+    }
+    elements_list_ss << "]";
+    std::string elements_list_string = elements_list_ss.str();
+
+    // --- 5. Add the appropriate constraint via Python command ---
+    if (constraintType == "Group") {
+        Gui::cmdAppObjectArgs(
+            Obj,
+            "addConstraint(Sketcher.Constraint('Group', %s))",
+            elements_list_string.c_str());
+    }
+    else if (constraintType == "Text") {
+        std::string escaped_text = escapeForPython(text);
+        std::string escaped_font = escapeForPython(font);
+        Gui::cmdAppObjectArgs(
+            Obj,
+            "addConstraint(Sketcher.Constraint('Text', %s, '%s', '%s', %s))",
+            elements_list_string.c_str(),
+            escaped_text.c_str(),
+            escaped_font.c_str(),
+            isTextHeight ? "True" : "False");
+    }
+    else {
+        Base::Console().error("Unsupported list constraint type: %s\n", constraintType.c_str());
+        return false;
+    }
+
+    // We remove the internal alignment of the geometries that were grouped.
+    std::sort(geoIdsWithInternalGeos.begin(), geoIdsWithInternalGeos.end(), std::greater<>());
+    for (auto& geoId : geoIdsWithInternalGeos) {
+        Obj->deleteUnusedInternalGeometry(geoId);
+    }
+
+    return true;
+}
+
+bool CmdSketcherConstrainGroup::isActive()
+{
+    return isCreateConstraintActive(getActiveGuiDocument());
+}
+
+// ======================================================================================
+DEF_STD_CMD_A(CmdSketcherChangeDimensionConstraint)
+
+CmdSketcherChangeDimensionConstraint::CmdSketcherChangeDimensionConstraint()
+    : Command("Sketcher_ChangeDimensionConstraint")
+{
+    sAppModule = "Sketcher";
+    sGroup = "Sketcher";
+    sMenuText = QT_TR_NOOP("Edit Value");
+    sToolTipText = QT_TR_NOOP("Edits the value of a dimensional constraint");
+    sWhatsThis = "Sketcher_ChangeDimensionConstraint";
+    sStatusTip = sToolTipText;
+    eType = ForEdit;
+}
+
+void CmdSketcherChangeDimensionConstraint::activated(int iMsg)
+{
+    Q_UNUSED(iMsg);
+
+    auto getDimConstraint = []() {
+        std::vector<Gui::SelectionObject> selection{getSelection().getSelectionEx()};
+        if (selection.size() != 1 || selection[0].getSubNames().size() != 1) {
+            throw Base::RuntimeError();
+        }
+
+        if (auto sketch = dynamic_cast<Sketcher::SketchObject*>(selection[0].getObject())) {
+            std::string subName = selection[0].getSubNames().at(0);
+            if (subName.size() > 10 && subName.substr(0, 10) == "Constraint") {
+                int ConstrId = Sketcher::PropertyConstraintList::getIndexFromConstraintName(subName);
+                return std::make_tuple(sketch, ConstrId);
+            }
+        }
+
+        throw Base::RuntimeError();
+    };
+
+    try {
+        auto value = getDimConstraint();
+        int tid = openActiveDocumentCommand(QT_TRANSLATE_NOOP("Command", "Modify sketch constraints"));
+        EditDatumDialog(tid, std::get<0>(value), std::get<1>(value)).exec(false);
+    }
+    catch (const Base::RuntimeError&) {
+        Gui::TranslatedUserWarning(getActiveGuiDocument()->getDocument(),
+                                   QObject::tr("Wrong selection"),
+                                   QObject::tr("Select one dimensional constraint from the sketch."));
+    }
+}
+
+bool CmdSketcherChangeDimensionConstraint::isActive()
+{
+    return isCommandActive(getActiveGuiDocument());
 }
 
 // ======================================================================================
@@ -9625,10 +10624,8 @@ CmdSketcherToggleDrivingConstraint::CmdSketcherToggleDrivingConstraint()
 {
     sAppModule = "Sketcher";
     sGroup = "Sketcher";
-    sMenuText = QT_TR_NOOP("Toggle driving/reference constraint");
-    sToolTipText = QT_TR_NOOP("Set the toolbar, "
-                              "or the selected constraints,\n"
-                              "into driving or reference mode");
+    sMenuText = QT_TR_NOOP("Toggle Driving/Reference Constraints");
+    sToolTipText = QT_TR_NOOP("Toggles between driving and reference mode of the selected constraints and commands");
     sWhatsThis = "Sketcher_ToggleDrivingConstraint";
     sStatusTip = sToolTipText;
     sPixmap = "Sketcher_ToggleConstraint";
@@ -9674,7 +10671,7 @@ void CmdSketcherToggleDrivingConstraint::activated(int iMsg)
 
     std::vector<Gui::SelectionObject> selection;
 
-    if (Gui::Selection().countObjectsOfType(Sketcher::SketchObject::getClassTypeId()) > 0) {
+    if (Gui::Selection().countObjectsOfType<Sketcher::SketchObject>() > 0) {
         // Now we check whether we have a constraint selected or not.
 
         // get the selection
@@ -9701,10 +10698,9 @@ void CmdSketcherToggleDrivingConstraint::activated(int iMsg)
             return;
         }
 
-        for (std::vector<std::string>::const_iterator it = SubNames.begin(); it != SubNames.end();
-             ++it) {
+        for (auto& subname : SubNames) {
             // see if we have constraints, if we do it is not a mode change, but a toggle.
-            if (it->size() > 10 && it->substr(0, 10) == "Constraint") {
+            if (subname.size() > 10 && subname.substr(0, 10) == "Constraint") {
                 modeChange = false;
             }
         }
@@ -9743,11 +10739,10 @@ void CmdSketcherToggleDrivingConstraint::activated(int iMsg)
 
         int successful = SubNames.size();
         // go through the selected subelements
-        for (std::vector<std::string>::const_iterator it = SubNames.begin(); it != SubNames.end();
-             ++it) {
+        for (auto& subname : SubNames) {
             // only handle constraints
-            if (it->size() > 10 && it->substr(0, 10) == "Constraint") {
-                int ConstrId = Sketcher::PropertyConstraintList::getIndexFromConstraintName(*it);
+            if (subname.size() > 10 && subname.substr(0, 10) == "Constraint") {
+                int ConstrId = Sketcher::PropertyConstraintList::getIndexFromConstraintName(subname);
                 try {
                     // issue the actual commands to toggle
                     Gui::cmdAppObjectArgs(selection[0].getObject(), "toggleDriving(%d)", ConstrId);
@@ -9784,9 +10779,8 @@ CmdSketcherToggleActiveConstraint::CmdSketcherToggleActiveConstraint()
 {
     sAppModule = "Sketcher";
     sGroup = "Sketcher";
-    sMenuText = QT_TR_NOOP("Activate/deactivate constraint");
-    sToolTipText = QT_TR_NOOP("Activates or deactivates "
-                              "the selected constraints");
+    sMenuText = QT_TR_NOOP("Toggle Constraints");
+    sToolTipText = QT_TR_NOOP("Toggles the state of the selected constraints");
     sWhatsThis = "Sketcher_ToggleActiveConstraint";
     sStatusTip = sToolTipText;
     sPixmap = "Sketcher_ToggleActiveConstraint";
@@ -9800,7 +10794,7 @@ void CmdSketcherToggleActiveConstraint::activated(int iMsg)
 
     std::vector<Gui::SelectionObject> selection;
 
-    if (Gui::Selection().countObjectsOfType(Sketcher::SketchObject::getClassTypeId()) > 0) {
+    if (Gui::Selection().countObjectsOfType<Sketcher::SketchObject>() > 0) {
         // Now we check whether we have a constraint selected or not.
 
         // get the selection
@@ -9828,15 +10822,14 @@ void CmdSketcherToggleActiveConstraint::activated(int iMsg)
         }
 
         // undo command open
-        openCommand(QT_TRANSLATE_NOOP("Command", "Activate/Deactivate constraint"));
+        openCommand(QT_TRANSLATE_NOOP("Command", "Activate/Deactivate constraints"));
 
         int successful = SubNames.size();
 
-        for (std::vector<std::string>::const_iterator it = SubNames.begin(); it != SubNames.end();
-             ++it) {
+        for (auto& subname : SubNames) {
 
-            if (it->size() > 10 && it->substr(0, 10) == "Constraint") {
-                int ConstrId = Sketcher::PropertyConstraintList::getIndexFromConstraintName(*it);
+            if (subname.size() > 10 && subname.substr(0, 10) == "Constraint") {
+                int ConstrId = Sketcher::PropertyConstraintList::getIndexFromConstraintName(subname);
                 try {
                     // issue the actual commands to toggle
                     Gui::cmdAppObjectArgs(selection[0].getObject(), "toggleActive(%d)", ConstrId);
@@ -9894,8 +10887,12 @@ void CreateSketcherCommandsConstraints()
     rcCmdMgr.addCommand(new CmdSketcherConstrainPointOnObject());
     rcCmdMgr.addCommand(new CmdSketcherConstrainSymmetric());
     rcCmdMgr.addCommand(new CmdSketcherConstrainSnellsLaw());
+    rcCmdMgr.addCommand(new CmdSketcherConstrainGroup());
+    rcCmdMgr.addCommand(new CmdSketcherChangeDimensionConstraint());
     rcCmdMgr.addCommand(new CmdSketcherToggleDrivingConstraint());
     rcCmdMgr.addCommand(new CmdSketcherToggleActiveConstraint());
     rcCmdMgr.addCommand(new CmdSketcherCompDimensionTools());
+    rcCmdMgr.addCommand(new CmdSketcherCompConstrainTools());
+    rcCmdMgr.addCommand(new CmdSketcherCompToggleConstraints());
 }
 // clang-format on

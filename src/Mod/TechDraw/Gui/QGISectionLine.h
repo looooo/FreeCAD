@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TECHDRAWGUI_QGISECTIONLINE_H
-#define TECHDRAWGUI_QGISECTIONLINE_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
@@ -35,6 +36,7 @@
 
 #include "QGCustomText.h"
 #include "QGIDecoration.h"
+#include "QGIUserTypes.h"
 
 
 namespace TechDrawGui
@@ -49,24 +51,26 @@ public:
     explicit QGISectionLine();
     ~QGISectionLine() override = default;
 
-    enum {Type = QGraphicsItem::UserType + 172};
+    enum {Type = UserType::QGISectionLine};
     int type() const override { return Type;}
 
     void paint(QPainter * painter, const QStyleOptionGraphicsItem * option, QWidget * widget = nullptr ) override;
 
     void setEnds(Base::Vector3d l1, Base::Vector3d l2);
     void setBounds(double x1, double y1, double x2, double y2);
-    void setPath(QPainterPath& path);
-    void setSymbol(char* sym);
+    void setPath(const QPainterPath& path);
+    void setSymbol(const char* sym);
     void setDirection(double xDir, double yDir);
     void setDirection(Base::Vector3d dir);
     void setArrowDirections(Base::Vector3d dir1, Base::Vector3d dir2);
-    void setFont(QFont f, double fsize);
-    void setSectionStyle(int style);
+    void setArrowSize(double arrowSize);
+    void setFont(const QFont& f);
+    void setFont(const QFont& f, double fsize);
     void setSectionColor(QColor c);
     void setPathMode(bool mode) { m_pathMode = mode; }
-    bool pathMode() { return m_pathMode; }
-    void setChangePoints(TechDraw::ChangePointVector changePoints);
+    void setShowLine(bool state) { m_showLine = state; }
+    bool pathMode() const { return m_pathMode; }
+    void setChangePoints(const TechDraw::ChangePointVector &changePoints);
     void clearChangePoints();
     void draw() override;
 
@@ -86,7 +90,6 @@ protected:
     void makeSymbolsISO();
     void makeChangePointMarks();
     void setTools();
-    int  getPrefSectionStandard();
     void extensionEndsISO();
     void extensionEndsTrad();
     double getArrowRotation(Base::Vector3d arrowDir);
@@ -125,8 +128,8 @@ private:
     QPointF            m_arrowPos2;
     std::vector<QGraphicsPathItem*> m_changePointMarks;
     TechDraw::ChangePointVector m_changePointData;
+
+    bool m_showLine{true};
 };
 
 }
-
-#endif // TECHDRAWGUI_QGISECTIONLINE_H

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2005 Imetric 3D GmbH                                    *
  *                                                                         *
@@ -20,10 +22,8 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef MESH_ITERATOR_H
-#define MESH_ITERATOR_H
+#pragma once
 
-#include <climits>
 
 #include <Base/Matrix.h>
 
@@ -41,7 +41,7 @@ class MeshIndexEdge;
 class MeshHelpEdge;
 
 /**
- * The MeshFacetIterator allows to iterate over the facets that
+ * The MeshFacetIterator allows one to iterate over the facets that
  * hold the topology of the mesh and provides access to their
  * geometric information.
  * \note This class is not thread-safe.
@@ -171,9 +171,11 @@ public:
         return *_clIter;
     }
     /// Returns iterators pointing to the current facet's neighbours.
-    inline void GetNeighbours(MeshFacetIterator& rclN0,
-                              MeshFacetIterator& rclN1,
-                              MeshFacetIterator& rclN2) const;
+    inline void GetNeighbours(
+        MeshFacetIterator& rclN0,
+        MeshFacetIterator& rclN1,
+        MeshFacetIterator& rclN2
+    ) const;
     /// Sets the iterator to the current facet's neighbour of the side \a usN.
     inline void SetToNeighbour(unsigned short usN);
     /// Returns the property information to the current facet.
@@ -222,7 +224,7 @@ private:
 };
 
 /**
- * The MeshPointIterator allows to iterate over the vertices of the mesh and provides access to
+ * The MeshPointIterator allows one to iterate over the vertices of the mesh and provides access to
  * their geometric information. \note This class is not thread-safe.
  */
 class MeshExport MeshPointIterator
@@ -478,10 +480,9 @@ inline bool MeshFacetIterator::Set(FacetIndex ulIndex)
         _clIter = _rclFAry.begin() + ulIndex;
         return true;
     }
-    else {
-        _clIter = _rclFAry.end();
-        return false;
-    }
+
+    _clIter = _rclFAry.end();
+    return false;
 }
 
 inline MeshFacetIterator& MeshFacetIterator::operator=(const MeshFacetIterator& rpI)
@@ -505,9 +506,11 @@ inline unsigned long MeshFacetIterator::GetProperty() const
     return _clIter->_ulProp;
 }
 
-inline void MeshFacetIterator::GetNeighbours(MeshFacetIterator& rclN0,
-                                             MeshFacetIterator& rclN1,
-                                             MeshFacetIterator& rclN2) const
+inline void MeshFacetIterator::GetNeighbours(
+    MeshFacetIterator& rclN0,
+    MeshFacetIterator& rclN1,
+    MeshFacetIterator& rclN2
+) const
 {
     if (_clIter->_aulNeighbours[0] != FACET_INDEX_MAX) {
         rclN0.Set(_clIter->_aulNeighbours[0]);
@@ -597,10 +600,9 @@ inline bool MeshPointIterator::Set(PointIndex ulIndex)
         _clIter = _rclPAry.begin() + ulIndex;
         return true;
     }
-    else {
-        _clIter = _rclPAry.end();
-        return false;
-    }
+
+    _clIter = _rclPAry.end();
+    return false;
 }
 
 inline MeshPointIterator& MeshPointIterator::operator=(const MeshPointIterator& rpI)
@@ -621,6 +623,3 @@ inline MeshPointIterator& MeshPointIterator::operator=(MeshPointIterator&& rpI)
 
 
 }  // namespace MeshCore
-
-
-#endif  // MESH_ITERATOR_H

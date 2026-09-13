@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2008 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,11 +22,9 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <BRepBuilderAPI_MakePolygon.hxx>
 #include <TopoDS.hxx>
-#endif
+
 
 #include <Base/Console.h>
 #include <Base/Converter.h>
@@ -36,6 +36,7 @@
 #include <Mod/Mesh/App/Core/Algorithm.h>
 #include <Mod/Mesh/App/Core/MeshKernel.h>
 #include <Mod/Mesh/App/MeshPy.h>
+#include <Mod/Part/App/PyException.h>
 #include <Mod/Part/App/TopoShapeEdgePy.h>
 #include <Mod/Part/App/TopoShapePy.h>
 #include <Mod/Part/App/TopoShapeWirePy.h>
@@ -145,35 +146,18 @@ public:
 private:
     Py::Object invoke_method_varargs(void *method_def, const Py::Tuple &args) override
     {
-        try {
+        return Part::pyWrapCppExceptions([&]() {
             return Py::ExtensionModule<Module>::invoke_method_varargs(method_def, args);
-        }
-        catch (const Standard_Failure &e) {
-            std::string str;
-            Standard_CString msg = e.GetMessageString();
-            str += typeid(e).name();
-            str += " ";
-            if (msg) {str += msg;}
-            else     {str += "No OCCT Exception Message";}
-            Base::Console().Error("%s\n", str.c_str());
-            throw Py::Exception(Base::PyExc_FC_GeneralError, str);
-        }
-        catch (const Base::Exception &e) {
-            std::string str;
-            str += "FreeCAD exception thrown (";
-            str += e.what();
-            str += ")";
-            e.ReportException();
-            throw Py::RuntimeError(str);
-        }
-        catch (const std::exception &e) {
-            std::string str;
-            str += "C++ exception thrown (";
-            str += e.what();
-            str += ")";
-            Base::Console().Error("%s\n", str.c_str());
-            throw Py::RuntimeError(str);
-        }
+        }, nullptr, true);
+    }
+
+    Py::Object invoke_method_keyword(void *method_def,
+                                     const Py::Tuple &args,
+                                     const Py::Dict &keywords) override
+    {
+        return Part::pyWrapCppExceptions([&]() {
+            return Py::ExtensionModule<Module>::invoke_method_keyword(method_def, args, keywords);
+        }, nullptr, true);
     }
 
     Py::Object loftOnCurve(const Py::Tuple& args)
@@ -183,7 +167,6 @@ private:
         float x=0.0f,y=0.0f,z=1.0f,size = 0.1f;
 
         if (!PyArg_ParseTuple(args.ptr(), "O!O(fff)f", &(Part::TopoShapePy::Type), &pcTopoObj,&pcListObj,&x,&y,&z,&size))
-//      if (!PyArg_ParseTuple(args, "O!O!", &(App::TopoShapePy::Type), &pcTopoObj,&PyList_Type,&pcListObj,x,y,z,size))
             throw Py::Exception();
 
         pcObject = static_cast<Part::TopoShapePy*>(pcTopoObj);
@@ -474,6 +457,15 @@ private:
     {
         PyObject *shape;
 
+        auto runMesher = [](const MeshPart::Mesher& mesher) {
+            Mesh::MeshObject* mesh;
+            {
+                Base::PyGILStateRelease releaser{};
+                mesh = mesher.createMesh();
+            }
+            return Py::asObject(new Mesh::MeshPy(mesh));
+        };
+
         static const std::array<const char *, 7> kwds_lindeflection{"Shape", "LinearDeflection", "AngularDeflection",
                                                                     "Relative", "Segments", "GroupColors", nullptr};
         PyErr_Clear();
@@ -502,14 +494,14 @@ private:
                     Py::Float r(t[0]);
                     Py::Float g(t[1]);
                     Py::Float b(t[2]);
-                    App::Color c(static_cast<float>(r),
+                    Base::Color c(static_cast<float>(r),
                                  static_cast<float>(g),
                                  static_cast<float>(b));
                     colors.push_back(c.getPackedValue());
                 }
                 mesher.setColors(colors);
             }
-            return Py::asObject(new Mesh::MeshPy(mesher.createMesh()));
+            return runMesher(mesher);
         }
 
         static const std::array<const char *, 3> kwds_maxLength{"Shape", "MaxLength", nullptr};
@@ -521,7 +513,7 @@ private:
             mesher.setMethod(MeshPart::Mesher::Mefisto);
             mesher.setMaxLength(maxLength);
             mesher.setRegular(true);
-            return Py::asObject(new Mesh::MeshPy(mesher.createMesh()));
+            return runMesher(mesher);
         }
 
         static const std::array<const char *, 3> kwds_maxArea{"Shape", "MaxArea", nullptr};
@@ -533,7 +525,7 @@ private:
             mesher.setMethod(MeshPart::Mesher::Mefisto);
             mesher.setMaxArea(maxArea);
             mesher.setRegular(true);
-            return Py::asObject(new Mesh::MeshPy(mesher.createMesh()));
+            return runMesher(mesher);
         }
 
         static const std::array<const char *, 3> kwds_localLen{"Shape", "LocalLength", nullptr};
@@ -545,7 +537,7 @@ private:
             mesher.setMethod(MeshPart::Mesher::Mefisto);
             mesher.setLocalLength(localLen);
             mesher.setRegular(true);
-            return Py::asObject(new Mesh::MeshPy(mesher.createMesh()));
+            return runMesher(mesher);
         }
 
         static const std::array<const char *, 3> kwds_deflection{"Shape", "Deflection", nullptr};
@@ -557,7 +549,7 @@ private:
             mesher.setMethod(MeshPart::Mesher::Mefisto);
             mesher.setDeflection(deflection);
             mesher.setRegular(true);
-            return Py::asObject(new Mesh::MeshPy(mesher.createMesh()));
+            return runMesher(mesher);
         }
 
         static const std::array<const char *, 4> kwds_minmaxLen{"Shape", "MinLength", "MaxLength", nullptr};
@@ -569,7 +561,7 @@ private:
             mesher.setMethod(MeshPart::Mesher::Mefisto);
             mesher.setMinMaxLengths(minLen, maxLen);
             mesher.setRegular(true);
-            return Py::asObject(new Mesh::MeshPy(mesher.createMesh()));
+            return runMesher(mesher);
         }
 
         static const std::array<const char *, 8> kwds_fineness{"Shape", "Fineness", "SecondOrder", "Optimize",
@@ -587,7 +579,7 @@ private:
             mesher.setOptimize(optimize != 0);
             mesher.setQuadAllowed(allowquad != 0);
             mesher.setMinMaxLengths(minLen, maxLen);
-            return Py::asObject(new Mesh::MeshPy(mesher.createMesh()));
+            return runMesher(mesher);
 #else
             throw Py::RuntimeError("SMESH was built without NETGEN support");
 #endif
@@ -612,7 +604,7 @@ private:
             mesher.setOptimize(optimize != 0);
             mesher.setQuadAllowed(allowquad != 0);
             mesher.setMinMaxLengths(minLen, maxLen);
-            return Py::asObject(new Mesh::MeshPy(mesher.createMesh()));
+            return runMesher(mesher);
 #else
             throw Py::RuntimeError("SMESH was built without NETGEN support");
 #endif
@@ -627,7 +619,7 @@ private:
             mesher.setMethod(MeshPart::Mesher::Mefisto);
             mesher.setRegular(true);
 #endif
-            return Py::asObject(new Mesh::MeshPy(mesher.createMesh()));
+            return runMesher(mesher);
         }
 
         throw Py::TypeError("Wrong arguments");

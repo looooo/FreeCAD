@@ -1,5 +1,7 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # ***************************************************************************
-# *   Copyright (c) 2023 edi <edi271@a1.net>               *
+# *   Copyright (c) 2023 edi <edi271@a1.net>                                *
 # *                                                                         *
 # *   This program is free software; you can redistribute it and/or modify  *
 # *   it under the terms of the GNU Lesser General Public License (LGPL)    *
@@ -21,7 +23,7 @@
 """
 Provides the TechDraw PositionSectionView GuiCommand.
 00.01 2021/03/17 C++ Basic version
-00.02 2023/12/21 Option to select an edge and it's corresponding vertex
+00.02 2023/12/21 Option to select an edge and its corresponding vertex
 """
 
 __title__ = "TechDrawTools.CommandPositionSectionView"
@@ -49,12 +51,8 @@ class CommandPositionSectionView:
         return {'Pixmap': 'TechDraw_ExtensionPositionSectionView.svg',
                 'Accel': "",
                 'MenuText': QT_TRANSLATE_NOOP("TechDraw_PositionSectionView", "Position Section View"),
-                'ToolTip': QT_TRANSLATE_NOOP("TechDraw_PositionSectionView", 
-                  "Orthogonally align a section view with its source view:<br>\
-                - Select a single section view<br>\
-                - Click this tool<br>\
-                - optional: select one edge in the section view and it's corresponding vertex in the base view<br>\
-                  Click this tool")}
+                'ToolTip': QT_TRANSLATE_NOOP("TechDraw_PositionSectionView",
+                  "Aligns the selected section view with its source view orthogonally or the selected edge in the section view to the selected vertex in the base view")}
 
     def Activated(self):
         """Run the following code when the command is activated (button pressed)."""
@@ -113,8 +111,14 @@ class CommandPositionSectionView:
 
     def getTrianglePoint(self,p1,dir,p2):
         '''
-        Get third point of a perpendicular triangle
-        p1, p2 ...vertexes of hypothenusis, dir ...direction of one kathete, p3 ...3rd vertex
+        Calculate the third vertex of a right triangle.
+
+        Parameters:
+        p1, p2 : vertices of the hypotenuse
+        dir    : direction vector of one leg (kathete)
+
+        Returns:
+        p3 : the third vertex completing the right triangle
         '''
         a = -dir.y
         b = dir.x

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Luke Parry <l.parry@warwick.ac.uk>                 *
  *                                                                         *
@@ -20,8 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <cmath>
 
 #include <QApplication>
@@ -29,19 +29,19 @@
 #include <QContextMenuEvent>
 #include <QLabel>
 #include <QMouseEvent>
+#include <QOpenGLWidget>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QScrollBar>
 #include <QWheelEvent>
-#endif
 
 #include <App/Application.h>
 #include <App/Document.h>
 #include <Base/Parameter.h>
 #include <Gui/BitmapFactory.h>
 #include <Gui/Document.h>
-#include <Gui/NavigationStyle.h>
-#include <Gui/Selection.h>
+#include <Gui/Navigation/NavigationStyle.h>
+#include <Gui/Selection/Selection.h>
 #include <Gui/View3DInventor.h>
 #include <Gui/View3DInventorViewer.h>
 
@@ -59,10 +59,12 @@
 #include "QGVNavStyleOCC.h"
 #include "QGVNavStyleOpenSCAD.h"
 #include "QGVNavStyleRevit.h"
+#include "QGVNavStyleSolidWorks.h"
 #include "QGVNavStyleTinkerCAD.h"
 #include "QGVNavStyleTouchpad.h"
 #include "QGVPage.h"
 #include "Rez.h"
+#include "TechDrawHandler.h"
 #include "ViewProviderPage.h"
 
 
@@ -73,36 +75,6 @@
 #define INKSCAPE_NS_URI "http://www.inkscape.org/namespaces/inkscape"
 #define SODIPODI_NS_URI "http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
 
-/*** pan-style cursor *******/
-
-#define PAN_WIDTH 16
-#define PAN_HEIGHT 16
-#define PAN_BYTES ((PAN_WIDTH + 7) / 8) * PAN_HEIGHT
-#define PAN_HOT_X 7
-#define PAN_HOT_Y 7
-
-static unsigned char pan_bitmap[PAN_BYTES] = {
-    0xc0, 0x03, 0x60, 0x02, 0x20, 0x04, 0x10, 0x08, 0x68, 0x16, 0x54, 0x2a, 0x73, 0xce, 0x01, 0x80,
-    0x01, 0x80, 0x73, 0xce, 0x54, 0x2a, 0x68, 0x16, 0x10, 0x08, 0x20, 0x04, 0x40, 0x02, 0xc0, 0x03};
-
-static unsigned char pan_mask_bitmap[PAN_BYTES] = {
-    0xc0, 0x03, 0xe0, 0x03, 0xe0, 0x07, 0xf0, 0x0f, 0xe8, 0x17, 0xdc, 0x3b, 0xff, 0xff, 0xff, 0xff,
-    0xff, 0xff, 0xff, 0xff, 0xdc, 0x3b, 0xe8, 0x17, 0xf0, 0x0f, 0xe0, 0x07, 0xc0, 0x03, 0xc0, 0x03};
-/*** zoom-style cursor ******/
-
-#define ZOOM_WIDTH 16
-#define ZOOM_HEIGHT 16
-#define ZOOM_BYTES ((ZOOM_WIDTH + 7) / 8) * ZOOM_HEIGHT
-#define ZOOM_HOT_X 5
-#define ZOOM_HOT_Y 7
-
-static unsigned char zoom_bitmap[ZOOM_BYTES] = {
-    0x00, 0x0f, 0x80, 0x1c, 0x40, 0x38, 0x20, 0x70, 0x90, 0xe4, 0xc0, 0xcc, 0xf0, 0xfc, 0x00, 0x0c,
-    0x00, 0x0c, 0xf0, 0xfc, 0xc0, 0xcc, 0x90, 0xe4, 0x20, 0x70, 0x40, 0x38, 0x80, 0x1c, 0x00, 0x0f};
-
-static unsigned char zoom_mask_bitmap[ZOOM_BYTES] = {
-    0x00, 0x0f, 0x80, 0x1f, 0xc0, 0x3f, 0xe0, 0x7f, 0xf0, 0xff, 0xf0, 0xff, 0xf0, 0xff, 0x00, 0x0f,
-    0x00, 0x0f, 0xf0, 0xff, 0xf0, 0xff, 0xf0, 0xff, 0xe0, 0x7f, 0xc0, 0x3f, 0x80, 0x1f, 0x00, 0x0f};
 using namespace Gui;
 using namespace TechDraw;
 using namespace TechDrawGui;
@@ -134,8 +106,10 @@ public:
     {
         const ParameterGrp& rGrp = static_cast<ParameterGrp&>(rCaller);
         if (strcmp(Reason, "NavigationStyle") == 0) {
-            std::string model =
-                rGrp.GetASCII("NavigationStyle", CADNavigationStyle::getClassTypeId().getName());
+            std::string model = rGrp.GetASCII(
+                "NavigationStyle",
+                std::string {CADNavigationStyle::getClassTypeId().getName()}.c_str()
+            );
             page->setNavigationStyle(model);
         }
         else if (strcmp(Reason, "InvertZoom") == 0) {
@@ -165,9 +139,9 @@ public:
 };
 
 QGVPage::QGVPage(ViewProviderPage* vpPage, QGSPage* scenePage, QWidget* parent)
-    : QGraphicsView(parent), m_renderer(Native), drawBkg(true), m_vpPage(nullptr),
+    : QGraphicsView(parent), m_renderer(RendererType::Native), drawBkg(true), m_vpPage(nullptr),
       m_scene(scenePage), balloonPlacing(false), m_showGrid(false),
-      m_navStyle(nullptr), d(new Private(this))
+      m_navStyle(nullptr), d(new Private(this)), toolHandler(nullptr)
 {
     assert(vpPage);
     m_vpPage = vpPage;
@@ -182,7 +156,7 @@ QGVPage::QGVPage(ViewProviderPage* vpPage, QGSPage* scenePage, QWidget* parent)
     m_saveContextEvent = nullptr;
 
     setCacheMode(QGraphicsView::CacheBackground);
-    setRenderer(Native);
+    setRenderer(RendererType::Native);
     //    setRenderer(OpenGL);  //gives rotten quality, don't use this
     setRenderHints(QPainter::Antialiasing | QPainter::SmoothPixmapTransform);
 
@@ -210,7 +184,7 @@ QGVPage::QGVPage(ViewProviderPage* vpPage, QGSPage* scenePage, QWidget* parent)
 
     initNavigationStyle();
 
-    createStandardCursors(devicePixelRatio());
+    createStandardCursors();
 }
 
 QGVPage::~QGVPage()
@@ -230,7 +204,6 @@ void QGVPage::initNavigationStyle()
 
 void QGVPage::setNavigationStyle(std::string navParm)
 {
-    //    Base::Console().Message("QGVP::setNavigationStyle(%s)\n", navParm.c_str());
     if (m_navStyle) {
         delete m_navStyle;
     }
@@ -245,6 +218,7 @@ void QGVPage::setNavigationStyle(std::string navParm)
     std::size_t foundOCC = navParm.find("OpenCascade");
     std::size_t foundOpenSCAD = navParm.find("OpenSCAD");
     std::size_t foundRevit = navParm.find("Revit");
+    std::size_t foundSolidWorks = navParm.find("SolidWorks");
 
     if (foundBlender != std::string::npos) {
         m_navStyle = static_cast<QGVNavStyle*>(new QGVNavStyleBlender(this));
@@ -276,22 +250,39 @@ void QGVPage::setNavigationStyle(std::string navParm)
     else if (foundRevit != std::string::npos) {
         m_navStyle = static_cast<QGVNavStyle*>(new QGVNavStyleRevit(this));
     }
+    else if (foundSolidWorks != std::string::npos) {
+        m_navStyle = static_cast<QGVNavStyle*>(new QGVNavStyleSolidWorks(this));
+    }
     else {
         m_navStyle = new QGVNavStyle(this);
     }
 }
 
+
+void QGVPage::activateHandler(TechDrawHandler* newHandler)
+{
+    if (toolHandler) {
+        toolHandler->deactivate();
+    }
+
+    toolHandler = std::unique_ptr<TechDrawHandler>(newHandler);
+    toolHandler->activate(this);
+}
+
+void QGVPage::deactivateHandler()
+{
+    if (toolHandler) {
+        toolHandler->deactivate();
+        toolHandler = nullptr;
+    }
+}
+
 void QGVPage::startBalloonPlacing(DrawView* parent)
 {
-    //    Base::Console().Message("QGVP::startBalloonPlacing(%s)\n", parent->getNameInDocument());
     balloonPlacing = true;
     m_balloonParent = parent;
-#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
     activateCursor(
         QCursor(balloonCursor->pixmap(Qt::ReturnByValue), balloonHotspot.x(), balloonHotspot.y()));
-#else
-    activateCursor(QCursor(*balloonCursor->pixmap(), balloonHotspot.x(), balloonHotspot.y()));
-#endif
 }
 
 void QGVPage::cancelBalloonPlacing()
@@ -313,7 +304,6 @@ void QGVPage::drawBackground(QPainter* painter, const QRectF&)
     }
 
     if (!m_vpPage->getDrawPage()) {
-        //        Base::Console().Message("QGVP::drawBackground - no Page Feature!\n");
         return;
     }
 
@@ -324,24 +314,6 @@ void QGVPage::drawBackground(QPainter* painter, const QRectF&)
     painter->drawRect(
         viewport()->rect().adjusted(-2, -2, 2, 2));//just bigger than viewport to prevent artifacts
 
-    // Default to A3 landscape, though this is currently relevant
-    // only for opening corrupt docs, etc.
-    float pageWidth = 420, pageHeight = 297;
-
-    if (m_vpPage->getDrawPage()->hasValidTemplate()) {
-        pageWidth = Rez::guiX(m_vpPage->getDrawPage()->getPageWidth());
-        pageHeight = Rez::guiX(m_vpPage->getDrawPage()->getPageHeight());
-    }
-
-    // Draw the white page
-    QRectF paperRect(0, -pageHeight, pageWidth, pageHeight);
-    QPolygon poly = mapFromScene(paperRect);
-
-    QBrush pageBrush(PreferencesGui::pageQColor());
-    painter->setBrush(pageBrush);
-
-    painter->drawRect(poly.boundingRect());
-
     painter->restore();
 }
 
@@ -349,7 +321,7 @@ void QGVPage::setRenderer(RendererType type)
 {
     m_renderer = type;
 
-    if (m_renderer == OpenGL) {
+    if (m_renderer == RendererType::OpenGL) {
 #ifndef QT_NO_OPENGL
         setViewport(new QOpenGLWidget);
         setViewportUpdateMode(QGraphicsView::SmartViewportUpdate);
@@ -372,7 +344,7 @@ void QGVPage::setHighQualityAntialiasing(bool highQualityAntialiasing)
 
 void QGVPage::paintEvent(QPaintEvent* event)
 {
-    if (m_renderer == Image) {
+    if (m_renderer == RendererType::Image) {
         if (m_image.size() != viewport()->size()) {
             m_image = QImage(viewport()->size(), QImage::Format_ARGB32_Premultiplied);
         }
@@ -421,7 +393,21 @@ void QGVPage::wheelEvent(QWheelEvent* event)
 
 void QGVPage::keyPressEvent(QKeyEvent* event)
 {
-    m_navStyle->handleKeyPressEvent(event);
+    if (toolHandler) {
+        toolHandler->keyPressEvent(event);
+    }
+    else {
+        if (scene() && scene()->focusItem() != nullptr) {
+            // The event belongs to the focused item. The base QGraphicsView implementation
+            // will handle forwarding it correctly.
+            QGraphicsView::keyPressEvent(event);
+
+            // We MUST return here to prevent the navigation style from also
+            // processing (and likely consuming) the event.
+            return;
+        }
+        m_navStyle->handleKeyPressEvent(event);
+    }
     if (!event->isAccepted()) {
         QGraphicsView::keyPressEvent(event);
     }
@@ -429,7 +415,12 @@ void QGVPage::keyPressEvent(QKeyEvent* event)
 
 void QGVPage::keyReleaseEvent(QKeyEvent* event)
 {
-    m_navStyle->handleKeyReleaseEvent(event);
+    if (toolHandler) {
+        toolHandler->keyReleaseEvent(event);
+    }
+    else {
+        m_navStyle->handleKeyReleaseEvent(event);
+    }
     if (!event->isAccepted()) {
         QGraphicsView::keyReleaseEvent(event);
     }
@@ -465,6 +456,11 @@ void QGVPage::enterEvent(QEvent* event)
 void QGVPage::enterEvent(QEnterEvent* event)
 #endif
 {
+    if (toolHandler) {
+        // if the user interacted with another widget than the mdi, the cursor got unset.
+        // So we reapply it.
+        toolHandler->updateCursor();
+    }
     QGraphicsView::enterEvent(event);
     m_navStyle->handleEnterEvent(event);
     QGraphicsView::enterEvent(event);
@@ -478,66 +474,79 @@ void QGVPage::leaveEvent(QEvent* event)
 
 void QGVPage::mousePressEvent(QMouseEvent* event)
 {
-    m_navStyle->handleMousePressEvent(event);
+    if (toolHandler && (event->button() != Qt::MiddleButton)) {
+        toolHandler->mousePressEvent(event);
+    }
+    else {
+        if (event->button() == Qt::RightButton && m_parentMDI) {
+            if (QGraphicsItem* item = itemAt(event->pos())) {
+                m_parentMDI->selectOnRightPress(item);
+            }
+            m_navStyle->handleMousePressEvent(event);
+            // do not call base class because it would clear the 
+            // selection on right click
+            return;
+        }
+        m_navStyle->handleMousePressEvent(event);
+    }
     QGraphicsView::mousePressEvent(event);
 }
 
 void QGVPage::mouseMoveEvent(QMouseEvent* event)
 {
+    if (toolHandler) {
+        toolHandler->mouseMoveEvent(event);
+    }
     m_navStyle->handleMouseMoveEvent(event);
     QGraphicsView::mouseMoveEvent(event);
 }
 
 void QGVPage::mouseReleaseEvent(QMouseEvent* event)
 {
-    m_navStyle->handleMouseReleaseEvent(event);
-    QGraphicsView::mouseReleaseEvent(event);
-    resetCursor();
+    if (toolHandler && (event->button() != Qt::MiddleButton)) {
+        QGraphicsView::mouseReleaseEvent(event);
+        toolHandler->mouseReleaseEvent(event);
+    }
+    else {
+        m_navStyle->handleMouseReleaseEvent(event);
+        QGraphicsView::mouseReleaseEvent(event);
+        if (toolHandler) {
+            toolHandler->updateCursor();
+        }
+        else {
+            resetCursor();
+        }
+    }
 }
 
 TechDraw::DrawPage* QGVPage::getDrawPage() { return m_vpPage->getDrawPage(); }
 
 QColor QGVPage::getBackgroundColor()
 {
-    App::Color fcColor;
+    Base::Color fcColor;
     fcColor.setPackedValue(Preferences::getPreferenceGroup("Colors")->GetUnsigned("Background", 0x70707000));
     return fcColor.asValue<QColor>();
-}
-
-double QGVPage::getDevicePixelRatio() const
-{
-    for (Gui::MDIView* view : m_vpPage->getDocument()->getMDIViews()) {
-        if (view->isDerivedFrom(Gui::View3DInventor::getClassTypeId())) {
-            return static_cast<Gui::View3DInventor*>(view)->getViewer()->devicePixelRatio();
-        }
-    }
-
-    return 1.0;
 }
 
 QPixmap QGVPage::prepareCursorPixmap(const char* iconName, QPoint& hotspot)
 {
 
     QPointF floatHotspot(hotspot);
-    double pixelRatio = getDevicePixelRatio();
 
-    // Due to impossibility to query cursor size via Qt API, we stick to (32x32)*device_pixel_ratio
+    // Due to impossibility to query cursor size via Qt API, we stick to (32x32)
     // as FreeCAD Wiki suggests - see https://wiki.freecad.org/HiDPI_support#Custom_cursor_size
-    double cursorSize = 32.0 * pixelRatio;
-
-    QPixmap pixmap = Gui::BitmapFactory().pixmapFromSvg(iconName, QSizeF(cursorSize, cursorSize));
-    pixmap.setDevicePixelRatio(pixelRatio);
+    QPixmap pixmap = Gui::BitmapFactory().pixmapFromSvg(iconName, QSizeF(32, 32));
 
     // The default (and here expected) SVG cursor graphics size is 64x64 pixels, thus we must adjust
     // the 64x64 based hotspot position for our 32x32 based cursor pixmaps accordingly
     floatHotspot *= 0.5;
 
-#if !defined(Q_OS_WIN32) && !defined(Q_OS_MAC)
+#if !defined(Q_OS_WIN32) && !defined(Q_OS_MACOS)
     // On XCB platform, the pixmap device pixel ratio is not taken into account for cursor hot spot,
     // therefore we must take care of the transformation ourselves...
     // Refer to QTBUG-68571 - https://bugreports.qt.io/browse/QTBUG-68571
     if (qGuiApp->platformName() == QLatin1String("xcb")) {
-        floatHotspot *= pixelRatio;
+        floatHotspot *= Gui::BitmapFactoryInst::getMaximumDPR();
     }
 #endif
 
@@ -553,8 +562,7 @@ void QGVPage::activateCursor(QCursor cursor)
 
 void QGVPage::resetCursor()
 {
-    this->setCursor(Qt::ArrowCursor);
-    viewport()->setCursor(Qt::ArrowCursor);
+    activateCursor(Qt::ArrowCursor);
 }
 
 void QGVPage::setPanCursor() { activateCursor(panCursor); }
@@ -619,8 +627,10 @@ std::string QGVPage::getNavStyleParameter()
 {
     ParameterGrp::handle hGrp =
         App::GetApplication().GetParameterGroupByPath("User parameter:BaseApp/Preferences/View");
-    std::string model =
-        hGrp->GetASCII("NavigationStyle", NavigationStyle::getClassTypeId().getName());
+    std::string model = hGrp->GetASCII(
+        "NavigationStyle",
+        std::string {NavigationStyle::getClassTypeId().getName()}.c_str()
+    );
     return model;
 }
 
@@ -630,24 +640,13 @@ Base::Type QGVPage::getStyleType(std::string model)
     return type;
 }
 
-void QGVPage::createStandardCursors(double dpr)
+void QGVPage::createStandardCursors()
 {
-    (void)dpr;//avoid clang warning re unused parameter
-    QBitmap cursor = QBitmap::fromData(QSize(PAN_WIDTH, PAN_HEIGHT), pan_bitmap);
-    QBitmap mask = QBitmap::fromData(QSize(PAN_WIDTH, PAN_HEIGHT), pan_mask_bitmap);
-#if defined(Q_OS_WIN32)
-    cursor.setDevicePixelRatio(dpr);
-    mask.setDevicePixelRatio(dpr);
-#endif
-    panCursor = QCursor(cursor, mask, PAN_HOT_X, PAN_HOT_Y);
+    QPixmap panPixmap = BitmapFactory().pixmapFromSvg("cursor-pan", QSize(16,16));
+    QPixmap zoomPixmap = BitmapFactory().pixmapFromSvg("cursor-zoom", QSize(16,16));
 
-    cursor = QBitmap::fromData(QSize(ZOOM_WIDTH, ZOOM_HEIGHT), zoom_bitmap);
-    mask = QBitmap::fromData(QSize(ZOOM_WIDTH, ZOOM_HEIGHT), zoom_mask_bitmap);
-#if defined(Q_OS_WIN32)
-    cursor.setDevicePixelRatio(dpr);
-    mask.setDevicePixelRatio(dpr);
-#endif
-    zoomCursor = QCursor(cursor, mask, ZOOM_HOT_X, ZOOM_HOT_Y);
+    this->panCursor = QCursor(panPixmap, 8, 8);
+    this->zoomCursor = QCursor(zoomPixmap, 8, 8);
 }
 
 #include <Mod/TechDraw/Gui/moc_QGVPage.cpp>

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2022 Matteo Grellier <matteogrellier@gmail.com>         *
  *                                                                         *
@@ -21,8 +23,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <BSplCLib.hxx>
 #include <Geom_BezierCurve.hxx>
 #include <Precision.hxx>
@@ -31,7 +31,7 @@
 #include <gp_Pnt.hxx>
 #include <math_Gauss.hxx>
 #include <math_Matrix.hxx>
-#endif
+
 #include "Blending/BlendCurve.h"
 #include "Blending/BlendCurvePy.h"
 #include <Base/Vector3D.h>
@@ -72,7 +72,7 @@ Handle(Geom_BezierCurve) BlendCurve::compute()
 
         Handle(Geom_BezierCurve) curve;
         if (num_poles > (curve->MaxDegree() + 1)) {  // use Geom_BezierCurve max degree
-            Standard_Failure::Raise("number of constraints exceeds bezier curve capacity");
+            throw Standard_Failure("number of constraints exceeds bezier curve capacity");
         }
 
         TColStd_Array1OfReal knots(1, 2 * num_poles);
@@ -90,13 +90,15 @@ Handle(Geom_BezierCurve) BlendCurve::compute()
         for (size_t i = 0; i < nb_pts; ++i) {
             math_Matrix bezier_eval(1, blendPoints[i].nbVectors(), 1, num_poles, 0.0);
             Standard_Integer first_non_zero;
-            BSplCLib::EvalBsplineBasis(blendPoints[i].nbVectors() - 1,
-                                       num_poles,
-                                       knots,
-                                       params(cons_idx),
-                                       first_non_zero,
-                                       bezier_eval,
-                                       Standard_False);
+            BSplCLib::EvalBsplineBasis(
+                blendPoints[i].nbVectors() - 1,
+                num_poles,
+                knots,
+                params(cons_idx),
+                first_non_zero,
+                bezier_eval,
+                Standard_False
+            );
             int idx2 = 1;
             for (int it2 = 0; it2 < blendPoints[i].nbVectors(); ++it2) {
                 OCCmatrix.SetRow(row_idx, bezier_eval.Row(idx2));
@@ -112,15 +114,15 @@ Handle(Geom_BezierCurve) BlendCurve::compute()
         math_Gauss gauss(OCCmatrix);
         gauss.Solve(res_x);
         if (!gauss.IsDone()) {
-            Standard_Failure::Raise("Failed to solve equations");
+            throw Standard_Failure("Failed to solve equations");
         }
         gauss.Solve(res_y);
         if (!gauss.IsDone()) {
-            Standard_Failure::Raise("Failed to solve equations");
+            throw Standard_Failure("Failed to solve equations");
         }
         gauss.Solve(res_z);
         if (!gauss.IsDone()) {
-            Standard_Failure::Raise("Failed to solve equations");
+            throw Standard_Failure("Failed to solve equations");
         }
 
         TColgp_Array1OfPnt poles(1, num_poles);

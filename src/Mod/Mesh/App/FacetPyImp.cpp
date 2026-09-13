@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2007 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <Base/GeometryPyCXX.h>
 #include <Base/VectorPy.h>
@@ -41,7 +42,7 @@ class Index
     FacetIndex index;
 
 public:
-    Index(FacetIndex index)
+    explicit Index(FacetIndex index)
         : index {index}
     {}
 

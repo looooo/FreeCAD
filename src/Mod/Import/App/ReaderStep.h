@@ -21,12 +21,15 @@
  *                                                                         *
  **************************************************************************/
 
-#ifndef IMPORT_READER_STEP_H
-#define IMPORT_READER_STEP_H
+#pragma once
 
 #include <Mod/Import/ImportGlobal.h>
 #include <Base/FileInfo.h>
+#include <Message_ProgressRange.hxx>
+#include <Resource_FormatType.hxx>
 #include <TDocStd_Document.hxx>
+#include <StepData_StepModel.hxx>
+#include <Standard_Version.hxx>
 
 namespace Import
 {
@@ -35,13 +38,18 @@ class ImportExport ReaderStep
 {
 public:
     explicit ReaderStep(const Base::FileInfo& file);
-
-    void read(Handle(TDocStd_Document) hDoc);
+    void setCodePage(Resource_FormatType cp)
+    {
+        codePage = cp;
+    }
+    void read(
+        Handle(TDocStd_Document) hDoc,
+        const Message_ProgressRange& theProgress = Message_ProgressRange()
+    );
 
 private:
     Base::FileInfo file;
+    Resource_FormatType codePage {};
 };
 
 }  // namespace Import
-
-#endif  // IMPORT_READER_STEP_H

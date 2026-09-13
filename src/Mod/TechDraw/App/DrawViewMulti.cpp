@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,16 +22,14 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
-#ifndef _PreComp_
 # include <sstream>
 # include <gp_Ax2.hxx>
 # include <gp_Pnt.hxx>
 # include <TopoDS.hxx>
 # include <TopoDS_Compound.hxx>
 # include <TopoDS_Shape.hxx>
-#endif
+
 
 #include <Base/Console.h>
 
@@ -76,7 +76,7 @@ short DrawViewMulti::mustExecute() const
 void DrawViewMulti::onChanged(const App::Property* prop)
 {
     if (!isRestoring()) {
-        //Base::Console().Message("TRACE - DVM::onChanged(%s) - %s\n", prop->getName(), Label.getValue());
+        //Base::Console().message("TRACE - DVM::onChanged(%s) - %s\n", prop->getName(), Label.getValue());
         if (prop == &Sources) {
             const std::vector<App::DocumentObject*>& links = Sources.getValues();
             if (!links.empty()) {
@@ -96,7 +96,7 @@ App::DocumentObjectExecReturn *DrawViewMulti::execute()
 
     const std::vector<App::DocumentObject*>& links = Sources.getValues();
     if (links.empty())  {
-        Base::Console().Log("INFO - DVM::execute - No Sources - creation?\n");
+        Base::Console().log("INFO - DVM::execute - No Sources - creation?\n");
         return DrawView::execute();
     }
 

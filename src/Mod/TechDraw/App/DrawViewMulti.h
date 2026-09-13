@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2007 Jürgen Riegel <juergen.riegel@web.de>              *
  *   Copyright (c) 2013 Luke Parry <l.parry@warwick.ac.uk>                 *
@@ -22,8 +24,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DrawViewMulti_h_
-#define DrawViewMulti_h_
+#pragma once
 
 #include <TopoDS_Compound.hxx>
 
@@ -51,7 +52,7 @@ namespace TechDraw
  */
 class TechDrawExport DrawViewMulti : public DrawViewPart
 {
-    PROPERTY_HEADER_WITH_OVERRIDE(Part::DrawViewMulti);
+    PROPERTY_HEADER_WITH_OVERRIDE(TechDraw::DrawViewMulti);
 
 public:
     /// Constructor
@@ -82,5 +83,3 @@ protected:
 using DrawViewMultiPython = App::FeaturePythonT<DrawViewMulti>;
 
 } //namespace TechDraw
-
-#endif

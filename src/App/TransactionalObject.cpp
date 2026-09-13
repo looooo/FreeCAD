@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -21,7 +23,6 @@
  ***************************************************************************/
 
 
-#include "PreCompiled.h"
 
 #include "TransactionalObject.h"
 #include "Document.h"
@@ -46,8 +47,7 @@ const char* TransactionalObject::detachFromDocument()
     return "";
 }
 
-void TransactionalObject::onBeforeChangeProperty(Document *doc, const Property *prop)
+void TransactionalObject::onBeforeChangeProperty(Document* doc, const Property* prop)
 {
     doc->onBeforeChangeProperty(this, prop);
 }
-

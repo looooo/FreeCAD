@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,11 +22,8 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 # include <cmath>
 # include <QTreeWidget>
-#endif // #ifndef _PreComp_
 
 #include <App/Document.h>
 #include <App/DocumentObject.h>
@@ -34,7 +33,7 @@
 #include <Gui/BitmapFactory.h>
 #include <Gui/Command.h>
 #include <Gui/Document.h>
-#include <Gui/Selection.h>
+#include <Gui/Selection/Selection.h>
 #include <Gui/ViewProvider.h>
 #include <Mod/TechDraw/App/DrawPage.h>
 #include <Mod/TechDraw/App/DrawViewDimension.h>
@@ -89,24 +88,24 @@ void TaskLinkDim::loadAvailDims()
     if (!guiDoc)
         return;
 
-    std::vector<App::DocumentObject*> pageViews = m_page->Views.getValues();
-    std::vector<App::DocumentObject*>::iterator itView = pageViews.begin();
     std::string result;
-    int selRefType = TechDraw::DrawViewDimension::getRefTypeSubElements(m_subs);
+    TechDraw::DrawViewDimension::RefType selRefType = TechDraw::DrawViewDimension::getRefTypeSubElements(m_subs);
     //int found = 0;
-    for (; itView != pageViews.end(); itView++) {
-        if ((*itView)->isDerivedFrom(TechDraw::DrawViewDimension::getClassTypeId())) {
-            TechDraw::DrawViewDimension* dim = static_cast<TechDraw::DrawViewDimension*>((*itView));
-            int dimRefType = dim->getRefType();
+    for (auto* view : m_page->getViews()) {
+        if (view->isDerivedFrom<TechDraw::DrawViewDimension>()) {
+            auto* dim = static_cast<TechDraw::DrawViewDimension*>(view);
+            TechDraw::DrawViewDimension::RefType dimRefType = dim->getRefType();
             if (dimRefType == selRefType) {                                     //potential matches
     //            found++;
                 if (dim->has3DReferences()) {
                     if (dimReferencesSelection(dim))  {
                         loadToTree(dim, true, guiDoc);
-                    } else {
+                    }
+                    else {
                         continue;                                               //already linked to something else
                     }
-                } else {
+                }
+                else {
                     loadToTree(dim, false, guiDoc);
                 }
             }
@@ -119,7 +118,7 @@ void TaskLinkDim::loadToTree(const TechDraw::DrawViewDimension* dim, const bool 
 {
     QString label = QString::fromUtf8(dim->Label.getValue());
     QString name = QString::fromUtf8(dim->getNameInDocument());
-    QString tooltip = label + QString::fromUtf8(" / ") + name;
+    QString tooltip = label + QStringLiteral(" / ") + name;
 
     QTreeWidgetItem* child = new QTreeWidgetItem();
     child->setText(0, label);
@@ -215,23 +214,23 @@ void TaskLinkDim::onCurrentItemChanged(QTreeWidgetItem* current, QTreeWidgetItem
     Q_UNUSED(current);
     Q_UNUSED(previous);
 //    if (previous) {
-//        Base::Console().Message("TRACE - TLD::onCurrent - text: %s data: %s is previous\n",
+//        Base::Console().message("TRACE - TLD::onCurrent - text: %s data: %s is previous\n",
 //                                qPrintable(previous->text(0)), qPrintable(previous->data(0, Qt::UserRole).toString()));
 //        if (previous->treeWidget() == ui->selector->selectedTreeWidget()) {
-//            Base::Console().Message("TRACE - TLD::onCurrent - previous belongs to selected\n");
+//            Base::Console().message("TRACE - TLD::onCurrent - previous belongs to selected\n");
 //        }
 //        if (previous->treeWidget() == ui->selector->availableTreeWidget()) {
-//            Base::Console().Message("TRACE - TLD::onCurrent - previous belongs to available\n");
+//            Base::Console().message("TRACE - TLD::onCurrent - previous belongs to available\n");
 //        }
 //    }
 //    if (current) {
-//        Base::Console().Message("TRACE - TLD::onCurrent - text: %s data: %s is current\n",
+//        Base::Console().message("TRACE - TLD::onCurrent - text: %s data: %s is current\n",
 //                                 qPrintable(current->text(0)), qPrintable(current->data(0, Qt::UserRole).toString()));
 //        if (current->treeWidget() == ui->selector->selectedTreeWidget()) {
-//            Base::Console().Message("TRACE - TLD::onCurrent - current belongs to selected\n");
+//            Base::Console().message("TRACE - TLD::onCurrent - current belongs to selected\n");
 //        }
 //        if (current->treeWidget() == ui->selector->availableTreeWidget()) {
-//            Base::Console().Message("TRACE - TLD::onCurrent - current belongs to available\n");
+//            Base::Console().message("TRACE - TLD::onCurrent - current belongs to available\n");
 //        }
 //    }
 }

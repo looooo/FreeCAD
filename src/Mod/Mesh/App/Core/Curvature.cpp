@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2012 Imetric 3D GmbH                                    *
  *                                                                         *
@@ -20,11 +22,9 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <algorithm>
 #include <functional>
-#endif
+#include <limits>
 
 #include <QFuture>
 #include <QFutureWatcher>
@@ -35,9 +35,9 @@
 
 // #define OPTIMIZE_CURVATURE
 #ifdef OPTIMIZE_CURVATURE
-#include <Eigen/Eigenvalues>
+# include <Eigen/Eigenvalues>
 #else
-#include <Mod/Mesh/App/WildMagic4/Wm4MeshCurvature.h>
+# include <Wm4MeshCurvature.h>
 #endif
 
 #include "Approximation.h"
@@ -53,7 +53,7 @@ namespace sp = std::placeholders;
 MeshCurvature::MeshCurvature(const MeshKernel& kernel)
     : myKernel(kernel)
     , myMinPoints(20)
-    , myRadius(0.5f)
+    , myRadius(0.5F)
 {
     mySegment.resize(kernel.CountFacets());
     std::generate(mySegment.begin(), mySegment.end(), Base::iotaGen<FacetIndex>(0));
@@ -62,7 +62,7 @@ MeshCurvature::MeshCurvature(const MeshKernel& kernel)
 MeshCurvature::MeshCurvature(const MeshKernel& kernel, std::vector<FacetIndex> segm)
     : myKernel(kernel)
     , myMinPoints(20)
-    , myRadius(0.5f)
+    , myRadius(0.5F)
     , mySegment(std::move(segm))
 {}
 
@@ -82,8 +82,8 @@ void MeshCurvature::ComputePerFace(bool parallel)
     }
     else {
         // NOLINTBEGIN
-        QFuture<CurvatureInfo> future =
-            QtConcurrent::mapped(mySegment, std::bind(&FacetCurvature::Compute, &face, sp::_1));
+        QFuture<CurvatureInfo> future
+            = QtConcurrent::mapped(mySegment, std::bind(&FacetCurvature::Compute, &face, sp::_1));
         // NOLINTEND
         QFutureWatcher<CurvatureInfo> watcher;
         watcher.setFuture(future);
@@ -186,8 +186,8 @@ void MeshCurvature::ComputePerVertex()
         // Compute the matrix of normal derivatives.
         for (int iRow = 0; iRow < 3; iRow++) {
             for (int iCol = 0; iCol < 3; iCol++) {
-                akWWTrn(iRow, iCol) =
-                    0.5 * akWWTrn(iRow, iCol) + akNormal[i][iRow] * akNormal[i][iCol];
+                akWWTrn(iRow, iCol) = 0.5 * akWWTrn(iRow, iCol)
+                    + akNormal[i][iRow] * akNormal[i][iCol];
                 akDWTrn(iRow, iCol) *= 0.5;
             }
         }
@@ -318,10 +318,8 @@ void MeshCurvature::ComputePerVertex()
     }
 
     // compute vertex based curvatures
-    Wm4::MeshCurvature<double> meshCurv(myKernel.CountPoints(),
-                                        &(aPnts[0]),
-                                        myKernel.CountFacets(),
-                                        &(aIdx[0]));
+    Wm4::MeshCurvature<double>
+        meshCurv(myKernel.CountPoints(), aPnts.data(), myKernel.CountFacets(), aIdx.data());
 
     // get curvature information now
     const Wm4::Vector3<double>* aMaxCurvDir = meshCurv.GetMaxDirections();
@@ -332,12 +330,16 @@ void MeshCurvature::ComputePerVertex()
     myCurvature.reserve(myKernel.CountPoints());
     for (unsigned long i = 0; i < myKernel.CountPoints(); i++) {
         CurvatureInfo ci;
-        ci.cMaxCurvDir = Base::Vector3f((float)aMaxCurvDir[i].X(),
-                                        (float)aMaxCurvDir[i].Y(),
-                                        (float)aMaxCurvDir[i].Z());
-        ci.cMinCurvDir = Base::Vector3f((float)aMinCurvDir[i].X(),
-                                        (float)aMinCurvDir[i].Y(),
-                                        (float)aMinCurvDir[i].Z());
+        ci.cMaxCurvDir = Base::Vector3f(
+            (float)aMaxCurvDir[i].X(),
+            (float)aMaxCurvDir[i].Y(),
+            (float)aMaxCurvDir[i].Z()
+        );
+        ci.cMinCurvDir = Base::Vector3f(
+            (float)aMinCurvDir[i].X(),
+            (float)aMinCurvDir[i].Y(),
+            (float)aMinCurvDir[i].Z()
+        );
         ci.fMaxCurvature = (float)aMaxCurv[i];
         ci.fMinCurvature = (float)aMinCurv[i];
         myCurvature.push_back(ci);
@@ -371,10 +373,12 @@ private:
 
 // --------------------------------------------------------
 
-FacetCurvature::FacetCurvature(const MeshKernel& kernel,
-                               const MeshRefPointToFacets& search,
-                               float r,
-                               unsigned long pt)
+FacetCurvature::FacetCurvature(
+    const MeshKernel& kernel,
+    const MeshRefPointToFacets& search,
+    float r,
+    unsigned long pt
+)
     : myKernel(kernel)
     , mySearch(search)
     , myMinPoints(pt)
@@ -401,7 +405,7 @@ CurvatureInfo FacetCurvature::Compute(FacetIndex index) const
         }
         float min_points = myMinPoints;
         float use_points = point_indices.size();
-        searchDist = searchDist * sqrt(min_points / use_points);
+        searchDist = searchDist * std::sqrt(min_points / use_points);
     } while ((point_indices.size() < myMinPoints) && (attempts++ < 3));
 
     std::vector<Base::Vector3f> fitPoints;
@@ -423,14 +427,14 @@ CurvatureInfo FacetCurvature::Compute(FacetIndex index) const
             fMax = (float)dMax;
         }
         else {
-            fMin = FLT_MAX;
-            fMax = FLT_MAX;
+            fMin = std::numeric_limits<float>::max();
+            fMax = std::numeric_limits<float>::max();
         }
     }
     else {
         // too few points => cannot calc any properties
-        fMin = FLT_MAX;
-        fMax = FLT_MAX;
+        fMin = std::numeric_limits<float>::max();
+        fMax = std::numeric_limits<float>::max();
     }
 
     CurvatureInfo info;

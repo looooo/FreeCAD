@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Luke Parry <l.parry@warwick.ac.uk>                 *
  *                                                                         *
@@ -20,14 +22,13 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
-#ifndef _PreComp_
 #include <Precision.hxx>
 #include <cstdlib>
 #include <cstring>
+#include <limits>
 #include <sstream>
-#endif
+
 
 #include <App/Application.h>
 #include <Base/Parameter.h>
@@ -70,7 +71,7 @@ DrawViewBalloon::DrawViewBalloon()
     ADD_PROPERTY_TYPE(OriginY, (0), "", (App::PropertyType)(App::Prop_None), "Balloon origin y");
 
     EndType.setEnums(ArrowPropEnum::ArrowTypeEnums);
-    ADD_PROPERTY_TYPE(EndType, (Preferences::balloonArrow()), "", (App::PropertyType)(App::Prop_None),
+    ADD_PROPERTY_TYPE(EndType, (static_cast<int>(Preferences::balloonArrow())), "", (App::PropertyType)(App::Prop_None),
                       "End symbol for the balloon line");
 
     ADD_PROPERTY_TYPE(EndTypeScale, (1.0), "", (App::PropertyType)(App::Prop_None),
@@ -210,7 +211,7 @@ void DrawViewBalloon::handleXYLock()
 DrawView* DrawViewBalloon::getParentView() const
 {
     App::DocumentObject* obj = SourceView.getValue();
-    DrawView* result = dynamic_cast<DrawView*>(obj);
+    DrawView* result = freecad_cast<DrawView*>(obj);
     return result;
 }
 

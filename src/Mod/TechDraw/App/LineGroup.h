@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2017 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -22,11 +24,12 @@
 
 //! LineGroup - Classes related to processing LineGroup definition CSV files
 
-#ifndef TechDraw_LINEGROUP_H_
-#define TechDraw_LINEGROUP_H_
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
+#include <string>
+#include <vector>
 #include <string>
 
 namespace TechDraw
@@ -70,4 +73,3 @@ protected:
 };
 
 }
-#endif

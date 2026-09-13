@@ -21,24 +21,29 @@
  ***************************************************************************/
 
 
-#ifndef GUI_MAINWINDOW_H
-#define GUI_MAINWINDOW_H
+#pragma once
 
+#include <QByteArray>
 #include <QEvent>
 #include <QMainWindow>
 #include <QMdiArea>
+#include <QString>
 
 #include "Window.h"
+#include "InputHint.h"
 
 class QMimeData;
 class QUrl;
 class QMdiSubWindow;
+class QMenu;
 
-namespace App {
+namespace App
+{
 class Document;
 }
 
-namespace Gui {
+namespace Gui
+{
 
 class BaseView;
 class CommandManager;
@@ -46,21 +51,49 @@ class Document;
 class MacroManager;
 class MDIView;
 
-namespace DockWnd {
-    class HelpView;
-} //namespace DockWnd
+namespace DockWnd
+{
+class HelpView;
+}  // namespace DockWnd
 
-class GuiExport UrlHandler : public QObject
+class GuiExport UrlHandler: public QObject
 {
     Q_OBJECT
 
 public:
     explicit UrlHandler(QObject* parent = nullptr)
-        : QObject(parent){
-    }
+        : QObject(parent)
+    {}
     ~UrlHandler() override = default;
-    virtual void openUrl(App::Document*, const QUrl&) {
-    }
+    virtual void openUrl(App::Document*, const QUrl&)
+    {}
+};
+
+/**
+ * Identifies which side of the status bar an item belongs to.
+ * Left items are non-permanent (they may be temporarily hidden by status
+ * messages); Right items are permanent and never obscured.
+ */
+enum class StatusBarSlot
+{
+    Left,
+    Right,
+};
+
+/**
+ * Metadata describing a status-bar item registered through
+ * MainWindow::addStatusBarItem(). Callers provide intent (slot + order + a
+ * stable id + a human title); MainWindow owns the actual layout, ordering,
+ * visibility persistence and context-menu participation.
+ */
+struct StatusBarItemSpec
+{
+    QByteArray id;  ///< Stable identifier, used for removal and persistence.
+    QString title;  ///< Label shown in the status-bar context menu.
+    StatusBarSlot slot = StatusBarSlot::Right;
+    int order = 0;                     ///< Sort key within the slot (lower = closer to the centre).
+    bool persistentVisibility = true;  ///< Persist the user's show/hide choice across sessions.
+    int stretch = 0;                   ///< Layout stretch factor.
 };
 
 /**
@@ -68,12 +101,13 @@ public:
  * a status bar and mainly a workspace for the MDI windows.
  * @author Werner Mayer
  */
-class GuiExport MainWindow : public QMainWindow
+class GuiExport MainWindow: public QMainWindow
 {
     Q_OBJECT
 
 public:
-    enum ConfirmSaveResult {
+    enum ConfirmSaveResult
+    {
         Cancel = 0,
         Save,
         SaveAll,
@@ -84,7 +118,7 @@ public:
      * Constructs an empty main window. For default \a parent is 0, as there usually is
      * no toplevel window there.
      */
-    explicit MainWindow(QWidget * parent = nullptr, Qt::WindowFlags f = Qt::Window);
+    explicit MainWindow(QWidget* parent = nullptr, Qt::WindowFlags f = Qt::Window);
     /** Destroys the object and frees any allocated resources. */
     ~MainWindow() override;
     /**
@@ -100,7 +134,7 @@ public:
      * Removes an MDI window from the main window's workspace and its associated tab without
      * deleting the widget. If the main windows does not have such a window nothing happens.
      */
-    void removeWindow(MDIView* view, bool close=true);
+    void removeWindow(MDIView* view, bool close = true);
     /**
      * Returns a list of all MDI windows in the worpspace.
      */
@@ -108,7 +142,7 @@ public:
     /**
      * Returns the internal QMdiArea instance.
      */
-    QMdiArea *getMdiArea() const;
+    QMdiArea* getMdiArea() const;
     /**
      * Can be called after the caption of an MDIView has changed to update the tab's caption.
      */
@@ -132,7 +166,7 @@ public:
     /**
      * Returns true that the context menu contains the 'Customize...' menu item.
      */
-    QMenu * createPopupMenu() override;
+    QMenu* createPopupMenu() override;
 
     /** @name Splasher and access methods */
     //@{
@@ -142,10 +176,6 @@ public:
     void startSplasher();
     /** Stops the splasher after startup. */
     void stopSplasher();
-    /* The image of the About dialog, it might be empty. */
-    QPixmap aboutImage() const;
-    /* The image of the splash screen of the application. */
-    QPixmap splashImage() const;
     /** Shows the online documentation. */
     void showDocumentation(const QString& help);
     //@}
@@ -174,19 +204,19 @@ public:
      */
     //@{
     /** Create mime data from selected objects */
-    QMimeData * createMimeDataFromSelection () const;
+    QMimeData* createMimeDataFromSelection() const;
     /** Check if mime data contains object data */
-    bool canInsertFromMimeData (const QMimeData * source) const;
+    bool canInsertFromMimeData(const QMimeData* source) const;
     /** Insert the objects into the active document. If no document exists
      * one gets created.
      */
-    void insertFromMimeData (const QMimeData * source);
+    void insertFromMimeData(const QMimeData* source);
     /**
      * Load files from the given URLs into the given document. If the document is 0
      * one gets created automatically if needed.
      *
      * If a url handler is registered that supports its scheme it will be delegated
-     * to this handler. This mechanism allows to change the default behaviour.
+     * to this handler. This mechanism allows one to change the default behaviour.
      */
     void loadUrls(App::Document*, const QList<QUrl>&);
     /**
@@ -195,17 +225,30 @@ public:
      * the existing handler is simply replaced with the new one. Since MainWindow does not take
      * ownership of handlers, no objects are deleted when a handler is replaced.
      */
-    void setUrlHandler(const QString &scheme, UrlHandler* handler);
+    void setUrlHandler(const QString& scheme, UrlHandler* handler);
     /**
      * Removes a previously set URL handler for the specified \a scheme.
      */
-    void unsetUrlHandler(const QString &scheme);
+    void unsetUrlHandler(const QString& scheme);
     //@}
 
     void updateActions(bool delay = false);
 
-    enum StatusType {None, Err, Wrn, Pane, Msg, Log, Tmp, Critical};
-    void showStatus(int type, const QString & message);
+    enum StatusType
+    {
+        None,
+        Err,
+        Wrn,
+        Pane,
+        Msg,
+        Log,
+        Tmp,
+        Critical
+    };
+    void showStatus(int type, const QString& message);
+
+    void showHints(const std::list<InputHint>& hints = {});
+    void hideHints();
 
     void initDockWindows(bool show);
 
@@ -222,7 +265,7 @@ public Q_SLOTS:
     void setPaneText(int i, QString text);
     /**
      * Sets the userschema in the status bar
-    */
+     */
     void setUserSchema(int userSchema);
     /**
      * Arranges all child windows in a tile pattern.
@@ -235,22 +278,22 @@ public Q_SLOTS:
     /**
      * Closes the child window that is currently active.
      */
-    void closeActiveWindow ();
+    void closeActiveWindow();
     /**
      * Closes all document window.
      */
-    bool closeAllDocuments (bool close=true);
+    bool closeAllDocuments(bool close = true);
     /** Pop up a message box asking for saving document
      */
-    int confirmSave(const char *docName, QWidget *parent=nullptr, bool addCheckBox=false);
+    int confirmSave(App::Document* doc, QWidget* parent = nullptr, bool addCheckBox = false);
     /**
      * Activates the next window in the child window chain.
      */
-    void activateNextWindow ();
+    void activateNextWindow();
     /**
      * Activates the previous window in the child window chain.
      */
-    void activatePreviousWindow ();
+    void activatePreviousWindow();
     /**
      * Just emits the workbenchActivated() signal to notify all receivers.
      */
@@ -264,34 +307,55 @@ public Q_SLOTS:
 
     void statusMessageChanged();
 
-    void showMessage (const QString & message, int timeout = 0);
+    void showMessage(const QString& message, int timeout = 0);
+    void setRightSideMessage(const QString& message);
+    bool isRightSideMessageVisible() const;
+
+    /** @name Status bar item registry
+     * Centralized API for placing widgets in the status bar. MainWindow owns
+     * layout, ordering, visibility persistence and context-menu participation;
+     * callers (including Python workbenches) only register a widget plus
+     * metadata and never manipulate QStatusBar directly.
+     */
+    //@{
+    /// Registers and places \a widget in the status bar according to \a spec.
+    void addStatusBarItem(QWidget* widget, const StatusBarItemSpec& spec);
+    /// Removes a previously registered item by id (does not delete the widget).
+    void removeStatusBarItem(const QByteArray& id);
+    /// Populates \a menu with checkable toggle actions for all registered items.
+    void buildStatusBarContextMenu(QMenu& menu);
+    //@}
+
+    // Set main window title
+    void setWindowTitle(const QString& string);
 
 protected:
     /**
      * This method checks if the main window can be closed by checking all open documents and views.
      */
-    void closeEvent (QCloseEvent * e) override;
-    void showEvent  (QShowEvent  * e) override;
-    void hideEvent  (QHideEvent  * e) override;
-    void timerEvent (QTimerEvent *  ) override {
+    void closeEvent(QCloseEvent* e) override;
+    void showEvent(QShowEvent* e) override;
+    void hideEvent(QHideEvent* e) override;
+    void timerEvent(QTimerEvent*) override
+    {
         Q_EMIT timeEvent();
     }
-    void customEvent(QEvent      * e) override;
-    bool event      (QEvent      * e) override;
+    void customEvent(QEvent* e) override;
+    bool event(QEvent* e) override;
     /**
      * Try to interpret dropped elements.
      */
-    void dropEvent  (QDropEvent  * e) override;
+    void dropEvent(QDropEvent* e) override;
     /**
      * Checks if a mime source object can be interpreted.
      */
-    void dragEnterEvent(QDragEnterEvent * e) override;
+    void dragEnterEvent(QDragEnterEvent* e) override;
     /**
      * This method is called from the Qt framework automatically whenever a
-     * QTranslator object has been installed. This allows to translate all
+     * QTranslator object has been installed. This allows one to translate all
      * relevant user visible text.
      */
-    void changeEvent(QEvent *e) override;
+    void changeEvent(QEvent* e) override;
 
 private:
     void setupDockWindows();
@@ -305,13 +369,21 @@ private:
     bool updateComboView(bool show);
     bool updateDAGView(bool show);
 
-    static void renderDevBuildWarning(QPainter &painter, const QPoint startPosition, const QSize maxSize);
+    void populateToolBarMenu(QMenu*);
+    void populateDockWindowMenu(QMenu*);
+
+    static void renderDevBuildWarning(
+        QPainter& painter,
+        const QPoint startPosition,
+        const QSize maxSize,
+        QColor color
+    );
 
 private Q_SLOTS:
     /**
      * \internal
      */
-    void onSetActiveSubWindow(QWidget *window);
+    void setActiveSubWindow(QWidget*);
     /**
      * Activates the associated tab to this widget.
      */
@@ -340,10 +412,16 @@ private Q_SLOTS:
      * \internal
      */
     void delayedStartup();
+#ifdef Q_OS_MAC
     /**
      * \internal
      */
-    void processMessages(const QList<QByteArray> &);
+    void registerQuickLookExtensions();
+#endif
+    /**
+     * \internal
+     */
+    void processMessages(const QList<QString>&);
     /**
      * \internal
      */
@@ -354,8 +432,16 @@ Q_SIGNALS:
     void windowStateChanged(QWidget*);
     void workbenchActivated(const QString&);
     void mainWindowClosed();
+    void recentFileAdded(const QString& filename);
 
 private:
+    /// Re-applies the registered status-bar items to the QStatusBar in slot+order
+    /// sequence, applying each item's enabled (show/hide) state.
+    void relayoutStatusBar();
+    /// Sets a registered item's enabled state, applies it to the widget and
+    /// persists it (when the item opts into persistence).
+    void setStatusBarItemEnabled(const QByteArray& id, bool enabled);
+
     /// some kind of singleton
     static MainWindow* instance;
     struct MainWindowP* d;
@@ -383,15 +469,24 @@ public:
     ~StatusBarObserver() override;
 
     /** Observes its parameter group. */
-    void OnChange(Base::Subject<const char*> &rCaller, const char * sReason) override;
+    void OnChange(Base::Subject<const char*>& rCaller, const char* sReason) override;
 
-    void SendLog(const std::string& notifiername, const std::string& msg, Base::LogStyle level,
-                 Base::IntendedRecipient recipient, Base::ContentType content) override;
+    void sendLog(
+        const std::string& notifiername,
+        const std::string& msg,
+        Base::LogStyle level,
+        Base::IntendedRecipient recipient,
+        Base::ContentType content
+    ) override;
 
     /// name of the observer
-    const char *Name() override {return "StatusBar";}
+    const char* name() override
+    {
+        return "StatusBar";
+    }
 
     friend class MainWindow;
+
 private:
     QString msg, wrn, err, critical;
 };
@@ -401,11 +496,15 @@ private:
 /** This is a helper class needed when a style sheet is restored or cleared.
  * @author Werner Mayer
  */
-class ActionStyleEvent : public QEvent
+class ActionStyleEvent: public QEvent
 {
 public:
     static int EventType;
-    enum Style {Restore, Clear};
+    enum Style
+    {
+        Restore,
+        Clear
+    };
 
     explicit ActionStyleEvent(Style type);
     Style getType() const;
@@ -414,6 +513,4 @@ private:
     Style type;
 };
 
-} // namespace Gui
-
-#endif // GUI_MAINWINDOW_H
+}  // namespace Gui

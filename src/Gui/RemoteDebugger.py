@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*-
-#/******************************************************************************
+# /******************************************************************************
 # *   Copyright (c) 2020 Werner Mayer <wmayer[at]users.sourceforge.net>        *
 # *                                                                            *
 # *   This file is part of the FreeCAD CAx development system.                 *
@@ -27,26 +26,39 @@ import FreeCADGui as Gui
 from PySide import QtGui
 from freecad.utils import get_python_exe
 
-class RemoteDebugger():
+
+class RemoteDebugger:
     def __init__(self, parent=None):
         ui = App.getHomePath() + "Ext/freecad/gui/RemoteDebugger.ui"
         self.dialog = Gui.PySideUic.loadUi(ui)
         self.dialog.buttonBox.accepted.connect(self.accept)
         self.dialog.buttonBox.rejected.connect(self.reject)
 
+        self.prefs = App.ParamGet("User parameter:BaseApp/Macro/Debugger")
+        index = self.prefs.GetInt("TabIndex", 0)
+        self.dialog.tabWidget.setCurrentIndex(index)
+        address = self.prefs.GetString("VSCodeAddress", "localhost")
+        port = self.prefs.GetInt("VSCodePort", 5678)
+        self.dialog.lineEditAddress.setText(address)
+        self.dialog.spinBoxPort.setValue(port)
+
     def accept(self):
         try:
             index = self.dialog.tabWidget.currentIndex()
+            self.prefs.SetInt("TabIndex", index)
 
-            if index == 0: # winpdb
+            if index == 0:  # winpdb
                 passwd = self.dialog.lineEditPassword.text()
 
                 import rpdb2
-                rpdb2.start_embedded_debugger(passwd, timeout = 30)
 
-            elif index == 1: # VS code
+                rpdb2.start_embedded_debugger(passwd, timeout=30)
+
+            elif index == 1:  # VS code
                 address = self.dialog.lineEditAddress.text()
                 port = self.dialog.spinBoxPort.value()
+                self.prefs.SetString("VSCodeAddress", address)
+                self.prefs.SetInt("VSCodePort", port)
 
                 import debugpy
 
@@ -54,7 +66,7 @@ class RemoteDebugger():
                 # It does not have to be FC embedded interpreter.
                 # By default it attempts to use Freecad's PID mistaking it for python.
                 # https://github.com/microsoft/debugpy/issues/262
-                debugpy.configure(python=get_python_exe()) 
+                debugpy.configure(python=get_python_exe())
                 debugpy.listen((address, port))
                 debugpy.wait_for_client()
 

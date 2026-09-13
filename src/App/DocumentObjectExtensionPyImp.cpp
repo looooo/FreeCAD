@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 Stefan Tröger <stefantroeger@gmx.net>              *
  *                                                                         *
@@ -20,9 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-
-#include "PreCompiled.h"
-
 // inclusion of the generated files (generated out of PropertyContainerPy.xml)
 #include "DocumentObjectExtensionPy.h"
 #include "DocumentObjectExtensionPy.cpp"
@@ -35,12 +34,12 @@ std::string DocumentObjectExtensionPy::representation() const
     return {"<document object extension>"};
 }
 
-PyObject *DocumentObjectExtensionPy::getCustomAttributes(const char* /*attr*/) const
+PyObject* DocumentObjectExtensionPy::getCustomAttributes(const char* /*attr*/) const
 {
     return nullptr;
 }
 
-int DocumentObjectExtensionPy::setCustomAttributes(const char* /*attr*/, PyObject * /*obj*/)
+int DocumentObjectExtensionPy::setCustomAttributes(const char* /*attr*/, PyObject* /*obj*/)
 {
     return 0;
 }

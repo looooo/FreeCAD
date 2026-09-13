@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 FreeCAD Developers                                 *
  *   Author: Przemo Firszt <przemo@firszt.eu>                              *
@@ -21,8 +23,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef GUI_VIEWPROVIDERFEMCONSTRAINTPRESSURE_H
-#define GUI_VIEWPROVIDERFEMCONSTRAINTPRESSURE_H
+#pragma once
 
 #include "ViewProviderFemConstraintOnBoundary.h"
 
@@ -41,8 +42,11 @@ public:
 
 protected:
     bool setEdit(int ModNum) override;
+    void transformSymbol(
+        const Base::Vector3d& point,
+        const Base::Vector3d& normal,
+        SbMatrix& mat
+    ) const override;
 };
 
 }  // namespace FemGui
-
-#endif  // GUI_VIEWPROVIDERFEMCONSTRAINTPRESSURE_H

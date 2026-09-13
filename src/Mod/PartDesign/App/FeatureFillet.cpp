@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2008 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,17 +22,18 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <limits>
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
-# include <BRepAlgo.hxx>
-# include <BRepFilletAPI_MakeFillet.hxx>
-# include <TopoDS.hxx>
-# include <TopoDS_Edge.hxx>
-# include <TopTools_ListOfShape.hxx>
-# include <ShapeFix_Shape.hxx>
-# include <ShapeFix_ShapeTolerance.hxx>
-#endif
+#include <BRepAlgo.hxx>
+#include <BRepFilletAPI_MakeFillet.hxx>
+#include <BRep_Tool.hxx>
+#include <Geom_Circle.hxx>
+#include <TopoDS.hxx>
+#include <TopoDS_Edge.hxx>
+#include <TopExp_Explorer.hxx>
+#include <TopTools_ListOfShape.hxx>
+#include <ShapeFix_Shape.hxx>
+#include <ShapeFix_ShapeTolerance.hxx>
 
 #include <Base/Exception.h>
 #include <Base/Reader.h>
@@ -44,117 +47,133 @@ using namespace PartDesign;
 
 PROPERTY_SOURCE(PartDesign::Fillet, PartDesign::DressUp)
 
-const App::PropertyQuantityConstraint::Constraints floatRadius = {0.0,FLT_MAX,0.1};
+const App::PropertyQuantityConstraint::Constraints floatRadius
+    = {0.0, std::numeric_limits<float>::max(), 0.1};
 
 Fillet::Fillet()
 {
     ADD_PROPERTY_TYPE(Radius, (1.0), "Fillet", App::Prop_None, "Fillet radius.");
     Radius.setUnit(Base::Unit::Length);
     Radius.setConstraints(&floatRadius);
-    ADD_PROPERTY_TYPE(UseAllEdges, (false), "Fillet", App::Prop_None,
-      "Fillet all edges if true, else use only those edges in Base property.\n"
-      "If true, then this overrides any edge changes made to the Base property or in the dialog.\n");
+    ADD_PROPERTY_TYPE(
+        UseAllEdges,
+        (false),
+        "Fillet",
+        App::Prop_None,
+        "Fillet all edges if true, else use only those edges in Base property.\n"
+        "If true, then this overrides any edge changes made to the Base property or in the "
+        "dialog.\n"
+    );
 }
 
 short Fillet::mustExecute() const
 {
-    if (Placement.isTouched() || Radius.isTouched())
+    if (Placement.isTouched() || Radius.isTouched()) {
         return 1;
+    }
     return DressUp::mustExecute();
 }
 
-App::DocumentObjectExecReturn *Fillet::execute()
+App::DocumentObjectExecReturn* Fillet::execute()
 {
-    Part::TopoShape TopShape;
+    if (onlyHaveRefined()) {
+        return App::DocumentObject::StdReturn;
+    }
+
+
+    Part::TopoShape baseShape;
     try {
-        TopShape = getBaseShape();
+        baseShape = getBaseTopoShape();
     }
     catch (Base::Exception& e) {
         return new App::DocumentObjectExecReturn(e.what());
     }
-    std::vector<std::string> SubNames = std::vector<std::string>(Base.getSubValues());
+    baseShape.setTransform(Base::Matrix4D());
 
-    if (UseAllEdges.getValue()){
-        SubNames.clear();
-        std::string edgeTypeName = Part::TopoShape::shapeName(TopAbs_EDGE); //"Edge"
-        int count = TopShape.countSubElements(edgeTypeName.c_str());
-        for (int ii = 0; ii < count; ii++){
-            std::ostringstream edgeName;
-            edgeName << edgeTypeName << ii+1;
-            SubNames.push_back(edgeName.str());
-        }
+    auto edges = UseAllEdges.getValue() ? baseShape.getSubTopoShapes(TopAbs_EDGE)
+                                        : getContinuousEdges(baseShape);
+    if (edges.empty()) {
+        return new App::DocumentObjectExecReturn(
+            QT_TRANSLATE_NOOP("Exception", "Fillet not possible on selected shapes")
+        );
     }
-
-    getContinuousEdges(TopShape, SubNames);
 
     double radius = Radius.getValue();
 
-    if(radius <= 0)
-        return new App::DocumentObjectExecReturn(QT_TRANSLATE_NOOP("Exception", "Fillet radius must be greater than zero"));
+    if (radius <= 0) {
+        return new App::DocumentObjectExecReturn(
+            QT_TRANSLATE_NOOP("Exception", "Fillet radius must be greater than zero")
+        );
+    }
 
     this->positionByBaseFeature();
 
-    //If no element is selected, then we use a copy of previous feature.
-    if (SubNames.empty()) {
-        this->Shape.setValue(TopShape);
-        return App::DocumentObject::StdReturn;
-    }
-
-    // create an untransformed copy of the base shape
-    Part::TopoShape baseShape(TopShape);
-    baseShape.setTransform(Base::Matrix4D());
     try {
-        BRepFilletAPI_MakeFillet mkFillet(baseShape.getShape());
+        TopoShape shape(0);  //,getDocument()->getStringHasher());
 
-        for (const auto & it : SubNames) {
-            TopoDS_Edge edge = TopoDS::Edge(baseShape.getSubShape(it.c_str()));
-            mkFillet.Add(radius, edge);
+        // Add signal handler for segfault protection
+#if defined(__GNUC__) && defined(FC_OS_LINUX)
+        Base::SignalException se;
+#endif
+
+        shape.makeElementFillet(baseShape, edges, Radius.getValue(), Radius.getValue());
+        if (shape.isNull()) {
+            return new App::DocumentObjectExecReturn(
+                QT_TRANSLATE_NOOP("Exception", "Resulting shape is null")
+            );
         }
-
-        mkFillet.Build();
-        if (!mkFillet.IsDone())
-            return new App::DocumentObjectExecReturn(QT_TRANSLATE_NOOP("Exception", "Failed to create fillet"));
-
-        TopoDS_Shape shape = mkFillet.Shape();
-        if (shape.IsNull())
-            return new App::DocumentObjectExecReturn(QT_TRANSLATE_NOOP("Exception", "Resulting shape is null"));
 
         TopTools_ListOfShape aLarg;
         aLarg.Append(baseShape.getShape());
-        if (!BRepAlgo::IsValid(aLarg, shape, Standard_False, Standard_False)) {
+        if (!BRepAlgo::IsValid(aLarg, shape.getShape(), Standard_False, Standard_False)) {
             ShapeFix_ShapeTolerance aSFT;
-            aSFT.LimitTolerance(shape, Precision::Confusion(), Precision::Confusion(), TopAbs_SHAPE);
-            Handle(ShapeFix_Shape) aSfs = new ShapeFix_Shape(shape);
-            aSfs->Perform();
-            shape = aSfs->Shape();
-            if (!BRepAlgo::IsValid(aLarg, shape, Standard_False, Standard_False)) {
-                return new App::DocumentObjectExecReturn(QT_TRANSLATE_NOOP("Exception", "Resulting shape is invalid"));
-            }
+            aSFT.LimitTolerance(
+                shape.getShape(),
+                Precision::Confusion(),
+                Precision::Confusion(),
+                TopAbs_SHAPE
+            );
         }
 
-        int solidCount = countSolids(shape);
-        if (solidCount > 1) {
-            return new App::DocumentObjectExecReturn(QT_TRANSLATE_NOOP("Exception", "Result has multiple solids: that is not currently supported."));
-        }
-
+        // store shape before refinement
+        this->rawShape = shape;
         shape = refineShapeIfActive(shape);
-        this->Shape.setValue(getSolid(shape));
+        if (!isSingleSolidRuleSatisfied(shape.getShape())) {
+            return new App::DocumentObjectExecReturn(QT_TRANSLATE_NOOP(
+                "Exception",
+                "Result has multiple solids: enable 'Allow Compound' in the active body."
+            ));
+        }
+
+        shape = getSolid(shape);
+        this->Shape.setValue(shape);
         return App::DocumentObject::StdReturn;
+    }
+    catch (Base::Exception& e) {
+        return new App::DocumentObjectExecReturn(e.what());
     }
     catch (Standard_Failure& e) {
         return new App::DocumentObjectExecReturn(e.GetMessageString());
     }
+    catch (...) {
+        return new App::DocumentObjectExecReturn(QT_TRANSLATE_NOOP(
+            "Exception",
+            "Fillet operation failed. The selected edges may contain geometry that cannot be "
+            "filleted together. "
+            "Try filleting edges individually or with a smaller radius."
+        ));
+    }
 }
 
-void Fillet::Restore(Base::XMLReader &reader)
+void Fillet::Restore(Base::XMLReader& reader)
 {
     DressUp::Restore(reader);
 }
 
-void Fillet::handleChangedPropertyType(Base::XMLReader &reader, const char * TypeName, App::Property * prop)
+void Fillet::handleChangedPropertyType(Base::XMLReader& reader, const char* TypeName, App::Property* prop)
 {
-    if (prop && strcmp(TypeName,"App::PropertyFloatConstraint") == 0 &&
-        strcmp(prop->getTypeId().getName(), "App::PropertyQuantityConstraint") == 0) {
+    if (prop && strcmp(TypeName, "App::PropertyFloatConstraint") == 0
+        && prop->getTypeId().getName() == "App::PropertyQuantityConstraint") {
         App::PropertyFloatConstraint p;
         p.Restore(reader);
         static_cast<App::PropertyQuantityConstraint*>(prop)->setValue(p.getValue());

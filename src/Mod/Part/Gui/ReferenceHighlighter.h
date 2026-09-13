@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2021 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef PARTGUI_REFERENCEHIGHLIGHTER_H
-#define PARTGUI_REFERENCEHIGHLIGHTER_H
+#pragma once
 
 #include <vector>
 
@@ -32,7 +33,8 @@
 #include <Mod/Part/PartGlobal.h>
 
 
-namespace PartGui {
+namespace PartGui
+{
 
 /*!
  * \brief The ReferenceHighlighter class
@@ -46,54 +48,68 @@ public:
      * \param shape The input shape.
      * \param color The standard edge color.
      */
-    ReferenceHighlighter(const TopoDS_Shape& shape, const App::Color& color);
+    ReferenceHighlighter(const TopoDS_Shape& shape, const Base::Color& color);
 
-    void setDefaultColor(const App::Color& c) {
+    void setDefaultColor(const Base::Color& c)
+    {
         defaultColor = c;
     }
-    void setElementColor(const App::Color& c) {
+    void setElementColor(const Base::Color& c)
+    {
         elementColor = c;
     }
-    void setObjectColor(const App::Color& c) {
+    void setObjectColor(const Base::Color& c)
+    {
         objectColor = c;
     }
 
     /*!
      * \brief getVertexColors
-     * \param elements The sub-element names. If this list is empty \a colors will be filled with the default color.
+     * \param elements The sub-element names. If this list is empty \a colors will be filled with
+     * the default color.
      * \param colors The size of the \a colors array is equal to the number of vertexes of the shape
      */
-    void getVertexColors(const std::vector<std::string>& elements,
-                         std::vector<App::Color>& colors) const;
+    void getVertexColors(const std::vector<std::string>& elements, std::vector<Base::Color>& colors) const;
     /*!
      * \brief getEdgeColors
-     * \param elements The sub-element names. If this list is empty \a colors will be filled with the default color.
+     * \param elements The sub-element names. If this list is empty \a colors will be filled with
+     * the default color.
      * \param colors The size of the \a colors array is equal to the number of edges of the shape
      */
-    void getEdgeColors(const std::vector<std::string>& elements,
-                       std::vector<App::Color>& colors) const;
+    void getEdgeColors(const std::vector<std::string>& elements, std::vector<Base::Color>& colors) const;
     /*!
      * \brief getFaceColors
-     * \param elements The sub-element names. If this list is empty \a colors will be filled with the default color.
+     * \param elements The sub-element names. If this list is empty \a colors will be filled with
+     * the default color.
      * \param colors The size of the \a colors array is equal to the number of faces of the shape
      */
-    void getFaceColors(const std::vector<std::string>& elements,
-                       std::vector<App::Color>& colors) const;
+    void getFaceColors(const std::vector<std::string>& elements, std::vector<Base::Color>& colors) const;
+    /*!
+     * \brief getFaceMaterials
+     * \param elements The sub-element names. If this list is empty \a materials will be filled with
+     * the default color. \param materials The size of the \a materials array is equal to the number
+     * of faces of the shape
+     */
+    void getFaceMaterials(
+        const std::vector<std::string>& elements,
+        std::vector<App::Material>& materials
+    ) const;
 
 private:
-    void getVertexColor(const std::string& element, std::vector<App::Color>& colors) const;
-    void getVertexColorsOfEdge(const std::string& element, std::vector<App::Color>& colors) const;
-    void getVertexColorsOfWire(const std::string& element, std::vector<App::Color>& colors) const;
-    void getVertexColorsOfFace(const std::string& element, std::vector<App::Color>& colors) const;
-    void getEdgeColor(const std::string& element, std::vector<App::Color>& colors) const;
-    void getEdgeColorsOfWire(const std::string& element, std::vector<App::Color>& colors) const;
-    void getEdgeColorsOfFace(const std::string& element, std::vector<App::Color>& colors) const;
-    void getFaceColor(const std::string& element, std::vector<App::Color>& colors) const;
+    void getVertexColor(const std::string& element, std::vector<Base::Color>& colors) const;
+    void getVertexColorsOfEdge(const std::string& element, std::vector<Base::Color>& colors) const;
+    void getVertexColorsOfWire(const std::string& element, std::vector<Base::Color>& colors) const;
+    void getVertexColorsOfFace(const std::string& element, std::vector<Base::Color>& colors) const;
+    void getEdgeColor(const std::string& element, std::vector<Base::Color>& colors) const;
+    void getEdgeColorsOfWire(const std::string& element, std::vector<Base::Color>& colors) const;
+    void getEdgeColorsOfFace(const std::string& element, std::vector<Base::Color>& colors) const;
+    void getFaceColor(const std::string& element, std::vector<Base::Color>& colors) const;
+    void getFaceColor(const std::string& element, std::vector<App::Material>& materials) const;
 
 private:
-    App::Color defaultColor;
-    App::Color elementColor;
-    App::Color objectColor;
+    Base::Color defaultColor;
+    Base::Color elementColor;
+    Base::Color objectColor;
     TopTools_IndexedMapOfShape vMap;
     TopTools_IndexedMapOfShape eMap;
     TopTools_IndexedMapOfShape wMap;
@@ -101,7 +117,4 @@ private:
 };
 
 
-} // namespace PartGui
-
-
-#endif // PARTGUI_REFERENCEHIGHLIGHTER_H
+}  // namespace PartGui

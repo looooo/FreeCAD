@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # ***************************************************************************
 # *   Copyright (c) 2016 Ofentse Kgoa <kgoaot@eskom.co.za>                  *
 # *   Copyright (c) 2018 Bernd Hahnebach <bernd@bimstatik.org>              *
@@ -32,18 +34,13 @@ __url__ = "https://www.freecad.org"
 #  \brief view provider for element fluid 1D object
 
 from femtaskpanels import task_element_fluid1D
-from . import view_base_femconstraint
+from . import view_base_femelement
 
 
-class VPElementFluid1D(view_base_femconstraint.VPBaseFemConstraint):
+class VPElementFluid1D(view_base_femelement.VPBaseFemElement):
     """
     A View Provider for the ElementFluid1D object
     """
 
     def setEdit(self, vobj, mode=0):
-        view_base_femconstraint.VPBaseFemConstraint.setEdit(
-            self,
-            vobj,
-            mode,
-            task_element_fluid1D._TaskPanel
-        )
+        return super().setEdit(vobj, mode, task_element_fluid1D._TaskPanel)

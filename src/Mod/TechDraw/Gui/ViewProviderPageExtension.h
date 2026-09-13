@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2022 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TECHDRAWGUI_VIEWPROVIDERPAGEEXTENSION_H
-#define TECHDRAWGUI_VIEWPROVIDERPAGEEXTENSION_H
+#pragma once
 
 #include <Gui/ViewProviderExtension.h>
 #include <Gui/ViewProviderExtensionPython.h>
@@ -46,6 +47,9 @@ public:
     void extensionDragObject(App::DocumentObject*) override;
     bool extensionCanDropObjects() const override;
     bool extensionCanDropObject(App::DocumentObject*) const override;
+    bool extensionCanDropObjectEx(App::DocumentObject* obj, App::DocumentObject* owner,
+        const char* subname,
+        const std::vector<std::string>& elements) const override;
     void extensionDropObject(App::DocumentObject*) override;
 
     void dropObject(App::DocumentObject* docObj);
@@ -60,5 +64,3 @@ using ViewProviderPageExtensionPython =
     Gui::ViewProviderExtensionPythonT<TechDrawGui::ViewProviderPageExtension>;
 
 }// namespace TechDrawGui
-
-#endif// TECHDRAWGUI_VIEWPROVIDERPAGEEXTENSION_H

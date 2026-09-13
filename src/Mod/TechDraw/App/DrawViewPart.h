@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2007 Jürgen Riegel <juergen.riegel@web.de>              *
  *   Copyright (c) 2013 Luke Parry <l.parry@warwick.ac.uk>                 *
@@ -22,8 +24,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DrawViewPart_h_
-#define DrawViewPart_h_
+#pragma once
 
 #include <QFuture>
 #include <QFutureWatcher>
@@ -77,8 +78,33 @@ class GeomFormat;
 
 namespace TechDraw
 {
-
 class DrawViewSection;
+
+
+enum class ProjDirection {
+    Front,
+    Left,
+    Right,
+    Rear,
+    Top,
+    Bottom,
+    FrontTopLeft,
+    FrontTopRight,
+    FrontBottomLeft,
+    FrontBottomRight
+};
+
+enum class RotationMotion {
+    Left,
+    Right,
+    Up,
+    Down
+};
+
+enum class SpinDirection {
+    CW,
+    CCW
+};
 
 class TechDrawExport DrawViewPart: public DrawView, public CosmeticExtension
 {
@@ -90,8 +116,7 @@ public:
 
     App::PropertyLinkList Source;
     App::PropertyXLinkList XSource;
-    App::PropertyVector
-        Direction;//TODO: Rename to YAxisDirection or whatever this actually is  (ProjectionDirection)
+    App::PropertyVector Direction;  // the projection direction.  where you are looking from.
     App::PropertyVector XDirection;
     App::PropertyBool Perspective;
     App::PropertyDistance Focus;
@@ -115,8 +140,10 @@ public:
     App::DocumentObjectExecReturn* execute() override;
     const char* getViewProviderName() const override { return "TechDrawGui::ViewProviderViewPart"; }
     PyObject* getPyObject() override;
+    void handleChangedPropertyType(
+        Base::XMLReader &reader, const char * TypeName, App::Property * prop) override;
 
-    static TopoDS_Shape centerScaleRotate(DrawViewPart* dvp, TopoDS_Shape& inOutShape,
+    static TopoDS_Shape centerScaleRotate(const DrawViewPart* dvp, TopoDS_Shape& inOutShape,
                                           Base::Vector3d centroid);
 
     std::vector<TechDraw::DrawHatch*> getHatches() const;
@@ -172,6 +199,12 @@ public:
     virtual Base::Vector3d getLegacyX(const Base::Vector3d& pt, const Base::Vector3d& axis,
                                       const bool flip = true) const;
 
+    void rotate(const RotationMotion& motion);
+    void spin(const SpinDirection& spindirection);
+    void spin(double val);
+    std::pair<Base::Vector3d, Base::Vector3d> getDirsFromFront(ProjDirection viewType);
+    Base::Vector3d dir2vec(gp_Dir d);
+
     gp_Ax2 localVectorToCS(const Base::Vector3d localUnit) const;
     Base::Vector3d localVectorToDirection(const Base::Vector3d localUnit) const;
 
@@ -180,7 +213,7 @@ public:
     bool newFaceFinder();
     bool isUnsetting() { return nowUnsetting; }
 
-    virtual TopoDS_Shape getSourceShape(bool fuse = false) const;
+    virtual TopoDS_Shape getSourceShape(bool fuse = false, bool allow2d = true) const;
     virtual TopoDS_Shape getShapeForDetail() const;
     std::vector<App::DocumentObject*> getAllSources() const;
 
@@ -207,6 +240,13 @@ public:
     virtual bool waitingForResult() const;
     void progressValueChanged(int v);
 
+    bool isCosmeticVertex(const std::string& element);
+    bool isCosmeticEdge(const std::string& element);
+    bool isCenterLine(const std::string& element);
+
+    Base::Vector3d snapHighlightToVertex(Base::Vector3d newAnchorPoint, double radius) const;
+
+
 public Q_SLOTS:
     void onHlrFinished(void);
     void onFacesFinished(void);
@@ -221,9 +261,9 @@ protected:
     void onChanged(const App::Property* prop) override;
     void unsetupObject() override;
 
-    virtual TechDraw::GeometryObjectPtr buildGeometryObject(TopoDS_Shape& shape,
+    virtual TechDraw::GeometryObjectPtr buildGeometryObject(const TopoDS_Shape& shape,
                                                             const gp_Ax2& viewAxis);
-    virtual TechDraw::GeometryObjectPtr makeGeometryForShape(TopoDS_Shape& shape);//const??
+    virtual TechDraw::GeometryObjectPtr makeGeometryForShape(const TopoDS_Shape& shape);//const??
     void partExec(TopoDS_Shape& shape);
     virtual void addPoints(void);
 
@@ -257,5 +297,3 @@ private:
 using DrawViewPartPython = App::FeaturePythonT<DrawViewPart>;
 
 }//namespace TechDraw
-
-#endif// #ifndef DrawViewPart_h_

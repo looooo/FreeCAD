@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -21,9 +23,7 @@
  ***************************************************************************/
 
 
-
-#ifndef APP_FEATURECUSTOM_H
-#define APP_FEATURECUSTOM_H
+#pragma once
 
 #include <App/PropertyContainer.h>
 
@@ -41,8 +41,8 @@ class Property;
  * it has no support for in Python written feature classes.
  * @author Werner Mayer
  */
-template <class FeatureT>
-class FeatureCustomT : public FeatureT //NOLINT
+template<class FeatureT>
+class FeatureCustomT: public FeatureT  // NOLINT
 {
     PROPERTY_HEADER_WITH_OVERRIDE(App::FeatureCustomT<FeatureT>);
 
@@ -53,46 +53,53 @@ public:
 
     /** @name methods override DocumentObject */
     //@{
-    short mustExecute() const override {
+    short mustExecute() const override
+    {
         return FeatureT::mustExecute();
     }
     /// recalculate the Feature
-    DocumentObjectExecReturn *execute() override {
+    DocumentObjectExecReturn* execute() override
+    {
         return FeatureT::execute();
     }
     /// returns the type name of the ViewProvider
-    const char* getViewProviderName() const override {
+    const char* getViewProviderName() const override
+    {
         return FeatureT::getViewProviderName();
     }
 
-    PyObject *getPyObject() override {
+    PyObject* getPyObject() override
+    {
         return FeatureT::getPyObject();
     }
-    void setPyObject(PyObject *obj) override {
+    void setPyObject(PyObject* obj) override
+    {
         FeatureT::setPyObject(obj);
     }
 
 protected:
-    void onBeforeChange(const Property* prop) override {
+    void onBeforeChange(const Property* prop) override
+    {
         FeatureT::onBeforeChange(prop);
     }
-    void onChanged(const Property* prop) override {
+    void onChanged(const Property* prop) override
+    {
         FeatureT::onChanged(prop);
     }
-    void onDocumentRestored() override {
+    void onDocumentRestored() override
+    {
         FeatureT::onDocumentRestored();
     }
-    void onSettingDocument() override {
+    void onSettingDocument() override
+    {
         FeatureT::onSettingDocument();
     }
 
 public:
     FeatureCustomT(const FeatureCustomT&) = delete;
     FeatureCustomT(FeatureCustomT&&) = delete;
-    FeatureCustomT& operator= (const FeatureCustomT&) = delete;
-    FeatureCustomT& operator= (FeatureCustomT&&) = delete;
+    FeatureCustomT& operator=(const FeatureCustomT&) = delete;
+    FeatureCustomT& operator=(FeatureCustomT&&) = delete;
 };
 
-} //namespace App
-
-#endif // APP_FEATURECUSTOM_H
+}  // namespace App

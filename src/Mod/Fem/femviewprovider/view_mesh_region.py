@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # ***************************************************************************
 # *   Copyright (c) 2016 Bernd Hahnebach <bernd@bimstatik.org>              *
 # *                                                                         *
@@ -30,18 +32,13 @@ __url__ = "https://www.freecad.org"
 #  \brief view provider for mesh region object
 
 from femtaskpanels import task_mesh_region
-from . import view_base_femconstraint
+from . import view_base_femmeshelement
 
 
-class VPMeshRegion(view_base_femconstraint.VPBaseFemConstraint):
+class VPMeshRegion(view_base_femmeshelement.VPBaseFemMeshElement):
     """
     A View Provider for the FemMeshRegion object
     """
 
     def setEdit(self, vobj, mode=0):
-        view_base_femconstraint.VPBaseFemConstraint.setEdit(
-            self,
-            vobj,
-            mode,
-            task_mesh_region._TaskPanel
-        )
+        return super().setEdit(vobj, mode, task_mesh_region._TaskPanel)

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # ***************************************************************************
 # *   (c) 2009, 2010 Yorik van Havre <yorik@uncreated.net>                  *
 # *   (c) 2009, 2010 Ken Cline <cline@frii.com>                             *
@@ -22,15 +24,8 @@
 # *   USA                                                                   *
 # *                                                                         *
 # ***************************************************************************
-"""Provides GUI tools to trim and extend lines.
+"""Provides GUI tools to trim and extend lines and extrude faces."""
 
-It also extends closed faces to create solids, that is, it can be used
-to extrude a closed profile.
-
-Make sure the snapping is active so that the extrusion is done following
-the direction of a line, and up to the distance specified
-by the snapping point.
-"""
 ## @package gui_trimex
 # \ingroup draftguitools
 # \brief Provides GUI tools to trim and extend lines.
@@ -42,59 +37,61 @@ from PySide.QtCore import QT_TRANSLATE_NOOP
 
 import FreeCAD as App
 import FreeCADGui as Gui
-import Draft
-import Draft_rc
 import DraftVecUtils
-import draftutils.utils as utils
-import draftutils.gui_utils as gui_utils
-import draftguitools.gui_base_original as gui_base_original
-import draftguitools.gui_tool_utils as gui_tool_utils
-import draftguitools.gui_trackers as trackers
-
+from draftfunctions import extrude
+from draftgeoutils import general as geo_general
+from draftgeoutils import intersections as geo_intersections
+from draftguitools import gui_base_original
+from draftguitools import gui_tool_utils
+from draftguitools import gui_trackers as trackers
+from draftutils import gui_utils
+from draftutils import params
+from draftutils import utils
 from draftutils.messages import _msg, _err, _toolmsg
 from draftutils.translate import translate
-
-# The module is used to prevent complaints from code checkers (flake8)
-True if Draft_rc.__name__ else False
 
 
 class Trimex(gui_base_original.Modifier):
     """Gui Command for the Trimex tool.
 
-    This tool trims or extends lines, wires and arcs,
-    or extrudes single faces.
+    This tool trims or extends lines, wires and arcs.
 
-    SHIFT constrains to the last point
-    or extrudes in direction to the face normal.
+    SHIFT constrains to the active endpoint.
     """
+
+    command_name = QT_TRANSLATE_NOOP("draft", "Trimex")
+    selection_message = QT_TRANSLATE_NOOP("draft", "Select objects to trim or extend")
 
     def GetResources(self):
         """Set icon, menu and tooltip."""
 
-        return {'Pixmap': 'Draft_Trimex',
-                'Accel': "T, R",
-                'MenuText': QT_TRANSLATE_NOOP("Draft_Trimex", "Trimex"),
-                'ToolTip': QT_TRANSLATE_NOOP("Draft_Trimex",
-                    "Trims or extends the selected object, or extrudes single"
-                    + " faces.\nCTRL snaps, SHIFT constrains to current segment"
-                    + " or to normal, ALT inverts.")}
+        return {
+            "Pixmap": "Draft_Trimex",
+            "Accel": "T, R",
+            "MenuText": QT_TRANSLATE_NOOP("Draft_Trimex", "Trimex"),
+            "ToolTip": QT_TRANSLATE_NOOP("Draft_Trimex", "Trims or extends the selected object"),
+        }
 
     def Activated(self):
         """Execute when the command is called."""
-        super(Trimex, self).Activated(name="Trimex")
+        super().Activated(name=self.command_name)
         self.edges = []
         self.placement = None
         self.ghost = []
         self.linetrack = None
         self.color = None
         self.width = None
+        self.axisSetter = None
+        self.axisEndpoints = None
+        self.lockedActivePoint = None
+        self.extrudeMode = False
+        self.extrudeBase = None
+        self.extrudeShape = None
         if self.ui:
             if not Gui.Selection.getSelection():
                 self.ui.selectUi(on_close_call=self.finish)
-                _msg(translate("draft", "Select objects to trim or extend"))
-                self.call = \
-                    self.view.addEventCallback("SoEvent",
-                                               gui_tool_utils.selectObject)
+                _msg(translate("draft", self.selection_message))
+                self.call = self.view.addEventCallback("SoEvent", gui_tool_utils.selectObject)
             else:
                 self.proceed()
 
@@ -108,59 +105,57 @@ class Trimex(gui_base_original.Modifier):
             self.finish()
             return
         self.obj = sel[0]
-        self.ui.trimUi(title=translate("draft",self.featureName))
-        self.linetrack = trackers.lineTracker()
+        sel = Gui.Selection.getSelectionEx("", 0)[0]
 
-        import DraftGeomUtils
+        if self._setupObjectTrimex(sel):
+            return
+
+        reason = utils.get_trimex_unsupported_reason(self.obj)
+        if reason:
+            self.obj = None
+            self.finish()
+            _err(reason)
+            return
+        self._startWireTrimex()
+
+    def _startWireTrimex(self):
+        """Set up the common trim/extend interaction for editable edges."""
         import Part
 
-        if "Shape" not in self.obj.PropertiesList:
-            return
-        if "Placement" in self.obj.PropertiesList:
+        self.ui.trimUi(title=translate("draft", self.featureName))
+        self.linetrack = trackers.lineTracker()
+        if hasattr(self.obj, "Placement"):
             self.placement = self.obj.Placement
-        if len(self.obj.Shape.Faces) == 1:
-            # simple extrude mode, the object itself is extruded
-            self.extrudeMode = True
-            self.ghost = [trackers.ghostTracker([self.obj])]
-            self.normal = self.obj.Shape.Faces[0].normalAt(0.5, 0.5)
-            self.ghost += [trackers.lineTracker() for _ in self.obj.Shape.Vertexes]
-        elif len(self.obj.Shape.Faces) > 1:
-            # face extrude mode, a new object is created
-            ss = Gui.Selection.getSelectionEx()[0]
-            if len(ss.SubObjects) == 1:
-                if ss.SubObjects[0].ShapeType == "Face":
-                    self.obj = self.doc.addObject("Part::Feature", "Face")
-                    self.obj.Shape = ss.SubObjects[0]
-                    self.extrudeMode = True
-                    self.ghost = [trackers.ghostTracker([self.obj])]
-                    self.normal = self.obj.Shape.Faces[0].normalAt(0.5, 0.5)
-                    self.ghost += [trackers.lineTracker() for _ in self.obj.Shape.Vertexes]
+        if self.obj.Shape.Wires:
+            self.edges = self.obj.Shape.Wires[0].Edges
+            self.edges = Part.__sortEdges__(self.edges)
         else:
-            # normal wire trimex mode
-            self.color = self.obj.ViewObject.LineColor
-            self.width = self.obj.ViewObject.LineWidth
-            # self.obj.ViewObject.Visibility = False
-            self.obj.ViewObject.LineColor = (0.5, 0.5, 0.5)
-            self.obj.ViewObject.LineWidth = 1
-            self.extrudeMode = False
-            if self.obj.Shape.Wires:
-                self.edges = self.obj.Shape.Wires[0].Edges
-                self.edges = Part.__sortEdges__(self.edges)
+            self.edges = self.obj.Shape.Edges
+        for edge in self.edges:
+            if isinstance(edge.Curve, (Part.BSplineCurve, Part.BezierCurve)):
+                self.obj = None
+                self.finish()
+                _err(translate("draft", "Trimex does not support this object type"))
+                return
+        self.color = self.obj.ViewObject.LineColor
+        self.width = self.obj.ViewObject.LineWidth
+        self.obj.ViewObject.LineColor = (0.5, 0.5, 0.5)
+        self.obj.ViewObject.LineWidth = 1
+        self.ghost = []
+        line_color = (self.color[0], self.color[1], self.color[2])
+        for edge in self.edges:
+            if geo_general.geomType(edge) == "Line":
+                self.ghost.append(trackers.lineTracker(scolor=line_color, swidth=self.width))
             else:
-                self.edges = self.obj.Shape.Edges
-            self.ghost = []
-            lc = self.color
-            sc = (lc[0], lc[1], lc[2])
-            sw = self.width
-            for e in self.edges:
-                if DraftGeomUtils.geomType(e) == "Line":
-                    self.ghost.append(trackers.lineTracker(scolor=sc,
-                                                           swidth=sw))
-                else:
-                    self.ghost.append(trackers.arcTracker(scolor=sc,
-                                                          swidth=sw))
+                self.ghost.append(trackers.arcTracker(scolor=line_color, swidth=self.width))
+        self._startInteraction()
+
+    def _startInteraction(self):
+        """Start the shared point-picking interaction for the active mode."""
         if not self.ghost:
+            self.obj = None
             self.finish()
+            return
         for g in self.ghost:
             g.on()
         self.activePoint = 0
@@ -171,6 +166,77 @@ class Trimex(gui_base_original.Modifier):
         self.cv = None
         self.call = self.view.addEventCallback("SoEvent", self.action)
         _toolmsg(translate("draft", "Pick distance"))
+        self.selection_done = True
+        self.update_hints()
+
+    def _startFaceExtrude(self, sel):
+        """Set up face extrusion without creating document objects yet."""
+        source = sel.Object
+        if not hasattr(source, "Shape"):
+            self.obj = None
+            self.finish()
+            _err(translate("draft", "Select a single face to extrude"))
+            return
+        shape = source.Shape
+        if len(shape.Faces) == 1:
+            self.extrudeBase = source
+            self.extrudeShape = shape
+        elif len(sel.SubObjects) == 1 and sel.SubObjects[0].ShapeType == "Face":
+            self.extrudeShape = sel.SubObjects[0]
+        else:
+            self.obj = None
+            self.finish()
+            _err(translate("draft", "Only a single face can be extruded"))
+            return
+
+        self.obj = source
+        self.extrudeMode = True
+        self.normal = self.extrudeShape.Faces[0].normalAt(0.5, 0.5)
+        self.ghost = [trackers.ghostTracker(self.extrudeShape), trackers.lineTracker(dotted=True)]
+        self.ghost += [trackers.lineTracker() for _ in self.extrudeShape.Vertexes]
+        self.ui.trimUi(title=translate("draft", self.featureName))
+        self.linetrack = trackers.lineTracker()
+        self._startInteraction()
+
+    def _setupObjectTrimex(self, sel):
+        """Allow workbenches to support their own parametric objects."""
+        return False
+
+    def _setupAxisTrimex(self, face, points, axes, setter):
+        """Use the Trimex interaction to edit a parametric axis."""
+        import Part
+
+        end = self._getEndFace(face, points, axes)
+        if end is None:
+            return False
+
+        self.axisSetter = setter
+        self.axisEndpoints = points
+        self.lockedActivePoint = end
+        span = points[0].distanceToPoint(points[1])
+        inner = points[end] - axes[end] * span
+        if end:
+            self.edges = [Part.makeLine(inner, points[end])]
+        else:
+            self.edges = [Part.makeLine(points[end], inner)]
+        self.placement = None
+        self.ghost = [trackers.lineTracker(scolor=(0.5, 0.5, 0.5), swidth=1)]
+        self.ui.trimUi(title=translate("draft", self.featureName))
+        self.linetrack = trackers.lineTracker()
+        self._startInteraction()
+        return True
+
+    def _getEndFace(self, face, points, axes):
+        """Return the selected end of an axis, or None for a side face."""
+        center = face.CenterOfMass
+        normal = face.normalAt(0, 0)
+        normal.normalize()
+        for i, point in enumerate(points):
+            aligned = abs(normal.dot(axes[i])) > 0.95
+            on_face = abs(normal.dot(point.sub(center))) <= face.Tolerance
+            if aligned and on_face:
+                return i
+        return None
 
     def action(self, arg):
         """Handle the 3D scene events.
@@ -186,6 +252,8 @@ class Trimex(gui_base_original.Modifier):
         if arg["Type"] == "SoKeyboardEvent":
             if arg["Key"] == "ESCAPE":
                 self.finish()
+        elif not self.ui.mouse:
+            pass
         elif arg["Type"] == "SoLocation2Event":  # mouse movement detection
             self.shift = gui_tool_utils.hasMod(arg, gui_tool_utils.get_mod_constrain_key())
             self.alt = gui_tool_utils.hasMod(arg, gui_tool_utils.get_mod_alt_key())
@@ -198,28 +266,28 @@ class Trimex(gui_base_original.Modifier):
             if gui_tool_utils.hasMod(arg, gui_tool_utils.get_mod_snap_key()):
                 self.snapped = None
             else:
-                self.snapped = self.view.getObjectInfo((arg["Position"][0],
-                                                        arg["Position"][1]))
+                self.snapped = self.view.getObjectInfo((arg["Position"][0], arg["Position"][1]))
             if self.extrudeMode:
                 dist, ang = (self.extrude(self.shift), None)
             else:
                 # If the geomType of the edge is "Line" ang will be None,
                 # else dist will be None.
-                dist, ang = self.redraw(self.point, self.snapped,
-                                        self.shift, self.alt)
+                dist, ang = self.redraw(self.point, self.snapped, self.shift, self.alt)
 
             if dist:
                 self.ui.labelRadius.setText(translate("draft", "Distance"))
-                self.ui.radiusValue.setToolTip(translate("draft",
-                                                         "Offset distance"))
+                self.ui.radiusValue.setToolTip(translate("draft", "Offset distance"))
                 self.ui.setRadiusValue(dist, unit="Length")
-            else:
+            elif ang:
                 self.ui.labelRadius.setText(translate("draft", "Angle"))
-                self.ui.radiusValue.setToolTip(translate("draft",
-                                                         "Offset angle"))
+                self.ui.radiusValue.setToolTip(translate("draft", "Offset angle"))
                 self.ui.setRadiusValue(ang, unit="Angle")
-            self.ui.radiusValue.setFocus()
-            self.ui.radiusValue.selectAll()
+            else:
+                # both dist and ang are None, this indicates an impossible
+                # situation. Setting 0 with no unit will show "0 ??" and not
+                # compute any value
+                self.ui.setRadiusValue(0)
+            self.ui.setFocus("radius")
             gui_tool_utils.redraw3DView()
 
         elif arg["Type"] == "SoMouseButtonEvent":
@@ -230,29 +298,35 @@ class Trimex(gui_base_original.Modifier):
                 if gui_tool_utils.hasMod(arg, gui_tool_utils.get_mod_snap_key()):
                     self.snapped = None
                 else:
-                    self.snapped = self.view.getObjectInfo((cursor[0],
-                                                            cursor[1]))
+                    self.snapped = self.view.getObjectInfo((cursor[0], cursor[1]))
                 self.trimObject()
                 self.finish()
 
     def extrude(self, shift=False, real=False):
         """Redraw the ghost in extrude mode."""
-        self.newpoint = self.obj.Shape.Faces[0].CenterOfMass
+        self.newpoint = self.extrudeShape.Faces[0].CenterOfMass
         dvec = self.point.sub(self.newpoint)
         if not shift:
             delta = DraftVecUtils.project(dvec, self.normal)
+            if delta.Length < 1e-7:
+                # Use the normal if self.newpoint is coplanar with the face:
+                delta = self.normal * dvec.Length
         else:
             delta = dvec
         if self.force and delta.Length:
-            ratio = self.force/delta.Length
+            ratio = self.force / delta.Length
             delta.multiply(ratio)
         if real:
             return delta
         self.ghost[0].trans.translation.setValue([delta.x, delta.y, delta.z])
-        for i in range(1, len(self.ghost)):
-            base = self.obj.Shape.Vertexes[i-1].Point
+        # Update the dotted lineTracker:
+        self.ghost[1].p1(self.newpoint)
+        self.ghost[1].p2(self.newpoint + dvec)
+        # Update the vertex lineTrackers:
+        for i in range(2, len(self.ghost)):
+            base = self.extrudeShape.Vertexes[i - 2].Point
             self.ghost[i].p1(base)
-            self.ghost[i].p2(base.add(delta))
+            self.ghost[i].p2(base + delta)
         return delta.Length
 
     def redraw(self, point, snapped=None, shift=False, alt=False, real=None):
@@ -264,7 +338,6 @@ class Trimex(gui_base_original.Modifier):
         if real:
             newedges = []
 
-        import DraftGeomUtils
         import Part
 
         # finding the active point
@@ -272,20 +345,22 @@ class Trimex(gui_base_original.Modifier):
         for e in self.edges:
             vlist.append(e.Vertexes[0].Point)
         vlist.append(self.edges[-1].Vertexes[-1].Point)
-        if shift:
+        if self.lockedActivePoint is not None:
+            npoint = self.lockedActivePoint
+        elif shift:
             npoint = self.activePoint
         else:
-            npoint = DraftGeomUtils.findClosest(point, vlist)
-        if npoint > len(self.edges)/2:
+            npoint = geo_general.findClosest(point, vlist)
+        if npoint > len(self.edges) / 2:
             reverse = True
-        if alt:
+        if alt and self.lockedActivePoint is None:
             reverse = not reverse
         self.activePoint = npoint
 
         # sorting out directions
         if reverse and (npoint > 0):
             npoint = npoint - 1
-        if (npoint > len(self.edges) - 1):
+        if npoint > len(self.edges) - 1:
             edge = self.edges[-1]
             ghost = self.ghost[-1]
         else:
@@ -300,20 +375,26 @@ class Trimex(gui_base_original.Modifier):
 
         # snapping
         if snapped:
-            snapped = self.doc.getObject(snapped['Object'])
-            if hasattr(snapped, "Shape"):
+            parent = snapped.get("ParentObject", None)
+            if parent:
+                subname = snapped["SubName"]
+            else:
+                parent = self.doc.getObject(snapped["Object"])
+                subname = snapped["Component"]
+            shape = Part.getShape(parent, subname, needSubElement=True, noElementMap=True)
+            if shape.Edges:
                 pts = []
-                for e in snapped.Shape.Edges:
-                    int = DraftGeomUtils.findIntersection(edge, e, True, True)
+                for e in shape.Edges:
+                    int = geo_intersections.findIntersection(edge, e, True, True)
                     if int:
                         pts.extend(int)
                 if pts:
-                    point = pts[DraftGeomUtils.findClosest(point, pts)]
+                    point = pts[geo_general.findClosest(point, pts)]
 
         # modifying active edge
-        if DraftGeomUtils.geomType(edge) == "Line":
+        if geo_general.geomType(edge) == "Line":
             ang = None
-            ve = DraftGeomUtils.vec(edge)
+            ve = geo_general.vec(edge)
             chord = v1.sub(point)
             n = ve.cross(chord)
             if n.Length == 0:
@@ -328,7 +409,8 @@ class Trimex(gui_base_original.Modifier):
             if real:
                 if self.force:
                     ray = self.newpoint.sub(v1)
-                    ray.multiply(self.force / ray.Length)
+                    if ray.Length:
+                        ray.multiply(self.force / ray.Length)
                     self.newpoint = App.Vector.add(v1, ray)
                 newedges.append(Part.LineSegment(self.newpoint, v2).toShape())
         else:
@@ -352,8 +434,7 @@ class Trimex(gui_base_original.Modifier):
             if real:
                 if self.force:
                     angle = math.radians(self.force)
-                    newray = DraftVecUtils.rotate(App.Vector(rad, 0, 0),
-                                                  -angle)
+                    newray = DraftVecUtils.rotate(App.Vector(rad, 0, 0), -angle)
                     self.newpoint = App.Vector.add(center, newray)
                 chord = self.newpoint.sub(v2)
                 perp = chord.cross(App.Vector(0, 0, 1))
@@ -363,7 +444,7 @@ class Trimex(gui_base_original.Modifier):
                 newedges.append(_sh)
         ghost.on()
 
-        # resetting the visible edges
+        # resetting the edges
         if not reverse:
             li = list(range(npoint + 1, len(self.edges)))
         else:
@@ -371,7 +452,7 @@ class Trimex(gui_base_original.Modifier):
         for i in li:
             edge = self.edges[i]
             ghost = self.ghost[i]
-            if DraftGeomUtils.geomType(edge) == "Line":
+            if geo_general.geomType(edge) == "Line":
                 ghost.p1(edge.Vertexes[0].Point)
                 ghost.p2(edge.Vertexes[-1].Point)
             else:
@@ -399,18 +480,24 @@ class Trimex(gui_base_original.Modifier):
 
         if self.extrudeMode:
             delta = self.extrude(self.shift, real=True)
-            # print("delta", delta)
             self.doc.openTransaction("Extrude")
             Gui.addModule("Draft")
-            obj = Draft.extrude(self.obj, delta, solid=True)
+            base = self.extrudeBase
+            if base is None:
+                base = self.doc.addObject("Part::Feature", "Face")
+                base.Shape = self.extrudeShape
+            obj = extrude.extrude(base, delta, solid=True)
             self.doc.commitTransaction()
             self.obj = obj
         else:
-            edges = self.redraw(self.point, self.snapped,
-                                self.shift, self.alt, real=True)
+            edges = self.redraw(self.point, self.snapped, self.shift, self.alt, real=True)
             newshape = Part.Wire(edges)
             self.doc.openTransaction("Trim/extend")
-            if utils.getType(self.obj) in ["Wire", "BSpline"]:
+            if self.axisSetter is not None:
+                points = list(self.axisEndpoints)
+                points[self.lockedActivePoint] = self.newpoint
+                self.axisSetter(points)
+            elif utils.getType(self.obj) in ["Wire", "BSpline"]:
                 p = []
                 if self.placement:
                     invpl = self.placement.inverse()
@@ -429,21 +516,21 @@ class Trimex(gui_base_original.Modifier):
                     if self.placement:
                         np = invpl.multVec(np)
                     p.append(np)
-                if ((p[0].x == self.obj.X1)
-                        and (p[0].y == self.obj.Y1)
-                        and (p[0].z == self.obj.Z1)):
+                if (p[0].x == self.obj.X1) and (p[0].y == self.obj.Y1) and (p[0].z == self.obj.Z1):
                     self.obj.X2 = p[-1].x
                     self.obj.Y2 = p[-1].y
                     self.obj.Z2 = p[-1].z
-                elif ((p[-1].x == self.obj.X1)
-                      and (p[-1].y == self.obj.Y1)
-                      and (p[-1].z == self.obj.Z1)):
+                elif (
+                    (p[-1].x == self.obj.X1)
+                    and (p[-1].y == self.obj.Y1)
+                    and (p[-1].z == self.obj.Z1)
+                ):
                     self.obj.X2 = p[0].x
                     self.obj.Y2 = p[0].y
                     self.obj.Z2 = p[0].z
-                elif ((p[0].x == self.obj.X2)
-                      and (p[0].y == self.obj.Y2)
-                      and (p[0].z == self.obj.Z2)):
+                elif (
+                    (p[0].x == self.obj.X2) and (p[0].y == self.obj.Y2) and (p[0].z == self.obj.Z2)
+                ):
                     self.obj.X1 = p[-1].x
                     self.obj.Y1 = p[-1].y
                     self.obj.Z1 = p[-1].z
@@ -469,19 +556,19 @@ class Trimex(gui_base_original.Modifier):
     def trimObjects(self, objectslist):
         """Attempt to trim two objects together."""
         import Part
-        import DraftGeomUtils
 
         wires = []
         for obj in objectslist:
             if not utils.getType(obj) in ["Wire", "Circle"]:
-                _err(translate("draft",
-                               "Unable to trim these objects, "
-                               "only Draft wires and arcs are supported."))
+                _err(
+                    translate(
+                        "draft",
+                        "Unable to trim these objects, " "only Draft wires and arcs are supported",
+                    )
+                )
                 return
             if len(obj.Shape.Wires) > 1:
-                _err(translate("draft",
-                               "Unable to trim these objects, "
-                               "too many wires"))
+                _err(translate("draft", "Unable to trim these objects, " "too many wires"))
                 return
             if len(obj.Shape.Wires) == 1:
                 wires.append(obj.Shape.Wires[0])
@@ -492,16 +579,16 @@ class Trimex(gui_base_original.Modifier):
         edge2 = None
         for i1, e1 in enumerate(wires[0].Edges):
             for i2, e2 in enumerate(wires[1].Edges):
-                i = DraftGeomUtils.findIntersection(e1, e2, dts=False)
+                i = geo_intersections.findIntersection(e1, e2, dts=False)
                 if len(i) == 1:
                     ints.append(i[0])
                     edge1 = i1
                     edge2 = i2
         if not ints:
-            _err(translate("draft", "These objects don't intersect."))
+            _err(translate("draft", "These objects do not intersect"))
             return
         if len(ints) != 1:
-            _err(translate("draft", "Too many intersection points."))
+            _err(translate("draft", "Too many intersection points"))
             return
 
         v11 = wires[0].Vertexes[0].Point
@@ -525,17 +612,17 @@ class Trimex(gui_base_original.Modifier):
                 la = last2
             if utils.getType(obj) == "Wire":
                 if la:
-                    pts = obj.Points[:ed + 1] + ints
+                    pts = obj.Points[: ed + 1] + ints
                 else:
-                    pts = ints + obj.Points[ed + 1:]
+                    pts = ints + obj.Points[ed + 1 :]
                 obj.Points = pts
             else:
                 vec = ints[0].sub(obj.Placement.Base)
                 vec = obj.Placement.inverse().Rotation.multVec(vec)
                 _x = App.Vector(1, 0, 0)
-                _ang = -DraftVecUtils.angle(vec,
-                                            obj.Placement.Rotation.multVec(_x),
-                                            obj.Shape.Edges[0].Curve.Axis)
+                _ang = -DraftVecUtils.angle(
+                    vec, obj.Placement.Rotation.multVec(_x), obj.Shape.Edges[0].Curve.Axis
+                )
                 ang = math.degrees(_ang)
                 if la:
                     obj.LastAngle = ang
@@ -545,7 +632,7 @@ class Trimex(gui_base_original.Modifier):
 
     def finish(self, cont=False):
         """Terminate the operation of the Trimex tool."""
-        super(Trimex, self).finish()
+        self.end_callbacks(self.call)
         self.force = None
         if self.ui:
             if self.linetrack:
@@ -554,12 +641,12 @@ class Trimex(gui_base_original.Modifier):
                 for g in self.ghost:
                     g.finalize()
             if self.obj:
-                self.obj.ViewObject.Visibility = True
                 if self.color:
                     self.obj.ViewObject.LineColor = self.color
                 if self.width:
                     self.obj.ViewObject.LineWidth = self.width
-            gui_utils.select(self.obj)
+                gui_utils.select(self.obj)
+        super().finish()
 
     def numericRadius(self, dist):
         """Validate the entry fields in the user interface.
@@ -571,7 +658,44 @@ class Trimex(gui_base_original.Modifier):
         self.trimObject()
         self.finish()
 
+    def get_action_hints(self):
+        # In Trimex the configured "constrain" and "alt" modifier keys don't
+        # do the standard constrain/copy actions, so we describe the actual
+        # Trimex-specific behavior instead of using the shared helpers.
+        constrain_key = gui_tool_utils._HINT_MOD_KEYS[params.get_param("modconstrain")]
+        alt_key = gui_tool_utils._HINT_MOD_KEYS[params.get_param("modalt")]
+        hints = [Gui.InputHint(translate("draft", "%1 pick target"), Gui.UserInput.MouseLeft)]
+        if self.extrudeMode:
+            hints.append(Gui.InputHint(translate("draft", "Hold %1 free direction"), constrain_key))
+        else:
+            hints.append(
+                Gui.InputHint(translate("draft", "Hold %1 keep active endpoint"), constrain_key)
+            )
+            hints.append(
+                Gui.InputHint(translate("draft", "Hold %1 invert trim direction"), alt_key)
+            )
+        return hints + gui_tool_utils._get_hint_mod_snap()
 
-Gui.addCommand('Draft_Trimex', Trimex())
+
+class ExtrudeFace(Trimex):
+    """Face extrusion command sharing Trimex's interaction tools."""
+
+    command_name = QT_TRANSLATE_NOOP("draft", "Extrude Face")
+    selection_message = QT_TRANSLATE_NOOP("draft", "Select a face to extrude")
+    multi_object_selection = False
+
+    def proceed(self):
+        """Start the face-extrude interaction from exactly one selection."""
+        if self.call:
+            self.view.removeEventCallback("SoEvent", self.call)
+        selected = Gui.Selection.getSelection()
+        if len(selected) != 1:
+            self.finish()
+            _err(translate("draft", "Select a single face to extrude"))
+            return
+        self._startFaceExtrude(Gui.Selection.getSelectionEx("", 0)[0])
+
+
+Gui.addCommand("Draft_Trimex", Trimex())
 
 ## @}

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2017 Peter Lama <peterldev94@gmail.com>                 *
  *                                                                         *
@@ -20,15 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-
-#include "PreCompiled.h"
-
-#ifndef _PreComp_
-# ifdef _MSC_VER
-#  define _USE_MATH_DEFINES
-#  include <cmath>
-# endif //_MSC_VER
-#endif // _PreComp_
+#include <cmath>
 
 #include <Gui/Application.h>
 #include <Gui/Control.h>
@@ -42,22 +36,28 @@ PROPERTYITEM_SOURCE(PartGui::PropertyEnumAttacherItem)
 
 PropertyEnumAttacherItem::PropertyEnumAttacherItem() = default;
 
-QWidget* PropertyEnumAttacherItem::createEditor(QWidget* parent, const QObject* receiver, const char* method) const
+QWidget* PropertyEnumAttacherItem::
+    createEditor(QWidget* parent, const std::function<void()>& method, FrameOption /*frameOption*/) const
 {
     Gui::LabelButton* modeEditor = new Gui::LabelButton(parent);
-    QObject::connect(modeEditor, SIGNAL(valueChanged(const QVariant &)), receiver, method);
-    QObject::connect(modeEditor, &Gui::LabelButton::buttonClicked, this, &PropertyEnumAttacherItem::openTask);
+    QObject::connect(modeEditor, &Gui::LabelButton::valueChanged, method);
+    QObject::connect(
+        modeEditor,
+        &Gui::LabelButton::buttonClicked,
+        this,
+        &PropertyEnumAttacherItem::openTask
+    );
     modeEditor->setDisabled(isReadOnly());
     return modeEditor;
 }
 
-void PropertyEnumAttacherItem::setEditorData(QWidget *editor, const QVariant& data) const
+void PropertyEnumAttacherItem::setEditorData(QWidget* editor, const QVariant& data) const
 {
     Gui::LabelButton* modeEditor = qobject_cast<Gui::LabelButton*>(editor);
     modeEditor->setValue(data);
 }
 
-QVariant PropertyEnumAttacherItem::editorData(QWidget *editor) const
+QVariant PropertyEnumAttacherItem::editorData(QWidget* editor) const
 {
     Gui::LabelButton* modeEditor = qobject_cast<Gui::LabelButton*>(editor);
     return modeEditor->value();

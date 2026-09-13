@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include "DlgSettingsObjectColor.h"
 #include "ui_DlgSettingsObjectColor.h"
@@ -51,8 +52,12 @@ void DlgSettingsObjectColor::saveSettings()
 {
     // Part
     ui->DefaultShapeColor->onSave();
+    ui->DefaultAmbientColor->onSave();
+    ui->DefaultEmissiveColor->onSave();
+    ui->DefaultSpecularColor->onSave();
     ui->checkRandomColor->onSave();
     ui->DefaultShapeTransparency->onSave();
+    ui->DefaultShapeShininess->onSave();
     ui->DefaultShapeLineColor->onSave();
     ui->DefaultShapeLineWidth->onSave();
     ui->DefaultShapeVertexColor->onSave();
@@ -68,8 +73,12 @@ void DlgSettingsObjectColor::loadSettings()
 {
     // Part
     ui->DefaultShapeColor->onRestore();
+    ui->DefaultAmbientColor->onRestore();
+    ui->DefaultEmissiveColor->onRestore();
+    ui->DefaultSpecularColor->onRestore();
     ui->checkRandomColor->onRestore();
     ui->DefaultShapeTransparency->onRestore();
+    ui->DefaultShapeShininess->onRestore();
     ui->DefaultShapeLineColor->onRestore();
     ui->DefaultShapeLineWidth->onRestore();
     ui->DefaultShapeVertexColor->onRestore();
@@ -84,7 +93,7 @@ void DlgSettingsObjectColor::loadSettings()
 /**
  * Sets the strings of the subwidgets using the current language.
  */
-void DlgSettingsObjectColor::changeEvent(QEvent *e)
+void DlgSettingsObjectColor::changeEvent(QEvent* e)
 {
     if (e->type() == QEvent::LanguageChange) {
         ui->retranslateUi(this);
@@ -95,4 +104,3 @@ void DlgSettingsObjectColor::changeEvent(QEvent *e)
 }
 
 #include "moc_DlgSettingsObjectColor.cpp"
-

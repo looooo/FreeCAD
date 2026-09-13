@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2014 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef SKETCHERGUI_SKETCHERSETTINGS_H
-#define SKETCHERGUI_SKETCHERSETTINGS_H
+#pragma once
 
 #include <Gui/PropertyPage.h>
 #include <memory>
@@ -32,7 +33,7 @@ namespace SketcherGui
 class Ui_SketcherSettings;
 class Ui_SketcherSettingsGrid;
 class Ui_SketcherSettingsDisplay;
-class Ui_SketcherSettingsColors;
+class Ui_SketcherSettingsAppearance;
 class SketcherGeneralWidget;
 /**
  * The SketcherSettings class implements a preference page to change sketcher settings.
@@ -49,9 +50,12 @@ public:
     void saveSettings() override;
     void loadSettings() override;
 
+    void resetSettingsToDefaults() override;
+
 protected:
     void changeEvent(QEvent* e) override;
     void dimensioningModeChanged(int index);
+    void checkForRestart();
 
 private:
     std::unique_ptr<Ui_SketcherSettings> ui;
@@ -67,6 +71,8 @@ class SketcherSettingsGrid: public Gui::Dialog::PreferencePage
 public:
     explicit SketcherSettingsGrid(QWidget* parent = nullptr);
     ~SketcherSettingsGrid() override;
+
+    bool event(QEvent* event) override;
 
     void saveSettings() override;
     void loadSettings() override;
@@ -87,6 +93,12 @@ class SketcherSettingsDisplay: public Gui::Dialog::PreferencePage
     Q_OBJECT
 
 public:
+    // Characters required to be present in the selected font:
+    //   degree sign, micro sign, f with hook, stroke overlay, diameter sign,
+    //   upper half circle, mathematical f, mathematical x
+    static constexpr const char* const RequiredCharacters
+        = "\u00B0\u00B5\u0192\u0336\u2300\u25E0\U0001D453\U0001D465";
+
     explicit SketcherSettingsDisplay(QWidget* parent = nullptr);
     ~SketcherSettingsDisplay() override;
 
@@ -95,9 +107,15 @@ public:
 
 protected:
     void changeEvent(QEvent* e) override;
+    void showEvent(QShowEvent* e) override;
+
+    QColor getSketcherBackgroundColor();
+    QColor getSketcherConstraintColor();
 
 private Q_SLOTS:
     void onBtnTVApplyClicked(bool);
+    void onFontNameChanged(const QFont& font);
+    void onFontSizeChanged(int size);
 
 private:
     std::unique_ptr<Ui_SketcherSettingsDisplay> ui;
@@ -107,13 +125,15 @@ private:
  * The SketcherSettings class implements a preference page to change sketcher settings.
  * @author Werner Mayer
  */
-class SketcherSettingsColors: public Gui::Dialog::PreferencePage
+class SketcherSettingsAppearance: public Gui::Dialog::PreferencePage
 {
     Q_OBJECT
 
 public:
-    explicit SketcherSettingsColors(QWidget* parent = nullptr);
-    ~SketcherSettingsColors() override;
+    explicit SketcherSettingsAppearance(QWidget* parent = nullptr);
+    ~SketcherSettingsAppearance() override;
+
+    bool event(QEvent* event) override;
 
     void saveSettings() override;
     void loadSettings() override;
@@ -122,9 +142,20 @@ protected:
     void changeEvent(QEvent* e) override;
 
 private:
-    std::unique_ptr<Ui_SketcherSettingsColors> ui;
+    std::unique_ptr<Ui_SketcherSettingsAppearance> ui;
+};
+
+// Mode for the sketch autoscale feature which scales
+// the geometry and zooms the camera when the first
+// scale defining constraint is set
+enum class AutoScaleMode : int
+{
+    Always = 0,
+    Never = 1,
+
+    // Attempts to find scale reference objects int the viewport
+    // (such as a 3d body) and disable the feature if it finds one
+    WhenNoScaleFeatureIsVisible = 2
 };
 
 }  // namespace SketcherGui
-
-#endif  // SKETCHERGUI_SKETCHERSETTINGS_H

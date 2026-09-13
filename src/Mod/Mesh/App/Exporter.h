@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2017 Ian Rees <ian.rees@gmail.com>                      *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef MESH_EXPORTER_H
-#define MESH_EXPORTER_H
+#pragma once
 
 #include <map>
 #include <ostream>
@@ -43,7 +44,7 @@ namespace Mesh
  * If objects are meant to be combined into a single file, then the file should
  * be saved from the derived class' destructor.
  */
-class Exporter
+class MeshExport Exporter
 {
 public:
     Exporter();
@@ -67,8 +68,6 @@ public:
     Exporter& operator=(Exporter&&) = delete;
 
 protected:
-    /// Does some simple escaping of characters for XML-type exports
-    static std::string xmlEscape(const std::string& input);
     void throwIfNoPermission(const std::string&);
 
     std::map<const App::DocumentObject*, std::vector<std::string>> subObjectNameCache;
@@ -76,7 +75,7 @@ protected:
 };
 
 /// Creates a single mesh, in a file, from one or more objects
-class MergeExporter: public Exporter
+class MeshExport MergeExporter: public Exporter
 {
 public:
     MergeExporter(std::string fileName, MeshCore::MeshIO::Format fmt);
@@ -202,10 +201,10 @@ private:
  * The constructor and destructor write the beginning and end of the 3MF,
  * addObject() is used to add geometry
  */
-class Exporter3MF: public Exporter
+class MeshExport Exporter3MF: public Exporter
 {
 public:
-    Exporter3MF(std::string fileName, const std::vector<Extension3MFPtr>& = {});
+    explicit Exporter3MF(std::string fileName, const std::vector<Extension3MFPtr>& = {});
     ~Exporter3MF() override;
 
     Exporter3MF(const Exporter3MF&) = delete;
@@ -235,16 +234,18 @@ private:
  * The constructor and destructor write the beginning and end of the AMF,
  * addObject() is used to add geometry
  */
-class ExporterAMF: public Exporter
+class MeshExport ExporterAMF: public Exporter
 {
 public:
     /// Writes AMF header
     /*!
      * meta information passed in is applied at the <amf> tag level
      */
-    ExporterAMF(std::string fileName,
-                const std::map<std::string, std::string>& meta,
-                bool compress = true);
+    ExporterAMF(
+        std::string fileName,
+        const std::map<std::string, std::string>& meta,
+        bool compress = true
+    );
 
     /// Writes AMF footer
     ~ExporterAMF() override;
@@ -269,5 +270,3 @@ private:
 };  // class ExporterAMF
 
 }  // namespace Mesh
-
-#endif  // MESH_EXPORTER_H

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2010 Juergen Riegel <FreeCAD@juergen-riegel.net>        *
  *                                                                         *
@@ -20,371 +22,116 @@
  *                                                                         *
  ***************************************************************************/
 
-
-#include "PreCompiled.h"
-#ifndef _PreComp_
-# include <BRepAlgoAPI_Fuse.hxx>
-# include <BRepPrimAPI_MakeRevol.hxx>
-# include <BRepFeat_MakeRevol.hxx>
-# include <gp_Lin.hxx>
-# include <Precision.hxx>
-# include <TopExp_Explorer.hxx>
-# include <TopoDS.hxx>
-#endif
-
-#include <Base/Axis.h>
-#include <Base/Exception.h>
-#include <Base/Placement.h>
-#include <Base/Tools.h>
-
 #include "FeatureRevolution.h"
+
+#include <Base/ProgramVersion.h>
 
 using namespace PartDesign;
 
-namespace PartDesign {
+namespace PartDesign
+{
 
-const char* Revolution::TypeEnums[]= {"Angle", "UpToLast", "UpToFirst", "UpToFace", "TwoAngles", nullptr};
+/* TRANSLATOR PartDesign::Revolution */
 
-PROPERTY_SOURCE(PartDesign::Revolution, PartDesign::ProfileBased)
+// Note, TwoAngles has been deprecated by the side definition. We keep it hidden so old
+// files can restore and migrate to SideType="Two sides".
+const char* Revolution::TypeEnums[]
+    = {"Angle", "UpToLast", "UpToFirst", "UpToFace", "?TwoAngles", nullptr};
 
-const App::PropertyAngle::Constraints Revolution::floatAngle = { Base::toDegrees<double>(Precision::Angular()), 360.0, 1.0 };
+const char* Revolution::FuseOrderEnums[] = {"BaseFirst", "FeatureFirst", nullptr};
+
+PROPERTY_SOURCE(PartDesign::Revolution, PartDesign::Revolved)
 
 Revolution::Revolution()
 {
-    addSubType = FeatureAddSub::Additive;
+    defineAdditive();
+    const double fullAngle = 360.0;
+    const double emptyAngle = 0.0;
 
-    ADD_PROPERTY_TYPE(Type, (0L), "Revolution", App::Prop_None, "Revolution type");
+    ADD_PROPERTY_TYPE(SideType, (0L), "Revolution", App::Prop_None, "Type of side definition");
+    ADD_PROPERTY_TYPE(Type, (0L), "Side1", App::Prop_None, "Revolution type for side 1");
+    ADD_PROPERTY_TYPE(Type2, (0L), "Side2", App::Prop_None, "Revolution type for side 2");
+    SideType.setEnums(SideTypesEnums);
     Type.setEnums(TypeEnums);
-    ADD_PROPERTY_TYPE(Base,(Base::Vector3d(0.0,0.0,0.0)),"Revolution", App::Prop_ReadOnly, "Base");
-    ADD_PROPERTY_TYPE(Axis,(Base::Vector3d(0.0,1.0,0.0)),"Revolution", App::Prop_ReadOnly, "Axis");
-    ADD_PROPERTY_TYPE(Angle,(360.0),"Revolution", App::Prop_None, "Angle");
-    ADD_PROPERTY_TYPE(UpToFace, (nullptr), "Revolution", App::Prop_None, "Face where revolution will end");
-    ADD_PROPERTY_TYPE(Angle2, (60.0), "Revolution", App::Prop_None, "Revolution length in 2nd direction");
-
-    Angle.setConstraints(&floatAngle);
-    ADD_PROPERTY_TYPE(ReferenceAxis,(nullptr),"Revolution",(App::Prop_None),"Reference axis of revolution");
+    Type2.setEnums(TypeEnums);
+    ADD_PROPERTY_TYPE(
+        Base,
+        (Base::Vector3d()),
+        "Revolution",
+        App::PropertyType(App::Prop_ReadOnly | App::Prop_Hidden),
+        "Base"
+    );
+    ADD_PROPERTY_TYPE(
+        Axis,
+        (Base::Vector3d::UnitY),
+        "Revolution",
+        App::PropertyType(App::Prop_ReadOnly | App::Prop_Hidden),
+        "Axis"
+    );
+    ADD_PROPERTY_TYPE(Angle, (fullAngle), "Side1", App::Prop_None, "Angle");
+    ADD_PROPERTY_TYPE(Angle2, (emptyAngle), "Side2", App::Prop_None, "Revolution angle in 2nd direction");
+    ADD_PROPERTY_TYPE(UpToFace, (nullptr), "Side1", App::Prop_None, "Face where revolution will end");
+    ADD_PROPERTY_TYPE(
+        UpToFace2,
+        (nullptr),
+        "Side2",
+        App::Prop_None,
+        "Face where revolution will end on side 2"
+    );
+    ADD_PROPERTY_TYPE(
+        ReferenceAxis,
+        (nullptr),
+        "Revolution",
+        (App::Prop_None),
+        "Reference axis of revolution"
+    );
+    ADD_PROPERTY_TYPE(
+        FuseOrder,
+        (BaseFirst),
+        "Compatibility",
+        App::Prop_Hidden,
+        "Order of fuse operation to preserve compatibility with files created using FreeCAD 1.0"
+    );
+    FuseOrder.setEnums(FuseOrderEnums);
 }
 
 short Revolution::mustExecute() const
 {
-    if (Placement.isTouched() ||
-        ReferenceAxis.isTouched() ||
-        Axis.isTouched() ||
-        Base.isTouched() ||
-        UpToFace.isTouched() ||
-        Angle.isTouched() ||
-        Angle2.isTouched())
+    if (FuseOrder.isTouched()) {
         return 1;
-    return ProfileBased::mustExecute();
+    }
+    return Revolved::mustExecute();
 }
 
-App::DocumentObjectExecReturn *Revolution::execute()
+App::DocumentObjectExecReturn* Revolution::execute()
 {
-    // Validate parameters
-    // All angles are in radians unless explicitly stated
-    double angleDeg = Angle.getValue();
-    if (angleDeg > 360.0)
-        return new App::DocumentObjectExecReturn(QT_TRANSLATE_NOOP("Exception", "Angle of revolution too large"));
-
-    double angle = Base::toRadians<double>(angleDeg);
-    if (angle < Precision::Angular())
-        return new App::DocumentObjectExecReturn(QT_TRANSLATE_NOOP("Exception", "Angle of revolution too small"));
-
-    double angle2 = Base::toRadians(Angle2.getValue());
-
-    TopoDS_Shape sketchshape;
-    try {
-        sketchshape = getVerifiedFace();
-    } catch (const Base::Exception& e) {
-        return new App::DocumentObjectExecReturn(e.what());
-    }
-
-    // if the Base property has a valid shape, fuse the AddShape into it
-    TopoDS_Shape base;
-    try {
-        base = getBaseShape();
-    } catch (const Base::Exception&) {
-        // fall back to support (for legacy features)
-        base = TopoDS_Shape();
-    }
-
-    // update Axis from ReferenceAxis
-    try {
-        updateAxis();
-    } catch (const Base::Exception& e) {
-        return new App::DocumentObjectExecReturn(e.what());
-    }
-
-    // get revolve axis
-    Base::Vector3d b = Base.getValue();
-    gp_Pnt pnt(b.x,b.y,b.z);
-    Base::Vector3d v = Axis.getValue();
-    gp_Dir dir(v.x,v.y,v.z);
-
-    try {
-        if (sketchshape.IsNull())
-            return new App::DocumentObjectExecReturn(QT_TRANSLATE_NOOP("Exception", "Creating a face from sketch failed"));
-
-        RevolMethod method = methodFromString(Type.getValueAsString());
-
-        this->positionByPrevious();
-        TopLoc_Location invObjLoc = this->getLocation().Inverted();
-        pnt.Transform(invObjLoc.Transformation());
-        dir.Transform(invObjLoc.Transformation());
-        base.Move(invObjLoc);
-        sketchshape.Move(invObjLoc);
-
-        // Check distance between sketchshape and axis - to avoid failures and crashes
-        TopExp_Explorer xp;
-        xp.Init(sketchshape, TopAbs_FACE);
-        for (;xp.More(); xp.Next()) {
-            if (checkLineCrossesFace(gp_Lin(pnt, dir), TopoDS::Face(xp.Current())))
-                return new App::DocumentObjectExecReturn(QT_TRANSLATE_NOOP("Exception", "Revolve axis intersects the sketch"));
-        }
-
-        // Create a fresh support even when base exists so that it can be used for patterns
-        TopoDS_Shape result;
-        TopoDS_Face supportface = getSupportFace();
-        supportface.Move(invObjLoc);
-
-        if (method == RevolMethod::ToFace || method == RevolMethod::ToFirst || method == RevolMethod::ToLast) {
-            TopoDS_Face upToFace;
-            if (method == RevolMethod::ToFace) {
-                getFaceFromLinkSub(upToFace, UpToFace);
-                upToFace.Move(invObjLoc);
-            }
-            else
-                throw Base::RuntimeError("ProfileBased: Revolution up to first/last is not yet supported");
-
-            // TODO: This method is designed for extrusions. needs to be adapted for revolutions.
-            // getUpToFace(upToFace, base, supportface, sketchshape, method, dir);
-
-            TopoDS_Face supportface = getSupportFace();
-            supportface.Move(invObjLoc);
-
-            if (Reversed.getValue())
-                dir.Reverse();
-
-            TopExp_Explorer Ex(supportface,TopAbs_WIRE);
-            if (!Ex.More())
-                supportface = TopoDS_Face();
-            RevolMode mode = RevolMode::None;
-            generateRevolution(result, base, sketchshape, supportface, upToFace, gp_Ax1(pnt, dir), method, mode, Standard_True);
-        }
-        else {
-            bool midplane = Midplane.getValue();
-            bool reversed = Reversed.getValue();
-            generateRevolution(result, sketchshape, gp_Ax1(pnt, dir), angle, angle2, midplane, reversed, method);
-        }
-
-        if (!result.IsNull()) {
-            result = refineShapeIfActive(result);
-            // set the additive shape property for later usage in e.g. pattern
-            this->AddSubShape.setValue(result);
-
-            if (!base.IsNull()) {
-                // Let's call algorithm computing a fuse operation:
-                BRepAlgoAPI_Fuse mkFuse(base, result);
-                // Let's check if the fusion has been successful
-                if (!mkFuse.IsDone())
-                    throw Part::BooleanException(QT_TRANSLATE_NOOP("Exception", "Fusion with base feature failed"));
-                result = mkFuse.Shape();
-                result = refineShapeIfActive(result);
-            }
-
-            this->Shape.setValue(getSolid(result));
-        }
-        else
-            return new App::DocumentObjectExecReturn(QT_TRANSLATE_NOOP("Exception", "Could not revolve the sketch!"));
-
-        // eventually disable some settings that are not valid for the current method
-        updateProperties(method);
-
-        return App::DocumentObject::StdReturn;
-    }
-    catch (Standard_Failure& e) {
-
-        if (std::string(e.GetMessageString()) == "TopoDS::Face")
-            return new App::DocumentObjectExecReturn(QT_TRANSLATE_NOOP("Exception", "Could not create face from sketch.\n"
-                "Intersecting sketch entities in a sketch are not allowed."));
-        else
-            return new App::DocumentObjectExecReturn(e.GetMessageString());
-    }
-    catch (Base::Exception& e) {
-        return new App::DocumentObjectExecReturn(e.what());
-    }
+    return executeRevolved(Part::RevolMode::FuseWithBase);
 }
 
-bool Revolution::suggestReversed()
+TopoShape Revolution::makeShape(const TopoShape& base, const TopoShape& revolve) const
 {
-    try {
-        updateAxis();
-    } catch (const Base::Exception&) {
-        return false;
+    // In 1.0 there was a bug that caused the order of operations to be reversed.
+    // Changing the order may impact geometry order and the results of refine operation,
+    // hence we need to support both ways to ensure compatibility.
+    if (FuseOrder.getValue() == FeatureFirst) {
+        return revolve.makeElementFuse(base);
     }
-
-    return ProfileBased::getReversedAngle(Base.getValue(), Axis.getValue()) < 0.0;
+    return base.makeElementFuse(revolve);
 }
 
-void Revolution::updateAxis()
+bool Revolution::suggestReversedAngle(double angle) const
 {
-    App::DocumentObject *pcReferenceAxis = ReferenceAxis.getValue();
-    const std::vector<std::string> &subReferenceAxis = ReferenceAxis.getSubValues();
-    Base::Vector3d base;
-    Base::Vector3d dir;
-    getAxis(pcReferenceAxis, subReferenceAxis, base, dir, ForbiddenAxis::NotParallelWithNormal);
-
-    Base.setValue(base.x,base.y,base.z);
-    Axis.setValue(dir.x,dir.y,dir.z);
+    return angle < 0.0;
 }
 
-Revolution::RevolMethod Revolution::methodFromString(const std::string& methodStr)
+void Revolution::Restore(Base::XMLReader& reader)
 {
-    if (methodStr == "Angle")
-        return RevolMethod::Dimension;
-    if (methodStr == "UpToLast")
-        return RevolMethod::ToLast;
-    if (methodStr == "ThroughAll")
-        return RevolMethod::ThroughAll;
-    if (methodStr == "UpToFirst")
-        return RevolMethod::ToFirst;
-    if (methodStr == "UpToFace")
-        return RevolMethod::ToFace;
-    if (methodStr == "TwoAngles")
-        return RevolMethod::TwoDimensions;
+    Revolved::Restore(reader);
 
-    throw Base::ValueError("Revolution:: No such method");
-    return RevolMethod::Dimension;
-}
-
-void Revolution::generateRevolution(TopoDS_Shape& revol,
-                                    const TopoDS_Shape& sketchshape,
-                                    const gp_Ax1& axis,
-                                    const double angle,
-                                    const double angle2,
-                                    const bool midplane,
-                                    const bool reversed,
-                                    RevolMethod method)
-{
-    if (method == RevolMethod::Dimension || method == RevolMethod::TwoDimensions || method == RevolMethod::ThroughAll) {
-    double angleTotal = angle;
-    double angleOffset = 0.;
-
-    if (method == RevolMethod::TwoDimensions) {
-        // Rotate the face by `angle2`/`angle` to get "second" angle
-        angleTotal += angle2;
-        angleOffset = angle2 * -1.0;
-    }
-    else if (midplane) {
-        // Rotate the face by half the angle to get Revolution symmetric to sketch plane
-        angleOffset = -angle / 2;
-    }
-
-    if (fabs(angleTotal) < Precision::Angular())
-        throw Base::ValueError("Cannot create a revolution with zero angle.");
-
-    gp_Ax1 revolAx(axis);
-    if (reversed) {
-        revolAx.Reverse();
-    }
-
-    TopoDS_Shape from = sketchshape;
-    if (method == RevolMethod::TwoDimensions || midplane) {
-        gp_Trsf mov;
-        mov.SetRotation(revolAx, angleOffset);
-        TopLoc_Location loc(mov);
-        from.Move(loc);
-    }
-
-    // revolve the face to a solid
-    // BRepPrimAPI is the only option that allows use of this shape for patterns.
-    // See https://forum.freecadweb.org/viewtopic.php?f=8&t=70185&p=611673#p611673.
-    BRepPrimAPI_MakeRevol RevolMaker(from, revolAx, angleTotal);
-
-    if (!RevolMaker.IsDone())
-        throw Base::RuntimeError("ProfileBased: RevolMaker failed! Could not revolve the sketch!");
-    else
-        revol = RevolMaker.Shape();
-    }
-    else {
-        std::stringstream str;
-        str << "ProfileBased: Internal error: Unknown method for generateRevolution()";
-        throw Base::RuntimeError(str.str());
+    // For 1.0 and 1.0 only the order was feature first due to a bug
+    if (Base::getVersion(reader.ProgramVersion) == Base::Version::v1_0) {
+        FuseOrder.setValue(FeatureFirst);
     }
 }
 
-void Revolution::generateRevolution(TopoDS_Shape& revol,
-                                    const TopoDS_Shape& baseshape,
-                                    const TopoDS_Shape& profileshape,
-                                    const TopoDS_Face& supportface,
-                                    const TopoDS_Face& uptoface,
-                                    const gp_Ax1& axis,
-                                    RevolMethod method,
-                                    RevolMode Mode,
-                                    Standard_Boolean Modify)
-{
-    if (method == RevolMethod::ToFirst || method == RevolMethod::ToFace || method == RevolMethod::ToLast) {
-        BRepFeat_MakeRevol RevolMaker;
-        TopoDS_Shape base = baseshape;
-        for (TopExp_Explorer xp(profileshape, TopAbs_FACE); xp.More(); xp.Next()) {
-            RevolMaker.Init(base, xp.Current(), supportface, axis, Mode, Modify);
-            RevolMaker.Perform(uptoface);
-            if (!RevolMaker.IsDone())
-                throw Base::RuntimeError("ProfileBased: Up to face: Could not revolve the sketch!");
-
-            base = RevolMaker.Shape();
-            if (Mode == RevolMode::None)
-                Mode = RevolMode::FuseWithBase;
-        }
-
-        revol = base;
-    }
-    else {
-        std::stringstream str;
-        str << "ProfileBased: Internal error: Unknown method for generateRevolution()";
-        throw Base::RuntimeError(str.str());
-    }
-}
-
-void Revolution::updateProperties(RevolMethod method)
-{
-    // disable settings that are not valid on the current method
-    // disable everything unless we are sure we need it
-    bool isAngleEnabled = false;
-    bool isAngle2Enabled = false;
-    bool isMidplaneEnabled = false;
-    bool isReversedEnabled = false;
-    bool isUpToFaceEnabled = false;
-    if (method == RevolMethod::Dimension) {
-        isAngleEnabled = true;
-        isMidplaneEnabled = true;
-        isReversedEnabled = !Midplane.getValue();
-    }
-    else if (method == RevolMethod::ToLast) {
-        isReversedEnabled = true;
-    }
-    else if (method == RevolMethod::ThroughAll) {
-        isMidplaneEnabled = true;
-        isReversedEnabled = !Midplane.getValue();
-    }
-    else if (method == RevolMethod::ToFirst) {
-        isReversedEnabled = true;
-    }
-    else if (method == RevolMethod::ToFace) {
-        isReversedEnabled = true;
-        isUpToFaceEnabled = true;
-    }
-    else if (method == RevolMethod::TwoDimensions) {
-        isAngleEnabled = true;
-        isAngle2Enabled = true;
-        isReversedEnabled = true;
-    }
-
-    Angle.setReadOnly(!isAngleEnabled);
-    Angle2.setReadOnly(!isAngle2Enabled);
-    Midplane.setReadOnly(!isMidplaneEnabled);
-    Reversed.setReadOnly(!isReversedEnabled);
-    UpToFace.setReadOnly(!isUpToFaceEnabled);
-}
-
-}
+}  // namespace PartDesign

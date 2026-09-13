@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # MeshPart gui init module
 # (c) 2003 Juergen Riegel
 #
@@ -31,6 +33,7 @@
 
 class MeshPartWorkbench(Workbench):
     "MeshPart workbench object"
+
     Icon = """
             /* XPM */
             static const char *MeshPart_Box[]={

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2008 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,18 +22,19 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
+#include <limits>
+
+#include <FCConfig.h>
+
 #ifdef FC_OS_WIN32
-#include <Windows.h>
+# include <Windows.h>
 #endif
 #ifdef FC_OS_MACOSX
-#include <OpenGL/gl.h>
+# include <OpenGL/gl.h>
 #else
-#include <GL/gl.h>
+# include <GL/gl.h>
 #endif
 #include <algorithm>
-#include <cfloat>
 
 #include <Inventor/actions/SoGLRenderAction.h>
 #include <Inventor/bundles/SoMaterialBundle.h>
@@ -39,7 +42,6 @@
 #include <Inventor/elements/SoCoordinateElement.h>
 #include <Inventor/elements/SoLazyElement.h>
 #include <Inventor/misc/SoState.h>
-#endif
 
 #include "SoPolygon.h"
 
@@ -94,7 +96,7 @@ void SoPolygon::GLRender(SoGLRenderAction* action)
  */
 void SoPolygon::drawPolygon(const SbVec3f* points, int32_t len) const
 {
-    glLineWidth(3.0f);
+    glLineWidth(3.0F);
     int32_t beg = startIndex.getValue();
     int32_t cnt = numVertices.getValue();
     int32_t end = beg + cnt;
@@ -145,8 +147,9 @@ void SoPolygon::computeBBox(SoAction* action, SbBox3f& box, SbVec3f& center)
     if (!points) {
         return;
     }
-    float maxX = -FLT_MAX, minX = FLT_MAX, maxY = -FLT_MAX, minY = FLT_MAX, maxZ = -FLT_MAX,
-          minZ = FLT_MAX;
+    constexpr float floatMax = std::numeric_limits<float>::max();
+    float maxX = -floatMax, minX = floatMax, maxY = -floatMax, minY = floatMax, maxZ = -floatMax,
+          minZ = floatMax;
     int32_t len = coords->getNum();
     int32_t beg = startIndex.getValue();
     int32_t cnt = numVertices.getValue();
@@ -162,10 +165,10 @@ void SoPolygon::computeBBox(SoAction* action, SbBox3f& box, SbVec3f& center)
         }
 
         box.setBounds(minX, minY, minZ, maxX, maxY, maxZ);
-        center.setValue(0.5f * (minX + maxX), 0.5f * (minY + maxY), 0.5f * (minZ + maxZ));
+        center.setValue(0.5F * (minX + maxX), 0.5F * (minY + maxY), 0.5F * (minZ + maxZ));
     }
     else {
         box.setBounds(SbVec3f(0, 0, 0), SbVec3f(0, 0, 0));
-        center.setValue(0.0f, 0.0f, 0.0f);
+        center.setValue(0.0F, 0.0F, 0.0F);
     }
 }

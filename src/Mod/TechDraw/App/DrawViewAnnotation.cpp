@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2012 Yorik van Havre <yorik@uncreated.net>              *
  *   Copyright (c) 2013 Luke Parry <l.parry@warwick.ac.uk>                 *
@@ -20,13 +22,6 @@
  *   Suite 330, Boston, MA  02111-1307, USA                                *
  *                                                                         *
  ***************************************************************************/
-
-#include "PreCompiled.h"
-
-#ifndef _PreComp_
-# include <iomanip>
-# include <sstream>
-#endif
 
 #include "DrawViewAnnotation.h"
 #include "Preferences.h"
@@ -62,6 +57,9 @@ DrawViewAnnotation::DrawViewAnnotation()
     TextStyle.setEnums(TextStyleEnums);
     ADD_PROPERTY_TYPE(TextStyle, ((long)0), vgroup, App::Prop_None, "Text style");
 
+    ADD_PROPERTY_TYPE(Owner, (nullptr), vgroup, (App::PropertyType)(App::Prop_None),
+                      "Feature to which this annotation is attached, if any");
+
     Scale.setStatus(App::Property::Hidden, true);
     ScaleType.setStatus(App::Property::Hidden, true);
 }
@@ -81,6 +79,20 @@ void DrawViewAnnotation::onChanged(const App::Property* prop)
     }
     TechDraw::DrawView::onChanged(prop);
 }
+
+
+short DrawViewAnnotation::mustExecute() const
+{
+    if (!isRestoring()) {
+        if (Text.isTouched() ||
+            Owner.isTouched()) {
+            return 1;
+        }
+    }
+
+    return DrawView::mustExecute();
+}
+
 
 void DrawViewAnnotation::handleChangedPropertyType(Base::XMLReader &reader, const char *TypeName, App::Property *prop)
 // transforms properties that had been changed

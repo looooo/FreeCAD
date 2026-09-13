@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # created by Python
 '''
 from femtest.app.support_utils import get_fem_test_defs
@@ -31,7 +33,7 @@ make -j 4 && ./bin/FreeCADCmd -t femtest.app.test_solver_z88
 make -j 4 && ./bin/FreeCADCmd -t femtest.app.test_ccxtools.TestCcxTools
 make -j 4 && ./bin/FreeCADCmd -t femtest.app.test_common.TestFemCommon
 make -j 4 && ./bin/FreeCADCmd -t femtest.app.test_femimport.TestFemImport
-make -j 4 && ./bin/FreeCADCmd -t femtest.app.test_femimport.TestObjectExistance
+make -j 4 && ./bin/FreeCADCmd -t femtest.app.test_femimport.TestObjectexistence
 make -j 4 && ./bin/FreeCADCmd -t femtest.app.test_material.TestMaterialUnits
 make -j 4 && ./bin/FreeCADCmd -t femtest.app.test_mesh.TestMeshCommon
 make -j 4 && ./bin/FreeCADCmd -t femtest.app.test_mesh.TestMeshEleTetra10
@@ -52,7 +54,7 @@ make -j 4 && ./bin/FreeCADCmd -t femtest.app.test_ccxtools.TestCcxTools.test_box
 make -j 4 && ./bin/FreeCADCmd -t femtest.app.test_common.TestFemCommon.test_adding_refshaps
 make -j 4 && ./bin/FreeCADCmd -t femtest.app.test_common.TestFemCommon.test_pyimport_all_FEM_modules
 make -j 4 && ./bin/FreeCADCmd -t femtest.app.test_femimport.TestFemImport.test_import_fem
-make -j 4 && ./bin/FreeCADCmd -t femtest.app.test_femimport.TestObjectExistance.test_objects_existance
+make -j 4 && ./bin/FreeCADCmd -t femtest.app.test_femimport.TestObjectexistence.test_objects_existence
 make -j 4 && ./bin/FreeCADCmd -t femtest.app.test_material.TestMaterialUnits.test_known_quantity_units
 make -j 4 && ./bin/FreeCADCmd -t femtest.app.test_material.TestMaterialUnits.test_material_card_quantities
 make -j 4 && ./bin/FreeCADCmd -t femtest.app.test_mesh.TestMeshCommon.test_mesh_seg2_python
@@ -109,7 +111,7 @@ make -j 4 && ./bin/FreeCADCmd -t femtest.app.test_solver_calculix.TestSolverCalc
 make -j 4 && ./bin/FreeCADCmd -t femtest.app.test_solver_calculix.TestSolverCalculix.test_material_nonlinear
 make -j 4 && ./bin/FreeCADCmd -t femtest.app.test_solver_calculix.TestSolverCalculix.test_square_pipe_end_twisted_edgeforces
 make -j 4 && ./bin/FreeCADCmd -t femtest.app.test_solver_calculix.TestSolverCalculix.test_square_pipe_end_twisted_nodeforces
-make -j 4 && ./bin/FreeCADCmd -t femtest.app.test_solver_calculix.TestSolverCalculix.test_thermomech_bimetall
+make -j 4 && ./bin/FreeCADCmd -t femtest.app.test_solver_calculix.TestSolverCalculix.test_thermomech_bimetal
 make -j 4 && ./bin/FreeCADCmd -t femtest.app.test_solver_elmer.TestSolverElmer.test_box_static_0_mm
 make -j 4 && ./bin/FreeCADCmd -t femtest.app.test_solver_elmer.TestSolverElmer.test_ccxcantilever_faceload_0_mm
 make -j 4 && ./bin/FreeCADCmd -t femtest.app.test_solver_elmer.TestSolverElmer.test_ccxcantilever_faceload_1_si
@@ -156,7 +158,7 @@ unittest.TextTestRunner().run(unittest.TestLoader().loadTestsFromName(
 
 import unittest
 unittest.TextTestRunner().run(unittest.TestLoader().loadTestsFromName(
-    'femtest.app.test_femimport.TestObjectExistance.test_objects_existance'
+    'femtest.app.test_femimport.TestObjectexistence.test_objects_existence'
 ))
 
 import unittest
@@ -441,7 +443,7 @@ unittest.TextTestRunner().run(unittest.TestLoader().loadTestsFromName(
 
 import unittest
 unittest.TextTestRunner().run(unittest.TestLoader().loadTestsFromName(
-    'femtest.app.test_solver_calculix.TestSolverCalculix.test_thermomech_bimetall'
+    'femtest.app.test_solver_calculix.TestSolverCalculix.test_thermomech_bimetal'
 ))
 
 import unittest

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 
+#include "App/ByteArray.h"
 #include "App/IndexedName.h"
 
 #include <sstream>
@@ -18,19 +19,23 @@ protected:
     // Create and return a list of invalid IndexedNames
     static std::vector<Data::IndexedName> givenInvalidIndexedNames()
     {
-        return std::vector<Data::IndexedName> {Data::IndexedName(),
-                                               Data::IndexedName("", 1),
-                                               Data::IndexedName("INVALID42NAME", 1),
-                                               Data::IndexedName(".EDGE", 1)};
+        return std::vector<Data::IndexedName> {
+            Data::IndexedName(),
+            Data::IndexedName("", 1),
+            Data::IndexedName("INVALID42NAME", 1),
+            Data::IndexedName(".EDGE", 1)
+        };
     }
 
     // Create and return a list of valid IndexedNames
     static std::vector<Data::IndexedName> givenValidIndexedNames()
     {
-        return std::vector<Data::IndexedName> {Data::IndexedName("NAME"),
-                                               Data::IndexedName("NAME1"),
-                                               Data::IndexedName("NAME", 1),
-                                               Data::IndexedName("NAME_WITH_UNDERSCORES12345")};
+        return std::vector<Data::IndexedName> {
+            Data::IndexedName("NAME"),
+            Data::IndexedName("NAME1"),
+            Data::IndexedName("NAME", 1),
+            Data::IndexedName("NAME_WITH_UNDERSCORES12345")
+        };
     }
 
     // An arbitrary list of C strings used for testing some types of construction

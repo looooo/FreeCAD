@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2014 Luke Parry <l.parry@warwick.ac.uk>                 *
  *                                                                         *
@@ -20,17 +22,22 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
-#ifndef _PreComp_
 # include <sstream>
-#endif
+# include <QCollator>
+# include <QDateTime>
+
 
 #include <Base/Console.h>
+
+#include <App/Application.h>
+#include <App/Document.h>
 
 #include "DrawTemplate.h"
 #include "DrawTemplatePy.h"
 #include "DrawPage.h"
+#include "DrawUtil.h"
+#include "Preferences.h"
 
 
 using namespace TechDraw;
@@ -92,6 +99,99 @@ DrawPage* DrawTemplate::getParentPage() const
         }
     }
     return page;
+}
+
+// Return the counts related to pages, namely collated page index and total page count
+std::pair<int, int> DrawTemplate::getPageNumbers() const
+{
+    std::vector<DocumentObject *> pages = getDocument()->getObjectsOfType(TechDraw::DrawPage::getClassTypeId());
+    std::vector<QString> pageNames;
+    for (auto page : pages) {
+        if (page->isAttachedToDocument() &&
+            !page->testStatus(App::ObjectStatus::Remove)) {
+            pageNames.push_back(QString::fromUtf8(page->Label.getValue()));
+        }
+    }
+    QCollator collator;
+    std::sort(pageNames.begin(), pageNames.end(), collator);
+
+    int pos = 0;
+    if (const DrawPage* page = getParentPage()) {
+        if (const auto it = std::ranges::find(pageNames, QString::fromUtf8(page->Label.getValue()));
+            it != pageNames.end()) {
+            pos = it - pageNames.begin() + 1;
+        }
+    }
+
+    return std::pair<int, int>(pos, (int) pageNames.size());
+}
+
+//! get replacement values from document
+std::string DrawTemplate::getAutofillValue(const std::string& id) const
+{
+    auto doc = getDocument();
+    if (!doc || id.empty()) {
+        return std::string();
+    }
+
+    // author
+    if (id == Autofill::Author) {
+        return doc->CreatedBy.getValue();
+    }
+    // date
+    else if (id == Autofill::Date) {
+        std::time_t now = std::time(0);
+        std::tm cal;
+#if defined(_WIN32)
+        localtime_s(&cal, &now); // Windows
+#else
+        localtime_r(&now, &cal); // POSIX
+#endif
+
+        std::ostringstream oss;
+        if (Preferences::enforceISODate()) {
+            oss << std::put_time(&cal, "%F"); // %F format for ISO 8601 date format
+            return oss.str();
+        }
+
+        oss.imbue(std::locale(""));       // Set output stream's locale to user native locale
+        oss << std::put_time(&cal, "%x"); // %x format for localized date format
+        return oss.str();
+    }
+    // organization ( also organisation/owner/company )
+    else if (id == Autofill::Organization || id == Autofill::Organisation
+             || id == Autofill::Owner || id == Autofill::Company) {
+        return doc->Company.getValue();
+    }
+    // scale
+    else if (id == Autofill::Scale) {
+        DrawPage *page = getParentPage();
+        if (page) {
+            std::pair<int, int> scale = DrawUtil::nearestFraction(page->Scale.getValue());
+            return (std::ostringstream() << scale.first << " : " << scale.second).str();
+        }
+    }
+    // sheet
+    else if (id == Autofill::Sheet) {
+        std::pair<int, int> pageNumbers = getPageNumbers();
+        return (std::ostringstream() << pageNumbers.first << " / " << pageNumbers.second).str();
+    }
+    // title
+    else if (id == Autofill::Title) {
+        return getDocument()->Label.getValue();
+    }
+    // page number
+    else if (id == Autofill::PageNumber) {
+        std::pair<int, int> pageNumbers = getPageNumbers();
+        return std::to_string(pageNumbers.first);
+    }
+    // page total
+    else if (id == Autofill::PageCount) {
+        std::pair<int, int> pageNumbers = getPageNumbers();
+        return std::to_string(pageNumbers.second);
+    }
+
+    return std::string();
 }
 
 // Python Template feature ---------------------------------------------------------

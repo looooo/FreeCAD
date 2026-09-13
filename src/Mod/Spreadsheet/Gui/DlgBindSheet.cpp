@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /****************************************************************************
  *   Copyright (c) 2019 Zheng, Lei (realthunder) <realthunder.dev@gmail.com>*
  *                                                                          *
@@ -20,7 +22,6 @@
  *                                                                          *
  ****************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <QMessageBox>
 #include <boost/algorithm/string.hpp>
@@ -72,14 +73,14 @@ DlgBindSheet::DlgBindSheet(Sheet* sheet, const std::vector<Range>& ranges, QWidg
         ui->lineEditFromEnd->setReadOnly(true);
         ui->checkBoxHREF->setChecked(type == PropertySheet::BindingHiddenRef);
         assert(pStart && pEnd);
-        if (!pStart->hasComponent() && pStart->isDerivedFrom(StringExpression::getClassTypeId())) {
+        if (!pStart->hasComponent() && pStart->isDerivedFrom<StringExpression>()) {
             toStart = static_cast<StringExpression*>(pStart.get())->getText();
         }
         else {
             toStart = "=";
             toStart += pStart->toString();
         }
-        if (!pEnd->hasComponent() && pEnd->isDerivedFrom(StringExpression::getClassTypeId())) {
+        if (!pEnd->hasComponent() && pEnd->isDerivedFrom<StringExpression>()) {
             toEnd = static_cast<StringExpression*>(pEnd.get())->getText();
         }
         else {
@@ -100,8 +101,9 @@ DlgBindSheet::DlgBindSheet(Sheet* sheet, const std::vector<Range>& ranges, QWidg
     ui->lineEditToEnd->setText(QLatin1String(toEnd.c_str()));
 
     ui->comboBox->addItem(
-        QString::fromLatin1(". (%1)").arg(QString::fromUtf8(sheet->Label.getValue())),
-        QByteArray(""));
+        QStringLiteral(". (%1)").arg(QString::fromUtf8(sheet->Label.getValue())),
+        QByteArray("")
+    );
 
     App::DocumentObject* target = bindingTarget.getDocumentObject();
     for (auto obj : sheet->getDocument()->getObjectsOfType<Sheet>()) {
@@ -110,9 +112,10 @@ DlgBindSheet::DlgBindSheet(Sheet* sheet, const std::vector<Range>& ranges, QWidg
         }
         QString label;
         if (obj->Label.getStrValue() != obj->getNameInDocument()) {
-            label =
-                QString::fromLatin1("%1 (%2)").arg(QString::fromLatin1(obj->getNameInDocument()),
-                                                   QString::fromUtf8(obj->Label.getValue()));
+            label = QStringLiteral("%1 (%2)").arg(
+                QString::fromLatin1(obj->getNameInDocument()),
+                QString::fromUtf8(obj->Label.getValue())
+            );
         }
         else {
             label = QLatin1String(obj->getNameInDocument());
@@ -133,9 +136,10 @@ DlgBindSheet::DlgBindSheet(Sheet* sheet, const std::vector<Range>& ranges, QWidg
             std::string fullname = obj->getFullName();
             QString label;
             if (obj->Label.getStrValue() != obj->getNameInDocument()) {
-                label =
-                    QString::fromLatin1("%1 (%2)").arg(QString::fromLatin1(fullname.c_str()),
-                                                       QString::fromUtf8(obj->Label.getValue()));
+                label = QStringLiteral("%1 (%2)").arg(
+                    QString::fromLatin1(fullname.c_str()),
+                    QString::fromUtf8(obj->Label.getValue())
+                );
             }
             else {
                 label = QLatin1String(fullname.c_str());
@@ -171,10 +175,10 @@ void DlgBindSheet::accept()
                 if (!doc) {
                     FC_THROWM(Base::RuntimeError, "Cannot find document " << docname);
                 }
-                obj = Base::freecad_dynamic_cast<Sheet>(doc->getObject(sep + 1));
+                obj = freecad_cast<Sheet*>(doc->getObject(sep + 1));
             }
             else {
-                obj = Base::freecad_dynamic_cast<Sheet>(sheet->getDocument()->getObject(ref));
+                obj = freecad_cast<Sheet*>(sheet->getDocument()->getObject(ref));
             }
             if (!obj) {
                 FC_THROWM(Base::RuntimeError, "Cannot find Spreadsheet '" << ref << "'");
@@ -194,7 +198,7 @@ void DlgBindSheet::accept()
                 addr = std::string("<<") + copy + ">>";
             }
             else {
-                addr = copy;
+                addr = std::move(copy);
             }
         };
 
@@ -222,27 +226,25 @@ void DlgBindSheet::accept()
                 App::Range fromRange(fromCellStart, fromCellEnd, true);
                 App::Range toRange(toCellStart, toCellEnd, true);
                 if (fromRange.size() != toRange.size()) {
-                    auto res = QMessageBox::warning(this,
-                                                    tr("Bind cells"),
-                                                    tr("Source and target cell count mismatch. "
-                                                       "Partial binding may still work.\n\n"
-                                                       "Do you want to continue?"),
-                                                    QMessageBox::Yes | QMessageBox::No);
+                    auto res = QMessageBox::warning(
+                        this,
+                        tr("Bind Cells"),
+                        tr("Source and target cell count mismatch. "
+                           "Partial binding may still work.\n\n"
+                           "Continue?"),
+                        QMessageBox::Yes | QMessageBox::No
+                    );
                     if (res == QMessageBox::No) {
                         return;
                     }
                 }
             }
         }
-
-        Gui::Command::openCommand("Bind cells");
+        sheet->getDocument()->openTransaction(QT_TRANSLATE_NOOP("Command", "Bind cells"));
         commandActive = true;
 
         if (ui->checkBoxHREF->isChecked()) {
-            Gui::cmdAppObjectArgs(sheet,
-                                  "setExpression('.cells.Bind.%s.%s', None)",
-                                  fromStart,
-                                  fromEnd);
+            Gui::cmdAppObjectArgs(sheet, "setExpression('.cells.Bind.%s.%s', None)", fromStart, fromEnd);
             Gui::cmdAppObjectArgs(
                 sheet,
                 "setExpression('.cells.BindHiddenRef.%s.%s', 'hiddenref(tuple(%s.cells, %s, %s))')",
@@ -250,32 +252,39 @@ void DlgBindSheet::accept()
                 fromEnd,
                 ref,
                 toStart,
-                toEnd);
+                toEnd
+            );
         }
         else {
-            Gui::cmdAppObjectArgs(sheet,
-                                  "setExpression('.cells.BindHiddenRef.%s.%s', None)",
-                                  fromStart,
-                                  fromEnd);
-            Gui::cmdAppObjectArgs(sheet,
-                                  "setExpression('.cells.Bind.%s.%s', 'tuple(%s.cells, %s, %s)')",
-                                  fromStart,
-                                  fromEnd,
-                                  ref,
-                                  toStart,
-                                  toEnd);
+            Gui::cmdAppObjectArgs(
+                sheet,
+                "setExpression('.cells.BindHiddenRef.%s.%s', None)",
+                fromStart,
+                fromEnd
+            );
+            Gui::cmdAppObjectArgs(
+                sheet,
+                "setExpression('.cells.Bind.%s.%s', 'tuple(%s.cells, %s, %s)')",
+                fromStart,
+                fromEnd,
+                ref,
+                toStart,
+                toEnd
+            );
         }
         Gui::Command::doCommand(Gui::Command::Doc, "App.ActiveDocument.recompute()");
-        Gui::Command::commitCommand();
+        sheet->getDocument()->commitTransaction();
         QDialog::accept();
     }
     catch (Base::Exception& e) {
-        e.ReportException();
-        QMessageBox::critical(this,
-                              tr("Bind Spreadsheet Cells"),
-                              tr("Error:\n") + QString::fromUtf8(e.what()));
+        e.reportException();
+        QMessageBox::critical(
+            this,
+            tr("Bind Spreadsheet Cells"),
+            tr("Error:\n") + QString::fromUtf8(e.what())
+        );
         if (commandActive) {
-            Gui::Command::abortCommand();
+            sheet->getDocument()->abortTransaction();
         }
     }
 }
@@ -285,23 +294,22 @@ void DlgBindSheet::onDiscard()
     try {
         std::string fromStart(ui->lineEditFromStart->text().trimmed().toLatin1().constData());
         std::string fromEnd(ui->lineEditFromEnd->text().trimmed().toLatin1().constData());
-        Gui::Command::openCommand("Unbind cells");
-        Gui::cmdAppObjectArgs(sheet,
-                              "setExpression('.cells.Bind.%s.%s', None)",
-                              fromStart,
-                              fromEnd);
-        Gui::cmdAppObjectArgs(sheet,
-                              "setExpression('.cells.BindHiddenRef.%s.%s', None)",
-                              fromStart,
-                              fromEnd);
+        sheet->getDocument()->openTransaction(QT_TRANSLATE_NOOP("Command", "Unbind cells"));
+        Gui::cmdAppObjectArgs(sheet, "setExpression('.cells.Bind.%s.%s', None)", fromStart, fromEnd);
+        Gui::cmdAppObjectArgs(
+            sheet,
+            "setExpression('.cells.BindHiddenRef.%s.%s', None)",
+            fromStart,
+            fromEnd
+        );
         Gui::Command::doCommand(Gui::Command::Doc, "App.ActiveDocument.recompute()");
-        Gui::Command::commitCommand();
+        sheet->getDocument()->commitTransaction();
         reject();
     }
     catch (Base::Exception& e) {
-        e.ReportException();
-        QMessageBox::critical(this, tr("Unbind cells"), QString::fromUtf8(e.what()));
-        Gui::Command::abortCommand();
+        e.reportException();
+        QMessageBox::critical(this, tr("Unbind Cells"), QString::fromUtf8(e.what()));
+        sheet->getDocument()->abortTransaction();
     }
 }
 

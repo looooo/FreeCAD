@@ -1,17 +1,10 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
 
 add_subdirectory(App)
 
 set(Web_Scripts
     Init.py
-    TestWebGui.py
 )
-
-if(BUILD_GUI)
-    if(QtWebEngineWidgets_FOUND)
-        add_subdirectory(Gui)
-        list (APPEND Web_Scripts InitGui.py)
-    endif()
-endif(BUILD_GUI)
 
 add_custom_target(WebScripts ALL
     SOURCES ${Web_Scripts}

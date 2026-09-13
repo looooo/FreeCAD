@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Luke Parry <l.parry@warwick.ac.uk>                 *
  *                                                                         *
@@ -20,12 +22,13 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_QGRAPHICSITEMEDGE_H
-#define DRAWINGGUI_QGRAPHICSITEMEDGE_H
+#pragma once
 
+#include <Mod/TechDraw/App/Geometry.h>
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
 #include "QGIPrimPath.h"
+#include "QGIUserTypes.h"
 
 namespace TechDrawGui
 {
@@ -36,7 +39,7 @@ public:
     explicit QGIEdge(int index);
     ~QGIEdge() override = default;
 
-    enum {Type = QGraphicsItem::UserType + 103};
+    enum {Type = UserType::QGIEdge};
 
     int type() const override { return Type;}
     QRectF boundingRect() const override;
@@ -46,15 +49,14 @@ public:
 
     void setCosmetic(bool state);
     void setHiddenEdge(bool b);
-    bool getHiddenEdge() { return(isHiddenEdge); }
+    bool getHiddenEdge() const { return(isHiddenEdge); }
     void setSmoothEdge(bool b) { isSmoothEdge = b; }
-    bool getSmoothEdge() { return(isSmoothEdge); }
+    bool getSmoothEdge() const { return(isSmoothEdge); }
     void setPrettyNormal() override;
+    void setLinePen(const QPen& isoPen);
 
-    double getEdgeFuzz() const;
-
-    void setLinePen(QPen isoPen);
-
+    void setSource(TechDraw::SourceType source) { m_source = source; }
+    TechDraw::SourceType getSource() const { return m_source;}
 
 protected:
 
@@ -62,17 +64,16 @@ protected:
 
     bool multiselectEligible() override { return true; }
 
+    QColor getHiddenColor();
+
+private:
     int projIndex;                                                     //index of edge in Projection. must exist.
 
     bool isCosmetic;
     bool isHiddenEdge;
     bool isSmoothEdge;
-    QColor getHiddenColor();
-    Qt::PenStyle getHiddenStyle();
 
-private:
+    TechDraw::SourceType m_source{TechDraw::SourceType::GEOMETRY};
 };
 
 }
-
-#endif // DRAWINGGUI_QGRAPHICSITEMEDGE_H

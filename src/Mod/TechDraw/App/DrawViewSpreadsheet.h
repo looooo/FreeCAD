@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DrawViewSpreadsheet_h_
-#define DrawViewSpreadsheet_h_
+#pragma once
 
 #include <App/DocumentObject.h>
 #include <App/FeaturePython.h>
@@ -39,6 +40,10 @@ class TechDrawExport DrawViewSpreadsheet : public TechDraw::DrawViewSymbol
     PROPERTY_HEADER_WITH_OVERRIDE(TechDraw::DrawViewSpreadsheet);
 
 public:
+    // SVG positions text by its baseline. Keep this ratio shared with the in-view editor so its
+    // text does not move when edit mode is toggled.
+    static constexpr double TextBaselineHeightRatio = 0.75;
+
     DrawViewSpreadsheet();
     ~DrawViewSpreadsheet() override;
     App::PropertyLink         Source;
@@ -49,9 +54,13 @@ public:
     App::PropertyFloat        LineWidth;
     App::PropertyFloat        TextSize;
 
+    App::PropertyLink         Owner;
 
     App::DocumentObjectExecReturn *execute() override;
     short mustExecute() const override;
+
+    App::PropertyLink *getOwnerProperty() override { return &Owner; }
+
     std::string getSheetImage();
 
     const char* getViewProviderName() const override {
@@ -73,6 +82,3 @@ using DrawViewSpreadsheetPython = App::FeaturePythonT<DrawViewSpreadsheet>;
 
 
 } //namespace TechDraw
-
-
-#endif

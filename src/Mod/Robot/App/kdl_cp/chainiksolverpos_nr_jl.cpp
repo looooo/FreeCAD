@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 // Copyright  (C)  2007  Ruben Smits <ruben dot smits at mech dot kuleuven dot be>
 // Copyright  (C)  2008  Mikael Mayer
 // Copyright  (C)  2008  Julia Jesse
@@ -21,16 +23,9 @@
 // License along with this library; if not, write to the Free Software
 // Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
+#include <numbers>
+
 #include "chainiksolverpos_nr_jl.hpp"
-
-// FreeCAD change
-#ifndef M_PI
-    #define M_PI    3.14159265358979323846 /* pi */
-#endif
-
-#ifndef M_PI_2
-    #define M_PI_2  1.57079632679489661923 /* pi/2 */
-#endif
 
 namespace KDL
 {
@@ -60,14 +55,14 @@ namespace KDL
                 for(unsigned int j=0; j<q_min.rows(); j++) {
                   if(q_out(j) < q_min(j))
                     //q_out(j) = q_min(j); // FreeCAD change
-                    q_out(j) = q_out(j) + M_PI *2;
+                    q_out(j) = q_out(j) + std::numbers::pi *2;
                 }
 
 
                 for(unsigned int j=0; j<q_max.rows(); j++) {
                     if(q_out(j) > q_max(j))
                       //q_out(j) = q_max(j); // FreeCAD change
-                      q_out(j) = q_out(j) - M_PI *2;
+                      q_out(j) = q_out(j) - std::numbers::pi *2;
                 }
             }
 

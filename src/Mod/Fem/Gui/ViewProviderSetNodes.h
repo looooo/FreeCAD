@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Jürgen Riegel <FreeCAD@juergen-riegel.net>         *
  *                                                                         *
@@ -21,8 +23,7 @@
  ***************************************************************************/
 
 
-#ifndef FEM_ViewProviderSetNodes_H
-#define FEM_ViewProviderSetNodes_H
+#pragma once
 
 #include <Gui/ViewProviderGeometryObject.h>
 
@@ -42,6 +43,3 @@ protected:
 };
 
 }  // namespace FemGui
-
-
-#endif  // FEM_ViewProviderSetNodes_H

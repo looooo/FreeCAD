@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  * Copyright (c) 2014 Abdullah Tahiri <abdullah.tahiri.yo@gmail.com>        *
  *                                                                          *
@@ -19,8 +21,7 @@
  * Suite 330, Boston, MA 02111-1307, USA                                    *
  *                                                                          *
  ***************************************************************************/
-#ifndef PROPERTYCONSTRAINTLISTITEM_H
-#define PROPERTYCONSTRAINTLISTITEM_H
+#pragma once
 
 #include <QObject>
 #include <vector>
@@ -31,6 +32,8 @@
 namespace SketcherGui
 {
 
+using FrameOption = Gui::PropertyEditor::FrameOption;
+
 class PropertyConstraintListItem: public Gui::PropertyEditor::PropertyItem
 {
     Q_OBJECT
@@ -38,13 +41,16 @@ class PropertyConstraintListItem: public Gui::PropertyEditor::PropertyItem
 
     ~PropertyConstraintListItem() override;
     void assignProperty(const App::Property* prop) override;
-    QWidget*
-    createEditor(QWidget* parent, const QObject* receiver, const char* method) const override;
+    QWidget* createEditor(
+        QWidget* parent,
+        const std::function<void()>& method,
+        FrameOption frameOption
+    ) const override;
     void setEditorData(QWidget* editor, const QVariant& data) const override;
     QVariant editorData(QWidget* editor) const override;
 
 protected:
-    QVariant toString(const QVariant&) const override;
+    QString toString(const QVariant&) const override;
     QVariant value(const App::Property*) const override;
     void setValue(const QVariant&) override;
     bool event(QEvent* ev) override;
@@ -58,6 +64,3 @@ protected:
 };
 
 }  // namespace SketcherGui
-
-
-#endif

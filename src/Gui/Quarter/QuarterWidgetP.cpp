@@ -38,10 +38,17 @@
 #include "QuarterWidget.h"
 #include "eventhandlers/EventFilter.h"
 
+#include <algorithm>
+#include <cmath>
+
 #include <QActionGroup>
 #include <QApplication>
 #include <QCursor>
 #include <QMenu>
+#include <QOpenGLContext>
+#include <QOpenGLWidget>
+#include <QScreen>
+#include <QTimer>
 
 #include <Inventor/SoEventManager.h>
 #include <Inventor/actions/SoSearchAction.h>
@@ -63,12 +70,12 @@ using namespace SIM::Coin3D::Quarter;
 class QuarterWidgetP_cachecontext {
 public:
   uint32_t id;
-  SbList <const QtGLWidget *> widgetlist;
+  SbList <const QOpenGLWidget *> widgetlist;
 };
 
 static SbList <QuarterWidgetP_cachecontext *> * cachecontext_list = nullptr;
 
-QuarterWidgetP::QuarterWidgetP(QuarterWidget * masterptr, const QtGLWidget * sharewidget)
+QuarterWidgetP::QuarterWidgetP(QuarterWidget * masterptr, const QOpenGLWidget * sharewidget)
 : master(masterptr),
   scene(nullptr),
   eventfilter(nullptr),
@@ -104,11 +111,116 @@ QuarterWidgetP::QuarterWidgetP(QuarterWidget * masterptr, const QtGLWidget * sha
 
 QuarterWidgetP::~QuarterWidgetP()
 {
-  QtGLWidget* glMaster = static_cast<QtGLWidget*>(this->master->viewport());
+  // The timer is a child of the master widget and would outlive this object,
+  // so make sure it can no longer fire into the callback below.
+  delete this->redrawtimer;
+  this->redrawtimer = nullptr;
+
+  QOpenGLWidget* glMaster = static_cast<QOpenGLWidget*>(this->master->viewport());
   removeFromCacheContext(this->cachecontext, glMaster);
-  if (this->contextmenu) {
-    delete this->contextmenu;
+  delete this->contextmenu;
+}
+
+/*!
+  Returns how long to wait before the next frame may be rendered, or zero if it
+  may be rendered immediately.
+*/
+int
+QuarterWidgetP::millisecondsUntilNextFrame() const
+{
+  constexpr int fallbackframerate = 60;
+  int framerate = this->maxframerate;
+  if (framerate < 0) {
+    // Follow the screen the widget is currently shown on. Rendering faster
+    // than this produces frames the display can never show.
+    const QScreen * screen = this->master->screen();
+    const qreal refreshrate = screen ? screen->refreshRate() : 0.0;
+    // Screens seem to occasionally report a nonsensical rate? No idea. Fall back to a sane one.
+    framerate = (refreshrate >= 1.0) ? static_cast<int>(std::ceil(refreshrate)) : fallbackframerate;
   }
+
+  if (framerate <= 0 || !this->timesincelastframe.isValid()) {
+    return 0;
+  }
+
+  constexpr qint64 nanosecondsPerSecond {1000000000};
+  constexpr qint64 nanosecondsPerMillisecond {1000000};
+
+  const qint64 interval = nanosecondsPerSecond / framerate;
+  const qint64 elapsed = std::max<qint64>(0, this->timesincelastframe.nsecsElapsed());
+  if (elapsed >= interval) {
+    return 0;
+  }
+  // Round down so that the limit is never enforced more strictly than asked
+  // for, but always wait at least one millisecond to make progress.
+  return std::max(1, static_cast<int>((interval - elapsed) / nanosecondsPerMillisecond));
+}
+
+void
+QuarterWidgetP::setMaxFrameRate(int fps)
+{
+  if (this->maxframerate == fps) {
+    return;
+  }
+  this->maxframerate = fps;
+
+  // Re-evaluate an outstanding request so a relaxed limit takes effect now instead of after the
+  // previously computed delay.
+  if (this->redrawdeferred) {
+    this->redrawtimer->stop();
+    this->redrawdeferred = false;
+    this->requestRedraw();
+  }
+}
+
+/*!
+  Asks for a new frame, deferring it if the frame rate limit has not elapsed yet. A deferred request
+  is not dropped -- it gets joined with any later request that arrives while it is being deferred.
+*/
+void
+QuarterWidgetP::requestRedraw()
+{
+  const int wait = this->millisecondsUntilNextFrame();
+  if (wait == 0) {
+    this->issueRedraw();
+    return;
+  }
+
+  if (this->redrawdeferred) {
+    // A frame is already pending and will pick up the current scene state.
+    return;
+  }
+
+  if (!this->redrawtimer) {
+    this->redrawtimer = new QTimer(this->master);
+    this->redrawtimer->setSingleShot(true);
+    this->redrawtimer->setTimerType(Qt::PreciseTimer);
+    QObject::connect(this->redrawtimer, &QTimer::timeout,
+                     this->master, [this] { this->issueRedraw(); });
+  }
+
+  this->redrawdeferred = true;
+  this->redrawtimer->start(wait);
+}
+
+void
+QuarterWidgetP::issueRedraw()
+{
+  this->redrawdeferred = false;
+  this->processdelayqueue = false;
+  this->master->viewport()->update();
+}
+
+/*!
+  Drops any redraw request that the frame just rendered has already satisfied.
+*/
+void
+QuarterWidgetP::frameRendered()
+{
+  if (this->redrawtimer) {
+    this->redrawtimer->stop();
+  }
+  this->redrawdeferred = false;
 }
 
 SoCamera *
@@ -135,7 +247,7 @@ QuarterWidgetP::getCacheContextId() const
 }
 
 QuarterWidgetP_cachecontext *
-QuarterWidgetP::findCacheContext(QuarterWidget * widget, const QtGLWidget * sharewidget)
+QuarterWidgetP::findCacheContext(QuarterWidget * widget, const QOpenGLWidget * sharewidget)
 {
   if (!cachecontext_list) {
     // FIXME: static memory leak
@@ -146,36 +258,45 @@ QuarterWidgetP::findCacheContext(QuarterWidget * widget, const QtGLWidget * shar
 
     for (int j = 0; j < cachecontext->widgetlist.getLength(); j++) {
       if (cachecontext->widgetlist[j] == sharewidget) {
-        cachecontext->widgetlist.append(static_cast<const QtGLWidget*>(widget->viewport()));
+        cachecontext->widgetlist.append(static_cast<const QOpenGLWidget*>(widget->viewport()));
         return cachecontext;
       }
     }
   }
   QuarterWidgetP_cachecontext * cachecontext = new QuarterWidgetP_cachecontext;
   cachecontext->id = SoGLCacheContextElement::getUniqueCacheContext();
-  cachecontext->widgetlist.append(static_cast<const QtGLWidget*>(widget->viewport()));
+  cachecontext->widgetlist.append(static_cast<const QOpenGLWidget*>(widget->viewport()));
   cachecontext_list->append(cachecontext);
 
   return cachecontext;
 }
 
 void
-QuarterWidgetP::removeFromCacheContext(QuarterWidgetP_cachecontext * context, const QtGLWidget * widget)
+QuarterWidgetP::removeFromCacheContext(QuarterWidgetP_cachecontext * context, const QOpenGLWidget * widget)
 {
-  context->widgetlist.removeItem((const QtGLWidget*) widget);
+  context->widgetlist.removeItem((const QOpenGLWidget*) widget);
 
   if (context->widgetlist.getLength() == 0) { // last context in this share group?
     assert(cachecontext_list);
 
     for (int i = 0; i < cachecontext_list->getLength(); i++) {
       if ((*cachecontext_list)[i] == context) {
-        // set the context while calling destructingContext() (might trigger OpenGL calls)
-        const_cast<QtGLWidget*> (widget)->makeCurrent();
-        // fetch the cc_glglue context instance as a workaround for a bug fixed in Coin r12818
-        (void) cc_glglue_instance(context->id);
+        QOpenGLContext* glcontext = widget->context();
+        if (glcontext) {
+          // set the context while calling destructingContext() (might trigger OpenGL calls)
+          if (glcontext->isValid()) {
+            const_cast<QOpenGLWidget*> (widget)->makeCurrent();
+          }
+          // fetch the cc_glglue context instance as a workaround for a bug fixed in Coin r12818
+          (void) cc_glglue_instance(context->id);
+        }
         cachecontext_list->removeFast(i);
         SoContextHandler::destructingContext(context->id);
-        const_cast<QtGLWidget*> (widget)->doneCurrent();
+        if (glcontext) {
+          if (glcontext->isValid()) {
+            const_cast<QOpenGLWidget*> (widget)->doneCurrent();
+          }
+        }
         delete context;
         return;
       }
@@ -184,9 +305,9 @@ QuarterWidgetP::removeFromCacheContext(QuarterWidgetP_cachecontext * context, co
 }
 
 void
-QuarterWidgetP::replaceGLWidget(const QtGLWidget * newviewport)
+QuarterWidgetP::replaceGLWidget(const QOpenGLWidget * newviewport)
 {
-  QtGLWidget* oldviewport = static_cast<QtGLWidget*>(this->master->viewport());
+  QOpenGLWidget* oldviewport = static_cast<QOpenGLWidget*>(this->master->viewport());
   cachecontext->widgetlist.removeItem(oldviewport);
   cachecontext->widgetlist.append(newviewport);
 }

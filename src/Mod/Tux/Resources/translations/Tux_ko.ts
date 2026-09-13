@@ -4,99 +4,115 @@
   <context>
     <name>NavigationIndicator</name>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="70"/>
+      <location filename="../../NavigationIndicatorGui.py" line="90"/>
       <source>Select</source>
       <translation>선택</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="71"/>
+      <location filename="../../NavigationIndicatorGui.py" line="91"/>
       <source>Zoom</source>
       <translation>확대/축소</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="72"/>
+      <location filename="../../NavigationIndicatorGui.py" line="92"/>
       <source>Rotate</source>
       <translation>회전하기</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="73"/>
+      <location filename="../../NavigationIndicatorGui.py" line="93"/>
       <source>Pan</source>
       <translation>좌우회전</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="74"/>
+      <location filename="../../NavigationIndicatorGui.py" line="94"/>
       <source>Tilt</source>
       <translation>상하회전</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="75"/>
+      <location filename="../../NavigationIndicatorGui.py" line="95"/>
       <source>Navigation style</source>
-      <translation>탐색 스타일</translation>
+      <translation>내비게이션 스타일</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="76"/>
+      <location filename="../../NavigationIndicatorGui.py" line="96"/>
       <source>Page Up or Page Down key.</source>
       <translation>Page Up / Down 키</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="77"/>
+      <location filename="../../NavigationIndicatorGui.py" line="97"/>
       <source>Rotation focus</source>
-      <translation>회전 시점</translation>
+      <translation>회전 중심</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="78"/>
+      <location filename="../../NavigationIndicatorGui.py" line="98"/>
       <source>Middle mouse button or H key.</source>
-      <translation>마우스 가운데 버튼 또는 H 키.</translation>
+      <translation>가운데 마우스 버튼 또는 H 키.</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="80"/>
+      <location filename="../../NavigationIndicatorGui.py" line="100"/>
       <source>Middle mouse button.</source>
       <translation>마우스 가운데 버튼</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="83"/>
+      <location filename="../../NavigationIndicatorGui.py" line="103"/>
       <source>Navigation style not recognized.</source>
-      <translation>탐색 스타일이 인식되지 않습니다.</translation>
+      <translation>내비게이션 스타일이 인식되지 않습니다.</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="550"/>
+      <location filename="../../NavigationIndicatorGui.py" line="654"/>
       <source>Settings</source>
-      <translation type="unfinished">Settings</translation>
+      <translation>설정</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="551"/>
+      <location filename="../../NavigationIndicatorGui.py" line="655"/>
       <source>Orbit style</source>
-      <translation>궤도 스타일</translation>
+      <translation>회전 스타일</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="552"/>
+      <location filename="../../NavigationIndicatorGui.py" line="656"/>
       <source>Compact</source>
-      <translation>소형</translation>
+      <translation>간략</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="553"/>
+      <location filename="../../NavigationIndicatorGui.py" line="657"/>
       <source>Tooltip</source>
-      <translation>툴팁</translation>
+      <translation>도구 설명</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="554"/>
+      <location filename="../../NavigationIndicatorGui.py" line="658"/>
       <source>Turntable</source>
       <translation>턴테이블</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="555"/>
+      <location filename="../../NavigationIndicatorGui.py" line="659"/>
       <source>Free Turntable</source>
-      <translation type="unfinished">Free Turntable</translation>
+      <translation>자유 턴테이블</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="556"/>
+      <location filename="../../NavigationIndicatorGui.py" line="660"/>
       <source>Trackball</source>
       <translation>트랙볼</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="557"/>
+      <location filename="../../NavigationIndicatorGui.py" line="661"/>
+      <source>Trackball Classic</source>
+      <translation>트랙볼 클래식</translation>
+    </message>
+    <message>
+      <location filename="../../NavigationIndicatorGui.py" line="662"/>
+      <source>Rounded Arcball</source>
+      <translation>둥근 아크볼</translation>
+    </message>
+    <message>
+      <location filename="../../NavigationIndicatorGui.py" line="663"/>
       <source>Undefined</source>
-      <translation>정의되지 않음</translation>
+      <translation>미정의</translation>
+    </message>
+    <message>
+      <location filename="../../NavigationIndicatorGui.py" line="675"/>
+      <source>Navigation Styles</source>
+      <comment>A context menu action used to show or hide the &apos;Navigation indicator&apos; toolbar widget</comment>
+      <translation type="unfinished">Navigation Styles</translation>
     </message>
   </context>
 </TS>

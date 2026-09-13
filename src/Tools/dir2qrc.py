@@ -1,5 +1,6 @@
 #! python
-# -*- coding: utf-8 -*-
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # (c) 2007 Juergen Riegel GPL
 
 Usage = """dir2qrc - merging all files in a directory in a qrc file
@@ -54,7 +55,6 @@ locations = [
     ["../Mod/Assembly/Gui/Resources", "Assembly.qrc"],
     ["../Mod/Complete/Gui/Resources", "Complete.qrc"],
     ["../Mod/Draft/Resources", "Draft.qrc"],
-    ["../Mod/Drawing/Gui/Resources", "Drawing.qrc"],
     ["../Mod/Fem/Gui/Resources", "Fem.qrc"],
     ["../Mod/Image/Gui/Resources", "Image.qrc"],
     ["../Mod/Mesh/Gui/Resources", "Mesh.qrc"],

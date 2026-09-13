@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 Eivind Kvedalen <eivind@kvedalen.name>             *
  *                                                                         *
@@ -20,17 +22,15 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <algorithm>
 
 #include <boost/range/adaptor/map.hpp>
 #include <boost/range/algorithm/copy.hpp>
 #include <boost/regex.hpp>
-#endif
 
 #include <App/Document.h>
 #include <App/DocumentObject.h>
+#include <App/DocumentObserver.h>
 #include <App/Expression.h>
 #include <App/ExpressionParser.h>
 #include <App/ExpressionVisitors.h>
@@ -126,39 +126,48 @@ const Cell* PropertySheet::getValueFromAlias(const std::string& alias) const
     }
 }
 
+bool PropertySheet::isValidCellAddressName(const std::string& candidate)
+{
+    /* Check if it matches a cell reference */
+    static const boost::regex e("\\${0,1}([A-Z]{1,2})\\${0,1}([0-9]{1,5})");
+    boost::cmatch cm;
+
+    if (boost::regex_match(candidate.c_str(), cm, e)) {
+        const boost::sub_match<const char*> colstr = cm[1];
+        const boost::sub_match<const char*> rowstr = cm[2];
+
+        if (App::validRow(rowstr.str()) >= 0 && App::validColumn(colstr.str())) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool PropertySheet::isValidAlias(const std::string& candidate)
 {
+    /* Ensure it only contains allowed characters */
     static const boost::regex gen("^[A-Za-z][_A-Za-z0-9]*$");
     boost::cmatch cm;
+    if (!boost::regex_match(candidate.c_str(), cm, gen)) {
+        return false;
+    }
 
     /* Check if it is used before */
     if (getValueFromAlias(candidate)) {
         return false;
     }
 
-    /* Check to make sure it doesn't clash with a predefined unit */
-    if (ExpressionParser::isTokenAUnit(candidate)) {
+    /* Check if it would be a valid cell address name, e.g. "A2" or "C3" */
+    if (isValidCellAddressName(candidate)) {
         return false;
     }
 
-    /* Check to make sure it doesn't match a cell reference */
-    if (boost::regex_match(candidate.c_str(), cm, gen)) {
-        static const boost::regex e("\\${0,1}([A-Z]{1,2})\\${0,1}([0-9]{1,5})");
-
-        if (boost::regex_match(candidate.c_str(), cm, e)) {
-            const boost::sub_match<const char*> colstr = cm[1];
-            const boost::sub_match<const char*> rowstr = cm[2];
-
-            // A valid cell address?
-            if (App::validRow(rowstr.str()) >= 0 && App::validColumn(colstr.str())) {
-                return false;
-            }
-        }
-        return true;
-    }
-    else {
+    /* Check to make sure it doesn't clash with a reserved name */
+    if (ExpressionParser::isTokenAUnit(candidate) || ExpressionParser::isTokenAConstant(candidate)) {
         return false;
     }
+
+    return true;
 }
 
 namespace
@@ -331,8 +340,10 @@ void PropertySheet::Paste(const Property& from)
             *cell = *(ifrom->second);  // Exists; assign cell directly
         }
         else {
-            cell = new Cell(this,
-                            *(ifrom->second));  // Doesn't exist, copy using Cell's copy constructor
+            cell = new Cell(
+                this,
+                *(ifrom->second)
+            );  // Doesn't exist, copy using Cell's copy constructor
             if (cell->getSpans(rows, cols)) {
                 spanChanges.push_back(ifrom->first);
             }
@@ -367,7 +378,7 @@ void PropertySheet::Paste(const Property& from)
 
     if (!spanChanges.empty()) {
         mergedCells = froms.mergedCells;
-        if (auto sheet = Base::freecad_dynamic_cast<Sheet>(getContainer())) {
+        if (auto sheet = freecad_cast<Sheet*>(getContainer())) {
             for (const auto& addr : spanChanges) {
                 sheet->cellSpanChanged(addr);
             }
@@ -412,17 +423,18 @@ void PropertySheet::Restore(Base::XMLReader& reader)
     AtomicPropertyChange signaller(*this);
 
     reader.readElement("Cells");
-    Cnt = reader.getAttributeAsInteger("Count");
+    Cnt = reader.getAttribute<long>("Count");
 
-    if (reader.hasAttribute("xlink") && reader.getAttributeAsInteger("xlink")) {
+    if (reader.hasAttribute("xlink") && reader.getAttribute<bool>("xlink")) {
         PropertyExpressionContainer::Restore(reader);
     }
 
     for (int i = 0; i < Cnt; i++) {
         reader.readElement("Cell");
 
-        const char* strAddress =
-            reader.hasAttribute("address") ? reader.getAttribute("address") : "";
+        const char* strAddress = reader.hasAttribute("address")
+            ? reader.getAttribute<const char*>("address")
+            : "";
 
         try {
             CellAddress address(strAddress);
@@ -432,8 +444,7 @@ void PropertySheet::Restore(Base::XMLReader& reader)
 
             int rows, cols;
             if (cell->getSpans(rows, cols) && (rows > 1 || cols > 1)) {
-                mergeCells(address,
-                           CellAddress(address.row() + rows - 1, address.col() + cols - 1));
+                mergeCells(address, CellAddress(address.row() + rows - 1, address.col() + cols - 1));
             }
         }
         catch (const Base::Exception&) {
@@ -479,7 +490,7 @@ void PropertySheet::copyCells(Base::Writer& writer, const std::vector<Range>& ra
 void PropertySheet::pasteCells(XMLReader& reader, Range dstRange)
 {
     reader.readElement("Cells");
-    int rangeCount = reader.getAttributeAsInteger("count");
+    int rangeCount = reader.getAttribute<long>("count");
     if (rangeCount <= 0) {
         return;
     }
@@ -493,9 +504,9 @@ void PropertySheet::pasteCells(XMLReader& reader, Range dstRange)
     AtomicPropertyChange signaller(*this);
     for (int ri = 0; ri < rangeCount; ++ri) {
         reader.readElement("Range");
-        CellAddress from(reader.getAttribute("from"));
-        CellAddress to(reader.getAttribute("to"));
-        int cellCount = reader.getAttributeAsInteger("count");
+        CellAddress from(reader.getAttribute<const char*>("from"));
+        CellAddress to(reader.getAttribute<const char*>("to"));
+        int cellCount = reader.getAttribute<long>("count");
 
         Range range(from, to);
 
@@ -522,7 +533,7 @@ void PropertySheet::pasteCells(XMLReader& reader, Range dstRange)
         }
         for (int ci = 0; ci < cellCount; ++ci) {
             reader.readElement("Cell");
-            CellAddress src(reader.getAttribute("address"));
+            CellAddress src(reader.getAttribute<const char*>("address"));
 
             if (ci) {
                 range.next();
@@ -531,8 +542,10 @@ void PropertySheet::pasteCells(XMLReader& reader, Range dstRange)
             while (src != *range) {
                 for (int r = 0; r < rcount; ++r) {
                     for (int c = 0; c < ccount; ++c) {
-                        CellAddress dst(range.row() + roffset + r * range.rowCount(),
-                                        range.column() + coffset + c * range.colCount());
+                        CellAddress dst(
+                            range.row() + roffset + r * range.rowCount(),
+                            range.column() + coffset + c * range.colCount()
+                        );
                         if (!dst.isValid()) {
                             continue;
                         }
@@ -545,8 +558,10 @@ void PropertySheet::pasteCells(XMLReader& reader, Range dstRange)
             CellAddress newCellAddr;
             for (int r = 0; r < rcount; ++r) {
                 for (int c = 0; c < ccount; ++c) {
-                    CellAddress dst(src.row() + roffset + r * range.rowCount(),
-                                    src.col() + coffset + c * range.colCount());
+                    CellAddress dst(
+                        src.row() + roffset + r * range.rowCount(),
+                        src.col() + coffset + c * range.colCount()
+                    );
                     if (!dst.isValid()) {
                         continue;
                     }
@@ -567,10 +582,11 @@ void PropertySheet::pasteCells(XMLReader& reader, Range dstRange)
                         auto newCell = owner->getCell(newCellAddr);
                         const Expression* expr;
                         if (!newCell || !(expr = newCell->getExpression(true))) {
-                            FC_THROWM(Base::RuntimeError,
-                                      "Failed to copy cell " << getFullName() << '.'
-                                                             << dst.toString() << " from "
-                                                             << newCellAddr.toString());
+                            FC_THROWM(
+                                Base::RuntimeError,
+                                "Failed to copy cell " << getFullName() << '.' << dst.toString()
+                                                       << " from " << newCellAddr.toString()
+                            );
                         }
                         cell->setExpression(ExpressionPtr(expr->copy()));
                     }
@@ -584,9 +600,11 @@ void PropertySheet::pasteCells(XMLReader& reader, Range dstRange)
                     }
 
                     if (roffset_cur || coffset_cur) {
-                        OffsetCellsExpressionVisitor<PropertySheet> visitor(*this,
-                                                                            roffset_cur,
-                                                                            coffset_cur);
+                        OffsetCellsExpressionVisitor<PropertySheet> visitor(
+                            *this,
+                            roffset_cur,
+                            coffset_cur
+                        );
                         cell->visit(visitor);
                         if (visitor.changed()) {
                             recomputeDependencies(dst);
@@ -600,8 +618,10 @@ void PropertySheet::pasteCells(XMLReader& reader, Range dstRange)
             do {
                 for (int r = 0; r < rcount; ++r) {
                     for (int c = 0; c < ccount; ++c) {
-                        CellAddress dst(range.row() + roffset + r * range.rowCount(),
-                                        range.column() + coffset + c * range.colCount());
+                        CellAddress dst(
+                            range.row() + roffset + r * range.rowCount(),
+                            range.column() + coffset + c * range.colCount()
+                        );
                         if (!dst.isValid()) {
                             continue;
                         }
@@ -702,6 +722,21 @@ void PropertySheet::setAlignment(CellAddress address, int _alignment)
     cell->setAlignment(_alignment);
 }
 
+void PropertySheet::setAlignment(Range range, int _alignment)
+{
+    PropertySheet::AtomicPropertyChange signaller(*this);
+    do {
+        CellAddress address = *range;
+        if (Cell* cell = nonNullCellAt(address)) {
+            if (cell->address == address) {
+                cell->_setAlignment(_alignment);
+            }
+        }
+    } while (range.next());
+
+    signaller.tryInvoke();
+}
+
 void PropertySheet::setStyle(CellAddress address, const std::set<std::string>& _style)
 {
     Cell* cell = nonNullCellAt(address);
@@ -709,18 +744,68 @@ void PropertySheet::setStyle(CellAddress address, const std::set<std::string>& _
     cell->setStyle(_style);
 }
 
-void PropertySheet::setForeground(CellAddress address, const App::Color& color)
+void PropertySheet::setStyle(Range range, const std::set<std::string>& _style)
+{
+    PropertySheet::AtomicPropertyChange signaller(*this);
+    do {
+        if (Cell* cell = nonNullCellAt(*range)) {
+            cell->_setStyle(_style);
+        }
+    } while (range.next());
+
+    signaller.tryInvoke();
+}
+
+void PropertySheet::setForeground(CellAddress address, const Base::Color& color)
 {
     Cell* cell = nonNullCellAt(address);
     assert(cell);
     cell->setForeground(color);
 }
 
-void PropertySheet::setBackground(CellAddress address, const App::Color& color)
+void PropertySheet::setForeground(Range range, const Base::Color& color)
+{
+    PropertySheet::AtomicPropertyChange signaller(*this);
+    do {
+        if (Cell* cell = nonNullCellAt(*range)) {
+            cell->_setForeground(color);
+        }
+    } while (range.next());
+
+    signaller.tryInvoke();
+}
+
+void PropertySheet::clearForeground(CellAddress address)
+{
+    Cell* cell = nonNullCellAt(address);
+    assert(cell);
+    cell->clearForeground();
+}
+
+void PropertySheet::setBackground(CellAddress address, const Base::Color& color)
 {
     Cell* cell = nonNullCellAt(address);
     assert(cell);
     cell->setBackground(color);
+}
+
+void PropertySheet::setBackground(Range range, const Base::Color& color)
+{
+    PropertySheet::AtomicPropertyChange signaller(*this);
+    do {
+        if (Cell* cell = nonNullCellAt(*range)) {
+            cell->_setBackground(color);
+        }
+    } while (range.next());
+
+    signaller.tryInvoke();
+}
+
+void PropertySheet::clearBackground(CellAddress address)
+{
+    Cell* cell = nonNullCellAt(address);
+    assert(cell);
+    cell->clearBackground();
 }
 
 void PropertySheet::setDisplayUnit(CellAddress address, const std::string& unit)
@@ -728,6 +813,18 @@ void PropertySheet::setDisplayUnit(CellAddress address, const std::string& unit)
     Cell* cell = nonNullCellAt(address);
     assert(cell);
     cell->setDisplayUnit(unit);
+}
+
+void PropertySheet::setDisplayUnit(Range range, const std::string& unit)
+{
+    PropertySheet::AtomicPropertyChange signaller(*this);
+    do {
+        if (Cell* cell = nonNullCellAt(*range)) {
+            cell->_setDisplayUnit(unit);
+        }
+    } while (range.next());
+
+    signaller.tryInvoke();
 }
 
 
@@ -755,8 +852,9 @@ void PropertySheet::setAlias(CellAddress address, const std::string& alias)
      * disappears */
     std::string fullName = owner->getFullName() + "." + address.toString();
 
-    std::map<std::string, std::set<CellAddress>>::const_iterator j =
-        propertyNameToCellMap.find(fullName);
+    std::map<std::string, std::set<CellAddress>>::const_iterator j = propertyNameToCellMap.find(
+        fullName
+    );
     if (j != propertyNameToCellMap.end()) {
         std::set<CellAddress>::const_iterator k = j->second.begin();
 
@@ -776,7 +874,7 @@ void PropertySheet::setAlias(CellAddress address, const std::string& alias)
         App::ObjectIdentifier key(owner, oldAlias);
         App::ObjectIdentifier value(owner, alias.empty() ? address.toString() : alias);
 
-        m[key] = value;
+        m[key] = std::move(value);
 
         owner->getDocument()->renameObjectIdentifiers(m);
     }
@@ -789,6 +887,18 @@ void PropertySheet::setComputedUnit(CellAddress address, const Base::Unit& unit)
     Cell* cell = nonNullCellAt(address);
     assert(cell);
     cell->setComputedUnit(unit);
+}
+
+void PropertySheet::setComputedUnit(Range range, const Base::Unit& unit)
+{
+    PropertySheet::AtomicPropertyChange signaller(*this);
+    do {
+        if (Cell* cell = nonNullCellAt(*range)) {
+            cell->_setComputedUnit(unit);
+        }
+    } while (range.next());
+
+    signaller.tryInvoke();
 }
 
 void PropertySheet::setSpans(CellAddress address, int rows, int columns)
@@ -848,9 +958,11 @@ void PropertySheet::moveAlias(CellAddress currPos, CellAddress newPos)
     }
 }
 
-void PropertySheet::moveCell(CellAddress currPos,
-                             CellAddress newPos,
-                             std::map<App::ObjectIdentifier, App::ObjectIdentifier>& renames)
+void PropertySheet::moveCell(
+    CellAddress currPos,
+    CellAddress newPos,
+    std::map<App::ObjectIdentifier, App::ObjectIdentifier>& renames
+)
 {
     std::map<CellAddress, Cell*>::const_iterator i = data.find(currPos);
     std::map<CellAddress, Cell*>::const_iterator j = data.find(newPos);
@@ -890,8 +1002,8 @@ void PropertySheet::moveCell(CellAddress currPos,
 
         setDirty(newPos);
 
-        renames[ObjectIdentifier(owner, currPos.toString())] =
-            ObjectIdentifier(owner, newPos.toString());
+        renames[ObjectIdentifier(owner, currPos.toString())]
+            = ObjectIdentifier(owner, newPos.toString());
     }
     signaller.tryInvoke();
 }
@@ -905,27 +1017,21 @@ void PropertySheet::insertRows(int row, int count)
     boost::copy(data | boost::adaptors::map_keys, std::back_inserter(keys));
 
     /* Sort them */
-    std::sort(keys.begin(),
-              keys.end(),
-              std::bind(&PropertySheet::rowSortFunc, this, sp::_1, sp::_2));  // NOLINT
+    std::sort(keys.begin(), keys.end(), std::bind(&PropertySheet::rowSortFunc, this, sp::_1, sp::_2));  // NOLINT
 
-    MoveCellsExpressionVisitor<PropertySheet> visitor(*this,
-                                                      CellAddress(row, CellAddress::MAX_COLUMNS),
-                                                      count,
-                                                      0);
+    MoveCellsExpressionVisitor<PropertySheet>
+        visitor(*this, CellAddress(row, CellAddress::MAX_COLUMNS), count, 0);
 
     AtomicPropertyChange signaller(*this);
 
     // move all the aliases first so dependencies can be calculated correctly
-    for (std::vector<CellAddress>::const_reverse_iterator i = keys.rbegin(); i != keys.rend();
-         ++i) {
+    for (std::vector<CellAddress>::const_reverse_iterator i = keys.rbegin(); i != keys.rend(); ++i) {
         if (i->row() >= row) {
             moveAlias(*i, CellAddress(i->row() + count, i->col()));
         }
     }
 
-    for (std::vector<CellAddress>::const_reverse_iterator i = keys.rbegin(); i != keys.rend();
-         ++i) {
+    for (std::vector<CellAddress>::const_reverse_iterator i = keys.rbegin(); i != keys.rend(); ++i) {
         std::map<CellAddress, Cell*>::iterator j = data.find(*i);
 
         assert(j != data.end());
@@ -946,10 +1052,9 @@ void PropertySheet::insertRows(int row, int count)
     }
 
     const App::DocumentObject* docObj = static_cast<const App::DocumentObject*>(getContainer());
-    owner->getDocument()->renameObjectIdentifiers(renames,
-                                                  [docObj](const App::DocumentObject* obj) {
-                                                      return obj != docObj;
-                                                  });
+    owner->getDocument()->renameObjectIdentifiers(renames, [docObj](const App::DocumentObject* obj) {
+        return obj != docObj;
+    });
     signaller.tryInvoke();
 }
 
@@ -990,15 +1095,10 @@ void PropertySheet::removeRows(int row, int count)
     boost::copy(data | boost::adaptors::map_keys, std::back_inserter(keys));
 
     /* Sort them */
-    std::sort(keys.begin(),
-              keys.end(),
-              std::bind(&PropertySheet::rowSortFunc, this, sp::_1, sp::_2));
+    std::sort(keys.begin(), keys.end(), std::bind(&PropertySheet::rowSortFunc, this, sp::_1, sp::_2));
 
-    MoveCellsExpressionVisitor<PropertySheet> visitor(
-        *this,
-        CellAddress(row + count - 1, CellAddress::MAX_COLUMNS),
-        -count,
-        0);
+    MoveCellsExpressionVisitor<PropertySheet>
+        visitor(*this, CellAddress(row + count - 1, CellAddress::MAX_COLUMNS), -count, 0);
 
     AtomicPropertyChange signaller(*this);
 
@@ -1041,16 +1141,17 @@ void PropertySheet::removeRows(int row, int count)
             else {
                 spanRows = key.row() - row;
             }
-            mergeCells(j->first,
-                       CellAddress(j->first.row() + spanRows - 1, j->first.col() + spanCols - 1));
+            mergeCells(
+                j->first,
+                CellAddress(j->first.row() + spanRows - 1, j->first.col() + spanCols - 1)
+            );
         }
     }
 
     const App::DocumentObject* docObj = static_cast<const App::DocumentObject*>(getContainer());
-    owner->getDocument()->renameObjectIdentifiers(renames,
-                                                  [docObj](const App::DocumentObject* obj) {
-                                                      return obj != docObj;
-                                                  });
+    owner->getDocument()->renameObjectIdentifiers(renames, [docObj](const App::DocumentObject* obj) {
+        return obj != docObj;
+    });
     signaller.tryInvoke();
 }
 
@@ -1065,23 +1166,19 @@ void PropertySheet::insertColumns(int col, int count)
     /* Sort them */
     std::sort(keys.begin(), keys.end());
 
-    MoveCellsExpressionVisitor<PropertySheet> visitor(*this,
-                                                      CellAddress(CellAddress::MAX_ROWS, col),
-                                                      0,
-                                                      count);
+    MoveCellsExpressionVisitor<PropertySheet>
+        visitor(*this, CellAddress(CellAddress::MAX_ROWS, col), 0, count);
 
     AtomicPropertyChange signaller(*this);
 
     // move all the aliases first so dependencies can be calculated correctly
-    for (std::vector<CellAddress>::const_reverse_iterator i = keys.rbegin(); i != keys.rend();
-         ++i) {
+    for (std::vector<CellAddress>::const_reverse_iterator i = keys.rbegin(); i != keys.rend(); ++i) {
         if (i->col() >= col) {
             moveAlias(*i, CellAddress(i->row(), i->col() + count));
         }
     }
 
-    for (std::vector<CellAddress>::const_reverse_iterator i = keys.rbegin(); i != keys.rend();
-         ++i) {
+    for (std::vector<CellAddress>::const_reverse_iterator i = keys.rbegin(); i != keys.rend(); ++i) {
         std::map<CellAddress, Cell*>::iterator j = data.find(*i);
 
         assert(j != data.end());
@@ -1102,10 +1199,9 @@ void PropertySheet::insertColumns(int col, int count)
     }
 
     const App::DocumentObject* docObj = static_cast<const App::DocumentObject*>(getContainer());
-    owner->getDocument()->renameObjectIdentifiers(renames,
-                                                  [docObj](const App::DocumentObject* obj) {
-                                                      return obj != docObj;
-                                                  });
+    owner->getDocument()->renameObjectIdentifiers(renames, [docObj](const App::DocumentObject* obj) {
+        return obj != docObj;
+    });
     signaller.tryInvoke();
 }
 
@@ -1146,15 +1242,10 @@ void PropertySheet::removeColumns(int col, int count)
     boost::copy(data | boost::adaptors::map_keys, std::back_inserter(keys));
 
     /* Sort them */
-    std::sort(keys.begin(),
-              keys.end(),
-              std::bind(&PropertySheet::colSortFunc, this, sp::_1, sp::_2));  // NOLINT
+    std::sort(keys.begin(), keys.end(), std::bind(&PropertySheet::colSortFunc, this, sp::_1, sp::_2));  // NOLINT
 
-    MoveCellsExpressionVisitor<PropertySheet> visitor(
-        *this,
-        CellAddress(CellAddress::MAX_ROWS, col + count - 1),
-        0,
-        -count);
+    MoveCellsExpressionVisitor<PropertySheet>
+        visitor(*this, CellAddress(CellAddress::MAX_ROWS, col + count - 1), 0, -count);
 
     AtomicPropertyChange signaller(*this);
 
@@ -1197,16 +1288,17 @@ void PropertySheet::removeColumns(int col, int count)
             else {
                 spanCols = key.col() - col;
             }
-            mergeCells(j->first,
-                       CellAddress(j->first.row() + spanRows - 1, j->first.col() + spanCols - 1));
+            mergeCells(
+                j->first,
+                CellAddress(j->first.row() + spanRows - 1, j->first.col() + spanCols - 1)
+            );
         }
     }
 
     const App::DocumentObject* docObj = static_cast<const App::DocumentObject*>(getContainer());
-    owner->getDocument()->renameObjectIdentifiers(renames,
-                                                  [docObj](const App::DocumentObject* obj) {
-                                                      return obj != docObj;
-                                                  });
+    owner->getDocument()->renameObjectIdentifiers(renames, [docObj](const App::DocumentObject* obj) {
+        return obj != docObj;
+    });
     signaller.tryInvoke();
 }
 
@@ -1357,36 +1449,50 @@ void PropertySheet::addDependencies(CellAddress key)
     for (auto& var : expression->getIdentifiers()) {
         for (auto& dep : var.first.getDep(true)) {
             App::DocumentObject* docObj = dep.first;
-            App::Document* doc = docObj->getDocument();
 
             std::string docObjName = docObj->getFullName();
-
-            owner->observeDocument(doc);
 
             documentObjectToCellMap[docObjName].insert(key);
             cellToDocumentObjectMap[key].insert(docObjName);
             ++updateCount;
 
             for (auto& name : dep.second) {
-                std::string propName = docObjName + "." + name;
-                FC_LOG("dep " << key.toString() << " -> " << name);
+                std::string propName = name;
+
+                // Fixes #7645: Absolute cells in a spreadsheet are not updated
+                //
+                // Check if the property name is a cell address. If yes then get a clean name
+                // without the characters of absolute addresses because they are invalid for a
+                // correct property name.
+                // This is needed in getDeps() where a clean name is passed to find the referenced
+                // cell addresses and to setup the correct execution order in the sheet's execute
+                // method. If the execution order is arbitrary it can happen that a cell references
+                // a not yet processed cell. This leads to a failing resolution of the property of
+                // the object identifier because the property hasn't been added to the object yet
+                // and results into a failed processing of the cell.
+                App::CellAddress addr = stringToAddress(propName.c_str(), true);
+                if (addr.isValid()) {
+                    propName = addr.toString(App::CellAddress::Cell::ShowRowColumn);
+                }
+                std::string fullName = docObjName + "." + propName;
+                FC_LOG("dep " << key.toString() << " -> " << propName);
 
                 // Insert into maps
-                propertyNameToCellMap[propName].insert(key);
-                cellToPropertyNameMap[key].insert(propName);
+                propertyNameToCellMap[fullName].insert(key);
+                cellToPropertyNameMap[key].insert(fullName);
 
                 // Also an alias?
-                if (!name.empty() && docObj->isDerivedFrom(Sheet::getClassTypeId())) {
+                if (!propName.empty() && docObj->isDerivedFrom<Sheet>()) {
                     auto other = static_cast<Sheet*>(docObj);
-                    auto j = other->cells.revAliasProp.find(name);
+                    auto j = other->cells.revAliasProp.find(propName);
 
                     if (j != other->cells.revAliasProp.end()) {
-                        propName = docObjName + "." + j->second.toString();
-                        FC_LOG("dep " << key.toString() << " -> " << propName);
+                        fullName = docObjName + "." + j->second.toString();
+                        FC_LOG("dep " << key.toString() << " -> " << fullName);
 
                         // Insert into maps
-                        propertyNameToCellMap[propName].insert(key);
-                        cellToPropertyNameMap[key].insert(propName);
+                        propertyNameToCellMap[fullName].insert(key);
+                        cellToPropertyNameMap[key].insert(std::move(fullName));
                     }
                 }
             }
@@ -1412,8 +1518,7 @@ void PropertySheet::removeDependencies(CellAddress key)
         std::set<std::string>::const_iterator j = i1->second.begin();
 
         while (j != i1->second.end()) {
-            std::map<std::string, std::set<CellAddress>>::iterator k =
-                propertyNameToCellMap.find(*j);
+            std::map<std::string, std::set<CellAddress>>::iterator k = propertyNameToCellMap.find(*j);
 
             // assert(k != propertyNameToCellMap.end());
             if (k != propertyNameToCellMap.end()) {
@@ -1433,10 +1538,8 @@ void PropertySheet::removeDependencies(CellAddress key)
         std::set<std::string>::const_iterator j = i2->second.begin();
 
         while (j != i2->second.end()) {
-            std::map<std::string, std::set<CellAddress>>::iterator k =
-                documentObjectToCellMap.find(*j);
+            std::map<std::string, std::set<CellAddress>>::iterator k = documentObjectToCellMap.find(*j);
 
-            // assert(k != documentObjectToCellMap.end());
             if (k != documentObjectToCellMap.end()) {
                 k->second.erase(key);
 
@@ -1465,7 +1568,7 @@ void PropertySheet::recomputeDependants(const App::DocumentObject* owner, const 
         // Check for hidden reference. Because a hidden reference is not
         // protected by cyclic dependency checking, we need to take special
         // care to prevent it from misbehave.
-        Sheet* sheet = Base::freecad_dynamic_cast<Sheet>(getContainer());
+        Sheet* sheet = freecad_cast<Sheet*>(getContainer());
         if (!sheet || sheet->testStatus(App::ObjectStatus::Recompute2) || !owner
             || owner->testStatus(App::ObjectStatus::Recompute2)) {
             return;
@@ -1552,7 +1655,8 @@ void PropertySheet::onAddDep(App::DocumentObject* obj)
 {
     // NOLINTBEGIN
     depConnections[obj] = obj->signalChanged.connect(
-        std::bind(&PropertySheet::slotChangedObject, this, sp::_1, sp::_2));
+        std::bind(&PropertySheet::slotChangedObject, this, sp::_1, sp::_2)
+    );
     // NOLINTEND
 }
 
@@ -1561,29 +1665,6 @@ void PropertySheet::onRemoveDep(App::DocumentObject* obj)
     depConnections.erase(obj);
 }
 
-void PropertySheet::renamedDocumentObject(const App::DocumentObject* docObj)
-{
-#if 1
-    (void)docObj;
-#else
-    if (documentObjectName.find(docObj) == documentObjectName.end()) {
-        return;
-    }
-
-    std::map<CellAddress, Cell*>::iterator i = data.begin();
-
-    while (i != data.end()) {
-        RelabelDocumentObjectExpressionVisitor<PropertySheet> v(*this, docObj);
-        i->second->visit(v);
-        if (v.changed()) {
-            v.reset();
-            recomputeDependencies(i->first);
-            setDirty(i->first);
-        }
-        ++i;
-    }
-#endif
-}
 
 void PropertySheet::onRelabeledDocument(const App::Document& doc)
 {
@@ -1593,8 +1674,31 @@ void PropertySheet::onRelabeledDocument(const App::Document& doc)
     }
 }
 
+void PropertySheet::onRenameDynamicProperty(const App::Property& prop, const char* oldName)
+{
+    ObjectIdentifier oldNameId = ObjectIdentifier(prop.getContainer(), std::string(oldName));
+    ObjectIdentifier newNameId = ObjectIdentifier(prop);
+    const std::map<ObjectIdentifier, ObjectIdentifier> paths = {
+        {oldNameId, newNameId},
+    };
+
+    renameObjectIdentifiers(paths);
+}
+
+void PropertySheet::onMoveDynamicProperty(const App::Property& prop, const App::DocumentObject& targetObj)
+{
+    ObjectIdentifier oldNameId = ObjectIdentifier(prop);
+    ObjectIdentifier newNameId = ObjectIdentifier(&targetObj, std::string(prop.getName()));
+    const std::map<ObjectIdentifier, ObjectIdentifier> paths = {
+        {oldNameId, newNameId},
+    };
+
+    renameObjectIdentifiers(paths);
+}
+
 void PropertySheet::renameObjectIdentifiers(
-    const std::map<App::ObjectIdentifier, App::ObjectIdentifier>& paths)
+    const std::map<App::ObjectIdentifier, App::ObjectIdentifier>& paths
+)
 {
     RenameObjectIdentifierExpressionVisitor<PropertySheet> v {*this, paths, *this};
     for (auto& c : data) {
@@ -1632,8 +1736,7 @@ void PropertySheet::documentSet()
 const std::set<CellAddress>& PropertySheet::getDeps(const std::string& name) const
 {
     static std::set<CellAddress> empty;
-    std::map<std::string, std::set<CellAddress>>::const_iterator i =
-        propertyNameToCellMap.find(name);
+    std::map<std::string, std::set<CellAddress>>::const_iterator i = propertyNameToCellMap.find(name);
 
     if (i != propertyNameToCellMap.end()) {
         return i->second;
@@ -1646,8 +1749,7 @@ const std::set<CellAddress>& PropertySheet::getDeps(const std::string& name) con
 const std::set<std::string>& PropertySheet::getDeps(CellAddress pos) const
 {
     static std::set<std::string> empty;
-    std::map<CellAddress, std::set<std::string>>::const_iterator i =
-        cellToPropertyNameMap.find(pos);
+    std::map<CellAddress, std::set<std::string>>::const_iterator i = cellToPropertyNameMap.find(pos);
 
     if (i != cellToPropertyNameMap.end()) {
         return i->second;
@@ -1860,8 +1962,7 @@ bool PropertySheet::referenceChanged() const
     return false;
 }
 
-Property*
-PropertySheet::CopyOnImportExternal(const std::map<std::string, std::string>& nameMap) const
+Property* PropertySheet::CopyOnImportExternal(const std::map<std::string, std::string>& nameMap) const
 {
     std::map<CellAddress, std::unique_ptr<Expression>> changed;
     for (auto& d : data) {
@@ -1885,9 +1986,11 @@ PropertySheet::CopyOnImportExternal(const std::map<std::string, std::string>& na
     return copy.release();
 }
 
-Property* PropertySheet::CopyOnLabelChange(App::DocumentObject* obj,
-                                           const std::string& ref,
-                                           const char* newLabel) const
+Property* PropertySheet::CopyOnLabelChange(
+    App::DocumentObject* obj,
+    const std::string& ref,
+    const char* newLabel
+) const
 {
     std::map<CellAddress, std::unique_ptr<Expression>> changed;
     for (auto& d : data) {
@@ -1911,9 +2014,11 @@ Property* PropertySheet::CopyOnLabelChange(App::DocumentObject* obj,
     return copy.release();
 }
 
-Property* PropertySheet::CopyOnLinkReplace(const App::DocumentObject* parent,
-                                           App::DocumentObject* oldObj,
-                                           App::DocumentObject* newObj) const
+Property* PropertySheet::CopyOnLinkReplace(
+    const App::DocumentObject* parent,
+    App::DocumentObject* oldObj,
+    App::DocumentObject* newObj
+) const
 {
     std::map<CellAddress, std::unique_ptr<Expression>> changed;
     for (auto& d : data) {
@@ -2036,10 +2141,12 @@ App::Range PropertySheet::getRange(const char* range, bool silent) const
     return App::Range(from, to);
 }
 
-bool PropertySheet::isBindingPath(const ObjectIdentifier& path,
-                                  CellAddress* from,
-                                  CellAddress* to,
-                                  bool* href) const
+bool PropertySheet::isBindingPath(
+    const ObjectIdentifier& path,
+    CellAddress* from,
+    CellAddress* to,
+    bool* href
+) const
 {
     const auto& comps = path.getComponents();
     if (comps.size() != 4 || !comps[2].isSimple() || !comps[3].isSimple()
@@ -2060,10 +2167,12 @@ bool PropertySheet::isBindingPath(const ObjectIdentifier& path,
     return true;
 }
 
-PropertySheet::BindingType PropertySheet::getBinding(const Range& range,
-                                                     ExpressionPtr* pStart,
-                                                     ExpressionPtr* pEnd,
-                                                     App::ObjectIdentifier* pTarget) const
+PropertySheet::BindingType PropertySheet::getBinding(
+    const Range& range,
+    ExpressionPtr* pStart,
+    ExpressionPtr* pEnd,
+    App::ObjectIdentifier* pTarget
+) const
 {
     if (!owner) {
         return BindingNone;
@@ -2075,14 +2184,13 @@ PropertySheet::BindingType PropertySheet::getBinding(const Range& range,
         path << ObjectIdentifier::SimpleComponent(range.from().toString().c_str());
         path << ObjectIdentifier::SimpleComponent(range.to().toString().c_str());
         auto res = owner->getExpression(path);
-        if (res.expression && res.expression->isDerivedFrom(FunctionExpression::getClassTypeId())) {
+        if (res.expression && res.expression->isDerivedFrom<FunctionExpression>()) {
             auto expr = static_cast<FunctionExpression*>(res.expression.get());
             if (href) {
                 if ((expr->getFunction() != FunctionExpression::HIDDENREF
                      && expr->getFunction() != FunctionExpression::HREF)
                     || expr->getArgs().size() != 1
-                    || !expr->getArgs().front()->isDerivedFrom(
-                        FunctionExpression::getClassTypeId())) {
+                    || !expr->getArgs().front()->isDerivedFrom(FunctionExpression::getClassTypeId())) {
                     continue;
                 }
                 expr = static_cast<FunctionExpression*>(expr->getArgs().front());
@@ -2090,16 +2198,15 @@ PropertySheet::BindingType PropertySheet::getBinding(const Range& range,
 
             if (expr->getFunction() == FunctionExpression::TUPLE && expr->getArgs().size() == 3) {
                 if (pTarget) {
-                    if (auto e =
-                            Base::freecad_dynamic_cast<VariableExpression>(expr->getArgs()[0])) {
+                    if (auto e = freecad_cast<VariableExpression*>(expr->getArgs()[0])) {
                         *pTarget = e->getPath();
                     }
                 }
                 if (pStart) {
-                    pStart->reset(expr->getArgs()[1]->copy());
+                    *pStart = expr->getArgs()[1]->copy();
                 }
                 if (pEnd) {
-                    pEnd->reset(expr->getArgs()[2]->copy());
+                    *pEnd = expr->getArgs()[2]->copy();
                 }
                 return href ? BindingHiddenRef : BindingNormal;
             }
@@ -2117,8 +2224,10 @@ void PropertySheet::setPathValue(const ObjectIdentifier& path, const boost::any&
     bool href = false;
     CellAddress from, to;
     if (!isBindingPath(path, &from, &to, &href)) {
-        FC_THROWM(Base::IndexError,
-                  "Invalid binding of '" << path.toString() << "' in " << getFullName());
+        FC_THROWM(
+            Base::IndexError,
+            "Invalid binding of '" << path.toString() << "' in " << getFullName()
+        );
     }
 
     Base::PyGILStateLocker lock;
@@ -2130,19 +2239,19 @@ void PropertySheet::setPathValue(const ObjectIdentifier& path, const boost::any&
             && Py::Object(seq[1].ptr()).isString() && Py::Object(seq[2].ptr()).isString()) {
             AtomicPropertyChange signaller(*this, false);
             auto other = static_cast<PropertySheetPy*>(seq[0].ptr())->getPropertySheetPtr();
-            auto otherOwner =
-                Base::freecad_dynamic_cast<App::DocumentObject>(other->getContainer());
+            auto otherOwner = freecad_cast<App::DocumentObject*>(other->getContainer());
             if (!otherOwner) {
-                FC_THROWM(Base::RuntimeError,
-                          "Invalid binding of '" << other->getFullName() << " in "
-                                                 << getFullName());
+                FC_THROWM(
+                    Base::RuntimeError,
+                    "Invalid binding of '" << other->getFullName() << " in " << getFullName()
+                );
             }
 
-            App::CellAddress targetFrom =
-                other->getCellAddress(Py::Object(seq[1].ptr()).as_string().c_str(), false);
+            App::CellAddress targetFrom
+                = other->getCellAddress(Py::Object(seq[1].ptr()).as_string().c_str(), false);
 
-            App::CellAddress targetTo =
-                other->getCellAddress(Py::Object(seq[2].ptr()).as_string().c_str(), false);
+            App::CellAddress targetTo
+                = other->getCellAddress(Py::Object(seq[2].ptr()).as_string().c_str(), false);
 
             std::string expr(href ? "hiddenref(" : "");
             if (other != this) {
@@ -2193,14 +2302,18 @@ void PropertySheet::setPathValue(const ObjectIdentifier& path, const boost::any&
                     targetFrom.setRow(targetFrom.row() + rowCount);
                 }
 
-                range = App::Range(range.from().row(),
-                                   range.from().col(),
-                                   range.from().row() + rowCount - 1,
-                                   range.from().col() + colCount - 1);
-                rangeTarget = App::Range(rangeTarget.from().row(),
-                                         rangeTarget.from().col(),
-                                         rangeTarget.from().row() + rowCount - 1,
-                                         rangeTarget.from().col() + colCount - 1);
+                range = App::Range(
+                    range.from().row(),
+                    range.from().col(),
+                    range.from().row() + rowCount - 1,
+                    range.from().col() + colCount - 1
+                );
+                rangeTarget = App::Range(
+                    rangeTarget.from().row(),
+                    rangeTarget.from().col(),
+                    rangeTarget.from().row() + rowCount - 1,
+                    rangeTarget.from().col() + colCount - 1
+                );
                 do {
                     CellAddress target(*rangeTarget);
                     CellAddress source(*range);
@@ -2273,9 +2386,7 @@ void PropertySheet::setPathValue(const ObjectIdentifier& path, const boost::any&
         }
     }
 
-    FC_THROWM(Base::TypeError,
-              "Invalid path value '"
-                  << "' for " << getFullName());
+    FC_THROWM(Base::TypeError, "Invalid path value '" << "' for " << getFullName());
 }
 
 const boost::any PropertySheet::getPathValue(const App::ObjectIdentifier& path) const
@@ -2289,4 +2400,54 @@ const boost::any PropertySheet::getPathValue(const App::ObjectIdentifier& path) 
 bool PropertySheet::hasSpan() const
 {
     return !mergedCells.empty();
+}
+
+void PropertySheet::getLinksTo(
+    std::vector<App::ObjectIdentifier>& identifiers,
+    App::DocumentObject* obj,
+    const char* subname,
+    bool all
+) const
+{
+    Expression::DepOption option = all ? Expression::DepOption::DepAll
+                                       : Expression::DepOption::DepNormal;
+
+    App::SubObjectT objT(obj, subname);
+    auto subObject = objT.getSubObject();
+    auto subElement = objT.getOldElementName();
+
+    auto owner = freecad_cast<App::DocumentObject*>(getContainer());
+    for (const auto& [cellName, cellExpression] : data) {
+        if (auto expr = cellExpression->getExpression()) {
+            const auto& deps = expr->getDeps(option);
+            auto it = deps.find(obj);
+            if (it == deps.end()) {
+                continue;
+            }
+            const auto [docObj, depsList] = *it;
+            for (auto& [depName, paths] : depsList) {
+                if (!subname) {
+                    identifiers.emplace_back(owner, cellName.toString());
+                    break;
+                }
+                if (std::any_of(
+                        paths.begin(),
+                        paths.end(),
+                        [subname, obj, subObject, &subElement](const auto& path) {
+                            if (path.getSubObjectName() == subname) {
+                                return true;
+                            }
+
+                            App::SubObjectT sobjT(obj, path.getSubObjectName().c_str());
+                            return (
+                                sobjT.getSubObject() == subObject
+                                && sobjT.getOldElementName() == subElement
+                            );
+                        }
+                    )) {
+                    identifiers.emplace_back(owner, cellName.toString());
+                }
+            }
+        }
+    }
 }

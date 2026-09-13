@@ -1,4 +1,6 @@
-#include "gtest/gtest.h"
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
+#include <gtest/gtest.h>
 #include <Mod/Mesh/App/Core/KDTree.h>
 
 // NOLINTBEGIN(cppcoreguidelines-*,readability-*)
@@ -8,14 +10,14 @@ class KDTreeTest: public ::testing::Test
 protected:
     void SetUp() override
     {
-        points.emplace_back(0, 0, 0);
-        points.emplace_back(0, 0, 1);
-        points.emplace_back(0, 1, 0);
-        points.emplace_back(0, 1, 1);
-        points.emplace_back(1, 0, 0);
-        points.emplace_back(1, 0, 1);
-        points.emplace_back(1, 1, 0);
-        points.emplace_back(1, 1, 1);
+        points.emplace_back(0.F, 0.F, 0.F);
+        points.emplace_back(0.F, 0.F, 1.F);
+        points.emplace_back(0.F, 1.F, 0.F);
+        points.emplace_back(0.F, 1.F, 1.F);
+        points.emplace_back(1.F, 0.F, 0.F);
+        points.emplace_back(1.F, 0.F, 1.F);
+        points.emplace_back(1.F, 1.F, 0.F);
+        points.emplace_back(1.F, 1.F, 1.F);
     }
 
     void TearDown() override
@@ -65,8 +67,10 @@ TEST_F(KDTreeTest, TestKDTreeNearestMaxDist)
 
     Base::Vector3f nor;
     float dist;
-    EXPECT_EQ(tree.FindNearest(Base::Vector3f(0.9F, 0.1F, 0.1F), 0.0F, nor, dist),
-              MeshCore::POINT_INDEX_MAX);
+    EXPECT_EQ(
+        tree.FindNearest(Base::Vector3f(0.9F, 0.1F, 0.1F), 0.0F, nor, dist),
+        MeshCore::POINT_INDEX_MAX
+    );
 }
 
 TEST_F(KDTreeTest, TestKDTreeFindExact)

@@ -34,7 +34,12 @@
 #pragma warning(disable : 4267)
 #endif
 
+#include <algorithm>
+#include <cmath>
+#include <limits>
+
 #include <QInputEvent>
+#include <QPointF>
 #include <Inventor/events/SoEvents.h>
 
 #include "devices/InputDevice.h"
@@ -46,26 +51,39 @@ using namespace SIM::Coin3D::Quarter;
   \class SIM::Coin3D::Quarter::InputDevice InputDevice.h Quarter/devices/InputDevice.h
 
   \brief The InputDevice class is the base class for devices such as
-  the Keyboard and Mouse. It can be subclassed to support other
-  devices.
+  keyboard and mouse. It can be subclassed to support other devices.
 */
 
-InputDevice::InputDevice() : quarter(nullptr)
+InputDevice::InputDevice(QuarterWidget* quarter) :
+    quarter(quarter)
 {
   this->mousepos = SbVec2s(0, 0);
 }
 
-InputDevice::InputDevice(QuarterWidget *quarter) : quarter(quarter)
+SbVec2s
+InputDevice::toDevicePixelPosition(
+    const QPointF& logicalPosition,
+    const SbVec2s& logicalWindowSize,
+    qreal devicePixelRatio
+)
 {
-    this->mousepos = SbVec2s(0, 0);
+  int xpos = static_cast<int>(std::lround(logicalPosition.x() * devicePixelRatio));
+  int ypos = static_cast<int>(
+      std::lround((logicalWindowSize[1] - logicalPosition.y() - 1.0) * devicePixelRatio));
+
+  constexpr int ShortMin = std::numeric_limits<short>::min();
+  constexpr int ShortMax = std::numeric_limits<short>::max();
+  xpos = std::clamp(xpos, ShortMin, ShortMax);
+  ypos = std::clamp(ypos, ShortMin, ShortMax);
+
+  return SbVec2s(static_cast<short>(xpos), static_cast<short>(ypos));
 }
 
 /*!
-  Sets the mouseposition
+  Sets the mouse position
 
-  \param[in] pos position of mouse in pixelcoordinates
+  \param[in] pos position of mouse in pixel coordinates
 */
-
 void
 InputDevice::setMousePosition(const SbVec2s & pos)
 {
@@ -84,10 +102,10 @@ InputDevice::setWindowSize(const SbVec2s & size)
 }
 
 /*!
-  Transforms a qevent into an soevent
+  Transforms a QEvent into an SoEvent
 
-  \param[in,out] soevent the transformed event
-  \param[in] qevent incoming qevent
+  \param[in,out] SoEvent the transformed event
+  \param[in] QEvent incoming QEvent
 */
 void
 InputDevice::setModifiers(SoEvent * soevent, const QInputEvent * qevent)

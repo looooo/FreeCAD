@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,75 +22,65 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 # include <cassert>
 
 # include <QGraphicsScene>
 # include <QGraphicsSceneHoverEvent>
 # include <QPainter>
 # include <QStyleOptionGraphicsItem>
-#endif
 
 #include <App/Application.h>
 
-#include <Gui/Selection.h>
+#include <Gui/Selection/Selection.h>
 
 #include <Mod/TechDraw/App/DrawView.h>
 
 #include "QGIPrimPath.h"
 #include "PreferencesGui.h"
 #include "QGIView.h"
+#include "DrawGuiUtil.h"
 
 
 using namespace TechDrawGui;
 using namespace TechDraw;
+using DGU = DrawGuiUtil;
 
 QGIPrimPath::QGIPrimPath():
-    m_width(0),
-    m_capStyle(Qt::RoundCap),
-    m_fillStyleCurrent (Qt::NoBrush),
-//    m_fillStyleCurrent (Qt::SolidPattern),
-    m_fillOverride(false)
+    m_brush(Qt::NoBrush)
 {
     setCacheMode(QGraphicsItem::NoCache);
     setFlag(QGraphicsItem::ItemIsSelectable, true);
     setFlag(QGraphicsItem::ItemIsMovable, false);
+    setFlag(QGraphicsItem::ItemIsFocusable, true);      // to get key press events
+
     setFlag(QGraphicsItem::ItemSendsScenePositionChanges, true);
     setFlag(QGraphicsItem::ItemSendsGeometryChanges, true);
     setAcceptHoverEvents(true);
 
-    isHighlighted = false;
     multiselectActivated = false;
 
-    m_colOverride = false;
+    m_edgeFuzz = PreferencesGui::edgeFuzz();
     m_colNormal = getNormalColor();
-    m_colCurrent = m_colNormal;
+    m_pen.setColor(m_colNormal);
     m_styleNormal = Qt::SolidLine;
-    m_styleCurrent = m_styleNormal;
-    m_pen.setStyle(m_styleCurrent);
-    m_capStyle = prefCapStyle();
-    m_pen.setCapStyle(m_capStyle);
-    m_pen.setWidthF(m_width);
+    m_pen.setStyle(m_styleNormal);
+    m_pen.setCapStyle(prefCapStyle());
+    m_pen.setWidthF(0);
 
-    m_fillDef = Qt::NoBrush;
-    m_fillSelect = Qt::SolidPattern;
-    m_fillNormal = m_fillDef;
-    m_fillStyleCurrent = m_fillNormal;
+    m_fillNormal = getDefaultFillStyle();
+    m_brush.setStyle(m_fillNormal);
 
-    m_colDefFill = Qt::white;
-//    m_colDefFill = Qt::transparent;
-    setFillColor(m_colDefFill);
+    setFillColor(getDefaultFillColor());
 
     setPrettyNormal();
 }
 
 QVariant QGIPrimPath::itemChange(GraphicsItemChange change, const QVariant &value)
 {
-//    Base::Console().Message("QGIPP::itemChange(%d) - type: %d\n", change, type() - QGraphicsItem::UserType);
     if (change == ItemSelectedHasChanged && scene()) {
         if(isSelected()) {
             setPrettySel();
+            setFocus();
         } else {
             setPrettyNormal();
         }
@@ -98,16 +90,15 @@ QVariant QGIPrimPath::itemChange(GraphicsItemChange change, const QVariant &valu
 
 void QGIPrimPath::hoverEnterEvent(QGraphicsSceneHoverEvent *event)
 {
-//    Base::Console().Message("QGIPP::hoverEnter() - selected; %d\n", isSelected());
     if (!isSelected()) {
         setPrettyPre();
     }
+    setFocus();
     QGraphicsPathItem::hoverEnterEvent(event);
 }
 
 void QGIPrimPath::hoverLeaveEvent(QGraphicsSceneHoverEvent *event)
 {
-//    Base::Console().Message("QGIPP::hoverLeave() - selected; %d\n", isSelected());
     if(!isSelected()) {
         setPrettyNormal();
     }
@@ -115,37 +106,21 @@ void QGIPrimPath::hoverLeaveEvent(QGraphicsSceneHoverEvent *event)
     QGraphicsPathItem::hoverLeaveEvent(event);
 }
 
-//set highlighted is obsolete
-void QGIPrimPath::setHighlighted(bool b)
-{
-    isHighlighted = b;
-    if(isHighlighted) {
-        setPrettySel();
-    } else {
-        setPrettyNormal();
-    }
-}
 
 void QGIPrimPath::setPrettyNormal() {
-//    Base::Console().Message("QGIPP::setPrettyNormal()\n");
-    m_colCurrent = m_colNormal;
-    m_fillColorCurrent = m_colNormalFill;
+
+    m_pen.setColor(m_colNormal);
+    m_brush.setColor(m_colNormalFill);
 }
 
 void QGIPrimPath::setPrettyPre() {
-//    Base::Console().Message("QGIPP::setPrettyPre()\n");
-    m_colCurrent = getPreColor();
-    if (!m_fillOverride) {
-        m_fillColorCurrent = getPreColor();
-    }
+    m_pen.setColor(getPreColor());
+    m_brush.setColor(m_highlightFill ? getPreColor() : m_colNormalFill);
 }
 
 void QGIPrimPath::setPrettySel() {
-//    Base::Console().Message("QGIPP::setPrettySel()\n");
-    m_colCurrent = getSelectColor();
-    if (!m_fillOverride) {
-        m_fillColorCurrent = getSelectColor();
-    }
+    m_pen.setColor(getSelectColor());
+    m_brush.setColor(m_highlightFill ? getSelectColor() : m_colNormalFill);
 }
 
 //wf: why would a face use its parent's normal colour?
@@ -153,11 +128,6 @@ void QGIPrimPath::setPrettySel() {
 QColor QGIPrimPath::getNormalColor()
 {
     QGIView *parent;
-
-    if (m_colOverride) {
-        return m_colNormal;
-    }
-
     QGraphicsItem* qparent = parentItem();
     if (!qparent) {
         parent = nullptr;
@@ -205,37 +175,33 @@ QColor QGIPrimPath::getSelectColor()
 
 void QGIPrimPath::setWidth(double w)
 {
-//    Base::Console().Message("QGIPP::setWidth(%.3f)\n", w);
-    m_width = w;
-    m_pen.setWidthF(m_width);
+    m_pen.setWidthF(w);
 }
 
 void QGIPrimPath::setStyle(Qt::PenStyle s)
 {
 // TODO: edge lines for faces are drawn with setStyle(Qt::NoPen) and trigger this message.
-//    Base::Console().Warning("QGIPP::setStyle(Qt: %d) is deprecated. Use setLinePen instead\n", s);
+//    Base::Console().warning("QGIPP::setStyle(Qt: %d) is deprecated. Use setLinePen instead\n", s);
     m_styleNormal = s;
-    m_styleCurrent = s;
+    m_pen.setStyle(s);
 }
 
 void QGIPrimPath::setStyle(int s)
 {
 // TODO: edge lines for faces are drawn with setStyle(Qt::NoPen) and trigger this message.
-//    Base::Console().Warning("QGIPP::setStyle(int: %d) is deprecated. Use setLinePen instead\n", s);
-    m_styleCurrent = static_cast<Qt::PenStyle>(s);
+//    Base::Console().warning("QGIPP::setStyle(int: %d) is deprecated. Use setLinePen instead\n", s);
     m_styleNormal = static_cast<Qt::PenStyle>(s);
+    m_pen.setStyle(m_styleNormal);
 }
 
 void QGIPrimPath::setNormalColor(QColor c)
 {
     m_colNormal = c;
-    m_colOverride = true;
-    m_colCurrent = m_colNormal;
+    m_pen.setColor(m_colNormal);
 }
 
 void QGIPrimPath::setCapStyle(Qt::PenCapStyle c)
 {
-    m_capStyle = c;
     m_pen.setCapStyle(c);
 }
 
@@ -264,9 +230,9 @@ void QGIPrimPath::mousePressEvent(QGraphicsSceneMouseEvent *event)
         auto parent = dynamic_cast<QGIView *>(parentItem());
         if (parent) {
             std::vector<Gui::SelectionObject> selection = Gui::Selection().getSelectionEx();
-            if (selection.size() == 1
-                && selection.front().getObject() == parent->getViewObject()) {
-
+            if (DGU::findObjectInSelection(selection, *(parent->getViewObject()))) {
+                // if our parent is already in the selection, then allow addition
+                // primitives to be selected.
                 multiselectActivated = true;
                 event->setModifiers(originalModifiers | Qt::ControlModifier);
             }
@@ -297,43 +263,32 @@ void QGIPrimPath::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
 void QGIPrimPath::setFill(QColor c, Qt::BrushStyle s) {
     setFillColor(c);
     m_fillNormal = s;
-    m_fillStyleCurrent = s;
+    m_brush.setStyle(s);
 }
 
 void QGIPrimPath::setFill(QBrush b) {
-    setFillColor(b.color());
     m_fillNormal = b.style();
-    m_fillStyleCurrent = b.style();
+    setFillColor(b.color());
+    m_brush.setStyle(b.style());
 }
 
 void QGIPrimPath::resetFill() {
-    m_colNormalFill = m_colDefFill;
-    m_fillNormal = m_fillDef;
-    m_fillStyleCurrent = m_fillDef;
+    m_colNormalFill = getDefaultFillColor();
+    m_fillNormal = getDefaultFillStyle();
+    m_brush.setStyle(m_fillNormal);
 }
 
 //set PlainFill
 void QGIPrimPath::setFillColor(QColor c)
 {
     m_colNormalFill = c;
-    m_fillColorCurrent = m_colNormalFill;
-}
-
-void QGIPrimPath::setCurrentPen()
-{
-    m_pen.setWidthF(m_width);
-    m_pen.setColor(m_colCurrent);
 }
 
 void QGIPrimPath::paint ( QPainter * painter, const QStyleOptionGraphicsItem * option, QWidget * widget) {
     QStyleOptionGraphicsItem myOption(*option);
     myOption.state &= ~QStyle::State_Selected;
 
-    setCurrentPen();
     setPen(m_pen);
-
-    m_brush.setColor(m_fillColorCurrent);
-    m_brush.setStyle(m_fillStyleCurrent);
     setBrush(m_brush);
 
     QGraphicsPathItem::paint (painter, &myOption, widget);

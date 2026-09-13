@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2019 Abdullah Tahiri <abdullah.tahiri.yo@gmail.com>     *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include "ExternalGeometryExtensionPy.h"
 
@@ -90,13 +91,15 @@ int ExternalGeometryExtensionPy::PyInit(PyObject* args, PyObject* /*kwd*/)
         return 0;
     }
 
-    PyErr_SetString(PyExc_TypeError,
-                    "ExternalGeometryExtension constructor accepts:\n"
-                    "-- empty parameter list\n");
+    PyErr_SetString(
+        PyExc_TypeError,
+        "ExternalGeometryExtension constructor accepts:\n"
+        "-- empty parameter list\n"
+    );
     return -1;
 }
 
-PyObject* ExternalGeometryExtensionPy::testFlag(PyObject* args)
+PyObject* ExternalGeometryExtensionPy::testFlag(PyObject* args) const
 {
     char* flag;
     if (PyArg_ParseTuple(args, "s", &flag)) {
@@ -105,7 +108,8 @@ PyObject* ExternalGeometryExtensionPy::testFlag(PyObject* args)
 
         if (getExternalGeometryExtensionPtr()->getFlagsFromName(flag, flagtype)) {
             return new_reference_to(
-                Py::Boolean(this->getExternalGeometryExtensionPtr()->testFlag(flagtype)));
+                Py::Boolean(this->getExternalGeometryExtensionPtr()->testFlag(flagtype))
+            );
         }
 
         PyErr_SetString(PyExc_TypeError, "Flag string does not exist.");

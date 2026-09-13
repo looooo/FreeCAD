@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2021 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef MESH_EDGE_H
-#define MESH_EDGE_H
+#pragma once
 
 #include <Base/Handle.h>
 
@@ -51,8 +52,8 @@ public:
         return Index != -1;
     }
     void unbound();
-    Edge& operator=(const Edge& f);
-    Edge& operator=(Edge&& f);
+    Edge& operator=(const Edge& e);
+    Edge& operator=(Edge&& e);
 
     int Index {-1};
     MeshCore::PointIndex PIndex[2];
@@ -61,6 +62,3 @@ public:
 };
 
 }  // namespace Mesh
-
-
-#endif  // MESH_EDGE_H

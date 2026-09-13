@@ -1,8 +1,8 @@
 macro(SetupSalomeSMESH)
 # -------------------------------- Salome SMESH --------------------------
-
     # Salome SMESH sources are under src/3rdParty now
-    if(BUILD_SMESH)
+    if(FREECAD_USE_SMESH)
+
         # set the internal smesh version:
         # see src/3rdParty/salomonemesh/CMakeLists.txt and commit https://github.com/FreeCAD/FreeCAD/commit/666a3e5 and https://forum.freecad.org/viewtopic.php?f=10&t=30838
         set(SMESH_VERSION_MAJOR 7)
@@ -26,7 +26,13 @@ macro(SetupSalomeSMESH)
 
         # check which modules are available
         if(UNIX OR WIN32)
-            find_package(VTK COMPONENTS vtkCommonCore REQUIRED NO_MODULE)
+            # Module names changed between 8 and 9, so do a QUIET find for 9 and its module name first, and fall back
+            # to v7 minimum with the old component name if it is not found.
+            find_package(VTK 9 COMPONENTS CommonCore QUIET NO_MODULE)
+            if(NOT VTK_FOUND)
+                message(STATUS "Did not find VTK 9, trying for an older version")
+                find_package(VTK COMPONENTS vtkCommonCore REQUIRED NO_MODULE)
+            endif()
             if(${VTK_MAJOR_VERSION} LESS 9)
                 list(APPEND VTK_COMPONENTS vtkIOMPIParallel vtkParallelMPI vtkhdf5 vtkFiltersParallelDIY2 vtkRenderingCore vtkInteractionStyle vtkRenderingFreeType vtkRenderingOpenGL2)
                 foreach(_module ${VTK_COMPONENTS})
@@ -36,7 +42,7 @@ macro(SetupSalomeSMESH)
                     endif()
                 endforeach()
             else()
-                set(VTK_COMPONENTS "CommonCore;CommonDataModel;FiltersVerdict;IOXML;FiltersCore;FiltersGeneral;IOLegacy;FiltersExtraction;FiltersSources;FiltersGeometry")
+                set(VTK_COMPONENTS "CommonCore;CommonDataModel;FiltersVerdict;IOXML;FiltersCore;FiltersGeneral;IOLegacy;FiltersExtraction;FiltersSources;FiltersGeometry;WrappingPythonCore")
                 list(APPEND VTK_COMPONENTS "IOMPIParallel;ParallelMPI;hdf5;FiltersParallelDIY2;RenderingCore;InteractionStyle;RenderingFreeType;RenderingOpenGL2")
                 foreach(_module ${VTK_COMPONENTS})
                     list (FIND VTK_AVAILABLE_COMPONENTS ${_module} _index)
@@ -57,6 +63,17 @@ macro(SetupSalomeSMESH)
         endif()
 
         set(BUILD_FEM_VTK ON)
+
+        # Check if PythonWrapperCore was found
+        # Note: VTK 9 only, as the implementations use the VTK modules introduced in 8.1
+        #       VTK_WrappingPythonCore_FOUND is named differently for versions <9.0
+        if (${VTK_WrappingPythonCore_FOUND})
+            set(BUILD_FEM_VTK_PYTHON 1)
+            message(STATUS "VTK python wrapper: available")
+        else()
+            message(WARNING "VTK python wrapper: NOT available")
+        endif()
+
         if(${VTK_MAJOR_VERSION} LESS 6)
             message( FATAL_ERROR "Found VTK version is <6, this is not compatible" )
         endif()
@@ -86,24 +103,33 @@ macro(SetupSalomeSMESH)
                     set(HDF5_VARIANT "hdf5-serial")
                 else()
                     message(STATUS "We guess that libmed was built using hdf5-openmpi version")
-                    set(HDF5_VARIANT "hdf5-openmpi")
+                    set(HDF5_VARIANT "hdf5-openmpi;hdf5_openmpi")
                     set(HDF5_PREFER_PARALLEL TRUE) # if pkg-config fails, find_package(HDF5) needs this
                 endif()
-                pkg_search_module(HDF5 ${HDF5_VARIANT})
-                if(NOT HDF5_FOUND)
+                pkg_search_module(PCHDF5 ${HDF5_VARIANT})
+                if(NOT PCHDF5_FOUND)
                     find_package(HDF5 REQUIRED)
                 else()
-                    add_compile_options(${HDF5_CFLAGS})
-                    link_directories(${HDF5_LIBRARY_DIRS})
-                    link_libraries(${HDF5_LIBRARIES})
-                    find_file(Hdf5dotH hdf5.h PATHS ${HDF5_INCLUDE_DIRS} NO_DEFAULT_PATH)
-                    if(NOT Hdf5dotH)
-                        message( FATAL_ERROR "${HDF5_VARIANT} development header not found.")
+                    add_compile_options(${PCHDF5_CFLAGS})
+                    link_directories(${PCHDF5_LIBRARY_DIRS})
+                    link_libraries(${PCHDF5_LIBRARIES})
+
+                    # workaround to define include dir from PCHDF5_CFLAGS (pkg-config PCHDF5_INCLUDEDIR is only filled since hdf5 1.14.6)
+                    set(hdf5_include_path "")
+                    foreach(flag IN LISTS PCHDF5_CFLAGS)
+                        if(flag MATCHES "^-I")
+                            string(REGEX REPLACE "^-I[ ]*" "" flag "${flag}")
+                            list(APPEND hdf5_include_path "${flag}")
+                        endif()
+                    endforeach()
+
+                    set(_save_INC CMAKE_REQUIRED_INCLUDES)
+                    set(CMAKE_REQUIRED_INCLUDES ${hdf5_include_path})
+                    check_include_file_cxx(hdf5.h HDF5_HEAD_FOUND)
+                    set(CMAKE_REQUIRED_INCLUDES ${_save_INC})
+                    if(NOT HDF5_HEAD_FOUND)
+                        message( FATAL_ERROR "hdf5.h was not found (tested pkg-config ${HDF5_VARIANT}, suggested header location was '${hdf5_include_path}').")
                     endif()
-                endif()
-                check_include_file_cxx(hdf5.h HDF5_FOUND)
-                if(NOT HDF5_FOUND)
-                    message( FATAL_ERROR "hdf5.h was not found.")
                 endif()
 
                 # Med Fichier can require MPI
@@ -139,6 +165,6 @@ macro(SetupSalomeSMESH)
 
         set(SMESH_FOUND TRUE)
         configure_file(${CMAKE_SOURCE_DIR}/src/SMESH_Version.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/SMESH_Version.h)
-    endif(BUILD_SMESH)
+    endif(FREECAD_USE_SMESH)
 
 endmacro(SetupSalomeSMESH)

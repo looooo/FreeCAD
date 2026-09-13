@@ -1,15 +1,4 @@
-include_directories(
-    ${CMAKE_BINARY_DIR}
-    ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_BINARY_DIR}
-    ${Boost_INCLUDE_DIRS}
-    ${OCC_INCLUDE_DIR}
-    ${COIN3D_INCLUDE_DIRS}
-    ${PYTHON_INCLUDE_DIRS}
-    ${ZLIB_INCLUDE_DIR}
-    ${XercesC_INCLUDE_DIRS}
-)
-link_directories(${OCC_LIBRARY_DIR})
+# SPDX-License-Identifier: LGPL-2.1-or-later
 
 set(ReenGui_LIBS
     ReverseEngineering
@@ -20,9 +9,14 @@ set (ReverseEngineering_TR_QRC ${CMAKE_CURRENT_BINARY_DIR}/Resources/ReverseEngi
 qt_find_and_add_translation(QM_SRCS "Resources/translations/*_*.ts"
     ${CMAKE_CURRENT_BINARY_DIR}/Resources/translations)
 qt_create_resource_file(${ReverseEngineering_TR_QRC} ${QM_SRCS})
-qt_add_resources(ReenGui_QRC_SRCS Resources/ReverseEngineering.qrc ${ReverseEngineering_TR_QRC})
+qt_add_resources(ReenGui_QRC_SRCS
+    Resources/ReverseEngineering.qrc
+    ${ReverseEngineering_TR_QRC}
+    OPTIONS ${FREECAD_RCC_OPTIONS}
+)
 
 set(Dialogs_UIC_SRCS
+    FitBSplineCurve.ui
     FitBSplineSurface.ui
     Poisson.ui
     Segmentation.ui
@@ -32,6 +26,8 @@ set(Dialogs_UIC_SRCS
 SET(Dialogs_SRCS
     ${Dialogs_UIC_HDRS}
     ${Dialogs_UIC_SRCS}
+    FitBSplineCurve.cpp
+    FitBSplineCurve.h
     FitBSplineSurface.cpp
     FitBSplineSurface.h
     Poisson.cpp
@@ -49,7 +45,6 @@ SET(ReenGui_SRCS
     AppReverseEngineeringGui.cpp
     Command.cpp
     Resources/ReverseEngineering.qrc
-    PreCompiled.cpp
     PreCompiled.h
     Workbench.cpp
     Workbench.h
@@ -59,16 +54,34 @@ SET(ReverseEngineeringGuiIcon_SVG
     Resources/icons/ReverseEngineeringWorkbench.svg
 )
 
+add_library(ReverseEngineeringGui SHARED
+    ${ReenGui_SRCS}
+    ${ReverseEngineeringGuiIcon_SVG}
+)
+
 if(FREECAD_USE_PCH)
-    add_definitions(-D_PreComp_)
-    GET_MSVC_PRECOMPILED_SOURCE("PreCompiled.cpp" PCH_SRCS ${ReenGui_SRCS})
-    ADD_MSVC_PRECOMPILED_HEADER(ReverseEngineeringGui PreCompiled.h PreCompiled.cpp PCH_SRCS)
+    target_precompile_headers(ReverseEngineeringGui PRIVATE
+            $<$<COMPILE_LANGUAGE:CXX>:"${CMAKE_CURRENT_LIST_DIR}/PreCompiled.h">
+    )
 endif(FREECAD_USE_PCH)
 
-add_library(ReverseEngineeringGui SHARED ${ReenGui_SRCS} ${ReverseEngineeringGuiIcon_SVG})
+target_include_directories(
+    ReverseEngineeringGui
+    PRIVATE
+    ${CMAKE_BINARY_DIR}
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 target_link_libraries(ReverseEngineeringGui ${ReenGui_LIBS})
 
-SET_BIN_DIR(ReverseEngineeringGui ReverseEngineeringGui /Mod/ReverseEngineering)
+if (MSVC)
+    target_compile_options(ReverseEngineeringGui PRIVATE /wd4275)
+endif()
+
+target_compile_warn_error(ReverseEngineeringGui)
+
+SET_BIN_DIR(ReverseEngineeringGui)
 SET_PYTHON_PREFIX_SUFFIX(ReverseEngineeringGui)
 
 fc_copy_sources(ReverseEngineeringGui "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_DATADIR}/Mod/ReverseEngineering" ${ReverseEngineeringGuiIcon_SVG})

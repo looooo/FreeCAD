@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,13 +22,14 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_QGCUSTOMLABEL_H
-#define DRAWINGGUI_QGCUSTOMLABEL_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
 #include <QGraphicsItem>
 #include <QGraphicsTextItem>
+
+#include "QGIUserTypes.h"
 
 
 QT_BEGIN_NAMESPACE
@@ -43,7 +46,7 @@ public:
     explicit QGCustomLabel();
     ~QGCustomLabel() override = default;
 
-    enum {Type = QGraphicsItem::UserType + 135};
+    enum {Type = UserType::QGCustomLabel};
     int type() const override { return Type;}
 
     void paint(QPainter * painter, const QStyleOptionGraphicsItem * option, QWidget * widget = nullptr ) override;
@@ -57,5 +60,3 @@ private:
 };
 
 }
-
-#endif // DRAWINGGUI_QGCUSTOMLABEL_H

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
+disable_occt8_deprecation_warnings()
 
 add_subdirectory(App)
 if(BUILD_GUI)
@@ -34,10 +37,12 @@ set(PartDesign_OtherScripts
 
 set(PartDesign_TestScripts
     PartDesignTests/__init__.py
+    PartDesignTests/TestActiveObject.py
     PartDesignTests/TestDatum.py
     PartDesignTests/TestShapeBinder.py
     PartDesignTests/TestPad.py
     PartDesignTests/TestPocket.py
+    PartDesignTests/TestHelix.py
     PartDesignTests/TestHole.py
     PartDesignTests/TestRevolve.py
     PartDesignTests/TestLoft.py
@@ -45,15 +50,27 @@ set(PartDesign_TestScripts
     PartDesignTests/TestPrimitive.py
     PartDesignTests/TestMirrored.py
     PartDesignTests/TestLinearPattern.py
+    PartDesignTests/TestCircularPattern.py
+    PartDesignTests/TestPathPattern.py
     PartDesignTests/TestPolarPattern.py
     PartDesignTests/TestMultiTransform.py
     PartDesignTests/TestBoolean.py
+    PartDesignTests/TestBaseFeature.py
     PartDesignTests/TestFillet.py
     PartDesignTests/TestChamfer.py
     PartDesignTests/TestDraft.py
     PartDesignTests/TestThickness.py
+    PartDesignTests/TestTopologicalNamingProblem.py
     PartDesignTests/TestInvoluteGear.py
+    PartDesignTests/TestSketch.py
 )
+
+if(BUILD_GUI)
+    list(APPEND PartDesign_TestScripts
+        PartDesignTests/TestMaterial.py
+        PartDesignTests/TestSuppressed.py
+    )
+endif(BUILD_GUI)
 
 set(PartDesign_TestFixtures
     PartDesignTests/Fixtures/InvoluteGear_v0-20.FCStd

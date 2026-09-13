@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,12 +22,12 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include "DrawView.h"
 // inclusion of the generated files (generated out of DrawViewPy.xml)
 #include <Mod/TechDraw/App/DrawViewPy.h>
 #include <Mod/TechDraw/App/DrawViewPy.cpp>
+#include <Mod/TechDraw/App/DrawPagePy.h>
 
 using namespace TechDraw;
 
@@ -76,6 +78,31 @@ PyObject* DrawViewPy::translateLabel(PyObject *args)
     dv->translateLabel(context, baseName, uniqueName);
 
     Py_Return;
+}
+
+//! return the correct scale for this view
+PyObject* DrawViewPy::getScale(PyObject *args) const
+{
+    if (!PyArg_ParseTuple(args, "")) {
+            throw Py::TypeError("Do not understand passed parameter.");
+    }
+
+    DrawView* dv = getDrawViewPtr();
+
+    return PyFloat_FromDouble(dv->getScale());
+}
+
+//! return the correct scale for this view
+PyObject* DrawViewPy::findParentPage(PyObject *args) const
+{
+    if (!PyArg_ParseTuple(args, "")) {
+            throw Py::TypeError("Do not understand passed parameter.");
+    }
+
+    DrawView* dv = getDrawViewPtr();
+    DrawPage* parent = dv->findParentPage();
+
+    return Py::new_reference_to(parent->getPyObject());
 }
 
 

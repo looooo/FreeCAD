@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,12 +22,12 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_QGRAPHICSITEMDIMLINES_H
-#define DRAWINGGUI_QGRAPHICSITEMDIMLINES_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
-# include "QGIPrimPath.h"
+#include "QGIPrimPath.h"
+#include "QGIUserTypes.h"
 
 QT_BEGIN_NAMESPACE
 class QPainter;
@@ -41,26 +43,15 @@ public:
     explicit QGIDimLines();
     ~QGIDimLines() override = default;
 
-    enum {Type = QGraphicsItem::UserType + 175};
+    enum {Type = UserType::QGIDimLines};
     int type() const override { return Type;}
     QRectF boundingRect() const override;
     QPainterPath shape() const override;
 
 public:
     void draw();
-    //void setHighlighted(bool state);
-    //double getLineWidth() { return m_lineWidth; }
-    //void setLineWidth(double w);
-    //QPainterPath shape() const;
-
-protected:
-    //QVariant itemChange(GraphicsItemChange change, const QVariant &value);
-    double getEdgeFuzz() const;
-
 
 private:
 };
 
 }
-
-#endif // DRAWINGGUI_QGRAPHICSITEMDIMLINES_H

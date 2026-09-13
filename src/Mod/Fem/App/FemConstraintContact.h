@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Jan Rheinländer                                    *
  *                                   <jrheinlaender@users.sourceforge.net> *
@@ -22,8 +24,7 @@
  ***************************************************************************/
 
 
-#ifndef FEM_CONSTRAINTCONTACT_H
-#define FEM_CONSTRAINTCONTACT_H
+#pragma once
 
 #include "FemConstraint.h"
 
@@ -38,10 +39,6 @@ public:
     /// Constructor
     ConstraintContact();
 
-    // Read-only (calculated values). These trigger changes in the ViewProvider
-    App::PropertyVectorList Points;
-    App::PropertyVectorList Normals;
-
     /*Note*/
     // Constraint parameters
     /******
@@ -50,8 +47,16 @@ public:
      * This is only the definitions of the variables
      ******/
     // ex.
-    App::PropertyFloat Slope;
-    App::PropertyFloat Friction;
+    App::PropertyStiffnessDensity Slope;
+    App::PropertyLength Adjust;
+    App::PropertyBool Friction;
+    App::PropertyFloat FrictionCoefficient;
+    App::PropertyStiffnessDensity StickSlope;
+    App::PropertyBool EnableThermalContact;
+    App::PropertyStringList ThermalContactConductance;
+    App::PropertyBoolList ReversedMaster;
+    App::PropertyBoolList ReversedSlave;
+    App::PropertyEnumeration SurfaceBehavior;
 
     // etc
     /* */
@@ -64,9 +69,11 @@ public:
 
 protected:
     void onChanged(const App::Property* prop) override;
+    void handleChangedPropertyType(
+        Base::XMLReader& reader,
+        const char* typeName,
+        App::Property* prop
+    ) override;
 };
 
 }  // namespace Fem
-
-
-#endif  // FEM_CONSTRAINTCONTACT_H

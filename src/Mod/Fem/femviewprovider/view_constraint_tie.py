@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # ***************************************************************************
 # *   Copyright (c) 2020 Bernd Hahnebach <bernd@bimstatik.org>              *
 # *                                                                         *
@@ -29,6 +31,8 @@ __url__ = "https://www.freecad.org"
 #  \ingroup FEM
 #  \brief view provider for constraint tie object
 
+from os import path
+
 from femtaskpanels import task_constraint_tie
 from . import view_base_femconstraint
 
@@ -38,10 +42,17 @@ class VPConstraintTie(view_base_femconstraint.VPBaseFemConstraint):
     A View Provider for the ConstraintTie object
     """
 
+    def __init__(self, vobj):
+        super().__init__(vobj)
+        mat = vobj.ShapeAppearance[0]
+        mat.DiffuseColor = (0.3, 0.7, 0.5, 0.0)
+        vobj.ShapeAppearance = mat
+
     def setEdit(self, vobj, mode=0):
-        view_base_femconstraint.VPBaseFemConstraint.setEdit(
-            self,
-            vobj,
-            mode,
-            task_constraint_tie._TaskPanel
+        return view_base_femconstraint.VPBaseFemConstraint.setEdit(
+            self, vobj, mode, task_constraint_tie._TaskPanel
         )
+
+    def attach(self, vobj):
+        super().attach(vobj)
+        vobj.loadSymbol(path.join(vobj.ResourceSymbolDir, "ConstraintTie.iv"))

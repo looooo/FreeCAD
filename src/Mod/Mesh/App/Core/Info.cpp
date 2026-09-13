@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2005 Imetric 3D GmbH                                    *
  *                                                                         *
@@ -20,14 +22,12 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
-#ifndef _PreComp_
 #include <iomanip>
 #include <iostream>
 #include <map>
 #include <set>
-#endif
+
 
 #include "Info.h"
 #include "Iterator.h"
@@ -87,10 +87,10 @@ std::ostream& MeshInfo::DetailedEdgeInfo(std::ostream& rclStream) const
     while (pFIter < rFacets.end()) {
         const MeshFacet& rFacet = *pFIter;
         for (int j = 0; j < 3; j++) {
-            PointIndex ulPt0 =
-                std::min<PointIndex>(rFacet._aulPoints[j], rFacet._aulPoints[(j + 1) % 3]);
-            PointIndex ulPt1 =
-                std::max<PointIndex>(rFacet._aulPoints[j], rFacet._aulPoints[(j + 1) % 3]);
+            PointIndex ulPt0
+                = std::min<PointIndex>(rFacet._aulPoints[j], rFacet._aulPoints[(j + 1) % 3]);
+            PointIndex ulPt1
+                = std::max<PointIndex>(rFacet._aulPoints[j], rFacet._aulPoints[(j + 1) % 3]);
             std::pair<PointIndex, PointIndex> cEdge(ulPt0, ulPt1);
             lEdges[cEdge]++;
         }
@@ -230,7 +230,7 @@ std::ostream& MeshInfo::TopologyInformation(std::ostream& rclStream) const
 {
     unsigned long index = 0;
     const MeshFacetArray& rFAry = _rclMesh.GetFacets();
-    for (MeshFacetArray::_TConstIterator it = rFAry.begin(); it != rFAry.end(); ++it, ++index) {
+    for (auto it = rFAry.begin(); it != rFAry.end(); ++it, ++index) {
         rclStream << "F " << std::setw(4) << index << ": P (" << it->_aulPoints[0] << ", "
                   << it->_aulPoints[1] << ", " << it->_aulPoints[2] << "), N ("
                   << it->_aulNeighbours[0] << ", " << it->_aulNeighbours[1] << ", "

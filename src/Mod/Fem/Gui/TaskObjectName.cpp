@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Jürgen Riegel <FreeCAD@juergen-riegel.net>         *
  *                                                                         *
@@ -20,11 +22,9 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
-#ifndef _PreComp_
 #include <QString>
-#endif
+
 
 #include <App/DocumentObject.h>
 #include <Gui/BitmapFactory.h>
@@ -38,7 +38,7 @@ using namespace FemGui;
 using namespace Gui;
 
 TaskObjectName::TaskObjectName(App::DocumentObject* pcObject, QWidget* parent)
-    : TaskBox(Gui::BitmapFactory().pixmap("FEM_CreateNodesSet"), tr("TaskObjectName"), true, parent)
+    : TaskBox(Gui::BitmapFactory().pixmap("FEM_CreateNodesSet"), tr("Name of the object"), true, parent)
     , pcObject(pcObject)
     , ui(new Ui_TaskObjectName)
 {
@@ -49,10 +49,7 @@ TaskObjectName::TaskObjectName(App::DocumentObject* pcObject, QWidget* parent)
 
     this->groupLayout()->addWidget(proxy);
 
-    QObject::connect(ui->lineEdit_ObjectName,
-                     &QLineEdit::textChanged,
-                     this,
-                     &TaskObjectName::TextChanged);
+    QObject::connect(ui->lineEdit_ObjectName, &QLineEdit::textChanged, this, &TaskObjectName::TextChanged);
 
     if (strcmp(pcObject->Label.getValue(), "") != 0) {
         ui->lineEdit_ObjectName->setText(QString::fromUtf8(pcObject->Label.getValue()));

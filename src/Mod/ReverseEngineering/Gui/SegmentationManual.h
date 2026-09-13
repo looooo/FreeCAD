@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2020 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef REVERSEENGINEERINGGUI_SEGMENTATIONMANUAL_H
-#define REVERSEENGINEERINGGUI_SEGMENTATIONMANUAL_H
+#pragma once
 
 #include <memory>
 
@@ -102,9 +103,6 @@ public:
 
 private:
     SegmentationManual* widget;
-    Gui::TaskView::TaskBox* taskbox;
 };
 
 }  // namespace ReverseEngineeringGui
-
-#endif  // REVERSEENGINEERINGGUI_SEGMENTATIONMANUAL_H

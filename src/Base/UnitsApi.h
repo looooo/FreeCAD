@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2009 Jürgen Riegel <FreeCAD@juergen-riegel.net>         *
  *                                                                         *
@@ -20,111 +22,59 @@
  *                                                                         *
  ***************************************************************************/
 
+#pragma once
 
-#ifndef BASE_UNITSAPI_H
-#define BASE_UNITSAPI_H
-
-#include <memory>
-#include <QString>
-#include <QCoreApplication>
 #include "UnitsSchema.h"
+#include "UnitsSchemas.h"
+#include "UnitsSchemasData.h"
 #include "Quantity.h"
 
 using PyObject = struct _object;
-using PyMethodDef = struct PyMethodDef;
 
 namespace Base
 {
-using UnitsSchemaPtr = std::unique_ptr<UnitsSchema>;
-
-/**
- * The UnitsApi
- */
 class BaseExport UnitsApi
 {
-    Q_DECLARE_TR_FUNCTIONS(UnitsApi)
+    friend class UnitsModulePy;
 
 public:
-    /** set Schema
-     * set the UnitsSchema of the Application
-     * this a represented by a class of type UnitSchema which
-     * defines a set of standard units for that schema and rules
-     * for representative strings.
-     */
-    static void setSchema(UnitSystem s);
-    /// return the active schema
-    static UnitSystem getSchema()
-    {
-        return currentSystem;
-    }
-    /// Returns a brief description of a schema
-    static QString getDescription(UnitSystem);
+    static std::unique_ptr<UnitsSchema> createSchema(std::size_t num);
+    static void setSchema(const std::string& name);
+    static void setSchema(std::size_t num);
 
-    static QString
-    schemaTranslate(const Base::Quantity& quant, double& factor, QString& unitString);
-    static QString schemaTranslate(const Base::Quantity& quant)
-    {  // to satisfy GCC
-        double dummy1 {};
-        QString dummy2;
-        return UnitsApi::schemaTranslate(quant, dummy1, dummy2);
-    }
+    static std::string schemaTranslate(const Quantity& quant, double& factor, std::string& unitString);
 
-    /** Get a number as string for a quantity of a given format.
-     * The string is a number in C locale (i.e. the decimal separator is always a dot) and if
-     * needed represented in scientific notation. The string also includes the unit of the quantity.
-     */
-    static QString toString(const Base::Quantity& q,
-                            const QuantityFormat& f = QuantityFormat(QuantityFormat::Default));
-    /** Get a number as string for a quantity of a given format.
-     * The string is a number in C locale (i.e. the decimal separator is always a dot) and if
-     * needed represented in scientific notation. The string doesn't include the unit of the
-     * quantity.
-     */
-    static QString toNumber(const Base::Quantity& q,
-                            const QuantityFormat& f = QuantityFormat(QuantityFormat::Default));
-    /** Get a number as string for a double of a given format.
-     * The string is a number in C locale (i.e. the decimal separator is always a dot) and if
-     * needed represented in scientific notation. The string doesn't include the unit of the
-     * quantity.
-     */
-    static QString toNumber(double value,
-                            const QuantityFormat& f = QuantityFormat(QuantityFormat::Default));
+    static std::string schemaTranslate(const Quantity& quant);
 
-    /// generate a value for a quantity with default user preferred system
+    static std::string toUnicodeSuperscript(const std::string& str);
+
     static double toDouble(PyObject* args, const Base::Unit& u = Base::Unit());
-    /// generate a value for a quantity with default user preferred system
-    static Quantity toQuantity(PyObject* args, const Base::Unit& u = Base::Unit());
 
-    // set the number of decimals
     static void setDecimals(int);
-    // get the number of decimals
     static int getDecimals();
-    //@}
 
-    // double Result;
+    static void setDenominator(int);
+    static int getDenominator();
 
-    // return true if the current user schema uses multiple units for length (ex. Ft/In)
-    static bool isMultiUnitLength();
+    static std::vector<std::string> getDescriptions();
+    static std::vector<std::string> getNames();
 
-    // return true if the current user schema uses multiple units for angles (ex. DMS)
+    static std::size_t count();
+
     static bool isMultiUnitAngle();
-
-    // return the basic unit of measure for length in the current user schema.
+    static bool isMultiUnitLength();
     static std::string getBasicLengthUnit();
 
-    // Python interface
-    static PyMethodDef Methods[];
-
-    /// return an instance of the given enum value
-    static UnitsSchemaPtr createSchema(UnitSystem s);
-
-protected:
-    static UnitsSchemaPtr UserPrefSystem;
-    static UnitSystem currentSystem;
-    /// number of decimals for floats
-    static int UserPrefDecimals;
+    static std::size_t getDefSchemaNum()
+    {
+        return schemas->spec().num;
+    }
 
 protected:
+    static inline auto schemas = std::make_unique<UnitsSchemas>(UnitsSchemasData::unitSchemasDataPack);
+    static inline int decimals {-1};
+    static inline int denominator {-1};
+
     // the python API wrapper methods
     static PyObject* sParseQuantity(PyObject* self, PyObject* args);
     static PyObject* sListSchemas(PyObject* self, PyObject* args);
@@ -135,6 +85,3 @@ protected:
 };
 
 }  // namespace Base
-
-
-#endif  // BASE_UNITSAPI_H

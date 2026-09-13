@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -21,8 +23,7 @@
  ***************************************************************************/
 
 
-#ifndef APP_BRANDING_H
-#define APP_BRANDING_H
+#pragma once
 
 #include <string>
 #include <QDomDocument>
@@ -33,7 +34,8 @@
 
 class QIODevice;
 
-namespace App {
+namespace App
+{
 
 class Branding
 {
@@ -46,10 +48,8 @@ public:
 
 private:
     QVector<std::string> filter;
-    bool evaluateXML(QIODevice *device, QDomDocument& xmlDocument);
+    bool evaluateXML(QIODevice* device, QDomDocument& xmlDocument);
     QDomDocument domDocument;
 };
 
-}
-
-#endif // APP_BRANDING_H
+}  // namespace App

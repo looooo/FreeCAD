@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2011 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -21,18 +23,18 @@
  ***************************************************************************/
 
 
-#ifndef BASE_TYPE_H
-#define BASE_TYPE_H
+#pragma once
 
 // Std. configurations
 
-#include <string>
+#include <FCGlobal.h>
+
 #include <map>
 #include <set>
+#include <string>
+#include <string_view>
 #include <vector>
-#ifndef FC_GLOBAL_H
-#include <FCGlobal.h>
-#endif
+
 
 namespace Base
 {
@@ -59,11 +61,11 @@ struct TypeData;
     if (anode->is<Mesh::MeshFeature>()) {
       // do something..
     }
-    else if (anode->is<Part::PartFeature>()) {
+    else if (anode->is<Part::Feature>()) {
       // do something..
     }
     else {
-      Base::Console().Warning("getRightFeature", "Unknown feature type %s!\n",
+      Base::Console().warning("getRightFeature", "Unknown feature type %s!\n",
                                 anode->getTypeId().getName());
     }
   }
@@ -77,9 +79,10 @@ struct TypeData;
   information: super classes must be registered before any of their
   derived classes are.
 */
-class BaseExport Type
+class BaseExport Type final
 {
 public:
+    using TypeId = unsigned int;
     /// Construction
     Type(const Type& type) = default;
     Type(Type&& type) = default;
@@ -87,32 +90,45 @@ public:
     /// Destruction
     ~Type() = default;
 
-    /// creates a instance of this type
-    void* createInstance();
-    /// creates a instance of the named type
-    static void* createInstanceByName(const char* TypeName, bool bLoadModule = false);
-    static void importModule(const char* TypeName);
+    /// Creates an instance of this type
+    [[nodiscard]] void* createInstance() const;
+    /// Checks whether this type can instantiate
+    [[nodiscard]] bool canInstantiate() const;
+    /// Creates an instance of the named type
+    [[nodiscard]] static void* createInstanceByName(std::string_view typeName, bool loadModule = false);
 
     using instantiationMethod = void* (*)();
 
-    static Type fromName(const char* name);
-    static Type fromKey(unsigned int key);
-    const char* getName() const;
-    Type getParent() const;
-    bool isDerivedFrom(const Type& type) const;
-
-    static int getAllDerivedFrom(const Type& type, std::vector<Type>& List);
+    /// Returns a type object by name
+    [[nodiscard]] static Type fromName(std::string_view name);
+    /// Returns a type object by key
+    [[nodiscard]] static Type fromKey(TypeId key);
+    /// Returns the name of the type
+    [[nodiscard]] std::string_view getName() const;
+    /// Returns the parent type
+    [[nodiscard]] Type getParent() const;
+    /// Checks whether this type is derived from "type"
+    [[nodiscard]] bool isDerivedFrom(const Type type) const;
+    /// Returns all descendants from the given type
+    static int getAllDerivedFrom(const Type type, std::vector<Type>& list);
     /// Returns the given named type if is derived from parent type, otherwise return bad type
-    static Type
-    getTypeIfDerivedFrom(const char* name, const Type& parent, bool bLoadModule = false);
-
-    static int getNumTypes();
-
-    static Type
-    createType(const Type& parent, const char* name, instantiationMethod method = nullptr);
-
-    unsigned int getKey() const;
-    bool isBad() const;
+    [[nodiscard]] static Type getTypeIfDerivedFrom(
+        std::string_view name,
+        const Type parent,
+        bool loadModule = false
+    );
+    /// Returns the number of types created so far
+    [[nodiscard]] static int getNumTypes();
+    /// Creates a new type with the given name, parent and instantiation method
+    [[nodiscard]] static const Type createType(
+        const Type parent,
+        std::string_view name,
+        instantiationMethod method = nullptr
+    );
+    /// Returns the inner index of the type
+    [[nodiscard]] TypeId getKey() const;
+    /// Checks if the type is invalid
+    [[nodiscard]] bool isBad() const;
 
     Type& operator=(const Type& type) = default;
     Type& operator=(Type&& type) = default;
@@ -124,24 +140,28 @@ public:
     bool operator>=(const Type& type) const;
     bool operator>(const Type& type) const;
 
-    static Type badType();
+    static const Type BadType;
     static void init();
     static void destruct();
 
-protected:
-    static std::string getModuleName(const char* ClassName);
-
+    /// Returns the name of the module the class is defined in
+    static std::string getModuleName(std::string_view className);
 
 private:
-    unsigned int index {0};
+    [[nodiscard]] instantiationMethod getInstantiationMethod() const;
+    static void importModule(std::string_view typeName);
 
-    static std::map<std::string, unsigned int> typemap;
-    static std::vector<TypeData*> typedata;
-    static std::set<std::string> loadModuleSet;
+    TypeId index {BadTypeIndex};
+
+    static std::map<std::string, TypeId, std::less<>> typemap;
+    static std::vector<TypeData*> typedata;  // use pointer to hide implementation details
+    static std::set<std::string, std::less<>> loadModuleSet;
+
+    static constexpr TypeId BadTypeIndex = 0;
 };
 
 
-inline unsigned int Type::getKey() const
+inline Type::TypeId Type::getKey() const
 {
     return this->index;
 }
@@ -178,10 +198,7 @@ inline bool Type::operator>(const Type& type) const
 
 inline bool Type::isBad() const
 {
-    return (this->index == 0);
+    return this->index == BadTypeIndex;
 }
 
 }  // namespace Base
-
-
-#endif  // BASE_TYPE_H

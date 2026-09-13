@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2014 Luke Parry <l.parry@warwick.ac.uk>                 *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_VIEWPROVIDERVIEWGROUPITEM_H
-#define DRAWINGGUI_VIEWPROVIDERVIEWGROUPITEM_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
@@ -48,11 +49,12 @@ public:
     bool doubleClicked() override;
     void setupContextMenu(QMenu*, QObject*, const char*) override;
     void updateData(const App::Property*) override;
+    void updateIcon();
 
     TechDraw::DrawProjGroupItem* getViewObject() const override;
     TechDraw::DrawProjGroupItem* getObject() const;
     void unsetEdit(int ModNum) override;
-    bool onDelete(const std::vector<std::string> &) override;
+    bool onDelete(const std::vector<std::string>& subNames) override;
     bool canDelete(App::DocumentObject* obj) const override;
 
 protected:
@@ -61,5 +63,3 @@ protected:
 };
 
 } // namespace TechDrawGui
-
-#endif // DRAWINGGUI_VIEWPROVIDERVIEWGROUPITEM_H

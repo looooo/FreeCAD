@@ -1,14 +1,4 @@
-include_directories(
-    ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_BINARY_DIR}
-    ${Boost_INCLUDE_DIRS}
-    ${COIN3D_INCLUDE_DIRS}
-    ${PYTHON_INCLUDE_DIRS}
-    ${XercesC_INCLUDE_DIRS}
-    ${ZLIB_INCLUDE_DIR}
-)
-
-link_directories(${OCC_LIBRARY_DIR})
+# SPDX-License-Identifier: LGPL-2.1-or-later
 
 set(InspectionGui_LIBS
     Inspection
@@ -19,7 +9,10 @@ set(Dialogs_UIC_SRCS
     VisualInspection.ui
 )
 
-qt_add_resources(Inspection_QRC_SRCS Resources/Inspection.qrc)
+qt_add_resources(Inspection_QRC_SRCS
+    Resources/Inspection.qrc
+    OPTIONS ${FREECAD_RCC_OPTIONS}
+)
 
 SET(Dialogs_SRCS
     ${Dialogs_UIC_HDRS}
@@ -33,7 +26,6 @@ SET(InspectionGui_SRCS
     ${Dialogs_SRCS}
     AppInspectionGui.cpp
     Command.cpp
-    PreCompiled.cpp
     PreCompiled.h
     ViewProviderInspection.cpp
     ViewProviderInspection.h
@@ -45,18 +37,36 @@ set(InspectionGui_Scripts
     ../InitGui.py
 )
 
-if(FREECAD_USE_PCH)
-    add_definitions(-D_PreComp_)
-    GET_MSVC_PRECOMPILED_SOURCE("PreCompiled.cpp" PCH_SRCS ${InspectionGui_SRCS})
-    ADD_MSVC_PRECOMPILED_HEADER(InspectionGui PreCompiled.h PreCompiled.cpp PCH_SRCS)
-endif(FREECAD_USE_PCH)
-
 SET(InspectionGuiIcon_SVG
     Resources/icons/InspectionWorkbench.svg
 )
 
-add_library(InspectionGui SHARED ${InspectionGui_SRCS} ${InspectionGui_Scripts} ${InspectionGuiIcon_SVG})
+add_library(InspectionGui SHARED
+    ${InspectionGui_SRCS}
+    ${InspectionGui_Scripts}
+    ${InspectionGuiIcon_SVG}
+)
+
+if(FREECAD_USE_PCH)
+    target_precompile_headers(InspectionGui PRIVATE
+            $<$<COMPILE_LANGUAGE:CXX>:"${CMAKE_CURRENT_LIST_DIR}/PreCompiled.h">
+    )
+endif(FREECAD_USE_PCH)
+
+target_include_directories(
+    InspectionGui
+    PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 target_link_libraries(InspectionGui ${InspectionGui_LIBS})
+
+if (MSVC)
+    target_compile_options(InspectionGui PRIVATE /wd4251)
+endif()
+
+target_compile_warn_error(InspectionGui)
 
 
 fc_target_copy_resource_flat(InspectionGui
@@ -65,7 +75,7 @@ fc_target_copy_resource_flat(InspectionGui
     ${InspectionGui_Scripts}
 )
 
-SET_BIN_DIR(InspectionGui InspectionGui /Mod/Inspection)
+SET_BIN_DIR(InspectionGui)
 SET_PYTHON_PREFIX_SUFFIX(InspectionGui)
 
 fc_copy_sources(InspectionGui "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_DATADIR}/Mod/Inspection" ${InspectionGuiIcon_SVG})

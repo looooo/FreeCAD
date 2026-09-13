@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2023 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -23,8 +25,7 @@
 // a class for converting geometry into QPainterPaths
 
 
-#ifndef PATHBUILDER_H
-#define PATHBUILDER_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
@@ -53,4 +54,3 @@ private:
 };
 
 } //end namespace TechDraw
-#endif

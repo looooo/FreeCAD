@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2021 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -22,26 +24,23 @@
 
 #include <FCGlobal.h>
 
-#ifndef FEM_GLOBAL_H
-#define FEM_GLOBAL_H
+#pragma once
 
 
 // Fem
 #ifndef FemExport
-#ifdef Fem_EXPORTS
-#  define FemExport      FREECAD_DECL_EXPORT
-#else
-#  define FemExport      FREECAD_DECL_IMPORT
-#endif
+# ifdef Fem_EXPORTS
+#  define FemExport FREECAD_DECL_EXPORT
+# else
+#  define FemExport FREECAD_DECL_IMPORT
+# endif
 #endif
 
 // FemGui
 #ifndef FemGuiExport
-#ifdef FemGui_EXPORTS
-#  define FemGuiExport   FREECAD_DECL_EXPORT
-#else
-#  define FemGuiExport   FREECAD_DECL_IMPORT
+# ifdef FemGui_EXPORTS
+#  define FemGuiExport FREECAD_DECL_EXPORT
+# else
+#  define FemGuiExport FREECAD_DECL_IMPORT
+# endif
 #endif
-#endif
-
-#endif //FEM_GLOBAL_H

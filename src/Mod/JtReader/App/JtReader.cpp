@@ -1,15 +1,15 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) Juergen Riegel 2007    <juergen.riegel@web.de>          *
  *   LGPL                                                                  *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <string.h>
 #include <strstream>
 #include <sys/types.h>
 #include <vector>
-#endif
+
 
 #include <JtTk/JtkCADExporter.h>
 #include <JtTk/JtkCADImporter.h>
@@ -32,10 +32,10 @@ vector<SimpleMeshFacet> result;
 vector<SimpleMeshFacet>::const_iterator resultIt;
 
 
-#define indent(i)                                                                                  \
-    {                                                                                              \
-        for (int l = 0; l < i; l++)                                                                \
-            InfoOut << "   ";                                                                      \
+#define indent(i) \
+    { \
+        for (int l = 0; l < i; l++) \
+            InfoOut << "   "; \
     }
 
 void printXform(JtkTransform* partXform, int level)
@@ -153,15 +153,17 @@ void printShape(JtkShape* partShape, int level)
         float *vertex = NULL, *normal = NULL, *color = NULL, *texture = NULL;
         int vertexCount = -1, normCount = -1, colorCount = -1, textCount = -1;
 
-        partShape->getInternal(vertex,
-                               vertexCount,
-                               normal,
-                               normCount,
-                               color,
-                               colorCount,
-                               texture,
-                               textCount,
-                               set);
+        partShape->getInternal(
+            vertex,
+            vertexCount,
+            normal,
+            normCount,
+            color,
+            colorCount,
+            texture,
+            textCount,
+            set
+        );
 
         if (vertex && (vertexCount > 0)) {
             indent(level + 2);
@@ -425,20 +427,21 @@ void insertShapeFaces(JtkShape* partShape)
         float *vertex = NULL, *normal = NULL, *color = NULL, *texture = NULL;
         int vertexCount = -1, normCount = -1, colorCount = -1, textCount = -1;
 
-        partShape->getInternal(vertex,
-                               vertexCount,
-                               normal,
-                               normCount,
-                               color,
-                               colorCount,
-                               texture,
-                               textCount,
-                               set);
+        partShape->getInternal(
+            vertex,
+            vertexCount,
+            normal,
+            normCount,
+            color,
+            colorCount,
+            texture,
+            textCount,
+            set
+        );
 
         if (normCount < 3) {
             return;
         }
-
 
         if (vertex && (vertexCount > 0) && normal && (normCount > 0)) {
             for (int i = 0; i < vertexCount - 2; i++) {
@@ -457,15 +460,6 @@ void insertShapeFaces(JtkShape* partShape)
                 temp.p3[2] = vertex[i * 3 + 8];
 
                 result.push_back(temp);
-                /*
-                          file << "  facet normal "<< normal[i*3+0] << " " << normal[i*3+1] << " "
-                   << normal[i*3+2] << " " << endl; file << "    outer loop" << endl; file << "
-                   vertex " << vertex[i*3+0] << " " << vertex[i*3+1] << " " << vertex[i*3+2] << " "
-                   << endl; file << "      vertex " << vertex[i*3+3] << " " << vertex[i*3+4] << " "
-                   << vertex[i*3+5] << " " << endl; file << "      vertex " << vertex[i*3+6] << " "
-                   << vertex[i*3+7] << " " << vertex[i*3+8] << " " << endl; file << "    endloop" <<
-                   endl; file << "  endfacet" << endl;
-                */
             }
         }
 #ifdef _DEBUG
@@ -505,34 +499,32 @@ int myPreactionCB_CollectFacets(JtkHierarchy* CurrNode, int level, JtkClientData
 
         case JtkEntity::JtkPART: {
 
-            {
-                JtkTransform* partXform = NULL;
-                ((JtkPart*)CurrNode)->getTransform(partXform);
-                if (partXform) {
-                    printXform(partXform, level + 1);
+            JtkTransform* partXform = NULL;
+            ((JtkPart*)CurrNode)->getTransform(partXform);
+            if (partXform) {
+                printXform(partXform, level + 1);
+            }
+
+            int partNumShapeLODs = -1;
+            partNumShapeLODs = ((JtkPart*)CurrNode)->numPolyLODs();
+            for (int lod = 0; lod < partNumShapeLODs; lod++) {
+                indent(level + 1);
+                InfoOut << "LOD#" << lod << ":\n";
+
+                if (iLod != lod && iLod != -1) {
+                    continue;
                 }
 
-                int partNumShapeLODs = -1;
-                partNumShapeLODs = ((JtkPart*)CurrNode)->numPolyLODs();
-                for (int lod = 0; lod < partNumShapeLODs; lod++) {
-                    indent(level + 1);
-                    InfoOut << "LOD#" << lod << ":\n";
+                int partNumShapes = -1;
+                partNumShapes = ((JtkPart*)CurrNode)->numPolyShapes(lod);
+                for (int shNum = 0; shNum < partNumShapes; shNum++) {
+                    indent(level + 2);
+                    InfoOut << "Shape#" << shNum << ":\n";
 
-                    if (iLod != lod && iLod != -1) {
-                        continue;
-                    }
-
-                    int partNumShapes = -1;
-                    partNumShapes = ((JtkPart*)CurrNode)->numPolyShapes(lod);
-                    for (int shNum = 0; shNum < partNumShapes; shNum++) {
-                        indent(level + 2);
-                        InfoOut << "Shape#" << shNum << ":\n";
-
-                        JtkShape* partShape = NULL;
-                        ((JtkPart*)CurrNode)->getPolyShape(partShape, lod, shNum);
-                        if (partShape) {
-                            insertShapeFaces(partShape);
-                        }
+                    JtkShape* partShape = NULL;
+                    ((JtkPart*)CurrNode)->getPolyShape(partShape, lod, shNum);
+                    if (partShape) {
+                        insertShapeFaces(partShape);
                     }
                 }
             }
@@ -543,18 +535,15 @@ int myPreactionCB_CollectFacets(JtkHierarchy* CurrNode, int level, JtkClientData
             InfoOut << CurrNode->name() << "(" << ((JtkAssembly*)CurrNode)->numChildren()
                     << " children)\n";
 
-            {
-                JtkTransform* partXform = NULL;
-                ((JtkPart*)CurrNode)->getTransform(partXform);
-                if (partXform) {}
-            }
+            JtkTransform* partXform = NULL;
+            ((JtkPart*)CurrNode)->getTransform(partXform);
+
         } break;
 
         case JtkEntity::JtkINSTANCE: {
             {
                 JtkTransform* partXform = NULL;
                 ((JtkPart*)CurrNode)->getTransform(partXform);
-                if (partXform) {}
             }
         } break;
     }
@@ -635,9 +624,6 @@ void readFile(const char* FileName, int iLods)
     else {
         throw "Unable to create JtkCADImporter.  Check license...\n";
     }
-
-    // Uninitialize JtTk
-    // JtkEntityFactory::fini();
 }
 
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2009 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,15 +22,13 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <QString>
 #include <qpalette.h>
-#endif
+
 
 #include <Gui/BitmapFactory.h>
 #include <Gui/Placement.h>
-#include <Gui/Selection.h>
+#include <Gui/Selection/Selection.h>
 
 #include "TaskRobot6Axis.h"
 #include "ui_TaskRobot6Axis.h"
@@ -104,13 +104,15 @@ void TaskRobot6Axis::setRobot(Robot::RobotObject* pcRobotObject)
     ui->horizontalSlider_Axis6->setMaximum((int)Rob->getMaxAngle(5));
     ui->horizontalSlider_Axis6->setMinimum((int)Rob->getMinAngle(5));
 
-    setAxis(pcRobot->Axis1.getValue(),
-            pcRobot->Axis2.getValue(),
-            pcRobot->Axis3.getValue(),
-            pcRobot->Axis4.getValue(),
-            pcRobot->Axis5.getValue(),
-            pcRobot->Axis6.getValue(),
-            pcRobot->Tcp.getValue());
+    setAxis(
+        pcRobot->Axis1.getValue(),
+        pcRobot->Axis2.getValue(),
+        pcRobot->Axis3.getValue(),
+        pcRobot->Axis4.getValue(),
+        pcRobot->Axis5.getValue(),
+        pcRobot->Axis6.getValue(),
+        pcRobot->Tcp.getValue()
+    );
     viewTool(pcRobot->Tool.getValue());
 }
 
@@ -131,7 +133,7 @@ void TaskRobot6Axis::viewTcp(const Base::Placement& pos)
     double A, B, C;
     pos.getRotation().getYawPitchRoll(A, B, C);
 
-    QString result = QString::fromLatin1("TCP:( %1, %2, %3, %4, %5, %6 )")
+    QString result = QStringLiteral("TCP:( %1, %2, %3, %4, %5, %6 )")
                          .arg(pos.getPosition().x, 0, 'f', 1)
                          .arg(pos.getPosition().y, 0, 'f', 1)
                          .arg(pos.getPosition().z, 0, 'f', 1)
@@ -147,7 +149,7 @@ void TaskRobot6Axis::viewTool(const Base::Placement& pos)
     double A, B, C;
     pos.getRotation().getYawPitchRoll(A, B, C);
 
-    QString result = QString::fromLatin1("Tool:( %1, %2, %3, %4, %5, %6 )")
+    QString result = QStringLiteral("Tool:( %1, %2, %3, %4, %5, %6 )")
                          .arg(pos.getPosition().x, 0, 'f', 1)
                          .arg(pos.getPosition().y, 0, 'f', 1)
                          .arg(pos.getPosition().z, 0, 'f', 1)
@@ -186,7 +188,7 @@ void TaskRobot6Axis::changeSliderA4(int value)
 {
     pcRobot->Axis4.setValue(float(value));
     viewTcp(pcRobot->Tcp.getValue());
-    ui->lineEdit_Axis4->setText(QString::fromLatin1("%1°").arg((float)value, 0, 'f', 1));
+    ui->lineEdit_Axis4->setText(QStringLiteral("%1°").arg((float)value, 0, 'f', 1));
     setColor(3, float(value), *(ui->lineEdit_Axis4));
 }
 
@@ -194,7 +196,7 @@ void TaskRobot6Axis::changeSliderA5(int value)
 {
     pcRobot->Axis5.setValue(float(value));
     viewTcp(pcRobot->Tcp.getValue());
-    ui->lineEdit_Axis5->setText(QString::fromLatin1("%1°").arg((float)value, 0, 'f', 1));
+    ui->lineEdit_Axis5->setText(QStringLiteral("%1°").arg((float)value, 0, 'f', 1));
     setColor(4, float(value), *(ui->lineEdit_Axis5));
 }
 
@@ -202,7 +204,7 @@ void TaskRobot6Axis::changeSliderA6(int value)
 {
     pcRobot->Axis6.setValue(float(value));
     viewTcp(pcRobot->Tcp.getValue());
-    ui->lineEdit_Axis6->setText(QString::fromLatin1("%1°").arg((float)value, 0, 'f', 1));
+    ui->lineEdit_Axis6->setText(QStringLiteral("%1°").arg((float)value, 0, 'f', 1));
     setColor(5, float(value), *(ui->lineEdit_Axis6));
 }
 void TaskRobot6Axis::setColor(int i, float angle, QLineEdit& lineEdit)
@@ -220,36 +222,38 @@ void TaskRobot6Axis::setColor(int i, float angle, QLineEdit& lineEdit)
     }
 }
 
-void TaskRobot6Axis::setAxis(float A1,
-                             float A2,
-                             float A3,
-                             float A4,
-                             float A5,
-                             float A6,
-                             const Base::Placement& Tcp)
+void TaskRobot6Axis::setAxis(
+    float A1,
+    float A2,
+    float A3,
+    float A4,
+    float A5,
+    float A6,
+    const Base::Placement& Tcp
+)
 {
     ui->horizontalSlider_Axis1->setSliderPosition((int)A1);
-    ui->lineEdit_Axis1->setText(QString::fromLatin1("%1°").arg(A1, 0, 'f', 1));
+    ui->lineEdit_Axis1->setText(QStringLiteral("%1°").arg(A1, 0, 'f', 1));
     setColor(0, A1, *(ui->lineEdit_Axis1));
 
     ui->horizontalSlider_Axis2->setSliderPosition((int)A2);
-    ui->lineEdit_Axis2->setText(QString::fromLatin1("%1°").arg(A2, 0, 'f', 1));
+    ui->lineEdit_Axis2->setText(QStringLiteral("%1°").arg(A2, 0, 'f', 1));
     setColor(1, A2, *(ui->lineEdit_Axis2));
 
     ui->horizontalSlider_Axis3->setSliderPosition((int)A3);
-    ui->lineEdit_Axis3->setText(QString::fromLatin1("%1°").arg(A3, 0, 'f', 1));
+    ui->lineEdit_Axis3->setText(QStringLiteral("%1°").arg(A3, 0, 'f', 1));
     setColor(2, A3, *(ui->lineEdit_Axis3));
 
     ui->horizontalSlider_Axis4->setSliderPosition((int)A4);
-    ui->lineEdit_Axis4->setText(QString::fromLatin1("%1°").arg(A4, 0, 'f', 1));
+    ui->lineEdit_Axis4->setText(QStringLiteral("%1°").arg(A4, 0, 'f', 1));
     setColor(3, A4, *(ui->lineEdit_Axis4));
 
     ui->horizontalSlider_Axis5->setSliderPosition((int)A5);
-    ui->lineEdit_Axis5->setText(QString::fromLatin1("%1°").arg(A5, 0, 'f', 1));
+    ui->lineEdit_Axis5->setText(QStringLiteral("%1°").arg(A5, 0, 'f', 1));
     setColor(4, A5, *(ui->lineEdit_Axis5));
 
     ui->horizontalSlider_Axis6->setSliderPosition((int)A6);
-    ui->lineEdit_Axis6->setText(QString::fromLatin1("%1°").arg(A6, 0, 'f', 1));
+    ui->lineEdit_Axis6->setText(QStringLiteral("%1°").arg(A6, 0, 'f', 1));
     setColor(5, A6, *(ui->lineEdit_Axis6));
 
     viewTcp(Tcp);

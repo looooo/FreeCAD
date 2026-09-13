@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2010 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,14 +22,13 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <QButtonGroup>
 #include <QDialogButtonBox>
-#endif
 
+
+#include <App/Document.h>
 #include <Gui/Command.h>
-#include <Gui/Selection.h>
+#include <Gui/Selection/Selection.h>
 #include <Gui/WaitCursor.h>
 #include <Mod/Mesh/App/MeshFeature.h>
 #include <Mod/Mesh/App/Core/Smoothing.h>
@@ -53,13 +54,8 @@ DlgSmoothing::DlgSmoothing(QWidget* parent)
 
     connect(ui->checkBoxSelection, &QCheckBox::toggled,
             this, &DlgSmoothing::onCheckBoxSelectionToggled);
-#if QT_VERSION < QT_VERSION_CHECK(5,15,0)
-    connect(bg, qOverload<int>(&QButtonGroup::buttonClicked),
-            this, &DlgSmoothing::methodClicked);
-#else
     connect(bg, qOverload<int>(&QButtonGroup::idClicked),
             this, &DlgSmoothing::methodClicked);
-#endif
 
     ui->labelLambda->setText(QString::fromUtf8("\xce\xbb"));
     ui->labelMu->setText(QString::fromUtf8("\xce\xbc"));
@@ -108,7 +104,7 @@ DlgSmoothing::Smooth DlgSmoothing::method() const
     if (ui->radioButtonTaubin->isChecked()) {
         return DlgSmoothing::Taubin;
     }
-    else if (ui->radioButtonLaplace->isChecked()) {
+    if (ui->radioButtonLaplace->isChecked()) {
         return DlgSmoothing::Laplace;
     }
     return DlgSmoothing::None;
@@ -152,21 +148,15 @@ SmoothingDialog::~SmoothingDialog() = default;
 TaskSmoothing::TaskSmoothing()
 {
     widget = new DlgSmoothing();  // NOLINT
-    Gui::TaskView::TaskBox* taskbox =
-        new Gui::TaskView::TaskBox(QPixmap(), widget->windowTitle(), false, nullptr);
-    taskbox->groupLayout()->addWidget(widget);
-    Content.push_back(taskbox);
+    addTaskBox(widget, false, nullptr);
 
     selection = new Selection();  // NOLINT
-    selection->setObjects(
-        Gui::Selection().getSelectionEx(nullptr, Mesh::Feature::getClassTypeId()));
+    selection->setObjects(Gui::Selection().getSelectionEx(nullptr, Mesh::Feature::getClassTypeId()));
     Gui::Selection().clearSelection();
-    Gui::TaskView::TaskBox* tasksel = new Gui::TaskView::TaskBox();
-    tasksel->groupLayout()->addWidget(selection);
-    tasksel->hide();
-    Content.push_back(tasksel);
+    QWidget* box = addTaskBoxWithoutHeader(selection);
+    box->hide();
 
-    connect(widget, &DlgSmoothing::toggledSelection, tasksel, &QWidget::setVisible);
+    connect(widget, &DlgSmoothing::toggledSelection, box, &QWidget::setVisible);
 }
 
 bool TaskSmoothing::accept()
@@ -177,11 +167,13 @@ bool TaskSmoothing::accept()
     }
 
     Gui::WaitCursor wc;
-    Gui::Command::openCommand(QT_TRANSLATE_NOOP("Command", "Mesh Smoothing"));
 
+    int tid = 0;
     bool hasSelection = false;
     for (auto it : meshes) {
         Mesh::Feature* mesh = static_cast<Mesh::Feature*>(it);
+        tid = mesh->getDocument()->openTransaction(QT_TRANSLATE_NOOP("Command", "Mesh Smoothing"), tid);
+
         std::vector<Mesh::FacetIndex> selection;
         if (widget->smoothSelection()) {
             // clear the selection before editing the mesh to avoid
@@ -232,12 +224,12 @@ bool TaskSmoothing::accept()
         mesh->Mesh.finishEditing();
     }
 
-    if (widget->smoothSelection() && !hasSelection) {
-        Gui::Command::abortCommand();
+    if (widget->smoothSelection() && !hasSelection && tid) {
+        App::GetApplication().abortTransaction(tid);
         return false;
     }
 
-    Gui::Command::commitCommand();
+    App::GetApplication().commitTransaction(tid);
     return true;
 }
 

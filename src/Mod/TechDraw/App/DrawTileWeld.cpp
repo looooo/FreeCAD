@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2019 Wanderer Fan <wandererfan@gmail.com>               *
  *                                                                         *
@@ -20,11 +22,9 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
-#ifndef _PreComp_
 # include <sstream>
-#endif
+
 
 #include <App/Application.h>
 #include <App/Document.h>
@@ -78,7 +78,7 @@ void DrawTileWeld::onChanged(const App::Property* prop)
 
 void DrawTileWeld::replaceFileIncluded(std::string newSymbolFile)
 {
-//    Base::Console().Message("DTW::replaceFileIncluded(%s)\n", newSymbolFile.c_str());
+//    Base::Console().message("DTW::replaceFileIncluded(%s)\n", newSymbolFile.c_str());
     if (newSymbolFile.empty()) {
         return;
     }

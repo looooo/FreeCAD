@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2022 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TECHDRAW_DIMENSIONGEOMETRY_h_
-#define TECHDRAW_DIMENSIONGEOMETRY_h_
+#pragma once
 
 #include <string>
 
@@ -76,7 +77,12 @@ public:
     void project(const DrawViewPart* dvp);
     void mapToPage(const DrawViewPart* dvp);
     void invertY();
+    void scale(double factor);
     void dump(const std::string& text) const;
+
+    pointPair toCanonicalForm(DrawViewPart* dvp) const;
+    pointPair toDisplayForm(DrawViewPart* dvp) const;
+
 
 private:
     Base::Vector3d m_first;
@@ -114,6 +120,10 @@ public:
     void invertY();
     void dump(const std::string& text) const;
 
+    anglePoints toCanonicalForm(DrawViewPart* dvp) const;
+    anglePoints toDisplayForm(DrawViewPart* dvp) const;
+
+
 private:
     pointPair m_ends;
     Base::Vector3d m_vertex;
@@ -134,6 +144,9 @@ public:
     void invertY();
     void dump(const std::string& text) const;
 
+    arcPoints toCanonicalForm(DrawViewPart* dvp) const;
+    arcPoints toDisplayForm(DrawViewPart* dvp) const;
+
 //TODO: setters and getters
     bool isArc;
     double radius;
@@ -144,6 +157,27 @@ public:
     bool arcCW;
 };
 
-}   //end namespace TechDraw
+//a convenient container for area dimension
+class TechDrawExport areaPoint
+{
+public:
+    areaPoint();
+    areaPoint(const areaPoint& ap) = default;
 
-#endif
+    areaPoint& operator= (const areaPoint& ap);
+
+    void move(const Base::Vector3d& offset);
+    void project(const DrawViewPart* dvp);
+    void invertY();
+    void dump(const std::string& text) const;
+
+    double getFilledArea() const { return area; }
+    double getActualArea() const { return actualArea; }
+    Base::Vector3d getCenter() const { return center; }
+
+    double area{0};             // this is the outer area without considering holes
+    double actualArea{0};       // this is the net area after holes are removed
+    Base::Vector3d center;      // this is geometric center of the outer face
+};
+
+}   //end namespace TechDraw

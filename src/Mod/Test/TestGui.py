@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # ***************************************************************************
 # *   Copyright (c) 2001,2002 Juergen Riegel <juergen.riegel@web.de>        *
 # *                                                                         *
@@ -32,6 +31,7 @@ import FreeCAD, FreeCADGui
 # import the App Test module
 import TestApp  # Test as Module name not possible
 import sys
+
 
 # ---------------------------------------------------------------------------
 # define the Commands of the Test Application module

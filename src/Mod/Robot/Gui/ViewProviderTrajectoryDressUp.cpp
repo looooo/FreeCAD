@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2008 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <Gui/Control.h>
 #include <Mod/Robot/Gui/TaskDlgTrajectoryDressUp.h>
@@ -36,7 +37,7 @@ PROPERTY_SOURCE(RobotGui::ViewProviderTrajectoryDressUp, RobotGui::ViewProviderT
 // bool ViewProviderTrajectoryDressUp::doubleClicked(void)
 //{
 //     Gui::TaskView::TaskDialog* dlg = new
-//     TaskDlgTrajectoryDressUp(dynamic_cast<Robot::TrajectoryDressUpObject *>(getObject()));
+//     TaskDlgTrajectoryDressUp(getObject<Robot::TrajectoryDressUpObject >());
 //     Gui::Control().showDialog(dlg);
 //     return true;
 // }
@@ -44,8 +45,9 @@ PROPERTY_SOURCE(RobotGui::ViewProviderTrajectoryDressUp, RobotGui::ViewProviderT
 
 bool ViewProviderTrajectoryDressUp::setEdit(int)
 {
-    Gui::TaskView::TaskDialog* dlg =
-        new TaskDlgTrajectoryDressUp(static_cast<Robot::TrajectoryDressUpObject*>(getObject()));
+    Gui::TaskView::TaskDialog* dlg = new TaskDlgTrajectoryDressUp(
+        getObject<Robot::TrajectoryDressUpObject>()
+    );
     Gui::Control().showDialog(dlg);
     return true;
 }
@@ -59,7 +61,7 @@ void ViewProviderTrajectoryDressUp::unsetEdit(int)
 std::vector<App::DocumentObject*> ViewProviderTrajectoryDressUp::claimChildren() const
 {
     std::vector<App::DocumentObject*> temp;
-    temp.push_back(static_cast<Robot::TrajectoryDressUpObject*>(getObject())->Source.getValue());
+    temp.push_back(getObject<Robot::TrajectoryDressUpObject>()->Source.getValue());
 
     return temp;
 }

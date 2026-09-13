@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2017 Markus Hovorka <m.hovorka@live.de>                 *
  *                                                                         *
@@ -21,7 +23,6 @@
  ***************************************************************************/
 
 
-#include "PreCompiled.h"
 
 #include "TextDocument.h"
 #include "DocumentObject.h"
@@ -33,17 +34,17 @@ PROPERTY_SOURCE(App::TextDocument, App::DocumentObject)
 
 TextDocument::TextDocument()
 {
-    ADD_PROPERTY_TYPE(
-            Text, (""), 0, App::Prop_Hidden,
-            "Content of the document.");
+    ADD_PROPERTY_TYPE(Text, (""), 0, App::Prop_Hidden, "Content of the document.");
 }
 
 void TextDocument::onChanged(const Property* prop)
 {
-    if (prop == &Text)
+    if (prop == &Text) {
         textChanged();
-    else if (prop == &Label)
+    }
+    else if (prop == &Label) {
         labelChanged();
+    }
     DocumentObject::onChanged(prop);
 }
 
@@ -52,12 +53,12 @@ const char* TextDocument::getViewProviderName() const
     return "Gui::ViewProviderTextDocument";
 }
 
-boost::signals2::connection TextDocument::connectText(const TextSlot &sub)
+fastsignals::advanced_connection TextDocument::connectText(const TextSlot& sub)
 {
-    return textChanged.connect(sub);
+    return textChanged.connect(sub, fastsignals::advanced_tag());
 }
 
-boost::signals2::connection TextDocument::connectLabel(const TextSlot &sub)
+fastsignals::connection TextDocument::connectLabel(const TextSlot& sub)
 {
     return labelChanged.connect(sub);
 }

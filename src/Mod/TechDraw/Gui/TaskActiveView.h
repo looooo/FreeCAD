@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2019 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TECHDRAWGUI_TASKACTIVEVIEW_H
-#define TECHDRAWGUI_TASKACTIVEVIEW_H
+#pragma once
 
 #include <Gui/TaskView/TaskDialog.h>
 #include <Gui/TaskView/TaskView.h>
@@ -70,16 +71,29 @@ protected:
     void setUiPrimary(void);
 
     TechDraw::DrawViewImage* createActiveView();
+    void enableCrop(bool state);
+
+private Q_SLOTS:
+    void onCropChanged();
+    void onBgTypeChanged(int index);
+    void updatePreview();
 
 private:
     std::unique_ptr<Ui_TaskActiveView> ui;
 
     TechDraw::DrawPage*       m_pageFeat;
     TechDraw::DrawViewImage*  m_imageFeat;
+    TechDraw::DrawViewImage* m_previewImageFeat;
+
+    enum class BackgroundType {
+        Transparent = 0,
+        Solid = 1,
+        View3D = 2
+    };
 
     QPushButton* m_btnOK;
     QPushButton* m_btnCancel;
-
+    int m_tid;
 };
 
 
@@ -117,5 +131,3 @@ private:
 };
 
 } //namespace TechDrawGui
-
-#endif // #ifndef TECHDRAWGUI_TASKACTIVEVIEW_H

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2011 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,10 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
-#endif
-
 #include <Gui/Action.h>
 #include <Gui/Application.h>
 #include <Gui/BitmapFactory.h>
@@ -31,8 +29,9 @@
 #include <Gui/Document.h>
 #include <Gui/MainWindow.h>
 #include <Gui/Notifications.h>
-#include <Gui/Selection.h>
-#include <Gui/SelectionObject.h>
+#include <Gui/Selection/Selection.h>
+#include <Gui/Selection/SelectionObject.h>
+#include <Gui/ViewProviderDocumentObject.h>
 #include <Mod/Sketcher/App/SketchObject.h>
 
 #include "GeometryCreationMode.h"
@@ -48,20 +47,51 @@ bool isAlterGeoActive(Gui::Document* doc)
 {
     if (doc) {
         // checks if a Sketch Viewprovider is in Edit
-        if (doc->getInEdit()
-            && doc->getInEdit()->isDerivedFrom(SketcherGui::ViewProviderSketch::getClassTypeId())) {
-            return true;
-        }
+        auto vp = dynamic_cast<SketcherGui::ViewProviderSketch*>(doc->getInEdit());
+        return (vp && vp->isInEditMode());
     }
 
     return false;
 }
 
-namespace SketcherGui
+namespace
 {
 
-extern GeometryCreationMode geometryCreationMode;
+void updateToggleConstructionCommands(GeometryCreationMode mode)
+{
+    Gui::Application::Instance->commandManager().updateCommands(
+        "ToggleConstruction",
+        static_cast<int>(mode)
+    );
+}
 
+GeometryCreationMode geometryCreationModeFromViewProvider(const Gui::ViewProviderDocumentObject& vp)
+{
+    auto sketchVp = dynamic_cast<const SketcherGui::ViewProviderSketch*>(&vp);
+    if (sketchVp) {
+        return sketchVp->getGeometryCreationMode();
+    }
+
+    return GeometryCreationMode::Normal;
+}
+
+void updateToggleConstructionCommands(const Gui::Document& doc)
+{
+    auto vp = dynamic_cast<SketcherGui::ViewProviderSketch*>(doc.getInEdit());
+    updateToggleConstructionCommands(vp ? vp->getGeometryCreationMode() : GeometryCreationMode::Normal);
+}
+
+void resetToggleConstructionCommandsForDocument(const Gui::ViewProviderDocumentObject& vp)
+{
+    if (vp.getDocument() == Gui::Application::Instance->activeDocument()) {
+        updateToggleConstructionCommands(GeometryCreationMode::Normal);
+    }
+}
+
+}  // namespace
+
+namespace SketcherGui
+{
 /* Constrain commands =======================================================*/
 DEF_STD_CMD_AU(CmdSketcherToggleConstruction)
 
@@ -70,37 +100,56 @@ CmdSketcherToggleConstruction::CmdSketcherToggleConstruction()
 {
     sAppModule = "Sketcher";
     sGroup = "Sketcher";
-    sMenuText = QT_TR_NOOP("Toggle construction geometry");
-    sToolTipText = QT_TR_NOOP("Toggles the toolbar or selected geometry to/from construction mode");
+    sMenuText = QT_TR_NOOP("Toggle Construction Geometry");
+    sToolTipText = QT_TR_NOOP("Toggles between defining geometry and construction geometry modes");
     sWhatsThis = "Sketcher_ToggleConstruction";
     sStatusTip = sToolTipText;
     sPixmap = "Sketcher_ToggleConstruction";
     sAccel = "G, N";
     eType = ForEdit;
 
+    auto app = Gui::Application::Instance;
+
+    app->signalActiveDocument.connect([](const Gui::Document& doc) {
+        updateToggleConstructionCommands(doc);
+    });
+
+    app->signalNewDocument.connect([](const Gui::Document&, bool) {
+        updateToggleConstructionCommands(GeometryCreationMode::Normal);
+    });
+
+    app->signalInEdit.connect([](const Gui::ViewProviderDocumentObject& vp) {
+        updateToggleConstructionCommands(geometryCreationModeFromViewProvider(vp));
+    });
+
+    app->signalResetEdit.connect([](const Gui::ViewProviderDocumentObject& vp) {
+        resetToggleConstructionCommandsForDocument(vp);
+    });
+
     // list of toggle construction commands
     Gui::CommandManager& rcCmdMgr = Gui::Application::Instance->commandManager();
     rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CreateLine");
+    rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CreatePolyline");
+    rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CompLine");
     rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CreateRectangle");
     rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CreateRectangle_Center");
     rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CreateOblong");
     rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CompCreateRectangles");
-    rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CreatePolyline");
     rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CreateArcSlot");
     rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CreateSlot");
     rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CompSlot");
     rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CreateArc");
+    rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CreateText");
     rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_Create3PointArc");
-    rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CompCreateArc");
     rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CreateEllipseByCenter");
     rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CreateEllipseBy3Points");
     rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CreateArcOfEllipse");
     rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CreateArcOfHyperbola");
     rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CreateArcOfParabola");
-    rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CompCreateConic");
+    rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CompCreateArc");
     rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CreateCircle");
     rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_Create3PointCircle");
-    rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CompCreateCircle");
+    rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CompCreateConic");
     rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CreateTriangle");
     rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CreateSquare");
     rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CreatePentagon");
@@ -111,8 +160,13 @@ CmdSketcherToggleConstruction::CmdSketcherToggleConstruction()
     rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CompCreateRegularPolygon");
     rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CreateBSpline");
     rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CreatePeriodicBSpline");
+    rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CreateBSplineByInterpolation");
+    rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CreatePeriodicBSplineByInterpolation");
     rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CompCreateBSpline");
     rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CarbonCopy");
+    rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_CompExternal");
+    rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_Projection");
+    rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_Intersection");
     rcCmdMgr.addCommandMode("ToggleConstruction", "Sketcher_ToggleConstruction");
 }
 
@@ -120,15 +174,28 @@ void CmdSketcherToggleConstruction::updateAction(int mode)
 {
     auto act = getAction();
     if (act) {
-        switch (static_cast<GeometryCreationMode>(mode)) {
+
+        GeometryCreationMode creationMode = static_cast<GeometryCreationMode>(mode);
+
+        // Apply
+        switch (creationMode) {
             case GeometryCreationMode::Normal:
                 act->setIcon(Gui::BitmapFactory().iconFromTheme("Sketcher_ToggleConstruction"));
                 break;
             case GeometryCreationMode::Construction:
-                act->setIcon(
-                    Gui::BitmapFactory().iconFromTheme("Sketcher_ToggleConstruction_Constr"));
+                act->setIcon(Gui::BitmapFactory().iconFromTheme("Sketcher_ToggleConstruction_Constr"));
                 break;
         }
+    }
+}
+
+GeometryCreationMode toggleCreationMode(GeometryCreationMode currentMode)
+{
+    if (currentMode == GeometryCreationMode::Normal) {
+        return GeometryCreationMode::Construction;
+    }
+    else {
+        return GeometryCreationMode::Normal;
     }
 }
 
@@ -136,60 +203,62 @@ void CmdSketcherToggleConstruction::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
     // Option A: nothing is selected change creation mode from/to construction
-    if (Gui::Selection().countObjectsOfType(Sketcher::SketchObject::getClassTypeId()) == 0) {
+    if (Gui::Selection().countObjectsOfType<Sketcher::SketchObject>() == 0) {
+        auto doc = getActiveGuiDocument();
+        if (doc) {
+            auto vp = dynamic_cast<SketcherGui::ViewProviderSketch*>(doc->getInEdit());
+            if (vp) {
+                GeometryCreationMode newMode = toggleCreationMode(vp->getGeometryCreationMode());
+                vp->setGeometryCreationMode(newMode);
 
-        Gui::CommandManager& rcCmdMgr = Gui::Application::Instance->commandManager();
-
-        if (geometryCreationMode == GeometryCreationMode::Construction) {
-            geometryCreationMode = GeometryCreationMode::Normal;
+                Gui::CommandManager& rcCmdMgr = Gui::Application::Instance->commandManager();
+                rcCmdMgr.updateCommands("ToggleConstruction", static_cast<int>(newMode));
+            }
         }
-        else {
-            geometryCreationMode = GeometryCreationMode::Construction;
-        }
-
-        rcCmdMgr.updateCommands("ToggleConstruction", static_cast<int>(geometryCreationMode));
     }
     else  // there was a selection, so operate in toggle mode.
     {
         // get the selection
         std::vector<Gui::SelectionObject> selection;
-        selection =
-            getSelection().getSelectionEx(nullptr, Sketcher::SketchObject::getClassTypeId());
+        selection = getSelection().getSelectionEx(nullptr, Sketcher::SketchObject::getClassTypeId());
 
-        Sketcher::SketchObject* Obj =
-            static_cast<Sketcher::SketchObject*>(selection[0].getObject());
+        auto* Obj = static_cast<Sketcher::SketchObject*>(selection[0].getObject());
 
         // only one sketch with its subelements are allowed to be selected
         if (selection.size() != 1) {
-            Gui::TranslatedUserWarning(Obj,
-                                       QObject::tr("Wrong selection"),
-                                       QObject::tr("Select edge(s) from the sketch."));
+            Gui::TranslatedUserWarning(
+                Obj,
+                QObject::tr("Wrong selection"),
+                QObject::tr("Select edges from the sketch")
+            );
             return;
         }
 
         // get the needed lists and objects
         const std::vector<std::string>& SubNames = selection[0].getSubNames();
         if (SubNames.empty()) {
-            Gui::TranslatedUserWarning(Obj,
-                                       QObject::tr("Wrong selection"),
-                                       QObject::tr("Select edge(s) from the sketch."));
+            Gui::TranslatedUserWarning(
+                Obj,
+                QObject::tr("Wrong selection"),
+                QObject::tr("Select edges from the sketch")
+            );
             return;
         }
 
         // undo command open
-        openCommand(QT_TRANSLATE_NOOP("Command", "Toggle draft from/to draft"));
+        openCommand(QT_TRANSLATE_NOOP("Command", "Toggle construction geometry"));
 
         // go through the selected subelements
         bool verticesonly = true;
 
         for (const auto& subname : SubNames) {
-            if (subname.size() > 4 && subname.substr(0, 4) == "Edge") {
+            if ((subname.size() > 4 && subname.substr(0, 4) == "Edge")
+                || (subname.size() > 12 && subname.substr(0, 12) == "ExternalEdge")) {
                 verticesonly = false;
             }
         }
 
-        for (std::vector<std::string>::const_iterator it = SubNames.begin(); it != SubNames.end();
-             ++it) {
+        for (const auto& subname : SubNames) {
             // It was decided to provide a special behaviour:
             // Vertices will only be toggled to/from construction IF ONLY
             // vertices are within the group.
@@ -203,13 +272,21 @@ void CmdSketcherToggleConstruction::activated(int iMsg)
 
 
             // only handle edges
-            if (it->size() > 4 && it->substr(0, 4) == "Edge") {
-                int GeoId = std::atoi(it->substr(4, 4000).c_str()) - 1;
+            if (subname.size() > 4 && subname.substr(0, 4) == "Edge") {
+                int geoId = std::atoi(subname.substr(4, 4000).c_str()) - 1;
+                auto gf = Obj->getGeometryFacade(geoId);
+                if (!gf || gf->isInternalAligned()) {
+                    continue;
+                }
                 // issue the actual commands to toggle
-                Gui::cmdAppObjectArgs(selection[0].getObject(), "toggleConstruction(%d) ", GeoId);
+                Gui::cmdAppObjectArgs(Obj, "toggleConstruction(%d) ", geoId);
             }
-            else if (verticesonly && it->size() > 6 && it->substr(0, 6) == "Vertex") {
-                int vertexId = std::atoi(it->substr(6, 4000).c_str()) - 1;
+            else if (subname.size() > 12 && subname.substr(0, 12) == "ExternalEdge") {
+                int geoId = GeoEnum::RefExt - std::atoi(subname.substr(12, 4000).c_str()) + 1;
+                Gui::cmdAppObjectArgs(Obj, "toggleConstruction(%d) ", geoId);
+            }
+            else if (verticesonly && subname.size() > 6 && subname.substr(0, 6) == "Vertex") {
+                int vertexId = std::atoi(subname.substr(6, 4000).c_str()) - 1;
 
                 int geoId;
                 PointPos pos;
@@ -219,9 +296,7 @@ void CmdSketcherToggleConstruction::activated(int iMsg)
 
                 if (geo && geo->is<Part::GeomPoint>()) {
                     // issue the actual commands to toggle
-                    Gui::cmdAppObjectArgs(selection[0].getObject(),
-                                          "toggleConstruction(%d) ",
-                                          geoId);
+                    Gui::cmdAppObjectArgs(Obj, "toggleConstruction(%d) ", geoId);
                 }
             }
         }

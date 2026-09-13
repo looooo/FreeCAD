@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Luke Parry <l.parry@warwick.ac.uk>                 *
  *                                                                         *
@@ -20,12 +22,12 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_QGRAPHICSITEMCMARK_H
-#define DRAWINGGUI_QGRAPHICSITEMCMARK_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
-# include "QGIVertex.h"
+#include "QGIUserTypes.h"
+#include "QGIVertex.h"
 
 namespace TechDrawGui
 {
@@ -36,7 +38,7 @@ public:
     explicit QGICMark(int index);
     ~QGICMark() override {}
 
-    enum {Type = QGraphicsItem::UserType + 171};
+    enum {Type = UserType::QGICMark};
     int type() const override { return Type;}
     void paint(QPainter * painter, const QStyleOptionGraphicsItem * option, QWidget * widget = nullptr ) override;
 
@@ -46,7 +48,7 @@ public:
     void draw(void);
     float getSize() { return m_size; }
     void setSize(float s);
-    float getThick() { return m_width; }
+    float getThick() { return m_pen.widthF(); }
     void setThick(float t);
     void setPrettyNormal() override;
 
@@ -57,8 +59,7 @@ protected:
 
 private:
     float m_size;
+    double m_markFuzz;
 };
 
 }
-
-#endif // DRAWINGGUI_QGRAPHICSITEMCMARK_H

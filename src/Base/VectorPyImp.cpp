@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2008 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,17 +22,12 @@
  *                                                                         *
  ***************************************************************************/
 
-
-#include "PreCompiled.h"
-
-#ifndef _PreComp_
 #include <sstream>
-#endif
 
+#include "GeometryPyCXX.h"
 #include "Vector3D.h"
 
-// inclusion of the generated files (generated out of VectorPy.xml)
-#include "GeometryPyCXX.h"
+// generated out of Vector.pyi
 #include "VectorPy.h"
 #include "VectorPy.cpp"
 
@@ -71,8 +68,8 @@ int VectorPy::PyInit(PyObject* args, PyObject* /*kwd*/)
         return 0;
     }
     PyErr_Clear();  // set by PyArg_ParseTuple()
-    if (PyArg_ParseTuple(args, "O!", &(Base::VectorPy::Type), &object)) {
-        *ptr = *(static_cast<Base::VectorPy*>(object)->getVectorPtr());
+    if (PyArg_ParseTuple(args, "O!", &(VectorPy::Type), &object)) {
+        *ptr = *(static_cast<VectorPy*>(object)->getVectorPtr());
         return 0;
     }
     PyErr_Clear();  // set by PyArg_ParseTuple()
@@ -90,7 +87,7 @@ int VectorPy::PyInit(PyObject* args, PyObject* /*kwd*/)
     return -1;
 }
 
-PyObject* VectorPy::__reduce__(PyObject* args)
+PyObject* VectorPy::__reduce__(PyObject* args) const
 {
     if (!PyArg_ParseTuple(args, "")) {
         return nullptr;
@@ -98,10 +95,10 @@ PyObject* VectorPy::__reduce__(PyObject* args)
 
     Py::Tuple tuple(2);
 
-    Py::Object type(Base::getTypeAsObject(&Base::VectorPy::Type));
+    Py::Object type(getTypeAsObject(&VectorPy::Type));
     tuple.setItem(0, type);
 
-    Base::Vector3d v = this->value();
+    Vector3d v = this->value();
     Py::Tuple xyz(3);
     xyz.setItem(0, Py::Float(v.x));
     xyz.setItem(1, Py::Float(v.y));
@@ -120,8 +117,8 @@ PyObject* VectorPy::number_add_handler(PyObject* self, PyObject* other)
         PyErr_SetString(PyExc_TypeError, "Second arg must be Vector");
         return nullptr;
     }
-    Base::Vector3d a = static_cast<VectorPy*>(self)->value();
-    Base::Vector3d b = static_cast<VectorPy*>(other)->value();
+    Vector3d a = static_cast<VectorPy*>(self)->value();
+    Vector3d b = static_cast<VectorPy*>(other)->value();
     return new VectorPy(a + b);
 }
 
@@ -135,45 +132,39 @@ PyObject* VectorPy::number_subtract_handler(PyObject* self, PyObject* other)
         PyErr_SetString(PyExc_TypeError, "Second arg must be Vector");
         return nullptr;
     }
-    Base::Vector3d a = static_cast<VectorPy*>(self)->value();
-    Base::Vector3d b = static_cast<VectorPy*>(other)->value();
+    Vector3d a = static_cast<VectorPy*>(self)->value();
+    Vector3d b = static_cast<VectorPy*>(other)->value();
     return new VectorPy(a - b);
 }
 
 PyObject* VectorPy::number_multiply_handler(PyObject* self, PyObject* other)
 {
     if (PyObject_TypeCheck(self, &(VectorPy::Type))) {
-        Base::Vector3d a = static_cast<VectorPy*>(self)->value();
+        Vector3d a = static_cast<VectorPy*>(self)->value();
 
         if (PyObject_TypeCheck(other, &(VectorPy::Type))) {
-            Base::Vector3d b = static_cast<VectorPy*>(other)->value();
+            Vector3d b = static_cast<VectorPy*>(other)->value();
             Py::Float mult(a * b);
             return Py::new_reference_to(mult);
         }
-        else if (PyNumber_Check(other)) {
+        if (PyNumber_Check(other)) {
             double b = PyFloat_AsDouble(other);
             return new VectorPy(a * b);
         }
-        else {
-            PyErr_SetString(PyExc_TypeError, "A Vector can only be multiplied by Vector or number");
-            return nullptr;
-        }
+        PyErr_SetString(PyExc_TypeError, "A Vector can only be multiplied by Vector or number");
+        return nullptr;
     }
-    else if (PyObject_TypeCheck(other, &(VectorPy::Type))) {
-        Base::Vector3d a = static_cast<VectorPy*>(other)->value();
+    if (PyObject_TypeCheck(other, &(VectorPy::Type))) {
+        Vector3d a = static_cast<VectorPy*>(other)->value();
         if (PyNumber_Check(self)) {
             double b = PyFloat_AsDouble(self);
             return new VectorPy(a * b);
         }
-        else {
-            PyErr_SetString(PyExc_TypeError, "A Vector can only be multiplied by Vector or number");
-            return nullptr;
-        }
-    }
-    else {
-        PyErr_SetString(PyExc_TypeError, "First or second arg must be Vector");
+        PyErr_SetString(PyExc_TypeError, "A Vector can only be multiplied by Vector or number");
         return nullptr;
     }
+    PyErr_SetString(PyExc_TypeError, "First or second arg must be Vector");
+    return nullptr;
 }
 
 Py_ssize_t VectorPy::sequence_length(PyObject* /*unused*/)
@@ -198,7 +189,7 @@ PyObject* VectorPy::sequence_item(PyObject* self, Py_ssize_t index)
     }
 
     unsigned short pos = index % 3;
-    Base::Vector3d vec = self_->value();
+    Vector3d vec = self_->value();
     Py::Float item {vec[pos]};
     self_->sequence.setItem(pos, item);
 
@@ -243,13 +234,8 @@ PyObject* VectorPy::mapping_subscript(PyObject* self, PyObject* item)
         }
         return sequence_item(self, i);
     }
-    else if (PySlice_Check(item)) {
-        Py_ssize_t start = 0;
-        Py_ssize_t stop = 0;
-        Py_ssize_t step = 0;
-        Py_ssize_t slicelength = 0;
-        Py_ssize_t cur = 0;
-        Py_ssize_t i = 0;
+    if (PySlice_Check(item)) {
+        Py_ssize_t start = 0, stop = 0, step = 0, slicelength = 0, cur = 0, i = 0;
         PyObject* slice = item;
 
         if (PySlice_GetIndicesEx(slice, sequence_length(self), &start, &stop, &step, &slicelength)
@@ -260,17 +246,17 @@ PyObject* VectorPy::mapping_subscript(PyObject* self, PyObject* item)
         if (slicelength <= 0) {
             return PyTuple_New(0);
         }
-        else if (start == 0 && step == 1 && slicelength == sequence_length(self)
-                 && PyObject_TypeCheck(self, &(VectorPy::Type))) {
-            Base::Vector3d v = static_cast<VectorPy*>(self)->value();
+        if (start == 0 && step == 1 && slicelength == sequence_length(self)
+            && PyObject_TypeCheck(self, &(VectorPy::Type))) {
+            Vector3d v = static_cast<VectorPy*>(self)->value();
             Py::Tuple xyz(3);
             xyz.setItem(0, Py::Float(v.x));
             xyz.setItem(1, Py::Float(v.y));
             xyz.setItem(2, Py::Float(v.z));
             return Py::new_reference_to(xyz);
         }
-        else if (PyObject_TypeCheck(self, &(VectorPy::Type))) {
-            Base::Vector3d v = static_cast<VectorPy*>(self)->value();
+        if (PyObject_TypeCheck(self, &(VectorPy::Type))) {
+            Vector3d v = static_cast<VectorPy*>(self)->value();
             Py::Tuple xyz(static_cast<size_t>(slicelength));
 
             for (cur = start, i = 0; i < slicelength; cur += step, i++) {
@@ -282,13 +268,15 @@ PyObject* VectorPy::mapping_subscript(PyObject* self, PyObject* item)
         }
     }
 
-    PyErr_Format(PyExc_TypeError,
-                 "Vector indices must be integers or slices, not %.200s",
-                 Py_TYPE(item)->tp_name);
+    PyErr_Format(
+        PyExc_TypeError,
+        "Vector indices must be integers or slices, not %.200s",
+        Py_TYPE(item)->tp_name
+    );
     return nullptr;
 }
 
-PyObject* VectorPy::add(PyObject* args)
+PyObject* VectorPy::add(PyObject* args) const
 {
     PyObject* obj = nullptr;
     if (!PyArg_ParseTuple(args, "O!", &(VectorPy::Type), &obj)) {
@@ -300,11 +288,11 @@ PyObject* VectorPy::add(PyObject* args)
     VectorPy::PointerType this_ptr = getVectorPtr();
     VectorPy::PointerType vect_ptr = vec->getVectorPtr();
 
-    Base::Vector3d v = (*this_ptr) + (*vect_ptr);
+    Vector3d v = (*this_ptr) + (*vect_ptr);
     return new VectorPy(v);
 }
 
-PyObject* VectorPy::sub(PyObject* args)
+PyObject* VectorPy::sub(PyObject* args) const
 {
     PyObject* obj = nullptr;
     if (!PyArg_ParseTuple(args, "O!", &(VectorPy::Type), &obj)) {
@@ -316,18 +304,18 @@ PyObject* VectorPy::sub(PyObject* args)
     VectorPy::PointerType this_ptr = getVectorPtr();
     VectorPy::PointerType vect_ptr = vec->getVectorPtr();
 
-    Base::Vector3d v = (*this_ptr) - (*vect_ptr);
+    Vector3d v = (*this_ptr) - (*vect_ptr);
     return new VectorPy(v);
 }
 
-PyObject* VectorPy::negative(PyObject* args)
+PyObject* VectorPy::negative(PyObject* args) const
 {
     if (!PyArg_ParseTuple(args, "")) {
         return nullptr;
     }
 
     VectorPy::PointerType this_ptr = getVectorPtr();
-    Base::Vector3d v = -(*this_ptr);
+    Vector3d v = -(*this_ptr);
     return new VectorPy(v);
 }
 
@@ -342,25 +330,21 @@ PyObject* VectorPy::richCompare(PyObject* v, PyObject* w, int op)
             PyErr_SetString(PyExc_TypeError, "no ordering relation is defined for Vector");
             return nullptr;
         }
-        else if (op == Py_EQ) {
+        if (op == Py_EQ) {
             res = (v1 == v2) ? Py_True : Py_False;  // NOLINT
             Py_INCREF(res);
             return res;
         }
-        else {
-            res = (v1 != v2) ? Py_True : Py_False;  // NOLINT
-            Py_INCREF(res);
-            return res;
-        }
+        res = (v1 != v2) ? Py_True : Py_False;  // NOLINT
+        Py_INCREF(res);
+        return res;
     }
-    else {
-        // This always returns False
-        Py_INCREF(Py_NotImplemented);
-        return Py_NotImplemented;
-    }
+    // This always returns False
+    Py_INCREF(Py_NotImplemented);
+    return Py_NotImplemented;
 }
 
-PyObject* VectorPy::isEqual(PyObject* args)
+PyObject* VectorPy::isEqual(PyObject* args) const
 {
     PyObject* obj = nullptr;
     double tolerance = 0;
@@ -375,6 +359,40 @@ PyObject* VectorPy::isEqual(PyObject* args)
 
     Py::Boolean eq((*this_ptr).IsEqual(*vect_ptr, tolerance));
     return Py::new_reference_to(eq);
+}
+
+PyObject* VectorPy::isParallel(PyObject* args) const
+{
+    PyObject* obj = nullptr;
+    double tolerance = 0;
+    if (!PyArg_ParseTuple(args, "O!d", &(VectorPy::Type), &obj, &tolerance)) {
+        return nullptr;
+    }
+
+    VectorPy* vec = static_cast<VectorPy*>(obj);
+
+    VectorPy::PointerType v1_ptr = getVectorPtr();
+    VectorPy::PointerType v2_ptr = vec->getVectorPtr();
+
+    Py::Boolean parallel((*v1_ptr).IsParallel(*v2_ptr, tolerance));
+    return Py::new_reference_to(parallel);
+}
+
+PyObject* VectorPy::isNormal(PyObject* args) const
+{
+    PyObject* obj = nullptr;
+    double tolerance = 0;
+    if (!PyArg_ParseTuple(args, "O!d", &(VectorPy::Type), &obj, &tolerance)) {
+        return nullptr;
+    }
+
+    VectorPy* vec = static_cast<VectorPy*>(obj);
+
+    VectorPy::PointerType v1_ptr = getVectorPtr();
+    VectorPy::PointerType v2_ptr = vec->getVectorPtr();
+
+    Py::Boolean normal((*v1_ptr).IsNormal(*v2_ptr, tolerance));
+    return Py::new_reference_to(normal);
 }
 
 PyObject* VectorPy::scale(PyObject* args)
@@ -403,7 +421,7 @@ PyObject* VectorPy::multiply(PyObject* args)
     return Py::new_reference_to(this);
 }
 
-PyObject* VectorPy::dot(PyObject* args)
+PyObject* VectorPy::dot(PyObject* args) const
 {
     PyObject* obj = nullptr;
     if (!PyArg_ParseTuple(args, "O!", &(VectorPy::Type), &obj)) {
@@ -419,7 +437,7 @@ PyObject* VectorPy::dot(PyObject* args)
     return Py::new_reference_to(mult);
 }
 
-PyObject* VectorPy::cross(PyObject* args)
+PyObject* VectorPy::cross(PyObject* args) const
 {
     PyObject* obj = nullptr;
     if (!PyArg_ParseTuple(args, "O!", &(VectorPy::Type), &obj)) {
@@ -431,11 +449,11 @@ PyObject* VectorPy::cross(PyObject* args)
     VectorPy::PointerType this_ptr = getVectorPtr();
     VectorPy::PointerType vect_ptr = vec->getVectorPtr();
 
-    Base::Vector3d v = (*this_ptr) % (*vect_ptr);
+    Vector3d v = (*this_ptr) % (*vect_ptr);
     return new VectorPy(v);
 }
 
-PyObject* VectorPy::isOnLineSegment(PyObject* args)
+PyObject* VectorPy::isOnLineSegment(PyObject* args) const
 {
     PyObject* start = nullptr;
     PyObject* end = nullptr;
@@ -463,7 +481,7 @@ PyObject* VectorPy::isOnLineSegment(PyObject* args)
     return Py::new_reference_to(result);
 }
 
-PyObject* VectorPy::getAngle(PyObject* args)
+PyObject* VectorPy::getAngle(PyObject* args) const
 {
     PyObject* obj = nullptr;
     if (!PyArg_ParseTuple(args, "O!", &(VectorPy::Type), &obj)) {
@@ -486,7 +504,7 @@ PyObject* VectorPy::normalize(PyObject* args)
     }
     VectorPy::PointerType ptr = getVectorPtr();
     if (ptr->Length() < Vector3d::epsilon()) {
-        PyErr_SetString(Base::PyExc_FC_GeneralError, "Cannot normalize null vector");
+        PyErr_SetString(PyExc_FC_GeneralError, "Cannot normalize null vector");
         return nullptr;
     }
 
@@ -551,7 +569,7 @@ PyObject* VectorPy::projectToPlane(PyObject* args)
     return Py::new_reference_to(this);
 }
 
-PyObject* VectorPy::distanceToPoint(PyObject* args)
+PyObject* VectorPy::distanceToPoint(PyObject* args) const
 {
     PyObject* pnt = nullptr;
     if (!PyArg_ParseTuple(args, "O!", &(VectorPy::Type), &pnt)) {
@@ -562,11 +580,11 @@ PyObject* VectorPy::distanceToPoint(PyObject* args)
     VectorPy::PointerType this_ptr = getVectorPtr();
     VectorPy::PointerType base_ptr = base_vec->getVectorPtr();
 
-    Py::Float dist(Base::Distance(*this_ptr, *base_ptr));
+    Py::Float dist(Distance(*this_ptr, *base_ptr));
     return Py::new_reference_to(dist);
 }
 
-PyObject* VectorPy::distanceToLine(PyObject* args)
+PyObject* VectorPy::distanceToLine(PyObject* args) const
 {
     PyObject* base = nullptr;
     PyObject* line = nullptr;
@@ -593,7 +611,7 @@ PyObject* VectorPy::distanceToLine(PyObject* args)
     return Py::new_reference_to(dist);
 }
 
-PyObject* VectorPy::distanceToLineSegment(PyObject* args)
+PyObject* VectorPy::distanceToLineSegment(PyObject* args) const
 {
     PyObject* base = nullptr;
     PyObject* line = nullptr;
@@ -620,7 +638,7 @@ PyObject* VectorPy::distanceToLineSegment(PyObject* args)
     return new VectorPy(v);
 }
 
-PyObject* VectorPy::distanceToPlane(PyObject* args)
+PyObject* VectorPy::distanceToPlane(PyObject* args) const
 {
     PyObject* base = nullptr;
     PyObject* line = nullptr;
@@ -713,8 +731,8 @@ int VectorPy::setCustomAttributes(const char* /*attr*/, PyObject* /*obj*/)
     return 0;
 }
 
-// TODO for v0.18:
-// In generation script allow to more precisely define which slots
+// TODO: for v0.18
+// In generation script allow one to more precisely define which slots
 // of the number protocol should be supported instead of setting all.
 
 PyObject* VectorPy::number_divide_handler(PyObject* self, PyObject* other)
@@ -724,14 +742,16 @@ PyObject* VectorPy::number_divide_handler(PyObject* self, PyObject* other)
         // slots of the PyNumberMethods structure. So, it must be explicitly
         // filered out here.
         if (PyObject_TypeCheck(other, &(VectorPy::Type))) {
-            PyErr_Format(PyExc_TypeError,
-                         "unsupported operand type(s) for /: '%s' and '%s'",
-                         Py_TYPE(self)->tp_name,
-                         Py_TYPE(other)->tp_name);
+            PyErr_Format(
+                PyExc_TypeError,
+                "unsupported operand type(s) for /: '%s' and '%s'",
+                Py_TYPE(self)->tp_name,
+                Py_TYPE(other)->tp_name
+            );
             return nullptr;
         }
 
-        Base::Vector3d vec = static_cast<VectorPy*>(self)->value();
+        Vector3d vec = static_cast<VectorPy*>(self)->value();
         double div = PyFloat_AsDouble(other);
         if (div == 0.0) {
             PyErr_Format(PyExc_ZeroDivisionError, "'%s' division by zero", Py_TYPE(self)->tp_name);
@@ -742,51 +762,58 @@ PyObject* VectorPy::number_divide_handler(PyObject* self, PyObject* other)
         return new VectorPy(vec);
     }
 
-    PyErr_Format(PyExc_TypeError,
-                 "unsupported operand type(s) for /: '%s' and '%s'",
-                 Py_TYPE(self)->tp_name,
-                 Py_TYPE(other)->tp_name);
+    PyErr_Format(
+        PyExc_TypeError,
+        "unsupported operand type(s) for /: '%s' and '%s'",
+        Py_TYPE(self)->tp_name,
+        Py_TYPE(other)->tp_name
+    );
     return nullptr;
 }
 
 PyObject* VectorPy::number_remainder_handler(PyObject* self, PyObject* other)
 {
-    if (PyObject_TypeCheck(self, &(VectorPy::Type))
-        && PyObject_TypeCheck(other, &(VectorPy::Type))) {
-        Base::Vector3d a = static_cast<VectorPy*>(self)->value();
-        Base::Vector3d b = static_cast<VectorPy*>(other)->value();
+    if (PyObject_TypeCheck(self, &(VectorPy::Type)) && PyObject_TypeCheck(other, &(VectorPy::Type))) {
+        Vector3d a = static_cast<VectorPy*>(self)->value();
+        Vector3d b = static_cast<VectorPy*>(other)->value();
         return new VectorPy(a % b);
     }
 
-    PyErr_Format(PyExc_TypeError,
-                 "unsupported operand type(s) for %%: '%s' and '%s'",
-                 Py_TYPE(self)->tp_name,
-                 Py_TYPE(other)->tp_name);
+    PyErr_Format(
+        PyExc_TypeError,
+        "unsupported operand type(s) for %%: '%s' and '%s'",
+        Py_TYPE(self)->tp_name,
+        Py_TYPE(other)->tp_name
+    );
     return nullptr;
 }
 
 PyObject* VectorPy::number_divmod_handler(PyObject* self, PyObject* other)
 {
-    PyErr_Format(PyExc_TypeError,
-                 "unsupported operand type(s) for divmod(): '%s' and '%s'",
-                 Py_TYPE(self)->tp_name,
-                 Py_TYPE(other)->tp_name);
+    PyErr_Format(
+        PyExc_TypeError,
+        "unsupported operand type(s) for divmod(): '%s' and '%s'",
+        Py_TYPE(self)->tp_name,
+        Py_TYPE(other)->tp_name
+    );
     return nullptr;
 }
 
 PyObject* VectorPy::number_power_handler(PyObject* self, PyObject* other, PyObject* /*arg*/)
 {
-    PyErr_Format(PyExc_TypeError,
-                 "unsupported operand type(s) for ** or pow(): '%s' and '%s'",
-                 Py_TYPE(self)->tp_name,
-                 Py_TYPE(other)->tp_name);
+    PyErr_Format(
+        PyExc_TypeError,
+        "unsupported operand type(s) for ** or pow(): '%s' and '%s'",
+        Py_TYPE(self)->tp_name,
+        Py_TYPE(other)->tp_name
+    );
     return nullptr;
 }
 
 PyObject* VectorPy::number_negative_handler(PyObject* self)
 {
     if (PyObject_TypeCheck(self, &(VectorPy::Type))) {
-        Base::Vector3d vec = static_cast<VectorPy*>(self)->value();
+        Vector3d vec = static_cast<VectorPy*>(self)->value();
         return new VectorPy(-vec);
     }
 
@@ -797,7 +824,7 @@ PyObject* VectorPy::number_negative_handler(PyObject* self)
 PyObject* VectorPy::number_positive_handler(PyObject* self)
 {
     if (PyObject_TypeCheck(self, &(VectorPy::Type))) {
-        Base::Vector3d vec = static_cast<VectorPy*>(self)->value();
+        Vector3d vec = static_cast<VectorPy*>(self)->value();
         return new VectorPy(vec);
     }
 
@@ -808,7 +835,7 @@ PyObject* VectorPy::number_positive_handler(PyObject* self)
 PyObject* VectorPy::number_absolute_handler(PyObject* self)
 {
     if (PyObject_TypeCheck(self, &(VectorPy::Type))) {
-        Base::Vector3d vec = static_cast<VectorPy*>(self)->value();
+        Vector3d vec = static_cast<VectorPy*>(self)->value();
         vec.x = fabs(vec.x);
         vec.y = fabs(vec.y);
         vec.z = fabs(vec.z);
@@ -832,61 +859,75 @@ PyObject* VectorPy::number_invert_handler(PyObject* self)
 
 PyObject* VectorPy::number_lshift_handler(PyObject* self, PyObject* other)
 {
-    PyErr_Format(PyExc_TypeError,
-                 "unsupported operand type(s) for <<: '%s' and '%s'",
-                 Py_TYPE(self)->tp_name,
-                 Py_TYPE(other)->tp_name);
+    PyErr_Format(
+        PyExc_TypeError,
+        "unsupported operand type(s) for <<: '%s' and '%s'",
+        Py_TYPE(self)->tp_name,
+        Py_TYPE(other)->tp_name
+    );
     return nullptr;
 }
 
 PyObject* VectorPy::number_rshift_handler(PyObject* self, PyObject* other)
 {
-    PyErr_Format(PyExc_TypeError,
-                 "unsupported operand type(s) for >>: '%s' and '%s'",
-                 Py_TYPE(self)->tp_name,
-                 Py_TYPE(other)->tp_name);
+    PyErr_Format(
+        PyExc_TypeError,
+        "unsupported operand type(s) for >>: '%s' and '%s'",
+        Py_TYPE(self)->tp_name,
+        Py_TYPE(other)->tp_name
+    );
     return nullptr;
 }
 
 PyObject* VectorPy::number_and_handler(PyObject* self, PyObject* other)
 {
-    PyErr_Format(PyExc_TypeError,
-                 "unsupported operand type(s) for &: '%s' and '%s'",
-                 Py_TYPE(self)->tp_name,
-                 Py_TYPE(other)->tp_name);
+    PyErr_Format(
+        PyExc_TypeError,
+        "unsupported operand type(s) for &: '%s' and '%s'",
+        Py_TYPE(self)->tp_name,
+        Py_TYPE(other)->tp_name
+    );
     return nullptr;
 }
 
 PyObject* VectorPy::number_xor_handler(PyObject* self, PyObject* other)
 {
-    PyErr_Format(PyExc_TypeError,
-                 "unsupported operand type(s) for ^: '%s' and '%s'",
-                 Py_TYPE(self)->tp_name,
-                 Py_TYPE(other)->tp_name);
+    PyErr_Format(
+        PyExc_TypeError,
+        "unsupported operand type(s) for ^: '%s' and '%s'",
+        Py_TYPE(self)->tp_name,
+        Py_TYPE(other)->tp_name
+    );
     return nullptr;
 }
 
 PyObject* VectorPy::number_or_handler(PyObject* self, PyObject* other)
 {
-    PyErr_Format(PyExc_TypeError,
-                 "unsupported operand type(s) for |: '%s' and '%s'",
-                 Py_TYPE(self)->tp_name,
-                 Py_TYPE(other)->tp_name);
+    PyErr_Format(
+        PyExc_TypeError,
+        "unsupported operand type(s) for |: '%s' and '%s'",
+        Py_TYPE(self)->tp_name,
+        Py_TYPE(other)->tp_name
+    );
     return nullptr;
 }
 
 PyObject* VectorPy::number_int_handler(PyObject* self)
 {
-    PyErr_Format(PyExc_TypeError,
-                 "int() argument must be a string or a number, not '%s'",
-                 Py_TYPE(self)->tp_name);
+    PyErr_Format(
+        PyExc_TypeError,
+        "int() argument must be a string or a number, not '%s'",
+        Py_TYPE(self)->tp_name
+    );
     return nullptr;
 }
 
 PyObject* VectorPy::number_float_handler(PyObject* self)
 {
-    PyErr_Format(PyExc_TypeError,
-                 "float() argument must be a string or a number, not '%s'",
-                 Py_TYPE(self)->tp_name);
+    PyErr_Format(
+        PyExc_TypeError,
+        "float() argument must be a string or a number, not '%s'",
+        Py_TYPE(self)->tp_name
+    );
     return nullptr;
 }

@@ -1,3 +1,6 @@
+
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,7 +23,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <App/Document.h>
 #include <App/DocumentObject.h>
@@ -37,7 +39,6 @@
 #include <Mod/TechDraw/App/DrawPagePy.h>
 #include <Mod/TechDraw/App/DrawViewPy.h>  // generated from DrawViewPy.xml
 
-#include "MDIViewPage.h"
 #include "QGIView.h"
 #include "QGSPage.h"
 #include "ViewProviderPage.h"
@@ -93,7 +94,7 @@ private:
             str += " ";
             if (msg) {str += msg;}
             else     {str += "No OCCT Exception Message";}
-            Base::Console().Error("%s\n", str.c_str());
+            Base::Console().error("%s\n", str.c_str());
             throw Py::Exception(Part::PartExceptionOCCError, str);
         }
         catch (const Base::Exception &e) {
@@ -101,7 +102,7 @@ private:
             str += "FreeCAD exception thrown (";
             str += e.what();
             str += ")";
-            e.ReportException();
+            e.reportException();
             throw Py::RuntimeError(str);
         }
         catch (const std::exception &e) {
@@ -109,7 +110,7 @@ private:
             str += "C++ exception thrown (";
             str += e.what();
             str += ")";
-            Base::Console().Error("%s\n", str.c_str());
+            Base::Console().error("%s\n", str.c_str());
             throw Py::RuntimeError(str);
         }
         return Py::None(); //only here to prevent warning re no return value
@@ -131,25 +132,30 @@ private:
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
             PyObject* item = (*it).ptr();
             if (PyObject_TypeCheck(item, &(App::DocumentObjectPy::Type))) {
-                App::DocumentObject* obj = static_cast<App::DocumentObjectPy*>(item)->getDocumentObjectPtr();
+                App::DocumentObject* obj =
+                    static_cast<App::DocumentObjectPy*>(item)->getDocumentObjectPtr();
                 if (obj->isDerivedFrom<TechDraw::DrawPage>()) {
                     page = static_cast<TechDraw::DrawPage*>(obj);
-                    Gui::Document* activeGui = Gui::Application::Instance->getDocument(page->getDocument());
+                    Gui::Document* activeGui =
+                        Gui::Application::Instance->getDocument(page->getDocument());
                     Gui::ViewProvider* vp = activeGui->getViewProvider(obj);
-                    ViewProviderPage* dvp = dynamic_cast<ViewProviderPage*>(vp);
-                    if ( !(dvp  && dvp->getMDIViewPage()) ) {
+                    ViewProviderPage* vpPage = freecad_cast<ViewProviderPage*>(vp);
+                    if (!vpPage) {
                         throw Py::TypeError("TechDraw can not find Page");
                     }
 
                     Base::FileInfo fi_out(EncodedName.c_str());
 
                     if (fi_out.hasExtension("svg")) {
-                        dvp->getMDIViewPage()->saveSVG(EncodedName);
-                    } else if (fi_out.hasExtension("dxf")) {
-                        dvp->getMDIViewPage()->saveDXF(EncodedName);
-                    } else if (fi_out.hasExtension("pdf")) {
-                        dvp->getMDIViewPage()->savePDF(EncodedName);
-                    } else {
+                        PagePrinter::saveSVG(vpPage, EncodedName);
+                    }
+                    else if (fi_out.hasExtension("dxf")) {
+                        PagePrinter::saveDXF(vpPage, EncodedName);
+                    }
+                    else if (fi_out.hasExtension("pdf")) {
+                        PagePrinter::savePDF(vpPage, EncodedName);
+                    }
+                    else {
                         throw Py::TypeError("TechDraw can not export this file format");
                     }
                 }
@@ -175,30 +181,22 @@ private:
         PyMem_Free(name);
 
         try {
-           App::DocumentObject* obj = nullptr;
-           Gui::ViewProvider* vp = nullptr;
-           MDIViewPage* mdi = nullptr;
-           if (PyObject_TypeCheck(pageObj, &(App::DocumentObjectPy::Type))) {
-               obj = static_cast<App::DocumentObjectPy*>(pageObj)->getDocumentObjectPtr();
-               vp = Gui::Application::Instance->getViewProvider(obj);
-               if (vp) {
-                   TechDrawGui::ViewProviderPage* vpp = dynamic_cast<TechDrawGui::ViewProviderPage*>(vp);
-                   if (vpp) {
-                       mdi = vpp->getMDIViewPage();
-                       if (mdi) {
-                           mdi->savePDF(filePath);
-                       } else {
-                           vpp->showMDIViewPage();
-                           mdi = vpp->getMDIViewPage();
-                           if (mdi) {
-                               mdi->savePDF(filePath);
-                           } else {
-                               throw Py::TypeError("Page not available! Is it Hidden?");
-                           }
-                       }
-                   }
-               }
-           }
+            App::DocumentObject* obj = nullptr;
+            Gui::ViewProvider* vp = nullptr;
+            if (PyObject_TypeCheck(pageObj, &(App::DocumentObjectPy::Type))) {
+                obj = static_cast<App::DocumentObjectPy*>(pageObj)->getDocumentObjectPtr();
+                vp = Gui::Application::Instance->getViewProvider(obj);
+                if (vp) {
+                    TechDrawGui::ViewProviderPage* vpPage =
+                        dynamic_cast<TechDrawGui::ViewProviderPage*>(vp);
+                    if (vpPage) {
+                        PagePrinter::savePDF(vpPage, filePath);
+                    }
+                    else {
+                        throw Py::TypeError("Page not available! Is it Hidden?");
+                    }
+                }
+            }
         }
         catch (Base::Exception &e) {
             e.setPyException();
@@ -221,30 +219,22 @@ private:
         PyMem_Free(name);
 
         try {
-           App::DocumentObject* obj = nullptr;
-           Gui::ViewProvider* vp = nullptr;
-           MDIViewPage* mdi = nullptr;
-           if (PyObject_TypeCheck(pageObj, &(App::DocumentObjectPy::Type))) {
-               obj = static_cast<App::DocumentObjectPy*>(pageObj)->getDocumentObjectPtr();
-               vp = Gui::Application::Instance->getViewProvider(obj);
-               if (vp) {
-                   TechDrawGui::ViewProviderPage* vpp = dynamic_cast<TechDrawGui::ViewProviderPage*>(vp);
-                   if (vpp) {
-                       mdi = vpp->getMDIViewPage();
-                       if (mdi) {
-                           mdi->saveSVG(filePath);
-                       } else {
-                           vpp->showMDIViewPage();
-                           mdi = vpp->getMDIViewPage();
-                           if (mdi) {
-                               mdi->saveSVG(filePath);
-                           } else {
-                               throw Py::TypeError("Page not available! Is it Hidden?");
-                           }
-                       }
-                   }
-               }
-           }
+            App::DocumentObject* obj = nullptr;
+            Gui::ViewProvider* vp = nullptr;
+            if (PyObject_TypeCheck(pageObj, &(App::DocumentObjectPy::Type))) {
+                obj = static_cast<App::DocumentObjectPy*>(pageObj)->getDocumentObjectPtr();
+                vp = Gui::Application::Instance->getViewProvider(obj);
+                if (vp) {
+                    TechDrawGui::ViewProviderPage* vpPage =
+                        dynamic_cast<TechDrawGui::ViewProviderPage*>(vp);
+                    if (vpPage) {
+                        PagePrinter::saveSVG(vpPage, filePath);
+                    }
+                    else {
+                        throw Py::TypeError("Page not available! Is it Hidden?");
+                    }
+                }
+            }
         }
         catch (Base::Exception &e) {
             e.setPyException();

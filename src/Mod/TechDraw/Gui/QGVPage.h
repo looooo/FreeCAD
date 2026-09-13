@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Luke Parry <l.parry@warwick.ac.uk>                 *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TECHDRAWGUI_QGVIEW_H
-#define TECHDRAWGUI_QGVIEW_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
@@ -71,13 +72,14 @@ class QGILeaderLine;
 class QGIRichAnno;
 class QGITile;
 class QGVNavStyle;
+class TechDrawHandler;
 
 class TechDrawGuiExport QGVPage: public QGraphicsView
 {
     Q_OBJECT
 
 public:
-    enum RendererType
+    enum class RendererType
     {
         Native,
         OpenGL,
@@ -87,7 +89,7 @@ public:
     QGVPage(ViewProviderPage* vpPage, QGSPage* scenePage, QWidget* parent = nullptr);
     ~QGVPage() override;
 
-    void setRenderer(RendererType type = Native);
+    void setRenderer(RendererType type = RendererType::Native);
     void drawBackground(QPainter* painter, const QRectF& rect) override;
 
     QGSPage* getScene() { return m_scene; }
@@ -100,6 +102,10 @@ public:
     void makeGrid(int width, int height, double step);
     void showGrid(bool state) { m_showGrid = state; }
     void updateViewport() { viewport()->repaint(); }
+
+    void activateHandler(TechDrawHandler* newHandler);
+    void deactivateHandler();
+    bool isHandlerActive() { return toolHandler != nullptr; }
 
     bool isBalloonPlacing() const { return balloonPlacing; }
     void setBalloonPlacing(bool isPlacing) { balloonPlacing = isPlacing; }
@@ -147,7 +153,6 @@ protected:
 
     QColor getBackgroundColor();
 
-    double getDevicePixelRatio() const;
     QPixmap prepareCursorPixmap(const char* iconName, QPoint& hotspot);
 
     void drawForeground(QPainter* painter, const QRectF& rect) override;
@@ -158,7 +163,7 @@ protected:
     void initNavigationStyle();
     void setNavigationStyle(std::string navParm);
 
-    void createStandardCursors(double dpr);
+    void createStandardCursors();
 
 private:
     RendererType m_renderer;
@@ -196,8 +201,8 @@ private:
 
     MDIViewPage* m_parentMDI;
     QContextMenuEvent* m_saveContextEvent;
+
+    std::unique_ptr<TechDrawHandler> toolHandler;
 };
 
 }// namespace TechDrawGui
-
-#endif// TECHDRAWGUI_QGVIEW_H

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2012 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,16 +22,13 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef MESHGUI_SEGMENTATION_H
-#define MESHGUI_SEGMENTATION_H
+#pragma once
 
 #include <QWidget>
 
 #include <Gui/TaskView/TaskDialog.h>
 #include <Gui/TaskView/TaskView.h>
-#ifndef MESH_GLOBAL_H
 #include <Mod/Mesh/MeshGlobal.h>
-#endif
 
 
 // forward declarations
@@ -45,9 +44,11 @@ class Ui_Segmentation;
 class MeshGuiExport Segmentation: public QWidget
 {
 public:
-    explicit Segmentation(Mesh::Feature* mesh,
-                          QWidget* parent = nullptr,
-                          Qt::WindowFlags fl = Qt::WindowFlags());
+    explicit Segmentation(
+        Mesh::Feature* mesh,
+        QWidget* parent = nullptr,
+        Qt::WindowFlags fl = Qt::WindowFlags()
+    );
     ~Segmentation() override;
     void accept();
 
@@ -57,6 +58,8 @@ protected:
 private:
     Ui_Segmentation* ui;
     Mesh::Feature* myMesh;
+
+    Q_DISABLE_COPY_MOVE(Segmentation)
 };
 
 /**
@@ -77,9 +80,6 @@ public:
 
 private:
     Segmentation* widget;
-    Gui::TaskView::TaskBox* taskbox;
 };
 
 }  // namespace MeshGui
-
-#endif  // MESHGUI_SEGMENTATION_H

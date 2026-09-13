@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <Base/FileInfo.h>
 #include <Base/Stream.h>
@@ -57,7 +58,7 @@ PyObject* DrawViewSymbolPy::dumpSymbol(PyObject *args)
     if (outfile.good()) {
         outfile.close();
     } else {
-        std::string error = std::string("Can't write ");
+        std::string error = std::string("Cannot write");
         error += fileSpec;
         PyErr_SetString(PyExc_RuntimeError, error.c_str());
         return nullptr;

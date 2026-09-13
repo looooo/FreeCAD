@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2011 Jürgen Riegel (juergen.riegel@web.de)              *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef App_ImagePlane_H
-#define App_ImagePlane_H
+#pragma once
 
 #include <App/GeoFeature.h>
 #include <App/PropertyFile.h>
@@ -30,7 +31,7 @@
 namespace Image
 {
 
-class AppExport ImagePlane : public App::GeoFeature
+class AppExport ImagePlane: public App::GeoFeature
 {
     PROPERTY_HEADER_WITH_OVERRIDE(Image::ImagePlane);
 
@@ -40,24 +41,22 @@ public:
     ~ImagePlane() override = default;
 
     App::PropertyFileIncluded ImageFile;
-    App::PropertyLength       XSize;
-    App::PropertyLength       YSize;
+    App::PropertyLength XSize;
+    App::PropertyLength YSize;
 
     int getXSizeInPixel();
     int getYSizeInPixel();
     void setXSizeInPixel(int);
     void setYSizeInPixel(int);
 
-    double XPixelsPerMeter{1000.0};
-    double YPixelsPerMeter{1000.0};
+    double XPixelsPerMeter {1000.0};
+    double YPixelsPerMeter {1000.0};
 
     /// returns the type name of the ViewProvider
-    const char* getViewProviderName() const override {
+    const char* getViewProviderName() const override
+    {
         return "Gui::ViewProviderImagePlane";
     }
 };
 
-} //namespace Image
-
-
-#endif // App_ImagePlane_H
+}  // namespace Image

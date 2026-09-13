@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2002 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -21,16 +23,10 @@
  *                                                                         *
  ***************************************************************************/
 
-
-#include "PreCompiled.h"
-
-#ifndef _PreComp_
 #include <list>
-#endif
 
 #include "Factory.h"
 #include "Console.h"
-
 
 using namespace Base;
 
@@ -100,7 +96,7 @@ const char* ScriptFactorySingleton::ProduceScript(const char* sScriptName) const
 
     if (!script) {
 #ifdef FC_DEBUG
-        Console().Warning("\"%s\" is not registered\n", sScriptName);
+        Console().warning("\"%s\" is not registered\n", sScriptName);
 #endif
         return "";  // no data
     }

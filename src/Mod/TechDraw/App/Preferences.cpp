@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2020 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,12 +22,10 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 # include <string>
-
+# include <QApplication>
 # include <QString>
-#endif
+
 
 #include <App/Application.h>
 #include <App/Material.h>
@@ -34,6 +34,7 @@
 #include <Base/Parameter.h>
 
 #include "Preferences.h"
+#include "DrawProjGroup.h"
 #include "LineGenerator.h"
 
 //getters for parameters used in multiple places.
@@ -76,44 +77,44 @@ double Preferences::dimArrowSize()
     return getPreferenceGroup("Dimensions")->GetFloat("ArrowSize", DefaultArrowSize);
 }
 
-App::Color Preferences::normalColor()
+Base::Color Preferences::normalColor()
 {
-    App::Color fcColor;
+    Base::Color fcColor;
     fcColor.setPackedValue(getPreferenceGroup("Colors")->GetUnsigned("NormalColor", 0x000000FF));//#000000 black
     return fcColor;
 }
 
-App::Color Preferences::selectColor()
+Base::Color Preferences::selectColor()
 {
     Base::Reference<ParameterGrp> hGrp = App::GetApplication()
                                              .GetUserParameter()
                                              .GetGroup("BaseApp")
                                              ->GetGroup("Preferences")
                                              ->GetGroup("View");
-    unsigned int defColor = hGrp->GetUnsigned("SelectionColor", 0x00FF00FF);//#00FF00 lime
+    unsigned int defColor = hGrp->GetUnsigned("SelectionColor", 0x00ABFFFF);  //#00ABFF blue
 
-    App::Color fcColor;
+    Base::Color fcColor;
     fcColor.setPackedValue(getPreferenceGroup("Colors")->GetUnsigned("SelectColor", defColor));
     return fcColor;
 }
 
-App::Color Preferences::preselectColor()
+Base::Color Preferences::preselectColor()
 {
     Base::Reference<ParameterGrp> hGrp = App::GetApplication()
                                              .GetUserParameter()
                                              .GetGroup("BaseApp")
                                              ->GetGroup("Preferences")
                                              ->GetGroup("View");
-    unsigned int defColor = hGrp->GetUnsigned("HighlightColor", 0xFFFF00FF);//#FFFF00 yellow
+    unsigned int defColor = hGrp->GetUnsigned("HighlightColor", 0x0AC8FFFF);  //#0AC8FF cyan
 
-    App::Color fcColor;
+    Base::Color fcColor;
     fcColor.setPackedValue(getPreferenceGroup("Colors")->GetUnsigned("PreSelectColor", defColor));
     return fcColor;
 }
 
-App::Color Preferences::vertexColor()
+Base::Color Preferences::vertexColor()
 {
-    App::Color fcColor;
+    Base::Color fcColor;
     fcColor.setPackedValue(getPreferenceGroup("Decorations")->GetUnsigned("VertexColor", 0x000000FF));//#000000 black
     return fcColor;
 }
@@ -152,7 +153,24 @@ bool Preferences::useGlobalDecimals()
 
 int Preferences::projectionAngle()
 {
-    return getPreferenceGroup("General")->GetInt("ProjectionAngle", 0);  //First Angle
+    int defaultConvention = (int)DrawProjGroup::ViewProjectionConvention::FirstAngle;
+    return getPreferenceGroup("General")->GetInt("ProjectionAngle",
+                                                 defaultConvention);
+}
+
+bool Preferences::groupAutoDistribute()
+{
+    return getPreferenceGroup("General")->GetBool("AutoDist", true);
+}
+
+double Preferences::groupSpaceX()
+{
+    return getPreferenceGroup("General")->GetFloat("GroupSpaceX", 15.0);
+}
+
+double Preferences::groupSpaceY()
+{
+    return getPreferenceGroup("General")->GetFloat("GroupSpaceY", 15.0);
 }
 
 int Preferences::lineGroup()
@@ -160,9 +178,10 @@ int Preferences::lineGroup()
     return getPreferenceGroup("Decorations")->GetInt("LineGroup", 3);  // FC 0.70mm
 }
 
-int Preferences::balloonArrow()
+ArrowType Preferences::balloonArrow()
 {
-    return getPreferenceGroup("Decorations")->GetInt("BalloonArrow", 0);
+    int temp = getPreferenceGroup("Decorations")->GetInt("BalloonArrow", 0);
+    return static_cast<ArrowType>(temp);
 }
 
 double Preferences::balloonKinkLength()
@@ -178,7 +197,7 @@ int Preferences::balloonShape()
 QString Preferences::defaultTemplate()
 {
     std::string defaultDir = App::Application::getResourceDir() + "Mod/TechDraw/Templates/";
-    std::string defaultFileName = defaultDir + "A4_LandscapeTD.svg";
+    std::string defaultFileName = defaultDir + "Default_Template_A4_Landscape.svg";
     std::string prefFileName = getPreferenceGroup("Files")->GetASCII("TemplateFile", defaultFileName.c_str());
     if (prefFileName.empty()) {
         prefFileName = defaultFileName;
@@ -186,7 +205,7 @@ QString Preferences::defaultTemplate()
     QString templateFileName = QString::fromStdString(prefFileName);
     Base::FileInfo fi(prefFileName);
     if (!fi.isReadable()) {
-        Base::Console().Warning("Template File: %s is not readable\n", prefFileName.c_str());
+        Base::Console().warning("Template File: %s is not readable\n", prefFileName.c_str());
         templateFileName = QString::fromStdString(defaultFileName);
     }
     return templateFileName;
@@ -202,7 +221,7 @@ QString Preferences::defaultTemplateDir()
     QString templateDir = QString::fromStdString(prefTemplateDir);
     Base::FileInfo fi(prefTemplateDir);
     if (!fi.isReadable()) {
-        Base::Console().Warning("Template Directory: %s is not readable\n",
+        Base::Console().warning("Template Directory: %s is not readable\n",
                                 prefTemplateDir.c_str());
         templateDir = QString::fromStdString(defaultDir);
     }
@@ -219,7 +238,7 @@ std::string Preferences::lineGroupFile()
     }
     Base::FileInfo fi(lgFileName);
     if (!fi.isReadable()) {
-        Base::Console().Warning("Line Group File: %s is not readable\n", lgFileName.c_str());
+        Base::Console().warning("Line Group File: %s is not readable\n", lgFileName.c_str());
         lgFileName = defaultFileName;
     }
     return lgFileName;
@@ -250,6 +269,24 @@ bool Preferences::showDetailHighlight()
     return getPreferenceGroup("General")->GetBool("ShowDetailHighlight", true);
 }
 
+//! returns the default or preferred directory to search for svg symbols
+QString Preferences::defaultSymbolDir()
+{
+    std::string defaultDir = App::Application::getResourceDir() + "Mod/TechDraw/Symbols";
+    std::string prefSymbolDir = getPreferenceGroup("Files")->GetASCII("DirSymbol", defaultDir.c_str());
+    if (prefSymbolDir.empty()) {
+        prefSymbolDir = defaultDir;
+    }
+    QString symbolDir = QString::fromStdString(prefSymbolDir);
+    Base::FileInfo fi(prefSymbolDir);
+    if (!fi.isReadable()) {
+        Base::Console().warning("Symbol Directory: %s is not readable\n",
+                                prefSymbolDir.c_str());
+        symbolDir = QString::fromStdString(defaultDir);
+    }
+    return symbolDir;
+}
+
 std::string Preferences::svgFile()
 {
     std::string defaultDir = App::Application::getResourceDir() + "Mod/TechDraw/Patterns/";
@@ -260,7 +297,7 @@ std::string Preferences::svgFile()
     }
     Base::FileInfo fi(prefHatchFile);
     if (!fi.isReadable()) {
-        Base::Console().Warning("Svg Hatch File: %s is not readable\n", prefHatchFile.c_str());
+        Base::Console().warning("Svg Hatch File: %s is not readable\n", prefHatchFile.c_str());
         prefHatchFile = defaultFileName;
     }
     return prefHatchFile;
@@ -276,7 +313,7 @@ std::string Preferences::patFile()
     }
     Base::FileInfo fi(prefHatchFile);
     if (!fi.isReadable()) {
-        Base::Console().Warning("Pat Hatch File: %s is not readable\n", prefHatchFile.c_str());
+        Base::Console().warning("Pat Hatch File: %s is not readable\n", prefHatchFile.c_str());
         prefHatchFile = defaultFileName;
     }
 
@@ -293,7 +330,7 @@ std::string Preferences::bitmapFill()
     }
     Base::FileInfo fi(prefBitmapFile);
     if (!fi.isReadable()) {
-        Base::Console().Warning("Bitmap Fill File: %s is not readable\n", prefBitmapFile.c_str());
+        Base::Console().warning("Bitmap Fill File: %s is not readable\n", prefBitmapFile.c_str());
         prefBitmapFile = defaultFileName;
     }
     return prefBitmapFile;
@@ -338,20 +375,20 @@ bool Preferences::monochrome()
 //! set monochrome display on/off
 void Preferences::monochrome(bool state)
 {
-    Base::Console().Message("Pref::useLightText - set to %d\n", state);
+    Base::Console().message("Pref::useLightText - set to %d\n", state);
     getPreferenceGroup("Colors")->SetBool("Monochrome", state);
 }
 
-App::Color Preferences::lightTextColor()
+Base::Color Preferences::lightTextColor()
 {
-    App::Color result;
+    Base::Color result;
     result.setPackedValue(getPreferenceGroup("Colors")->GetUnsigned("LightTextColor", 0xFFFFFFFF));//#FFFFFFFF white
     return result;
 }
 
 //! attempt to lighten the give color
 // not currently used
-App::Color Preferences::lightenColor(App::Color orig)
+Base::Color Preferences::lightenColor(Base::Color orig)
 {
     // get component colours on [0, 255]
     uchar red = orig.r * 255;
@@ -378,11 +415,11 @@ App::Color Preferences::lightenColor(App::Color orig)
     double greenF = (double)green / 255.0;
     double blueF = (double)blue / 255.0;
 
-    return App::Color(redF, greenF, blueF, orig.a);
+    return Base::Color(redF, greenF, blueF, orig.a);
 }
 
 //! color to use for monochrome display
-App::Color Preferences::getAccessibleColor(App::Color orig)
+Base::Color Preferences::getAccessibleColor(Base::Color orig)
 {
     if (Preferences::lightOnDark() && Preferences::monochrome()) {
         return lightTextColor();
@@ -402,7 +439,7 @@ bool Preferences::autoCorrectDimRefs()
 //! number of times to clean the output edges from HLR
 int Preferences::scrubCount()
 {
-    return getPreferenceGroup("General")->GetInt("ScrubCount", 0);
+    return getPreferenceGroup("General")->GetInt("ScrubCount", 1);
 }
 
 //! Returns the factor for the overlap of svg tiles when hatching faces
@@ -422,6 +459,18 @@ bool Preferences::SectionUsePreviousCut()
 //! an index into the list of available line standards/version found in LineGroupDirectory
 int Preferences::lineStandard()
 {
+    // there is a condition where the LineStandard parameter exists, but is -1 (the
+    // qt value for no current index in a combobox).  This is likely caused by an old
+    // development version writing an unvalidated value.  In this case, the
+    // existing but invalid value will be returned.  This is a temporary fix and
+    // can be removed for production.
+    // this message will appear many times if the parameter is invalid.
+    int parameterValue = getPreferenceGroup("Standards")->GetInt("LineStandard", 1);
+    if (parameterValue < 0) {
+        Base::Console().warning(qPrintable(QApplication::translate(
+        "Preferences", "The LineStandard parameter is invalid. Using zero instead.", nullptr)));
+        return 0;
+    }
     return getPreferenceGroup("Standards")->GetInt("LineStandard", 1);
 }
 
@@ -463,7 +512,7 @@ int Preferences::CenterLineStyle()
 int Preferences::HighlightLineStyle()
 {
     // default is line #2 dashed, which is index 1
-    return getPreferenceGroup("Decorations")->GetInt("LineStyleHighLight", 1) + 1;
+    return getPreferenceGroup("Decorations")->GetInt("LineStyleHighlight", 1) + 1;
 }
 
 int Preferences::HiddenLineStyle()
@@ -472,9 +521,18 @@ int Preferences::HiddenLineStyle()
     return getPreferenceGroup("Decorations")->GetInt("LineStyleHidden", 1) + 1;
 }
 
-int Preferences::LineSpacingISO()
+int Preferences::BreakLineStyle()
 {
-    return getPreferenceGroup("Dimensions")->GetInt("LineSpacingFactorISO", 2);
+    return getPreferenceGroup("Decorations")->GetInt("LineStyleBreak", 0) + 1;
+}
+
+
+// LineSpacingISO is stored as a double in DlgPrefsTechDrawDimensionsImp.cpp but was being accessed
+// as an int here, so the default was always returned. If we make DlgPrefsTechDrawDimensionsImp handle
+// ints, then anybody who had set a custom spacing would need to update their preference.
+float Preferences::LineSpacingISO()
+{
+    return getPreferenceGroup("Dimensions")->GetFloat("LineSpacingFactorISO", 2);
 }
 
 std::string Preferences::currentLineDefFile()
@@ -499,21 +557,16 @@ std::string Preferences::currentElementDefFile()
 int Preferences::LineCapStyle()
 {
     int currentIndex = LineCapIndex();
-    int result{0x20};
-        switch (currentIndex) {
+    switch (currentIndex) {
         case 0:
-            result = static_cast<Qt::PenCapStyle>(0x20);   //round;
-            break;
+            return static_cast<Qt::PenCapStyle>(0x20);   //round;
         case 1:
-            result = static_cast<Qt::PenCapStyle>(0x10);   //square;
-            break;
+            return static_cast<Qt::PenCapStyle>(0x10);   //square;
         case 2:
-            result = static_cast<Qt::PenCapStyle>(0x00);   //flat
-            break;
+            return static_cast<Qt::PenCapStyle>(0x00);   //flat
         default:
-            result = static_cast<Qt::PenCapStyle>(0x20);
+            return static_cast<Qt::PenCapStyle>(0x20);
     }
-    return result;
 }
 
 //! returns the line cap index without conversion to a Qt::PenCapStyle
@@ -522,3 +575,175 @@ int Preferences::LineCapIndex()
     return getPreferenceGroup("General")->GetInt("EdgeCapStyle", 0x20);
 }
 
+//! returns 0 (use ANSI style section cut line) or 1 (use ISO style section cut line)
+int Preferences::sectionLineConvention()
+{
+    return getPreferenceGroup("Standards")->GetInt("SectionLineStandard", 1);
+}
+
+//! true if a section line annotation should be drawn on the source view.  If false,
+//! no cut line, change marks, arrows or symbol will be drawn.
+bool Preferences::showSectionLine()
+{
+    return getPreferenceGroup("Decorations")->GetBool("ShowSectionLine", true);
+}
+
+//! true if the section cut line should be drawn on the source view. Some conventions do not draw the
+//! actual cut line, but only the change points, arrows and symbols.
+bool Preferences::includeCutLine()
+{
+    return getPreferenceGroup("Decorations")->GetBool("IncludeCutLine", true);
+}
+
+//! true if the GeometryMatcher should be used in correcting Dimension references
+bool Preferences::useExactMatchOnDims()
+{
+    return getPreferenceGroup("Dimensions")->GetBool("UseMatcher", true);
+}
+
+DrawBrokenView::BreakType Preferences::BreakType()
+{
+    int temp = getPreferenceGroup("Decorations")->GetInt("BreakType", 2);
+    return static_cast<DrawBrokenView::BreakType>(temp);
+}
+
+
+bool Preferences::useCameraDirection()
+{
+    return getPreferenceGroup("General")->GetBool("UseCameraDirection", false);
+}
+
+
+bool Preferences::alwaysShowLabel()
+{
+    return getPreferenceGroup("General")->GetBool("AlwaysShowLabel", false);
+}
+
+bool Preferences::SnapViews()
+{
+    return getPreferenceGroup("General")->GetBool("SnapViews", true);
+}
+
+//! percentage of view size to use in deciding to snap view or not
+double Preferences::SnapLimitFactor()
+{
+    return getPreferenceGroup("General")->GetFloat("SnapLimitFactor", 0.05);
+}
+
+
+//! true if dimensions should snap to position
+bool Preferences::SnapDimensions()
+{
+    return getPreferenceGroup("Dimensions")->GetBool("SnapDimensions", true);
+}
+
+//! percentage of dimension text length to use in deciding to snap dimension text
+double Preferences::SnapDimensionsTextFactor()
+{
+    return getPreferenceGroup("Dimensions")->GetFloat("SnapDimensionsTextFactor", 0.4);
+}
+
+//! percentage of inter-dimension distance (cascade spacing from dimAttributes?) to use in deciding to snap dimension
+double Preferences::SnapDimensionsChainFactor()
+{
+    return getPreferenceGroup("Dimensions")->GetFloat("SnapDimensionsChainFactor", 0.2);
+}
+
+
+//! returns the key combination that simulates multiple selection. Traditionally Ctrl+pick, as that
+//! is how QGraphicsScene implements multiple selection.  This method is likely to only be used by
+//! developers.
+Qt::KeyboardModifiers Preferences::multiselectModifiers()
+{
+    uint iModifiers = getPreferenceGroup("General")->GetUnsigned("MultiselectModifiers", (uint)Qt::ControlModifier);
+    return (Qt::KeyboardModifiers)iModifiers;
+//    Qt::KeyboardModifiers testMods = Qt::ControlModifier;
+//    return testMods;
+}
+
+
+//! returns the key combination that modifies Balloon drag behaviour so that the bubble and leader
+//! are moved together.  Traditionally Ctrl+drag, but that can be in conflict with multi selection.
+Qt::KeyboardModifiers Preferences::balloonDragModifiers()
+{
+    uint iModifiers = getPreferenceGroup("General")->GetUnsigned("BalloonDragModifier", (uint)Qt::ControlModifier);
+    return (Qt::KeyboardModifiers)iModifiers;
+//    Qt::KeyboardModifiers testMods = Qt::ShiftModifier | Qt::ControlModifier;
+//    return testMods;
+}
+
+
+void Preferences::setBalloonDragModifiers(Qt::KeyboardModifiers newModifiers)
+{
+    getPreferenceGroup("General")->SetUnsigned("BalloonDragModifier", (uint)newModifiers);
+}
+
+bool Preferences::enforceISODate()
+{
+    return getPreferenceGroup("Standards")->GetBool("EnforceISODate", false);
+}
+
+//! if true, shapes are validated before use and problematic ones are skipped.
+//! validating shape takes time, but can prevent crashes/bad results in occt.
+//! this would normally be set to false and set to true to aid in debugging/support.
+bool Preferences::checkShapesBeforeUse()
+{
+    return getPreferenceGroup("General")->GetBool("CheckShapesBeforeUse", false);
+}
+
+
+//! if true, shapes which fail validation are saved as brep files
+bool Preferences::debugBadShape()
+{
+    return getPreferenceGroup("debug")->GetBool("debugBadShape", false);
+}
+
+
+//! if true, automatically switch to TD workbench when a Page is set in edit (double click)
+bool Preferences::switchOnClick()
+{
+    return getPreferenceGroup("General")->GetBool("SwitchToWB", true);
+}
+
+//! if true, svg symbols will use the old scaling logic.
+bool Preferences::useLegacySvgScaling()
+{
+    return getPreferenceGroup("General")->GetBool("LegacySvgScaling", false);
+}
+
+
+bool Preferences::showUnits()
+{
+    return Preferences::getPreferenceGroup("Dimensions")->GetBool("ShowUnits", false);
+}
+
+
+bool Preferences::snapDetailHighlights()
+{
+    return Preferences::getPreferenceGroup("General")->GetBool("SnapHighlights", true);
+}
+
+
+//! distance within which we should snap a highlight to a vertex
+double Preferences::detailSnapRadius()
+{
+    return getPreferenceGroup("General")->GetFloat("DetailSnapRadius", 0.6);
+}
+
+
+bool Preferences::showCenterMarks()
+{
+    return getPreferenceGroup("Decorations")->GetBool("ShowCenterMarks", false);
+}
+
+bool Preferences::printCenterMarks()
+{
+    return getPreferenceGroup("Decorations")->GetBool("PrintCenterMarks", false);
+}
+
+
+//! true if old style transparency values should be converted to new style alpha values for color properties.
+bool Preferences::fixColorAlphaOnLoad()
+{
+    return getPreferenceGroup("General")->GetBool("FixColorAlphaOnLoad", true);
+}

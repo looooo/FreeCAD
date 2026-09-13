@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /**************************************************************************
  *   Copyright (c) 2015 FreeCAD Developers                                 *
  *   Author: Przemo Firszt <przemo@firszt.eu>                              *
@@ -23,8 +25,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef FEMGUI_DLGSETTINGSFEMCCXIMP_H
-#define FEMGUI_DLGSETTINGSFEMCCXIMP_H
+#pragma once
 
 #include <Gui/PropertyPage.h>
 #include <memory>
@@ -42,7 +43,7 @@ public:
     ~DlgSettingsFemCcxImp() override;
 
 protected Q_SLOTS:
-    void onfileNameChanged(QString FileName);
+    void onfileNameSelected(const QString& fileName);
 
 protected:
     void saveSettings() override;
@@ -54,5 +55,3 @@ private:
 };
 
 }  // namespace FemGui
-
-#endif  // FEMGUI_DLGSETTINGSFEMCCXIMP_H

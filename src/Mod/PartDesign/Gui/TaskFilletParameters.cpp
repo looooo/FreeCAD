@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2011 Juergen Riegel <FreeCAD@juergen-riegel.net>        *
  *                                                                         *
@@ -21,20 +23,22 @@
  ***************************************************************************/
 
 
-#include "PreCompiled.h"
+#include <QAction>
+#include <QListWidget>
+#include <QMessageBox>
 
-#ifndef _PreComp_
-# include <QAction>
-# include <QListWidget>
-# include <QMessageBox>
-#endif
 
 #include <Base/Interpreter.h>
+#include <Base/Converter.h>
 #include <App/Document.h>
 #include <App/DocumentObject.h>
-#include <Gui/Selection.h>
+#include <Gui/Selection/Selection.h>
 #include <Gui/ViewProvider.h>
 #include <Mod/PartDesign/App/FeatureFillet.h>
+#include <Mod/Part/App/Attacher.h>
+#include <Mod/Part/App/Geometry.h>
+#include <Mod/Part/App/Tools.h>
+#include <Mod/Part/App/GizmoHelper.h>
 
 #include "ui_TaskFilletParameters.h"
 #include "TaskFilletParameters.h"
@@ -45,7 +49,7 @@ using namespace Gui;
 
 /* TRANSLATOR PartDesignGui::TaskFilletParameters */
 
-TaskFilletParameters::TaskFilletParameters(ViewProviderDressUp *DressUpView, QWidget *parent)
+TaskFilletParameters::TaskFilletParameters(ViewProviderDressUp* DressUpView, QWidget* parent)
     : TaskDressUpParameters(DressUpView, true, true, parent)
     , ui(new Ui_TaskFilletParameters)
 {
@@ -54,7 +58,7 @@ TaskFilletParameters::TaskFilletParameters(ViewProviderDressUp *DressUpView, QWi
     ui->setupUi(proxy);
     this->groupLayout()->addWidget(proxy);
 
-    PartDesign::Fillet* pcFillet = static_cast<PartDesign::Fillet*>(DressUpView->getObject());
+    PartDesign::Fillet* pcFillet = DressUpView->getObject<PartDesign::Fillet>();
     bool useAllEdges = pcFillet->UseAllEdges.getValue();
     ui->checkBoxUseAllEdges->setChecked(useAllEdges);
     ui->buttonRefSel->setEnabled(!useAllEdges);
@@ -68,12 +72,13 @@ TaskFilletParameters::TaskFilletParameters(ViewProviderDressUp *DressUpView, QWi
     ui->filletRadius->bind(pcFillet->Radius);
     QMetaObject::invokeMethod(ui->filletRadius, "setFocus", Qt::QueuedConnection);
     std::vector<std::string> strings = pcFillet->Base.getSubValues();
-    for (const auto & string : strings) {
+    for (const auto& string : strings) {
         ui->listWidgetReferences->addItem(QString::fromStdString(string));
     }
 
     QMetaObject::connectSlotsByName(this);
 
+    // clang-format off
     connect(ui->filletRadius, qOverload<double>(&Gui::QuantitySpinBox::valueChanged),
         this, &TaskFilletParameters::onLengthChanged);
     connect(ui->buttonRefSel, &QToolButton::toggled,
@@ -94,11 +99,16 @@ TaskFilletParameters::TaskFilletParameters(ViewProviderDressUp *DressUpView, QWi
         this, &TaskFilletParameters::setSelection);
     connect(ui->listWidgetReferences, &QListWidget::itemDoubleClicked,
         this, &TaskFilletParameters::doubleClicked);
+    // clang-format on
 
-    if (strings.size() == 0)
+    if (strings.empty()) {
         setSelectionMode(refSel);
-    else
+    }
+    else {
         hideOnError();
+    }
+
+    setupGizmos(DressUpView);
 }
 
 void TaskFilletParameters::onSelectionChanged(const Gui::SelectionChanges& msg)
@@ -111,28 +121,37 @@ void TaskFilletParameters::onSelectionChanged(const Gui::SelectionChanges& msg)
             referenceSelected(msg, ui->listWidgetReferences);
         }
     }
+    else if (msg.Type == Gui::SelectionChanges::ClrSelection) {
+        // TODO: the gizmo position should be only recalculated when the feature associated
+        // with the gizmo is removed from the list
+        setGizmoPositions();
+    }
 }
 
 void TaskFilletParameters::onCheckBoxUseAllEdgesToggled(bool checked)
 {
-    if (checked)
-        setSelectionMode(none);
-    PartDesign::Fillet* pcFillet = static_cast<PartDesign::Fillet*>(DressUpView->getObject());
-    ui->buttonRefSel->setEnabled(!checked);
-    ui->listWidgetReferences->setEnabled(!checked);
-    pcFillet->UseAllEdges.setValue(checked);
-    pcFillet->getDocument()->recomputeFeature(pcFillet);
+    if (auto fillet = getObject<PartDesign::Fillet>()) {
+        if (checked) {
+            setSelectionMode(none);
+        }
+
+        ui->buttonRefSel->setEnabled(!checked);
+        ui->listWidgetReferences->setEnabled(!checked);
+        fillet->UseAllEdges.setValue(checked);
+        fillet->recomputeFeature();
+    }
 }
 
 void TaskFilletParameters::setButtons(const selectionModes mode)
 {
     ui->buttonRefSel->setChecked(mode == refSel);
-    ui->buttonRefSel->setText(mode == refSel ? btnPreviewStr() : btnSelectStr());
+    ui->buttonRefSel->setText(mode == refSel ? stopSelectionLabel() : startSelectionLabel());
 }
 
 void TaskFilletParameters::onRefDeleted()
 {
     TaskDressUpParameters::deleteRef(ui->listWidgetReferences);
+    setGizmoPositions();
 }
 
 void TaskFilletParameters::onAddAllEdges()
@@ -142,13 +161,14 @@ void TaskFilletParameters::onAddAllEdges()
 
 void TaskFilletParameters::onLengthChanged(double len)
 {
-    setSelectionMode(none);
-    PartDesign::Fillet* pcFillet = static_cast<PartDesign::Fillet*>(DressUpView->getObject());
-    setupTransaction();
-    pcFillet->Radius.setValue(len);
-    pcFillet->getDocument()->recomputeFeature(pcFillet);
-    // hide the fillet if there was a computation error
-    hideOnError();
+    if (auto fillet = getObject<PartDesign::Fillet>()) {
+        setSelectionMode(none);
+        setupTransaction();
+        fillet->Radius.setValue(len);
+        fillet->recomputeFeature();
+        // hide the fillet if there was a computation error
+        hideOnError();
+    }
 }
 
 double TaskFilletParameters::getLength() const
@@ -163,17 +183,12 @@ TaskFilletParameters::~TaskFilletParameters()
         Gui::Selection().rmvSelectionGate();
     }
     catch (const Py::Exception&) {
-        Base::PyException e; // extract the Python error text
-        e.ReportException();
+        Base::PyException e;  // extract the Python error text
+        e.reportException();
     }
 }
 
-bool TaskFilletParameters::event(QEvent *e)
-{
-    return TaskDressUpParameters::KeyEvent(e);
-}
-
-void TaskFilletParameters::changeEvent(QEvent *e)
+void TaskFilletParameters::changeEvent(QEvent* e)
 {
     TaskBox::changeEvent(e);
     if (e->type() == QEvent::LanguageChange) {
@@ -188,8 +203,62 @@ void TaskFilletParameters::apply()
     // Alert user if he created an empty feature
     if (ui->listWidgetReferences->count() == 0) {
         std::string text = tr("Empty fillet created!").toStdString();
-        Base::Console().Warning("%s\n", text.c_str());
+        Base::Console().warning("%s\n", text.c_str());
     }
+}
+
+void TaskFilletParameters::setupGizmos(ViewProviderDressUp* vp)
+{
+    if (!GizmoContainer::isEnabled()) {
+        return;
+    }
+
+    radiusGizmo = new Gui::LinearGizmo(ui->filletRadius);
+    radiusGizmo2 = new Gui::LinearGizmo(ui->filletRadius);
+
+    gizmoContainer = GizmoContainer::create({radiusGizmo, radiusGizmo2}, vp);
+
+    setGizmoPositions();
+    showDraggerHints();
+}
+
+void TaskFilletParameters::setGizmoPositions()
+{
+    if (!gizmoContainer) {
+        return;
+    }
+
+    auto fillet = getObject<PartDesign::Fillet>();
+    if (!fillet || fillet->isError()) {
+        gizmoContainer->visible = false;
+        return;
+    }
+    Part::TopoShape baseShape = fillet->getBaseTopoShape(true);
+    std::vector<Part::TopoShape> shapes = fillet->getContinuousEdges(baseShape);
+
+    if (shapes.size() == 0) {
+        gizmoContainer->visible = false;
+        return;
+    }
+    gizmoContainer->visible = true;
+
+    // Attach the arrow to the first edge
+    Part::TopoShape edge = shapes[0];
+    auto [face1, face2] = getAdjacentFacesFromEdge(edge, baseShape);
+
+    DraggerPlacementProps props1 = getDraggerPlacementFromEdgeAndFace(edge, face1);
+    radiusGizmo->Gizmo::setDraggerPlacement(props1.position, props1.dir);
+
+    DraggerPlacementProps props2 = getDraggerPlacementFromEdgeAndFace(edge, face2);
+    radiusGizmo2->Gizmo::setDraggerPlacement(props2.position, props2.dir);
+
+    // The dragger length won't be equal to the radius if the two faces
+    // are not orthogonal so this correction is needed
+    double angle = props1.dir.GetAngle(props2.dir);
+    double correction = 1 / std::tan(angle / 2);
+
+    radiusGizmo->setMultFactor(correction);
+    radiusGizmo2->setMultFactor(correction);
 }
 
 //**************************************************************************
@@ -197,32 +266,25 @@ void TaskFilletParameters::apply()
 // TaskDialog
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-TaskDlgFilletParameters::TaskDlgFilletParameters(ViewProviderFillet *DressUpView)
+TaskDlgFilletParameters::TaskDlgFilletParameters(ViewProviderFillet* DressUpView)
     : TaskDlgDressUpParameters(DressUpView)
 {
-    parameter  = new TaskFilletParameters(DressUpView);
+    parameter = new TaskFilletParameters(DressUpView);
 
     Content.push_back(parameter);
+    Content.push_back(preview);
 }
 
 TaskDlgFilletParameters::~TaskDlgFilletParameters() = default;
 
 //==== calls from the TaskView ===============================================================
 
-
-//void TaskDlgFilletParameters::open()
-//{
-//    // a transaction is already open at creation time of the fillet
-//    if (!Gui::Command::hasPendingCommand()) {
-//        QString msg = tr("Edit fillet");
-//        Gui::Command::openCommand((const char*)msg.toUtf8());
-//    }
-//}
 bool TaskDlgFilletParameters::accept()
 {
-    auto obj = vp->getObject();
-    if (!obj->isError())
-        parameter->showObject();
+    auto obj = getObject();
+    if (!obj->isError()) {
+        getViewObject()->showPreviousFeature(false);
+    }
 
     parameter->apply();
 

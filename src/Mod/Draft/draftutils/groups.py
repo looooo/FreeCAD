@@ -1,4 +1,5 @@
-# -*- coding: utf-8 -*-
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # ***************************************************************************
 # *   (c) 2009, 2010                                                        *
 # *   Yorik van Havre <yorik@uncreated.net>, Ken Cline <cline@frii.com>     *
@@ -28,6 +29,7 @@
 The functions here are also used in the Arch Workbench as some of
 the objects created with this workbench work like groups.
 """
+
 ## @package groups
 # \ingroup draftutils
 # \brief Provides utility functions to do operations with groups.
@@ -38,7 +40,7 @@ import FreeCAD as App
 import draftutils.utils as utils
 
 from draftutils.translate import translate
-from draftutils.messages import _msg, _err
+from draftutils.messages import _err
 
 
 def is_group(obj):
@@ -64,10 +66,14 @@ def is_group(obj):
         Otherwise returns `False`.
     """
     typ = utils.get_type(obj)
-    return ((obj.isDerivedFrom("App::DocumentObjectGroup")
-                and typ != "LayerContainer")
-            or typ in ("Project", "Site", "Building",
-                       "Floor", "BuildingPart", "Space"))
+    return (obj.isDerivedFrom("App::DocumentObjectGroup") and typ != "LayerContainer") or typ in (
+        "Project",
+        "Site",
+        "Building",
+        "Floor",
+        "BuildingPart",
+        "Space",
+    )
 
 
 def get_group_names(doc=None):
@@ -128,8 +134,7 @@ def ungroup(obj):
 
     found, obj = utils.find_object(obj, doc=App.activeDocument())
     if not found:
-        _msg("obj: {}".format(obj_str))
-        _err(translate("draft", "Wrong input: object not in document."))
+        _err(translate("draft", "Wrong input: object {} not in document.").format(obj_str))
         return None
 
     doc = obj.Document
@@ -151,15 +156,14 @@ def get_windows(obj):
     Parameters
     ----------
     obj: App::DocumentObject
-        A scripted object of type `'Wall'` or `'Structure'`
-        (Arch Workbench).
+        A scripted object of type `'Wall'`, `'Roof'`, `'Structure'` or
+        `'CurtainWall'` (BIM Workbench).
         This will be searched for objects of type `'Window'` and `'Rebar'`,
         and clones of them, and the found elements will be added
         to the output list.
 
         The function will search recursively all elements under `obj.OutList`,
-        in case the windows and rebars are nested under other walls
-        and structures.
+        in case the windows and rebars are nested under other hosts.
 
     Returns
     -------
@@ -169,30 +173,29 @@ def get_windows(obj):
         it will return the same `obj` element.
     """
     out = []
-    if utils.get_type(obj) in ("Wall", "Structure"):
+    if utils.get_type(obj) in ("Wall", "Roof", "Structure", "CurtainWall"):
         for o in obj.OutList:
             out.extend(get_windows(o))
         for i in obj.InList:
-            if (utils.get_type(i.getLinkedObject()) == "Window"
-                    or utils.is_clone(obj, "Window")):
+            if utils.get_type(i.getLinkedObject()) == "Window" or utils.is_clone(obj, "Window"):
                 if hasattr(i, "Hosts"):
                     if obj in i.Hosts:
                         out.append(i)
-            elif (utils.get_type(i) == "Rebar"
-                  or utils.is_clone(obj, "Rebar")):
+            elif utils.get_type(i) == "Rebar" or utils.is_clone(obj, "Rebar"):
                 if hasattr(i, "Host"):
                     if obj == i.Host:
                         out.append(i)
-    elif (utils.get_type(obj.getLinkedObject()) in ("Window", "Rebar")
-          or utils.is_clone(obj, ["Window", "Rebar"])):
+    elif utils.get_type(obj.getLinkedObject()) in ("Window", "Rebar") or utils.is_clone(
+        obj, ["Window", "Rebar"]
+    ):
         out.append(obj)
 
     return out
 
 
-def get_group_contents(objectslist,
-                       walls=False, addgroups=False,
-                       spaces=False, noarchchild=False):
+def get_group_contents(
+    objectslist, walls=False, addgroups=False, spaces=False, noarchchild=False, exclude_names=None
+):
     """Return a list of objects from expanding the input groups.
 
     The function accepts any type of object, although it is most useful
@@ -210,9 +213,9 @@ def get_group_contents(objectslist,
 
     walls: bool, optional
         It defaults to `False`.
-        If it is `True`, Wall and Structure objects (Arch Workbench)
-        are treated as groups; they are scanned for Window, Door,
-        and Rebar objects, and these are added to the output list.
+        If it is `True`, Wall, Roof, Structure and CurtainWall objects
+        (BIM Workbench) are treated as groups; they are scanned for Window,
+        Door, and Rebar objects, and these are added to the output list.
 
     addgroups: bool, optional
         It defaults to `False`.
@@ -228,6 +231,11 @@ def get_group_contents(objectslist,
         If it is `True`, the objects inside Building and BuildingParts
         (Arch Workbench) aren't added to the output list.
 
+    exclude_names: list/tuple/set, optional
+        It defaults to `None`.
+        If an iterable of object names is given, any object whose `Name` is
+        in this iterable will be excluded from the output list.
+
     Returns
     -------
     list
@@ -240,16 +248,17 @@ def get_group_contents(objectslist,
 
     for obj in objectslist:
         if obj:
+            if exclude_names and obj.Name in exclude_names:
+                continue
             if is_group(obj):
-                if addgroups or (spaces
-                                 and utils.get_type(obj) == "Space"):
+                if addgroups or (spaces and utils.get_type(obj) == "Space"):
                     newlist.append(obj)
-                if not (noarchchild
-                        and utils.get_type(obj) in ("Building",
-                                                    "BuildingPart")):
-                    newlist.extend(get_group_contents(obj.Group,
-                                                      walls, addgroups,
-                                                      spaces, noarchchild))
+                if not (noarchchild and utils.get_type(obj) in ("Building", "BuildingPart")):
+                    newlist.extend(
+                        get_group_contents(
+                            obj.Group, walls, addgroups, spaces, noarchchild, exclude_names
+                        )
+                    )
             else:
                 # print("adding ", obj.Name)
                 newlist.append(obj)
@@ -265,15 +274,11 @@ def get_group_contents(objectslist,
     return cleanlist
 
 
-def getGroupContents(objectslist,
-                     walls=False, addgroups=False,
-                     spaces=False, noarchchild=False):
+def getGroupContents(objectslist, walls=False, addgroups=False, spaces=False, noarchchild=False):
     """Return a list of objects from groups. DEPRECATED."""
     utils.use_instead("get_group_contents")
 
-    return get_group_contents(objectslist,
-                              walls, addgroups,
-                              spaces, noarchchild)
+    return get_group_contents(objectslist, walls, addgroups, spaces, noarchchild)
 
 
 def get_movable_children(objectslist, recursive=True, _donelist=[]):
@@ -315,19 +320,28 @@ def get_movable_children(objectslist, recursive=True, _donelist=[]):
         _donelist.append(obj.Name)
 
         # Skips some objects that should never move their children
-        if utils.get_type(obj) not in ("App::Part", "PartDesign::Body",
-                                       "Clone", "SectionPlane",
-                                       "Facebinder", "BuildingPart", "App::Link"):
+        if utils.get_type(obj) not in (
+            "App::Part",
+            "PartDesign::Body",
+            "Clone",
+            "SectionPlane",
+            "Facebinder",
+            "BuildingPart",
+            "App::Link",
+        ):
             children = obj.OutList
-            if (hasattr(obj, "Proxy") and obj.Proxy
-                    and hasattr(obj.Proxy, "getSiblings")
-                    and utils.get_type(obj) != "Window"):
+            if (
+                hasattr(obj, "Proxy")
+                and obj.Proxy
+                and hasattr(obj.Proxy, "getSiblings")
+                and utils.get_type(obj) != "Window"
+            ):
                 # children.extend(obj.Proxy.getSiblings(obj))
                 pass
 
             for child in children:
                 if hasattr(child, "MoveWithHost") and child.MoveWithHost:
-                    if hasattr(obj, "CloneOf") and  obj.CloneOf:
+                    if hasattr(obj, "CloneOf") and obj.CloneOf:
                         if obj.CloneOf.Name != child.Name:
                             added.append(child)
                     else:
@@ -343,5 +357,6 @@ def getMovableChildren(objectslist, recursive=True):
     """Return a list of objects with child objects. DEPRECATED."""
     utils.use_instead("get_movable_children")
     return get_movable_children(objectslist, recursive)
+
 
 ## @}

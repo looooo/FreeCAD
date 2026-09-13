@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # ***************************************************************************
 # *   Copyright (c) 2017 Markus Hovorka <m.hovorka@live.de>                 *
 # *                                                                         *
@@ -32,5 +34,6 @@ __url__ = "https://www.freecad.org"
 def notify(signal, *args):
     for slot in signal:
         slot(*args)
+
 
 ##  @}

@@ -68,15 +68,17 @@ int main(int argc, char* argv[])
     // ----------------------
 
     auto sortAttr = [&findAttr](QXmlStreamAttributes& attr) {
-        QStringList list = {"Name",
-                            "Namespace",
-                            "Twin",
-                            "TwinPointer",
-                            "PythonName",
-                            "FatherInclude",
-                            "Include",
-                            "Father",
-                            "FatherNamespace"};
+        QStringList list = {
+            "Name",
+            "Namespace",
+            "Twin",
+            "TwinPointer",
+            "PythonName",
+            "FatherInclude",
+            "Include",
+            "Father",
+            "FatherNamespace"
+        };
         QXmlStreamAttributes sorted;
         for (const auto& it : list) {
             int index = findAttr(attr, it);
@@ -87,7 +89,7 @@ int main(int argc, char* argv[])
         }
 
         // add the rest
-        for (const auto& it : qAsConst(attr)) {
+        for (const auto& it : std::as_const(attr)) {
             sorted.append(it);
         }
 

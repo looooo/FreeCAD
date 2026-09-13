@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2022 Wanderer Fan <wandererfan@gmail.com>               *
  *                                                                         *
@@ -20,11 +22,9 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 # include <QGuiApplication>
 # include <QMouseEvent>
-#endif
+
 
 #include "QGVNavStyleRevit.h"
 #include "QGVPage.h"
@@ -113,7 +113,7 @@ void QGVNavStyleRevit::handleMouseReleaseEvent(QMouseEvent *event)
 
 bool QGVNavStyleRevit::allowContextMenu(QContextMenuEvent *event)
 {
-//    Base::Console().Message("QGVNSRevit::allowContextMenu()\n");
+//    Base::Console().message("QGVNSRevit::allowContextMenu()\n");
     if (event->reason() == QContextMenuEvent::Mouse) {
         //must check for a button combination involving context menu button
         if (QGuiApplication::mouseButtons() & Qt::LeftButton) {

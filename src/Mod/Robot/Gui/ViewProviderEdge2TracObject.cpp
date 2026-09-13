@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2008 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <Gui/Control.h>
 #include <Mod/Robot/Gui/TaskDlgEdge2Trac.h>
@@ -35,8 +36,7 @@ PROPERTY_SOURCE(RobotGui::ViewProviderEdge2TracObject, RobotGui::ViewProviderTra
 
 bool ViewProviderEdge2TracObject::doubleClicked()
 {
-    Gui::TaskView::TaskDialog* dlg =
-        new TaskDlgEdge2Trac(static_cast<Robot::Edge2TracObject*>(getObject()));
+    Gui::TaskView::TaskDialog* dlg = new TaskDlgEdge2Trac(getObject<Robot::Edge2TracObject>());
     Gui::Control().showDialog(dlg);
     return true;
 }
@@ -44,8 +44,7 @@ bool ViewProviderEdge2TracObject::doubleClicked()
 
 bool ViewProviderEdge2TracObject::setEdit(int)
 {
-    Gui::TaskView::TaskDialog* dlg =
-        new TaskDlgEdge2Trac(static_cast<Robot::Edge2TracObject*>(getObject()));
+    Gui::TaskView::TaskDialog* dlg = new TaskDlgEdge2Trac(getObject<Robot::Edge2TracObject>());
     Gui::Control().showDialog(dlg);
     return true;
 }

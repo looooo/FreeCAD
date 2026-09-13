@@ -1,5 +1,4 @@
-#ifndef QUARTER_QUARTERWIDGET_H
-#define QUARTER_QUARTERWIDGET_H
+#pragma once
 
 /**************************************************************************\
  * Copyright (c) Kongsberg Oil & Gas Technologies AS
@@ -39,10 +38,12 @@
 #include <QColor>
 #include <QGraphicsView>
 #include <QUrl>
-#include <QtOpenGL.h>
 
 #include "Basic.h"
 
+class QOpenGLContext;
+class QOpenGLWidget;
+class QSurfaceFormat;
 
 class QMenu;
 class SoNode;
@@ -106,6 +107,7 @@ public:
   Q_PROPERTY(TransparencyType transparencyType READ transparencyType WRITE setTransparencyType) // clazy:exclude=qproperty-without-notify
   Q_PROPERTY(RenderMode renderMode READ renderMode WRITE setRenderMode) // clazy:exclude=qproperty-without-notify
   Q_PROPERTY(StereoMode stereoMode READ stereoMode WRITE setStereoMode) // clazy:exclude=qproperty-without-notify
+  Q_PROPERTY(int maxFrameRate READ maxFrameRate WRITE setMaxFrameRate) // clazy:exclude=qproperty-without-notify
   Q_PROPERTY(qreal devicePixelRatio READ devicePixelRatio NOTIFY devicePixelRatioChanged)
 
   Q_ENUM(TransparencyType)
@@ -114,9 +116,9 @@ public:
 
 
 public:
-  explicit QuarterWidget(QWidget * parent = nullptr, const QtGLWidget * sharewidget = nullptr, Qt::WindowFlags f = Qt::WindowFlags());
-  explicit QuarterWidget(QtGLContext * context, QWidget * parent = nullptr, const QtGLWidget * sharewidget = nullptr, Qt::WindowFlags f = Qt::WindowFlags());
-  explicit QuarterWidget(const QtGLFormat & format, QWidget * parent = nullptr, const QtGLWidget * shareWidget = nullptr, Qt::WindowFlags f = Qt::WindowFlags());
+  explicit QuarterWidget(QWidget * parent = nullptr, const QOpenGLWidget * sharewidget = nullptr, Qt::WindowFlags f = Qt::WindowFlags());
+  explicit QuarterWidget(QOpenGLContext * context, QWidget * parent = nullptr, const QOpenGLWidget * sharewidget = nullptr, Qt::WindowFlags f = Qt::WindowFlags());
+  explicit QuarterWidget(const QSurfaceFormat & format, QWidget * parent = nullptr, const QOpenGLWidget * shareWidget = nullptr, Qt::WindowFlags f = Qt::WindowFlags());
   ~QuarterWidget() override;
 
   TransparencyType transparencyType() const;
@@ -131,6 +133,7 @@ public:
   void resetNavigationModeFile();
   void setNavigationModeFile(const QUrl & url = QUrl(QString::fromLatin1(DEFAULT_NAVIGATIONFILE)));
   const QUrl & navigationModeFile() const;
+  void setupDefaultCursors();
 
   void setContextMenuEnabled(bool yes);
   bool contextMenuEnabled() const;
@@ -145,6 +148,9 @@ public:
 
   bool clearWindow() const;
   void setClearWindow(bool onoff);
+
+  int maxFrameRate() const;
+  void setMaxFrameRate(int fps);
 
   bool interactionModeEnabled() const;
   void setInteractionModeEnabled(bool onoff);
@@ -193,7 +199,6 @@ Q_SIGNALS:
 
 private Q_SLOTS:
   void replaceViewport();
-  virtual void aboutToDestroyGLContext();
 
 protected:
   void paintEvent(QPaintEvent*) override;
@@ -203,12 +208,10 @@ protected:
   virtual bool updateDevicePixelRatio();
 
 private:
-  void constructor(const QtGLFormat& format, const QtGLWidget* sharewidget);
+  void constructor(const QSurfaceFormat& format, const QOpenGLWidget* sharewidget);
   friend class QuarterWidgetP;
   class QuarterWidgetP * pimpl;
   bool initialized;
 };
 
 }}} // namespace
-
-#endif // QUARTER_QUARTERWIDGET_H

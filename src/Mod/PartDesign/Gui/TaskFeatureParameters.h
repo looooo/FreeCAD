@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (C) 2015 Alexander Golubev (Fat-Zer) <fatzer2@gmail.com>    *
  *                                                                         *
@@ -20,35 +22,73 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TASKFEATUREPARAMETERS_H_NAHKE2YZ
-#define TASKFEATUREPARAMETERS_H_NAHKE2YZ
+#pragma once
 
 
+#include <type_traits>
 #include <Gui/TaskView/TaskDialog.h>
 #include <Gui/TaskView/TaskView.h>
 #include <Gui/DocumentObserver.h>
 
 #include "ViewProvider.h"
 
-namespace PartDesignGui {
+namespace PartDesignGui
+{
 
-/// Convenience class to collect common methods for all SketchBased features
-class TaskFeatureParameters : public Gui::TaskView::TaskBox,
-                              public Gui::DocumentObserver
+class Ui_TaskPreviewParameters;
+
+class TaskPreviewParameters: public Gui::TaskView::TaskBox
 {
     Q_OBJECT
 
 public:
-    TaskFeatureParameters(PartDesignGui::ViewProvider* vp, QWidget *parent,
-                              const std::string& pixmapname, const QString& parname);
-    ~TaskFeatureParameters() override = default;
+    explicit TaskPreviewParameters(ViewProvider* vp, QWidget* parent = nullptr);
+    ~TaskPreviewParameters() override;
+
+public Q_SLOTS:
+    void onShowPreviewChanged(bool show);
+    void onShowFinalChanged(bool show);
+
+private:
+    ViewProvider* vp;
+    std::unique_ptr<Ui_TaskPreviewParameters> ui;
+
+    ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
+        "User parameter:BaseApp/Preferences/Mod/PartDesign/Preview"
+    );
+};
+
+/// Common functionality for feature parameter panels
+class TaskFeatureParameters: public Gui::TaskView::TaskBox, public Gui::DocumentObserver
+{
+    Q_OBJECT
+
+public:
+    TaskFeatureParameters(
+        PartDesignGui::ViewProvider* vp,
+        QWidget* parent,
+        const std::string& pixmapname,
+        const QString& parname
+    );
+    ~TaskFeatureParameters() override;
 
     /// save field history
-    virtual void saveHistory() {}
+    virtual void saveHistory()
+    {}
     /// apply changes made in the parameters input to the model via commands
-    virtual void apply() {}
+    virtual void apply()
+    {}
 
     void recomputeFeature();
+
+    bool isUpdateBlocked() const
+    {
+        return blockUpdate;
+    }
+
+protected:
+    void showDraggerHints();
+    void hideDraggerHints();
 
 protected Q_SLOTS:
     // TODO Add update view to all dialogs (2015-12-05, Fat-Zer)
@@ -59,18 +99,60 @@ private:
     void slotDeletedObject(const Gui::ViewProviderDocumentObject& Obj) override;
 
 protected:
-    PartDesignGui::ViewProvider *vp;
-    /// Lock updateUI(), applying changes to the underlying feature and calling recomputeFeature()
+    template<typename T = PartDesignGui::ViewProvider>
+    T* getViewObject() const
+    {
+        static_assert(std::is_base_of<PartDesignGui::ViewProvider, T>::value, "Wrong template argument");
+        return freecad_cast<T*>(vp);
+    }
+
+    template<typename T = App::DocumentObject>
+    T* getObject() const
+    {
+        static_assert(std::is_base_of<App::DocumentObject, T>::value, "Wrong template argument");
+
+        if (vp) {
+            return vp->getObject<T>();
+        }
+
+        return nullptr;
+    }
+
+    Gui::Document* getGuiDocument() const
+    {
+        return vp ? vp->getDocument() : nullptr;
+    }
+
+    App::Document* getAppDocument() const
+    {
+        auto obj = getObject();
+        return obj ? obj->getDocument() : nullptr;
+    }
+
+    bool& getUpdateBlockRef()
+    {
+        return blockUpdate;
+    }
+
+    void setUpdateBlocked(bool value)
+    {
+        blockUpdate = value;
+    }
+
+protected:
+    PartDesignGui::ViewProvider* vp;
+
+private:
     bool blockUpdate;
 };
 
 /// A common base for sketch based, dressup and other solid parameters dialogs
-class TaskDlgFeatureParameters : public Gui::TaskView::TaskDialog
+class TaskDlgFeatureParameters: public Gui::TaskView::TaskDialog
 {
     Q_OBJECT
 
 public:
-    explicit TaskDlgFeatureParameters(PartDesignGui::ViewProvider *vp);
+    explicit TaskDlgFeatureParameters(PartDesignGui::ViewProvider* vp);
     ~TaskDlgFeatureParameters() override;
 
 public:
@@ -79,14 +161,29 @@ public:
     /// is called by the framework if the dialog is rejected (Cancel)
     bool reject() override;
 
-    /// Returns the view provider dialog is runed for
-     PartDesignGui::ViewProvider *viewProvider() const { return vp; }
+    template<typename T = PartDesignGui::ViewProvider>
+    T* getViewObject() const
+    {
+        static_assert(std::is_base_of<PartDesignGui::ViewProvider, T>::value, "Wrong template argument");
+        return freecad_cast<T*>(vp);
+    }
+
+    template<typename T = App::DocumentObject>
+    T* getObject() const
+    {
+        static_assert(std::is_base_of<App::DocumentObject, T>::value, "Wrong template argument");
+        if (vp) {
+            return vp->getObject<T>();
+        }
+
+        return nullptr;
+    }
 
 protected:
-    PartDesignGui::ViewProvider *vp;
+    PartDesignGui::TaskPreviewParameters* preview;
+
+private:
+    PartDesignGui::ViewProvider* vp;
 };
 
-} //namespace PartDesignGui
-
-
-#endif /* end of include guard: TASKFEATUREPARAMETERS_H_NAHKE2YZ */
+}  // namespace PartDesignGui

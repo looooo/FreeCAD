@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 
 #include "App/MappedName.h"
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 
 #include <App/StringHasher.h>
 #include <App/StringHasherPy.h>
@@ -284,8 +284,8 @@ TEST_F(StringIDTest, fromStringWithEOFAndLengthGood)  // NOLINT
     const std::string testString {"#1:fcad"};
 
     // Act
-    auto result =
-        App::StringID::fromString(testString.c_str(), true, static_cast<int>(testString.length()));
+    auto result
+        = App::StringID::fromString(testString.c_str(), true, static_cast<int>(testString.length()));
 
     // Assert
     EXPECT_EQ(result.id, 1);
@@ -298,10 +298,10 @@ TEST_F(StringIDTest, fromStringExtraData)  // NOLINT
     const std::string testString {"#1:fcad#2:bad"};
 
     // Act
-    auto trueResult =
-        App::StringID::fromString(testString.c_str(), true, static_cast<int>(testString.length()));
-    auto falseResult =
-        App::StringID::fromString(testString.c_str(), false, static_cast<int>(testString.length()));
+    auto trueResult
+        = App::StringID::fromString(testString.c_str(), true, static_cast<int>(testString.length()));
+    auto falseResult
+        = App::StringID::fromString(testString.c_str(), false, static_cast<int>(testString.length()));
 
     // Assert
     EXPECT_EQ(trueResult.id, -1);
@@ -748,8 +748,8 @@ TEST_F(StringIDRefTest, swap)  // NOLINT
 }
 
 #if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wself-assign-overloaded"
+# pragma clang diagnostic push
+# pragma clang diagnostic ignored "-Wself-assign-overloaded"
 #endif
 
 TEST_F(StringIDRefTest, assignmentFromSelf)  // NOLINT
@@ -765,7 +765,7 @@ TEST_F(StringIDRefTest, assignmentFromSelf)  // NOLINT
 }
 
 #if defined(__clang__)
-#pragma clang diagnostic pop
+# pragma clang diagnostic pop
 #endif
 
 TEST_F(StringIDRefTest, assignmentToEmptyFromStringID)  // NOLINT
@@ -1006,6 +1006,7 @@ TEST_F(StringIDRefTest, toBytes)  // NOLINT
 
 TEST_F(StringIDRefTest, getPyObject)  // NOLINT
 {
+    Py_Initialize();
     // Arrange
     auto ref = App::StringIDRef(createStringID());
     auto empty = App::StringIDRef();
@@ -1106,7 +1107,10 @@ protected:
         const std::string postfix {";:M;FUS;:Hb:7,F"};
         auto mappedName = givenMappedName(prefix.c_str(), postfix.c_str());
         QVector<App::StringIDRef> sids;
-        return Hasher()->getID(mappedName, sids);
+        auto ID = Hasher()->getID(mappedName, sids);
+        ID.mark();  // For this to be included in the count, and thus the memsize in needs to be
+                    // marked.
+        return ID;
     }
 
 private:

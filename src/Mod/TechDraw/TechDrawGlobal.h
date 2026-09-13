@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2021 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -22,8 +24,7 @@
 
 #include <FCGlobal.h>
 
-#ifndef TECHDRAW_GLOBAL_H
-#define TECHDRAW_GLOBAL_H
+#pragma once
 
 
 // TechDraw
@@ -43,5 +44,3 @@
 #  define TechDrawGuiExport   FREECAD_DECL_IMPORT
 #endif
 #endif
-
-#endif //TECHDRAW_GLOBAL_H

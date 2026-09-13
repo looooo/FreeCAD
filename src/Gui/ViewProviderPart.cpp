@@ -20,11 +20,10 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
-#ifndef _PreComp_
-# include <QMenu>
-#endif
+#include <QMenu>
+
+#include <Inventor/nodes/SoMaterial.h>
 
 #include <App/Document.h>
 #include <App/DocumentObject.h>
@@ -37,11 +36,15 @@
 #include "Command.h"
 #include "MDIView.h"
 
+#include "ViewParams.h"
+#include "TaskElementColors.h"
+#include "Control.h"
+#include "ViewProviderLink.h"
 
 using namespace Gui;
 
 
-PROPERTY_SOURCE_WITH_EXTENSIONS(Gui::ViewProviderPart, Gui::ViewProviderDragger)
+PROPERTY_SOURCE_WITH_EXTENSIONS(Gui::ViewProviderPart, Gui::ViewProviderGeometryObject)
 
 
 /**
@@ -50,6 +53,10 @@ PROPERTY_SOURCE_WITH_EXTENSIONS(Gui::ViewProviderPart, Gui::ViewProviderDragger)
 ViewProviderPart::ViewProviderPart()
 {
     initExtension(this);
+
+    ADD_PROPERTY_TYPE(OverrideMaterial, (false), 0, App::Prop_None, "Override part material");
+
+    ADD_PROPERTY(OverrideColorList, ());
 
     sPixmap = "Geofeaturegroup.svg";
     aPixmap = "Geoassembly.svg";
@@ -62,73 +69,207 @@ ViewProviderPart::~ViewProviderPart() = default;
  * Whenever a property of the group gets changed then the same property of all
  * associated view providers of the objects of the object group get changed as well.
  */
-void ViewProviderPart::onChanged(const App::Property* prop) {
-    ViewProviderDragger::onChanged(prop);
+void ViewProviderPart::onChanged(const App::Property* prop)
+{
+    if (prop == &OverrideMaterial) {
+        pcShapeMaterial->setOverride(OverrideMaterial.getValue());
+    }
+    else if (!isRestoring()) {
+        if (prop == &OverrideColorList) {
+            applyColors();
+        }
+    }
+    inherited::onChanged(prop);
+}
+
+void ViewProviderPart::updateData(const App::Property* prop)
+{
+    if (prop && !isRestoring() && !pcObject->isRestoring()) {
+        if (prop == getColoredElementsProperty()) {
+            applyColors();
+        }
+    }
+    inherited::updateData(prop);
 }
 
 void ViewProviderPart::setupContextMenu(QMenu* menu, QObject* receiver, const char* member)
 {
     auto func = new Gui::ActionFunction(menu);
-    QAction* act = menu->addAction(QObject::tr("Toggle active part"));
-    func->trigger(act, [this](){
-        this->doubleClicked();
-    });
 
-    ViewProviderDragger::setupContextMenu(menu, receiver, member);
+    QAction* act = menu->addAction(QObject::tr("Active Object"));
+    act->setCheckable(true);
+    act->setChecked(isActivePart());
+    func->trigger(act, [this]() { this->toggleActivePart(); });
+
+    if (getColoredElementsProperty()) {
+        act = menu->addAction(QObject::tr("Override colors…"), receiver, member);
+        act->setData(QVariant((int)ViewProvider::Color));
+    }
+
+    inherited::setupContextMenu(menu, receiver, member);
+}
+
+bool ViewProviderPart::isActivePart(const char* key)
+{
+    App::DocumentObject* activePart = nullptr;
+    auto activeDoc = Gui::Application::Instance->activeDocument();
+    if (!activeDoc) {
+        activeDoc = getDocument();
+    }
+    auto activeView = activeDoc->setActiveView(this);
+    if (!activeView) {
+        return false;
+    }
+
+    activePart = activeView->getActiveObject<App::DocumentObject*>(key);
+
+    if (activePart == this->getObject()) {
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+void ViewProviderPart::toggleActivePart()
+{
+    // make the part the active one
+    if (isActivePart()) {
+        // active part double-clicked. Deactivate.
+        Gui::Command::doCommand(
+            Gui::Command::Gui,
+            "Gui.ActiveDocument.ActiveView.setActiveObject('%s', None)",
+            PARTKEY
+        );
+    }
+    else {
+        // set new active part
+        Gui::Command::doCommand(
+            Gui::Command::Gui,
+            "Gui.ActiveDocument.ActiveView.setActiveObject('%s', "
+            "App.getDocument('%s').getObject('%s'))",
+            PARTKEY,
+            this->getObject()->getDocument()->getName(),
+            this->getObject()->getNameInDocument()
+        );
+    }
 }
 
 bool ViewProviderPart::doubleClicked()
 {
-    //make the part the active one
-
-    //first, check if the part is already active.
-    App::DocumentObject* activePart = nullptr;
-    auto activeDoc = Gui::Application::Instance->activeDocument();
-    if(!activeDoc)
-        activeDoc = getDocument();
-    auto activeView = activeDoc->setActiveView(this);
-    if(!activeView)
-        return false;
-
-    activePart = activeView->getActiveObject<App::DocumentObject*> (PARTKEY);
-
-    if (activePart == this->getObject()){
-        //active part double-clicked. Deactivate.
-        Gui::Command::doCommand(Gui::Command::Gui,
-                "Gui.ActiveDocument.ActiveView.setActiveObject('%s', None)",
-                PARTKEY);
-    } else {
-        //set new active part
-        Gui::Command::doCommand(Gui::Command::Gui,
-                "Gui.ActiveDocument.ActiveView.setActiveObject('%s', App.getDocument('%s').getObject('%s'))",
-                PARTKEY,
-                this->getObject()->getDocument()->getName(),
-                this->getObject()->getNameInDocument());
-    }
-
+    toggleActivePart();
     return true;
 }
 
 QIcon ViewProviderPart::getIcon() const
 {
     // the original Part object for this ViewProviderPart
-    auto part = static_cast<App::Part*>(this->getObject());
+    auto part = this->getObject<App::Part>();
     // the normal case for Std_Part
     const char* pixmap = sPixmap;
     // if it's flagged as an Assembly in its Type, it gets another icon
-    if (part->Type.getStrValue() == "Assembly") { pixmap = aPixmap; }
+    if (part->Type.getStrValue() == "Assembly") {
+        pixmap = aPixmap;
+    }
 
-    return mergeGreyableOverlayIcons (Gui::BitmapFactory().pixmap(pixmap));
+    return mergeGreyableOverlayIcons(Gui::BitmapFactory().pixmap(pixmap));
 }
 
+App::PropertyLinkSub* ViewProviderPart::getColoredElementsProperty() const
+{
+    if (!getObject()) {
+        return nullptr;
+    }
+    return freecad_cast<App::PropertyLinkSub*>(getObject()->getPropertyByName("ColoredElements"));
+}
+
+bool ViewProviderPart::setEdit(int ModNum)
+{
+    if (ModNum == ViewProvider::Color) {
+        TaskView::TaskDialog* dlg = Control().activeDialog();
+        if (dlg) {
+            Control().showDialog(dlg);
+            return false;
+        }
+        Selection().clearSelection();
+        return true;
+    }
+    return inherited::setEdit(ModNum);
+}
+
+void ViewProviderPart::setEditViewer(Gui::View3DInventorViewer* viewer, int ModNum)
+{
+    if (ModNum == ViewProvider::Color) {
+        Gui::Control().showDialog(new TaskElementColors(this));
+        return;
+    }
+    return inherited::setEditViewer(viewer, ModNum);
+}
+
+std::map<std::string, Base::Color> ViewProviderPart::getElementColors(const char* subname) const
+{
+    std::map<std::string, Base::Color> res;
+    if (!getObject()) {
+        return res;
+    }
+    auto prop = getColoredElementsProperty();
+    if (!prop) {
+        return res;
+    }
+    const auto& mats = ShapeAppearance.getValue();
+    if (mats.empty()) {
+        return res;
+    }
+    const auto& mat = mats.front();
+
+    return ViewProviderLink::getElementColorsFrom(
+        this,
+        subname,
+        *prop,
+        OverrideColorList,
+        OverrideMaterial.getValue(),
+        &mat
+    );
+}
+
+void ViewProviderPart::setElementColors(const std::map<std::string, Base::Color>& colorMap)
+{
+    if (!getObject()) {
+        return;
+    }
+    auto prop = getColoredElementsProperty();
+    if (!prop) {
+        return;
+    }
+    ViewProviderLink::setElementColorsTo(
+        this,
+        colorMap,
+        *prop,
+        OverrideColorList,
+        &OverrideMaterial,
+        &ShapeAppearance
+    );
+}
+
+void ViewProviderPart::applyColors()
+{
+    prevColorOverride = ViewProviderLink::applyColorsTo(this, prevColorOverride);
+}
+
+void ViewProviderPart::finishRestoring()
+{
+    inherited::finishRestoring();
+    applyColors();
+}
 
 // Python feature -----------------------------------------------------------------------
 
-namespace Gui {
+namespace Gui
+{
 /// @cond DOXERR
 PROPERTY_SOURCE_TEMPLATE(Gui::ViewProviderPartPython, Gui::ViewProviderPart)
 /// @endcond
 
 // explicit template instantiation
-template class GuiExport ViewProviderPythonFeatureT<ViewProviderPart>;
-}
+template class GuiExport ViewProviderFeaturePythonT<ViewProviderPart>;
+}  // namespace Gui

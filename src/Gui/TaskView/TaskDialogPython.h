@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 /***************************************************************************
  *   Copyright (c) 2011 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -21,20 +22,21 @@
  ***************************************************************************/
 
 
-#ifndef GUI_TASKVIEW_TASKDIALOGPYTHON_H
-#define GUI_TASKVIEW_TASKDIALOGPYTHON_H
+#pragma once
 
 #include "TaskDialog.h"
 #include "TaskWatcher.h"
 
 
-namespace Gui {
-namespace TaskView {
+namespace Gui
+{
+namespace TaskView
+{
 
-class ControlPy : public Py::PythonExtension<ControlPy> 
+class ControlPy: public Py::PythonExtension<ControlPy>
 {
 public:
-    static void init_type();    // announce properties and methods
+    static void init_type();  // announce properties and methods
     static ControlPy* getInstance();
 
     ControlPy();
@@ -57,7 +59,7 @@ private:
     static ControlPy* instance;
 };
 
-class GuiExport TaskWatcherPython : public TaskWatcher
+class GuiExport TaskWatcherPython: public TaskWatcher
 {
 public:
     explicit TaskWatcherPython(const Py::Object&);
@@ -72,18 +74,18 @@ private:
  * @brief The TaskDialogPy class
  * This class exposes a TaskDialog written in C++ to Python.
  */
-class TaskDialogPy : public Py::PythonExtension<TaskDialogPy>
+class TaskDialogPy: public Py::PythonExtension<TaskDialogPy>
 {
 public:
     using BaseType = Py::PythonExtension<TaskDialogPy>;
-    static void init_type();    // announce properties and methods
+    static void init_type();  // announce properties and methods
 
     explicit TaskDialogPy(TaskDialog*);
     ~TaskDialogPy() override;
 
     Py::Object repr() override;
-    Py::Object getattr(const char *) override;
-    int setattr(const char *, const Py::Object &) override;
+    Py::Object getattr(const char*) override;
+    int setattr(const char*, const Py::Object&) override;
 
 public:
     Py::Object getDialogContent(const Py::Tuple&);
@@ -99,8 +101,13 @@ public:
     /// active transaction.
     Py::Object setAutoCloseOnTransactionChange(const Py::Tuple&);
     Py::Object isAutoCloseOnTransactionChange(const Py::Tuple&);
+    Py::Object setAutoCloseOnResetEdit(const Py::Tuple&);
+    Py::Object isAutoCloseOnResetEdit(const Py::Tuple&);
+    Py::Object setAutoCloseOnDeletedDocument(const Py::Tuple&);
+    Py::Object isAutoCloseOnDeletedDocument(const Py::Tuple&);
 
     Py::Object getDocumentName(const Py::Tuple&);
+    Py::Object setDocumentName(const Py::Tuple&);
 
     /*!
       Indicates whether this task dialog allows other commands to modify
@@ -134,7 +141,7 @@ private:
  * @brief The TaskDialogPython class
  * This wraps a task dialog that is written in Python.
  */
-class GuiExport TaskDialogPython : public TaskDialog
+class GuiExport TaskDialogPython: public TaskDialog
 {
 public:
     explicit TaskDialogPython(const Py::Object&);
@@ -160,6 +167,10 @@ public:
     bool isAllowedAlterSelection() const override;
     bool needsFullSpace() const override;
 
+    void autoClosedOnTransactionChange() override;
+    void autoClosedOnResetEdit() override;
+    void autoClosedOnDeletedDocument() override;
+
 public:
     /// is called by the framework when the dialog is opened
     void open() override;
@@ -169,11 +180,11 @@ public:
     bool accept() override;
     /// is called by the framework if the dialog is rejected (Cancel)
     bool reject() override;
-    /// is called by the framework if the user press the help button 
+    /// is called by the framework if the user press the help button
     void helpRequested() override;
 
     /// event handling
-    bool eventFilter(QObject *watched, QEvent *event) override;
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
     bool tryLoadUiFile();
@@ -185,8 +196,5 @@ private:
     Py::Object dlg;
 };
 
-} //namespace TaskView
-} //namespace Gui
-
-#endif // GUI_TASKVIEW_TASKDIALOGPYTHON_H
-
+}  // namespace TaskView
+}  // namespace Gui

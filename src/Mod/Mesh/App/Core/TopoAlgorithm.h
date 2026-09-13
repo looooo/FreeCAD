@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2005 Imetric 3D GmbH                                    *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef MESH_TOPOALGORITHM_H
-#define MESH_TOPOALGORITHM_H
+#pragma once
 
 #include <map>
 #include <vector>
@@ -73,8 +74,7 @@ public:
      * edges to build more well-formed triangles.
      * @see InsertVertex(), ShouldSwapEdge(), SwapEdge().
      */
-    bool
-    InsertVertexAndSwapEdge(FacetIndex ulFacetPos, const Base::Vector3f& rclPoint, float fMaxAngle);
+    bool InsertVertexAndSwapEdge(FacetIndex ulFacetPos, const Base::Vector3f& rclPoint, float fMaxAngle);
     /**
      * Swaps the common edge of two adjacent facets even if the operation might
      * be illegal. To be sure that this operation is legal, check either with
@@ -242,18 +242,22 @@ public:
      * needs to be done then the points of the neighbours of \a level rings will be used.
      * Holes for which the triangulation failed are returned in \a aFailed.
      */
-    void FillupHoles(unsigned long length,
-                     int level,
-                     AbstractPolygonTriangulator&,
-                     std::list<std::vector<PointIndex>>& aFailed);
+    void FillupHoles(
+        unsigned long length,
+        int level,
+        AbstractPolygonTriangulator&,
+        std::list<std::vector<PointIndex>>& aFailed
+    );
     /**
      * This is an overloaded method provided for convenience. It takes as first argument
      * the boundaries which must be filled up.
      */
-    void FillupHoles(int level,
-                     AbstractPolygonTriangulator&,
-                     const std::list<std::vector<PointIndex>>& aBorders,
-                     std::list<std::vector<PointIndex>>& aFailed);
+    void FillupHoles(
+        int level,
+        AbstractPolygonTriangulator&,
+        const std::list<std::vector<PointIndex>>& aBorders,
+        std::list<std::vector<PointIndex>>& aFailed
+    );
     /**
      * Find holes which consists of up to \a length edges.
      */
@@ -262,7 +266,7 @@ public:
      * Find topologic independent components with maximum \a count facets
      * and returns an array of the indices.
      */
-    void FindComponents(unsigned long count, std::vector<FacetIndex>& aInds);
+    void FindComponents(unsigned long count, std::vector<FacetIndex>& findIndices);
     /**
      * Removes topologic independent components with maximum \a count facets.
      */
@@ -285,20 +289,12 @@ private:
     /**
      * Splits the neighbour facet of \a ulFacetPos on side \a uSide.
      */
-    void
-    SplitNeighbourFacet(FacetIndex ulFacetPos, unsigned short uSide, const Base::Vector3f rPoint);
+    void SplitNeighbourFacet(FacetIndex ulFacetPos, unsigned short uFSide, const Base::Vector3f& rPoint);
     void SplitFacetOnOneEdge(FacetIndex ulFacetPos, const Base::Vector3f& rP1);
-    void SplitFacetOnTwoEdges(FacetIndex ulFacetPos,
-                              const Base::Vector3f& rP1,
-                              const Base::Vector3f& rP2);
+    void SplitFacetOnTwoEdges(FacetIndex ulFacetPos, const Base::Vector3f& rP1, const Base::Vector3f& rP2);
     void SplitFacet(FacetIndex ulFacetPos, PointIndex P1, PointIndex P2, PointIndex Pn);
     void AddFacet(PointIndex P1, PointIndex P2, PointIndex P3);
-    void AddFacet(PointIndex P1,
-                  PointIndex P2,
-                  PointIndex P3,
-                  FacetIndex N1,
-                  FacetIndex N2,
-                  FacetIndex N3);
+    void AddFacet(PointIndex P1, PointIndex P2, PointIndex P3, FacetIndex N1, FacetIndex N2, FacetIndex N3);
     void HarmonizeNeighbours(FacetIndex facet1, FacetIndex facet2);
     void HarmonizeNeighbours(const std::vector<FacetIndex>& ulFacets);
     /**
@@ -315,7 +311,7 @@ private:
 
     struct Vertex_Less
     {
-        bool operator()(const Base::Vector3f& x, const Base::Vector3f& y) const;
+        bool operator()(const Base::Vector3f& u, const Base::Vector3f& v) const;
     };
 
     // cache
@@ -351,9 +347,11 @@ public:
      * Does basically the same as the method above escept that only the faces in
      * \a aSegment are regarded.
      */
-    void SearchForComponents(TMode tMode,
-                             const std::vector<FacetIndex>& aSegment,
-                             std::vector<std::vector<FacetIndex>>& aclT) const;
+    void SearchForComponents(
+        TMode tMode,
+        const std::vector<FacetIndex>& aSegment,
+        std::vector<std::vector<FacetIndex>>& aclT
+    ) const;
 
 protected:
     // for sorting of elements
@@ -370,5 +368,3 @@ private:
 };
 
 }  // namespace MeshCore
-
-#endif  // MESH_TOPOALGORITHM_H

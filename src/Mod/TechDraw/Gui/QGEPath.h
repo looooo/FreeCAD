@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2019 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TECHDRAWGUI_EDITABLEPATH_H
-#define TECHDRAWGUI_EDITABLEPATH_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
@@ -30,6 +31,7 @@
 #include <QObject>
 
 #include "QGIPrimPath.h"
+#include "QGIUserTypes.h"
 #include "QGIVertex.h"
 
 namespace TechDrawGui
@@ -40,6 +42,7 @@ class QGIVertex;
 class QGIView;
 class QGILeaderLine;
 
+//! QGMarker provides movable symbols
 class TechDrawGuiExport QGMarker : public QObject, public QGIVertex
 {
     Q_OBJECT
@@ -47,14 +50,14 @@ public:
     explicit QGMarker(int idx);
     ~QGMarker() override = default;
 
-    enum {Type = QGraphicsItem::UserType + 302};
+    enum {Type = UserType::QGMarker};
     int type() const override { return Type;}
 
     void mouseReleaseEvent(QGraphicsSceneMouseEvent *event) override;
     void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) override;
     void keyPressEvent(QKeyEvent * event) override;
 
-    void setRadius(float radius) override;
+    void setRadius(double radius) override;
 
 Q_SIGNALS:
     void dragging(QPointF pos, int idx);
@@ -73,32 +76,30 @@ private:
 
 //******************************************************************************
 
+
+
 class TechDrawGuiExport QGEPath : public QObject, public QGIPrimPath
 {
     Q_OBJECT
 
 public:
-    explicit QGEPath(QGILeaderLine* leader);
+    explicit QGEPath();
     ~QGEPath() override = default;
 
-    enum {Type = QGraphicsItem::UserType + 301};
+    enum {Type = UserType::QGEPath};
     int type() const override { return Type;}
     QRectF boundingRect() const override;
     QPainterPath shape() const override;
 
     void inEdit(bool isInEdit) { m_inEdit = isInEdit; }
     bool inEdit() const { return m_inEdit; }
-    void startPathEdit(std::vector<QPointF> pathPoints);
+    void startPathEdit(const std::vector<QPointF>& pathPoints);
 
-    void showMarkers(std::vector<QPointF> points);
+    void showMarkers(const std::vector<QPointF>& points);
     void clearMarkers();
-
-    std::vector<QPointF> getDeltasFromLeader();
 
     void setScale(double scale) { m_scale = scale; }
     double getScale() const { return m_scale; }
-
-    void setPoints(std::vector<QPointF>& pts) { m_ghostPoints = pts; }
 
     void updateParent();
     void drawGhost();
@@ -124,7 +125,6 @@ protected:
     QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
     void hoverEnterEvent(QGraphicsSceneHoverEvent *event) override;
     void hoverLeaveEvent(QGraphicsSceneHoverEvent *event) override;
-    double getEdgeFuzz() const;
 
 private:
     std::vector<QPointF> m_ghostPoints;
@@ -133,7 +133,6 @@ private:
     double m_scale;
     bool m_inEdit;
 
-    QGILeaderLine* m_parentLeader;
     QGIPrimPath* m_ghost;
 
     double m_startAdj;
@@ -141,5 +140,3 @@ private:
 };
 
 }
-
-#endif // TECHDRAWGUI_EDITABLEPATH_H

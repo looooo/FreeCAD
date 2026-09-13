@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2011 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -21,14 +23,15 @@
  ***************************************************************************/
 
 
-#ifndef BASE_AXIS_H
-#define BASE_AXIS_H
+#pragma once
 
-#include "Placement.h"
+#include <FCGlobal.h>
+
 #include "Vector3D.h"
 
 namespace Base
 {
+class Placement;
 
 /**
  * The Axis class.
@@ -81,5 +84,3 @@ private:
 };
 
 }  // namespace Base
-
-#endif  // BASE_AXIS_H

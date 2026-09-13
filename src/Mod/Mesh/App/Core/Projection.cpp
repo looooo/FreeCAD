@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2005 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,11 +22,11 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <algorithm>
+#include <cmath>
+#include <limits>
 #include <map>
-#endif
+
 
 #include "Grid.h"
 #include "Iterator.h"
@@ -40,10 +42,12 @@ MeshProjection::MeshProjection(const MeshKernel& mesh)
     : kernel(mesh)
 {}
 
-bool MeshProjection::bboxInsideRectangle(const Base::BoundBox3f& bbox,
-                                         const Base::Vector3f& p1,
-                                         const Base::Vector3f& p2,
-                                         const Base::Vector3f& view) const
+bool MeshProjection::bboxInsideRectangle(
+    const Base::BoundBox3f& bbox,
+    const Base::Vector3f& p1,
+    const Base::Vector3f& p2,
+    const Base::Vector3f& view
+) const
 {
     Base::Vector3f dir(p2 - p1);
     Base::Vector3f base(p1), normal(view % dir);
@@ -60,25 +64,29 @@ bool MeshProjection::bboxInsideRectangle(const Base::BoundBox3f& bbox,
     return false;
 }
 
-bool MeshProjection::isPointInsideDistance(const Base::Vector3f& p1,
-                                           const Base::Vector3f& p2,
-                                           const Base::Vector3f& pt) const
+bool MeshProjection::isPointInsideDistance(
+    const Base::Vector3f& p1,
+    const Base::Vector3f& p2,
+    const Base::Vector3f& pt
+) const
 {
     // project point on line
     Base::Vector3f proj, dir(p2 - p1);
     Base::Vector3f move(pt - p1);
     proj.ProjectToLine(move, dir);
     proj = pt + proj;
-    return (((p1 - proj) * (p2 - proj)) < 0.0f);
+    return (((p1 - proj) * (p2 - proj)) < 0.0F);
 }
 
-bool MeshProjection::connectLines(std::list<std::pair<Base::Vector3f, Base::Vector3f>>& cutLines,
-                                  const Base::Vector3f& startPoint,
-                                  const Base::Vector3f& endPoint,
-                                  std::vector<Base::Vector3f>& polyline) const
+bool MeshProjection::connectLines(
+    std::list<std::pair<Base::Vector3f, Base::Vector3f>>& cutLines,
+    const Base::Vector3f& startPoint,
+    const Base::Vector3f& endPoint,
+    std::vector<Base::Vector3f>& polyline
+) const
 {
-    const float fMaxDist = float(sqrt(FLOAT_MAX));  // max. length of a gap
-    const float fMinEps = 1.0e-4f;
+    const float fMaxDist = std::sqrt(std::numeric_limits<float>::max());  // max. length of a gap
+    const float fMinEps = 1.0e-4F;
 
     polyline.clear();
     polyline.push_back(startPoint);
@@ -130,13 +138,15 @@ bool MeshProjection::connectLines(std::list<std::pair<Base::Vector3f, Base::Vect
     return true;
 }
 
-bool MeshProjection::projectLineOnMesh(const MeshFacetGrid& grid,
-                                       const Base::Vector3f& v1,
-                                       FacetIndex f1,
-                                       const Base::Vector3f& v2,
-                                       FacetIndex f2,
-                                       const Base::Vector3f& vd,
-                                       std::vector<Base::Vector3f>& polyline)
+bool MeshProjection::projectLineOnMesh(
+    const MeshFacetGrid& grid,
+    const Base::Vector3f& v1,
+    FacetIndex f1,
+    const Base::Vector3f& v2,
+    FacetIndex f2,
+    const Base::Vector3f& vd,
+    std::vector<Base::Vector3f>& polyline
+)
 {
     Base::Vector3f dir(v2 - v1);
     Base::Vector3f base(v1), normal(vd % dir);
@@ -182,7 +192,7 @@ bool MeshProjection::projectLineOnMesh(const MeshFacetGrid& grid,
                 }
                 else {
                     if (facet == f1) {  // start facet
-                        if (((e2 - v1) * dir) > 0.0f) {
+                        if (((e2 - v1) * dir) > 0.0F) {
                             cutLine.emplace_back(v1, e2);
                         }
                         else {
@@ -193,7 +203,7 @@ bool MeshProjection::projectLineOnMesh(const MeshFacetGrid& grid,
                     }
 
                     if (facet == f2) {  // end facet
-                        if (((e2 - v2) * -dir) > 0.0f) {
+                        if (((e2 - v2) * -dir) > 0.0F) {
                             cutLine.emplace_back(v2, e2);
                         }
                         else {

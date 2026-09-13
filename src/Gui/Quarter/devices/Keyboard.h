@@ -1,5 +1,4 @@
-#ifndef QUARTER_KEYBOARD_H
-#define QUARTER_KEYBOARD_H
+#pragma once
 
 /**************************************************************************\
  * Copyright (c) Kongsberg Oil & Gas Technologies AS
@@ -43,8 +42,7 @@ namespace SIM { namespace Coin3D { namespace Quarter {
 
 class QUARTER_DLL_API Keyboard : public InputDevice {
 public:
-  Keyboard(QuarterWidget* quarter);
-  Keyboard();
+  explicit Keyboard(QuarterWidget* quarter);
   ~Keyboard() override;
 
   const SoEvent * translateEvent(QEvent * event) override;
@@ -55,5 +53,3 @@ private:
 };
 
 }}} // namespace
-
-#endif // QUARTER_KEYBOARD_H

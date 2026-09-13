@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 #include <Mod/Part/App/TopoShape.h>
 #include <Mod/Part/App/TopoShapeCache.h>
 
@@ -15,7 +15,16 @@
 
 // NOLINTBEGIN(readability-magic-numbers,cppcoreguidelines-avoid-magic-numbers)
 
-TEST(ShapeRelationKey, HistoryTraceTypeComparison)
+class ShapeRelationKey: public ::testing::Test
+{
+protected:
+    static void SetUpTestSuite()
+    {
+        tests::initApplication();
+    }
+};
+
+TEST_F(ShapeRelationKey, HistoryTraceTypeComparison)
 {
     // Arrange
     Data::MappedName mappedName {"mappedName"};
@@ -81,8 +90,7 @@ TEST_F(TopoShapeCacheTest, InsertRelationIntoEmptyTableCompacts)
 {
     // Arrange
     Data::IndexedName indexedName {"EDGE1"};
-    auto mappedName =
-        Data::MappedName::fromRawData("#94;:G0;XTR;:H19:8,F;:H1a,F;BND:-1:0;:H1b:10,F");
+    auto mappedName = Data::MappedName::fromRawData("#94;:G0;XTR;:H19:8,F;:H1a,F;BND:-1:0;:H1b:10,F");
     ASSERT_TRUE(mappedName.isRaw());
     Data::MappedElement mappedElement1 {indexedName, mappedName};
     QVector<Data::MappedElement> vectorOfElements {mappedElement1};

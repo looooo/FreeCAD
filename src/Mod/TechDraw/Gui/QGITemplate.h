@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2012-2014 Luke Parry <l.parry@warwick.ac.uk>            *
  *                                                                         *
@@ -20,13 +22,14 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_QGRAPHICSITEMTEMPLATE_H
-#define DRAWINGGUI_QGRAPHICSITEMTEMPLATE_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
 #include <QGraphicsItemGroup>
 #include <QObject>
+
+#include "QGIUserTypes.h"
 
 QT_BEGIN_NAMESPACE
 class QGraphicsScene;
@@ -49,7 +52,7 @@ public:
     QGITemplate(QGSPage *);
     ~QGITemplate() override;
 
-    enum {Type = QGraphicsItem::UserType + 150};
+    enum {Type = UserType::QGITemplate};
     int type() const override { return Type;}
 
     void clearContents();
@@ -60,7 +63,7 @@ public:
     inline qreal getY() { return y() * -1; }
 
     virtual void updateView(bool update = false);
-    std::vector<TemplateTextField *> getTextFields() { return textFields; };
+    virtual std::vector<TemplateTextField *> getTextFields() { return textFields; };
 
     virtual void draw() = 0;
 
@@ -71,5 +74,3 @@ protected:
 };
 
 } // namespace
-
-#endif // DRAWINGGUI_QGRAPHICSITEMTEMPLATE_H

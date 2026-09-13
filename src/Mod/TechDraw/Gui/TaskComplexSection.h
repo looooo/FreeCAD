@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2022 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TECHDRAWGUI_TASKCOMPLEXSECTION_H
-#define TECHDRAWGUI_TASKCOMPLEXSECTION_H
+#pragma once
 
 #include <QString>
 
@@ -107,7 +108,7 @@ protected Q_SLOTS:
 
 private:
     double requiredRotation(double inputAngle);
-    std::string makeSectionLabel(QString symbol);
+    std::string makeSectionLabel(const QString& symbol);
 
     void createComplexSection();
     void updateComplexSection();
@@ -161,8 +162,8 @@ public:
                           std::vector<App::DocumentObject*> xShapes,
                           App::DocumentObject* profileObject,
                           std::vector<std::string> profileSubs);
-    TaskDlgComplexSection(TechDraw::DrawComplexSection* page);
-    ~TaskDlgComplexSection() override;
+    explicit TaskDlgComplexSection(TechDraw::DrawComplexSection* page) ;
+    ~TaskDlgComplexSection() override = default;
 
 public:
     /// is called the TaskView when the dialog is opened
@@ -185,5 +186,3 @@ private:
 };
 
 } //namespace TechDrawGui
-
-#endif // #ifndef TECHDRAWGUI_TASKCOMPLEXSECTION_H

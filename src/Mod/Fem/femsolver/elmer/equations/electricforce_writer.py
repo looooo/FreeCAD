@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # ***************************************************************************
 # *   Copyright (c) 2020 Markus Hovorka <m.hovorka@live.de>                 *
 # *   Copyright (c) 2022 Uwe Stöhr <uwestoehr@lyx.org>                      *
@@ -60,9 +62,11 @@ class EFwriter:
                 (
                     "That solver is only executed after solution converged\n"
                     "To execute always, change to 'Always'"
-                )
+                ),
+                locked=True,
             )
             equation.ExecSolver = electricforce.SOLVER_EXEC_METHODS
             equation.ExecSolver = "After Timestep"
+
 
 ##  @}

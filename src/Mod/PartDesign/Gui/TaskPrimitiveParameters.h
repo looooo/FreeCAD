@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 Stefan Tröger <stefeantroeger@gmx.net>             *
  *                                                                         *
@@ -21,29 +23,36 @@
  ***************************************************************************/
 
 
-#ifndef GUI_TASKVIEW_TaskPrimitiveParameters_H
-#define GUI_TASKVIEW_TaskPrimitiveParameters_H
+#pragma once
 
 #include <memory>
-#include <Gui/DocumentObserver.h>
+#include <unordered_map>
+
 #include <Gui/TaskView/TaskDialog.h>
 #include <Gui/TaskView/TaskView.h>
 
 #include "ViewProviderPrimitive.h"
 #include "TaskDatumParameters.h"
+#include "TaskFeatureAddSubParameters.h"
 
-namespace App {
+class QGridLayout;
+
+namespace App
+{
 class Property;
 }
 
-namespace Gui {
+namespace Gui
+{
 class ViewProvider;
-}
+class GizmoContainer;
+class LinearGizmo;
+}  // namespace Gui
 
-namespace PartDesignGui {
+namespace PartDesignGui
+{
 class Ui_DlgPrimitives;
-class TaskBoxPrimitives : public Gui::TaskView::TaskBox,
-                          public Gui::DocumentObserver
+class TaskBoxPrimitives: public TaskFeatureAddSubParameters
 {
     Q_OBJECT
 
@@ -51,7 +60,7 @@ public:
     explicit TaskBoxPrimitives(ViewProviderPrimitive* vp, QWidget* parent = nullptr);
     ~TaskBoxPrimitives() override;
 
-    bool setPrimitive(App::DocumentObject *);
+    bool setPrimitive(App::DocumentObject*);
 
 public Q_SLOTS:
     void onBoxLengthChanged(double);
@@ -97,23 +106,34 @@ public Q_SLOTS:
     void onWedgeZ2maxChanged(double);
     void onWedgeZ2minChanged(double);
 
+    void onPlacementChanged();
+
+protected:
+    void changeEvent(QEvent* e) override;
+
 private:
-    /** Notifies when the object is about to be removed. */
-    void slotDeletedObject(const Gui::ViewProviderDocumentObject& Obj) override;
+    void setupOperation(QGridLayout* grid);
 
 private:
     QWidget* proxy;
     std::unique_ptr<Ui_DlgPrimitives> ui;
-    ViewProviderPrimitive* vp;
+
+    std::unique_ptr<Gui::GizmoContainer> gizmoContainer;
+    Gui::LinearGizmo* lengthGizmo = nullptr;
+    Gui::LinearGizmo* heightGizmo = nullptr;
+    Gui::LinearGizmo* widthGizmo = nullptr;
+    Gui::LinearGizmo* radiusGizmo = nullptr;
+    void setupGizmos();
+    void setGizmoPositions();
 };
 
-class TaskPrimitiveParameters : public Gui::TaskView::TaskDialog
+class TaskDlgPrimitiveParameters: public TaskDlgFeatureParameters
 {
     Q_OBJECT
 
 public:
-    explicit TaskPrimitiveParameters(ViewProviderPrimitive *PrimitiveView);
-    ~TaskPrimitiveParameters() override;
+    explicit TaskDlgPrimitiveParameters(ViewProviderPrimitive* PrimitiveView);
+    ~TaskDlgPrimitiveParameters() override;
 
 protected:
     QDialogButtonBox::StandardButtons getStandardButtons() const override;
@@ -122,11 +142,9 @@ protected:
     bool reject() override;
 
 private:
-    TaskBoxPrimitives*     primitive;
+    TaskBoxPrimitives* primitive;
     PartGui::TaskAttacher* parameter;
     ViewProviderPrimitive* vp_prm;
 };
 
-} //namespace PartDesignGui
-
-#endif // GUI_TASKVIEW_TASKAPPERANCE_H
+}  // namespace PartDesignGui

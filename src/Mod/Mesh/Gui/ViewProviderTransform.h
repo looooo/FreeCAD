@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2004 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef MESHGUI_VIEWPROVIDERMESHTRANSFORM_H
-#define MESHGUI_VIEWPROVIDERMESHTRANSFORM_H
+#pragma once
 
 #include "ViewProvider.h"
 
@@ -59,7 +60,7 @@ public:
      * Extracts the mesh data from the feature \a pcFeature and creates
      * an Inventor node \a SoNode with these data.
      */
-    void attach(App::DocumentObject*) override;
+    void attach(App::DocumentObject* obj) override;
 
     /// set the viewing mode
     void setDisplayMode(const char* ModeName) override;
@@ -72,9 +73,8 @@ public:
 
 private:
     SoTransformerManip* pcTransformerDragger;
+
+    FC_DISABLE_COPY_MOVE(ViewProviderMeshTransform)
 };
 
 }  // namespace MeshGui
-
-
-#endif  // MESHGUI_VIEWPROVIDERMESHTRANSFORM_H

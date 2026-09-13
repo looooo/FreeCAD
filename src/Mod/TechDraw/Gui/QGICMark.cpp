@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 Wandererfan <WandererFan@gmail.com>                *
  *                                                                         *
@@ -20,14 +22,11 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 # include <cassert>
 
 # include <QPainter>
 # include <QPainterPath>
 # include <QStyleOptionGraphicsItem>
-#endif
 
 #include <App/Material.h>
 #include <Base/Parameter.h>
@@ -41,8 +40,9 @@ using namespace TechDrawGui;
 
 QGICMark::QGICMark(int index) : QGIVertex(index)
 {
+    m_markFuzz = PreferencesGui::markFuzz();
     m_size = 3.0;
-    m_width = 0.75;
+    setThick(0.75);
     draw();
 }
 void QGICMark::draw()
@@ -63,7 +63,7 @@ void QGICMark::setSize(float s)
 
 void QGICMark::setThick(float t)
 {
-    m_width = t;
+    m_pen.setWidthF(t);
     draw();
 }
 
@@ -73,7 +73,7 @@ QColor QGICMark::getCMarkColor()
 }
 
 void QGICMark::setPrettyNormal() {
-    m_colCurrent = getCMarkColor();
+    m_pen.setColor(getCMarkColor());
     update();
 }
 
@@ -94,13 +94,7 @@ QPainterPath QGICMark::shape() const
 {
     QPainterPath outline;
     QPainterPathStroker stroker;
-    stroker.setWidth(getMarkFuzz());
+    stroker.setWidth(this->m_markFuzz);
     outline = stroker.createStroke(path());
     return outline;
 }
-
- double QGICMark::getMarkFuzz() const
-{
-    return Preferences::getPreferenceGroup("General")->GetFloat("MarkFuzz", 5.0);
-}
-

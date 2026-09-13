@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2006 Werner Mayer <werner.wm.mayer@gmx.de>              *
  *                                                                         *
@@ -20,12 +22,15 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <limits>
 
+#include <QAction>
 #include <QApplication>
 #include <QColorDialog>
 #include <QCursor>
 #include <QFileDialog>
 #include <QHeaderView>
+#include <QMenu>
 #include <QMessageBox>
 #include <QRegularExpression>
 #include <QRegularExpressionMatch>
@@ -33,7 +38,6 @@
 #include <QStylePainter>
 #include <QToolTip>
 #include <QtGui>
-#include <cfloat>
 
 #include "customwidgets.h"
 
@@ -53,9 +57,7 @@ UrlLabel::~UrlLabel()
 
 void UrlLabel::mouseReleaseEvent(QMouseEvent*)
 {
-    QMessageBox::information(this,
-                             "Browser",
-                             QString("This starts your browser with url %1").arg(_url));
+    QMessageBox::information(this, "Browser", QString("This starts your browser with url %1").arg(_url));
 }
 
 QString UrlLabel::url() const
@@ -146,11 +148,8 @@ FileChooser::FileChooser(QWidget* parent)
     connect(lineEdit, &QLineEdit::textChanged, this, &FileChooser::fileNameChanged);
 
     button = new QPushButton("...", this);
-#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
     button->setFixedWidth(2 * button->fontMetrics().horizontalAdvance(" ... "));
-#else
-    button->setFixedWidth(2 * button->fontMetrics().width(" ... "));
-#endif
+
     layout->addWidget(button);
 
     connect(button, &QPushButton::clicked, this, &FileChooser::chooseFile);
@@ -176,19 +175,11 @@ void FileChooser::chooseFile()
     QFileDialog::Options dlgOpt = QFileDialog::DontUseNativeDialog;
     QString fn;
     if (mode() == File) {
-        fn = QFileDialog::getOpenFileName(this,
-                                          tr("Select a file"),
-                                          lineEdit->text(),
-                                          _filter,
-                                          0,
-                                          dlgOpt);
+        fn = QFileDialog::getOpenFileName(this, tr("Select a File"), lineEdit->text(), _filter, 0, dlgOpt);
     }
     else {
         QFileDialog::Options option = QFileDialog::ShowDirsOnly | dlgOpt;
-        fn = QFileDialog::getExistingDirectory(this,
-                                               tr("Select a directory"),
-                                               lineEdit->text(),
-                                               option);
+        fn = QFileDialog::getExistingDirectory(this, tr("Select a Directory"), lineEdit->text(), option);
     }
 
     if (!fn.isEmpty()) {
@@ -220,13 +211,10 @@ void FileChooser::setFilter(const QString& filter)
 void FileChooser::setButtonText(const QString& txt)
 {
     button->setText(txt);
-#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+
     int w1 = 2 * button->fontMetrics().horizontalAdvance(txt);
     int w2 = 2 * button->fontMetrics().horizontalAdvance(" ... ");
-#else
-    int w1 = 2 * button->fontMetrics().width(txt);
-    int w2 = 2 * button->fontMetrics().width(" ... ");
-#endif
+
     button->setFixedWidth((w1 > w2 ? w1 : w2));
 }
 
@@ -269,72 +257,98 @@ void PrefFileChooser::setParamGrpPath(const QByteArray& name)
 AccelLineEdit::AccelLineEdit(QWidget* parent)
     : QLineEdit(parent)
 {
-    setText(tr("none"));
+    setPlaceholderText(tr("Press a keyboard shortcut"));
+    setClearButtonEnabled(true);
+    keyPressedCount = 0;
+}
+
+bool AccelLineEdit::isNone() const
+{
+    return text().isEmpty();
 }
 
 void AccelLineEdit::keyPressEvent(QKeyEvent* e)
 {
-    QString txt;
-    setText(tr("none"));
+    if (isReadOnly()) {
+        QLineEdit::keyPressEvent(e);
+        return;
+    }
+
+    QString txtLine = text();
 
     int key = e->key();
     Qt::KeyboardModifiers state = e->modifiers();
 
-    if (key == Qt::Key_Control) {
-        return;
-    }
-    else if (key == Qt::Key_Shift) {
-        return;
-    }
-    else if (key == Qt::Key_Alt) {
-        return;
-    }
-    else if (state == Qt::NoModifier && key == Qt::Key_Backspace) {
-        return;  // clears the edit field
+    // Backspace clears the shortcut if text is present, else sets Backspace as shortcut.
+    // If a modifier is pressed without any other key, return.
+    // AltGr is not a modifier but doesn't have a QString representation.
+    switch (key) {
+        case Qt::Key_Backspace:
+        case Qt::Key_Delete:
+            if (state == Qt::NoModifier) {
+                keyPressedCount = 0;
+                if (isNone()) {
+                    QKeySequence ks(key);
+                    setText(ks.toString(QKeySequence::NativeText));
+                }
+                else {
+                    clear();
+                }
+            }
+        case Qt::Key_Control:
+        case Qt::Key_Shift:
+        case Qt::Key_Alt:
+        case Qt::Key_Meta:
+        case Qt::Key_AltGr:
+            return;
+        default:
+            break;
     }
 
-    switch (state) {
-        case Qt::ControlModifier: {
-            QKeySequence keyseq(Qt::CTRL + key);
-            txt += keyseq.toString(QKeySequence::NativeText);
-            setText(txt);
-        } break;
-        case Qt::AltModifier: {
-            QKeySequence keyseq(Qt::ALT + key);
-            txt += keyseq.toString(QKeySequence::NativeText);
-            setText(txt);
-        } break;
-        case Qt::ShiftModifier: {
-            QKeySequence keyseq(Qt::SHIFT + key);
-            txt += keyseq.toString(QKeySequence::NativeText);
-            setText(txt);
-        } break;
-        case Qt::ControlModifier + Qt::AltModifier: {
-            QKeySequence keyseq(Qt::CTRL + Qt::ALT + key);
-            txt += keyseq.toString(QKeySequence::NativeText);
-            setText(txt);
-        } break;
-        case Qt::ControlModifier + Qt::ShiftModifier: {
-            QKeySequence keyseq(Qt::CTRL + Qt::SHIFT + key);
-            txt += keyseq.toString(QKeySequence::NativeText);
-            setText(txt);
-        } break;
-        case Qt::ShiftModifier + Qt::AltModifier: {
-            QKeySequence keyseq(Qt::SHIFT + Qt::ALT + key);
-            txt += keyseq.toString(QKeySequence::NativeText);
-            setText(txt);
-        } break;
-        case Qt::ControlModifier + Qt::AltModifier + Qt::ShiftModifier: {
-            QKeySequence keyseq(Qt::CTRL + Qt::ALT + Qt::SHIFT + key);
-            txt += keyseq.toString(QKeySequence::NativeText);
-            setText(txt);
-        } break;
-        default: {
-            QKeySequence keyseq(key);
-            txt += keyseq.toString(QKeySequence::NativeText);
-            setText(txt);
-        } break;
+    if (txtLine.isEmpty()) {
+        // Text maybe cleared by QLineEdit's built in clear button
+        keyPressedCount = 0;
     }
+    else {
+        // 4 keys are allowed for QShortcut
+        switch (keyPressedCount) {
+            case 4:
+                keyPressedCount = 0;
+                txtLine.clear();
+                break;
+            case 0:
+                txtLine.clear();
+                break;
+            default:
+                txtLine += QString::fromLatin1(",");
+                break;
+        }
+    }
+
+    // Handles modifiers applying a mask.
+    if ((state & Qt::ControlModifier) == Qt::ControlModifier) {
+        QKeySequence ks(Qt::CTRL);
+        txtLine += ks.toString(QKeySequence::NativeText);
+    }
+    if ((state & Qt::AltModifier) == Qt::AltModifier) {
+        QKeySequence ks(Qt::ALT);
+        txtLine += ks.toString(QKeySequence::NativeText);
+    }
+    if ((state & Qt::ShiftModifier) == Qt::ShiftModifier) {
+        QKeySequence ks(Qt::SHIFT);
+        txtLine += ks.toString(QKeySequence::NativeText);
+    }
+    if ((state & Qt::MetaModifier) == Qt::MetaModifier) {
+        QKeySequence ks(Qt::META);
+        txtLine += ks.toString(QKeySequence::NativeText);
+    }
+
+    // Handles normal keys
+    QKeySequence ks(key);
+    txtLine += ks.toString(QKeySequence::NativeText);
+
+    setText(txtLine);
+    keyPressedCount++;
 }
 
 // ------------------------------------------------------------------------------
@@ -345,7 +359,7 @@ ActionSelector::ActionSelector(QWidget* parent)
     addButton = new QPushButton(this);
     addButton->setMinimumSize(QSize(30, 30));
     QIcon icon;
-    icon.addFile(QString::fromUtf8(":/icons/button_right.xpm"), QSize(), QIcon::Normal, QIcon::Off);
+    icon.addFile(QString::fromUtf8(":/icons/button_right.svg"), QSize(), QIcon::Normal, QIcon::Off);
     addButton->setIcon(icon);
     gridLayout = new QGridLayout(this);
     gridLayout->addWidget(addButton, 1, 1, 1, 1);
@@ -358,7 +372,7 @@ ActionSelector::ActionSelector(QWidget* parent)
     removeButton = new QPushButton(this);
     removeButton->setMinimumSize(QSize(30, 30));
     QIcon icon1;
-    icon1.addFile(QString::fromUtf8(":/icons/button_left.xpm"), QSize(), QIcon::Normal, QIcon::Off);
+    icon1.addFile(QString::fromUtf8(":/icons/button_left.svg"), QSize(), QIcon::Normal, QIcon::Off);
     removeButton->setIcon(icon1);
     removeButton->setAutoDefault(true);
     removeButton->setDefault(false);
@@ -368,7 +382,7 @@ ActionSelector::ActionSelector(QWidget* parent)
     upButton = new QPushButton(this);
     upButton->setMinimumSize(QSize(30, 30));
     QIcon icon3;
-    icon3.addFile(QString::fromUtf8(":/icons/button_up.xpm"), QSize(), QIcon::Normal, QIcon::Off);
+    icon3.addFile(QString::fromUtf8(":/icons/button_up.svg"), QSize(), QIcon::Normal, QIcon::Off);
     upButton->setIcon(icon3);
 
     gridLayout->addWidget(upButton, 3, 1, 1, 1);
@@ -376,7 +390,7 @@ ActionSelector::ActionSelector(QWidget* parent)
     downButton = new QPushButton(this);
     downButton->setMinimumSize(QSize(30, 30));
     QIcon icon2;
-    icon2.addFile(QString::fromUtf8(":/icons/button_down.xpm"), QSize(), QIcon::Normal, QIcon::Off);
+    icon2.addFile(QString::fromUtf8(":/icons/button_down.svg"), QSize(), QIcon::Normal, QIcon::Off);
     downButton->setIcon(icon2);
     downButton->setAutoDefault(true);
 
@@ -429,8 +443,8 @@ ActionSelector::~ActionSelector()
 InputField::InputField(QWidget* parent)
     : QLineEdit(parent)
     , Value(0)
-    , Maximum(INT_MAX)
-    , Minimum(-INT_MAX)
+    , Maximum(std::numeric_limits<int>::max())
+    , Minimum(-std::numeric_limits<int>::max())
     , StepSize(1.0)
     , HistorySize(5)
 {}
@@ -520,6 +534,66 @@ int InputField::historySize(void) const
 void InputField::setHistorySize(int i)
 {
     HistorySize = i;
+}
+
+// --------------------------------------------------------------------
+
+ExpressionLineEdit::ExpressionLineEdit(QWidget* parent)
+    : QLineEdit(parent)
+    , exactMatch {false}
+{
+    completer = new QCompleter(this);
+    connect(this, &QLineEdit::textEdited, this, &ExpressionLineEdit::slotTextChanged);
+}
+
+void ExpressionLineEdit::setExactMatch(bool enabled)
+{
+    exactMatch = enabled;
+    if (completer) {
+        completer->setFilterMode(exactMatch ? Qt::MatchStartsWith : Qt::MatchContains);
+    }
+}
+
+void ExpressionLineEdit::slotTextChanged(const QString& text)
+{
+    Q_EMIT textChanged2(text, cursorPosition());
+}
+
+void ExpressionLineEdit::slotCompleteText(const QString& completionPrefix, bool isActivated)
+{
+    Q_UNUSED(completionPrefix)
+    Q_UNUSED(isActivated)
+}
+
+void ExpressionLineEdit::slotCompleteTextHighlighted(const QString& completionPrefix)
+{
+    slotCompleteText(completionPrefix, false);
+}
+
+void ExpressionLineEdit::slotCompleteTextSelected(const QString& completionPrefix)
+{
+    slotCompleteText(completionPrefix, true);
+}
+
+void ExpressionLineEdit::keyPressEvent(QKeyEvent* e)
+{
+    QLineEdit::keyPressEvent(e);
+}
+
+void ExpressionLineEdit::contextMenuEvent(QContextMenuEvent* event)
+{
+    QMenu* menu = createStandardContextMenu();
+
+    if (completer) {
+        menu->addSeparator();
+        QAction* match = menu->addAction(tr("Exact match"));
+        match->setCheckable(true);
+        match->setChecked(completer->filterMode() == Qt::MatchStartsWith);
+        QObject::connect(match, &QAction::toggled, this, &Gui::ExpressionLineEdit::setExactMatch);
+    }
+    menu->setAttribute(Qt::WA_DeleteOnClose);
+
+    menu->popup(event->globalPos());
 }
 
 // --------------------------------------------------------------------
@@ -651,8 +725,8 @@ public:
         : validInput(true)
         , pendingEmit(false)
         , unitValue(0)
-        , maximum(INT_MAX)
-        , minimum(-INT_MAX)
+        , maximum(std::numeric_limits<int>::max())
+        , minimum(-std::numeric_limits<int>::max())
         , singleStep(1.0)
     {}
     ~QuantitySpinBoxPrivate()
@@ -738,13 +812,11 @@ public:
                 }
                 break;
             case 2:
-                if (copy.at(1) == locale.decimalPoint()
-                    && (plus && copy.at(0) == QLatin1Char('+'))) {
+                if (copy.at(1) == locale.decimalPoint() && (plus && copy.at(0) == QLatin1Char('+'))) {
                     state = QValidator::Intermediate;
                     goto end;
                 }
-                if (copy.at(1) == locale.decimalPoint()
-                    && (minus && copy.at(0) == QLatin1Char('-'))) {
+                if (copy.at(1) == locale.decimalPoint() && (minus && copy.at(0) == QLatin1Char('-'))) {
                     state = QValidator::Intermediate;
                     copy.insert(1, QLatin1Char('0'));
                     pos++;
@@ -782,11 +854,13 @@ public:
             bool ok = false;
             double value = min;
 
-            if (locale.negativeSign() != QLatin1Char('-')) {
-                copy.replace(locale.negativeSign(), QLatin1Char('-'));
+            QChar plus = QLatin1Char('+'), minus = QLatin1Char('-');
+
+            if (locale.negativeSign() != minus) {
+                copy.replace(locale.negativeSign(), minus);
             }
-            if (locale.positiveSign() != QLatin1Char('+')) {
-                copy.replace(locale.positiveSign(), QLatin1Char('+'));
+            if (locale.positiveSign() != plus) {
+                copy.replace(locale.positiveSign(), plus);
             }
 
             try {
@@ -1083,8 +1157,7 @@ void QuantitySpinBox::clearSchema()
     updateText(d->quantity);
 }
 
-QString
-QuantitySpinBox::getUserString(const Base::Quantity& val, double& factor, QString& unitString) const
+QString QuantitySpinBox::getUserString(const Base::Quantity& val, double& factor, QString& unitString) const
 {
     return val.getUserString(factor, unitString);
 }
@@ -1147,12 +1220,7 @@ QSize QuantitySpinBox::sizeHint() const
     QString fixedContent = QLatin1String(" ");
     s += fixedContent;
 
-#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
     w = fm.horizontalAdvance(s);
-#else
-    w = fm.width(s);
-#endif
-
     w += 2;  // cursor blinking space
     w += iconHeight;
 
@@ -1177,12 +1245,7 @@ QSize QuantitySpinBox::minimumSizeHint() const
     QString fixedContent = QLatin1String(" ");
     s += fixedContent;
 
-#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
     w = fm.horizontalAdvance(s);
-#else
-    w = fm.width(s);
-#endif
-
     w += 2;  // cursor blinking space
     w += iconHeight;
 
@@ -1218,31 +1281,6 @@ void QuantitySpinBox::closeEvent(QCloseEvent* event)
     QAbstractSpinBox::closeEvent(event);
 }
 
-bool QuantitySpinBox::event(QEvent* event)
-{
-    // issue #0004059: Tooltips for Gui::QuantitySpinBox not showing
-    // Here we must not try to show the tooltip of the icon label
-    // because it would override a custom tooltip set to this widget.
-    //
-    // We could also check if the text of this tooltip is empty but
-    // it will fail in cases where the widget is embedded into the
-    // property editor and the corresponding item has set a tooltip.
-    // Instead of showing the item's tooltip it will again show the
-    // tooltip of the icon label.
-#if 0
-    if (event->type() == QEvent::ToolTip) {
-        if (isBound() && getExpression() && lineEdit()->isReadOnly()) {
-            QHelpEvent * helpEvent = static_cast<QHelpEvent*>(event);
-
-            QToolTip::showText( helpEvent->globalPos(), Base::Tools::fromStdString(getExpression()->toString()), this);
-            event->accept();
-            return true;
-        }
-    }
-#endif
-
-    return QAbstractSpinBox::event(event);
-}
 
 void QuantitySpinBox::focusInEvent(QFocusEvent* event)
 {
@@ -1472,7 +1510,7 @@ UnsignedValidator::UnsignedValidator(QObject* parent)
     : QValidator(parent)
 {
     b = 0;
-    t = UINT_MAX;
+    t = std::numeric_limits<unsigned>::max();
 }
 
 UnsignedValidator::UnsignedValidator(uint minimum, uint maximum, QObject* parent)
@@ -1533,41 +1571,47 @@ public:
     UIntSpinBoxPrivate()
         : mValidator(0)
     {}
-    uint mapToUInt(int v) const
+    unsigned mapToUInt(int v) const
     {
-        uint ui;
-        if (v == INT_MIN) {
+        using int_limits = std::numeric_limits<int>;
+        using uint_limits = std::numeric_limits<unsigned>;
+
+        unsigned ui;
+        if (v == int_limits::min()) {
             ui = 0;
         }
-        else if (v == INT_MAX) {
-            ui = UINT_MAX;
+        else if (v == int_limits::max()) {
+            ui = uint_limits::max();
         }
         else if (v < 0) {
-            v -= INT_MIN;
-            ui = (uint)v;
+            v -= int_limits::min();
+            ui = static_cast<unsigned>(v);
         }
         else {
-            ui = (uint)v;
-            ui -= INT_MIN;
+            ui = static_cast<unsigned>(v);
+            ui -= int_limits::min();
         }
         return ui;
     }
-    int mapToInt(uint v) const
+    int mapToInt(unsigned v) const
     {
+        using int_limits = std::numeric_limits<int>;
+        using uint_limits = std::numeric_limits<unsigned>;
+
         int in;
-        if (v == UINT_MAX) {
-            in = INT_MAX;
+        if (v == uint_limits::max()) {
+            in = int_limits::max();
         }
         else if (v == 0) {
-            in = INT_MIN;
+            in = int_limits::min();
         }
-        else if (v > INT_MAX) {
-            v += INT_MIN;
-            in = (int)v;
+        else if (v > int_limits::max()) {
+            v += int_limits::min();
+            in = static_cast<int>(v);
         }
         else {
             in = v;
-            in += INT_MIN;
+            in += int_limits::min();
         }
         return in;
     }
@@ -1815,8 +1859,8 @@ void ColorButton::paintEvent(QPaintEvent* e)
     QPushButton::paintEvent(e);
 
     // repaint the rectangle area
-    QPalette::ColorGroup group =
-        isEnabled() ? hasFocus() ? QPalette::Active : QPalette::Inactive : QPalette::Disabled;
+    QPalette::ColorGroup group = isEnabled() ? hasFocus() ? QPalette::Active : QPalette::Inactive
+                                             : QPalette::Disabled;
     QColor pen = palette().color(group, QPalette::ButtonText);
     {
         QPainter paint(this);
@@ -1833,7 +1877,7 @@ void ColorButton::paintEvent(QPaintEvent* e)
 
     // overpaint the rectangle to paint icon and text
     QStyleOptionButton opt;
-    opt.init(this);
+    opt.initFrom(this);
     opt.text = text();
     opt.icon = icon();
     opt.iconSize = iconSize();

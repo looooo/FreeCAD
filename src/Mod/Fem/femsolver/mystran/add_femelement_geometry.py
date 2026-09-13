@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # ***************************************************************************
 # *   Copyright (c) 2021 Bernd Hahnebach <bernd@bimstatik.org>              *
 # *                                                                         *
@@ -40,13 +42,9 @@ def add_femelement_geometry(f, model, mystran_writer):
             width = beamsec_obj.RectWidth.getValueAs("mm").Value
             pynas_code = "# pbarl card, properties of a simple beam element (CBAR entry)\n"
             pynas_code += "# defined by cross-sectional dimensions\n"
-            pynas_code += (
-                "dim = [{}, {}]\n"
-                .format(width, height)
-            )
-            pynas_code += (
-                "model.add_pbarl(pid=1, mid=1, Type={}, dim=dim, nsm=0.0)\n"
-                .format('"BAR"')
+            pynas_code += f"dim = [{width}, {height}]\n"
+            pynas_code += "model.add_pbarl(pid=1, mid=1, Type={}, dim=dim, nsm=0.0)\n".format(
+                '"BAR"'
             )
             pynas_code += "# pbarl.validate()\n\n\n"
         else:
@@ -56,9 +54,8 @@ def add_femelement_geometry(f, model, mystran_writer):
         shellth_obj = mystran_writer.member.geos_shellthickness[0]["Object"]
         thickness = shellth_obj.Thickness.getValueAs("mm").Value
         pynas_code = "# pshell card, thin shell element properties\n"
-        pynas_code += (
-            "model.add_pshell(pid=1, mid1=1, t={}, mid2=1, mid3=1)\n\n\n"
-            .format(thickness)
+        pynas_code += "model.add_pshell(pid=1, mid1=1, t={}, mid2=1, mid3=1)\n\n\n".format(
+            thickness
         )
     else:
         pynas_code = "# psolid card, defines solid element\n"

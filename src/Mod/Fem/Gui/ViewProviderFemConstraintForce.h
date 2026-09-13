@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Jan Rheinländer                                    *
  *                                   <jrheinlaender@users.sourceforge.net> *
@@ -22,16 +24,14 @@
  ***************************************************************************/
 
 
-#ifndef GUI_VIEWPROVIDERFEMCONSTRAINTFORCE_H
-#define GUI_VIEWPROVIDERFEMCONSTRAINTFORCE_H
+#pragma once
 
 #include "ViewProviderFemConstraintOnBoundary.h"
 
 namespace FemGui
 {
 
-class FemGuiExport ViewProviderFemConstraintForce
-    : public FemGui::ViewProviderFemConstraintOnBoundary
+class FemGuiExport ViewProviderFemConstraintForce: public FemGui::ViewProviderFemConstraintOnBoundary
 {
     PROPERTY_HEADER_WITH_OVERRIDE(FemGui::ViewProviderFemConstraintForce);
 
@@ -44,6 +44,11 @@ public:
 
 protected:
     bool setEdit(int ModNum) override;
+    void transformSymbol(
+        const Base::Vector3d& point,
+        const Base::Vector3d& normal,
+        SbMatrix& mat
+    ) const override;
 
 private:
     /// Direction of the force
@@ -51,6 +56,3 @@ private:
 };
 
 }  // namespace FemGui
-
-
-#endif  // GUI_VIEWPROVIDERFEMCONSTRAINTFORCE_H

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Jürgen Riegel <FreeCAD@juergen-riegel.net>         *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include "ViewProviderSetGeometry.h"
 
@@ -31,16 +32,16 @@ PROPERTY_SOURCE(FemGui::ViewProviderSetGeometry, Gui::ViewProviderGeometryObject
 
 bool ViewProviderSetGeometry::doubleClicked()
 {
-    // Gui::TaskView::TaskDialog* dlg = new TaskDlgCreateNodeSet(dynamic_cast<Fem::FemSetNodesObject
-    // *>(getObject())); Gui::Control().showDialog(dlg);
+    // Gui::TaskView::TaskDialog* dlg = new TaskDlgCreateNodeSet(getObject<Fem::FemSetNodesObject
+    // >()); Gui::Control().showDialog(dlg);
     return true;
 }
 
 
 bool ViewProviderSetGeometry::setEdit(int)
 {
-    // Gui::TaskView::TaskDialog* dlg = new TaskDlgCreateNodeSet(dynamic_cast<Fem::FemSetNodesObject
-    // *>(getObject())); Gui::Control().showDialog(dlg);
+    // Gui::TaskView::TaskDialog* dlg = new TaskDlgCreateNodeSet(getObject<Fem::FemSetNodesObject
+    // >()); Gui::Control().showDialog(dlg);
     return true;
 }
 

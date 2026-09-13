@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2011 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,13 +22,11 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <QtConcurrentMap>
 #include <boost/math/special_functions/fpclassify.hpp>
 #include <cmath>
 #include <iostream>
-#endif
+
 
 #include <Base/Matrix.h>
 #include <Base/Stream.h>
@@ -37,7 +37,7 @@
 
 
 #ifdef _MSC_VER
-#include <ppl.h>
+# include <ppl.h>
 #endif
 
 using namespace Points;
@@ -48,6 +48,11 @@ TYPESYSTEM_SOURCE(Points::PointKernel, Data::ComplexGeoData)
 PointKernel::PointKernel(const PointKernel& pts)
     : _Mtrx(pts._Mtrx)
     , _Points(pts._Points)
+{}
+
+PointKernel::PointKernel(PointKernel&& pts) noexcept
+    : _Mtrx(pts._Mtrx)
+    , _Points(std::move(pts._Points))
 {}
 
 std::vector<const char*> PointKernel::getElementTypes() const
@@ -88,9 +93,20 @@ void PointKernel::transformGeometry(const Base::Matrix4D& rclMat)
         value = rclMat * value;
     });
 #else
-    QtConcurrent::blockingMap(kernel, [rclMat](value_type& value) {
-        rclMat.multVec(value, value);
+    QtConcurrent::blockingMap(kernel, [rclMat](value_type& value) { rclMat.multVec(value, value); });
+#endif
+}
+
+void PointKernel::moveGeometry(const Base::Vector3d& vec)
+{
+    Base::Vector3f offset = Base::toVector<float>(vec);
+    std::vector<value_type>& kernel = getBasicPoints();
+#ifdef _MSC_VER
+    Concurrency::parallel_for_each(kernel.begin(), kernel.end(), [offset](value_type& value) {
+        value += offset;
     });
+#else
+    QtConcurrent::blockingMap(kernel, [offset](value_type& value) { value += offset; });
 #endif
 }
 
@@ -103,16 +119,12 @@ Base::BoundBox3d PointKernel::getBoundBox() const
     Concurrency::combinable<Base::BoundBox3d> bbs;
     // Cannot use a const_point_iterator here as it is *not* a proper iterator (fails the for_each
     // template)
-    Concurrency::parallel_for_each(_Points.begin(),
-                                   _Points.end(),
-                                   [this, &bbs](const value_type& value) {
-                                       Base::Vector3d vertd(value.x, value.y, value.z);
-                                       bbs.local().Add(this->_Mtrx * vertd);
-                                   });
-    // Combine each thread-local bounding box in the final bounding box
-    bbs.combine_each([&bnd](const Base::BoundBox3d& lbb) {
-        bnd.Add(lbb);
+    Concurrency::parallel_for_each(_Points.begin(), _Points.end(), [this, &bbs](const value_type& value) {
+        Base::Vector3d vertd(value.x, value.y, value.z);
+        bbs.local().Add(this->_Mtrx * vertd);
     });
+    // Combine each thread-local bounding box in the final bounding box
+    bbs.combine_each([&bnd](const Base::BoundBox3d& lbb) { bnd.Add(lbb); });
 #else
     for (const auto& it : *this) {
         bnd.Add(it);
@@ -121,13 +133,26 @@ Base::BoundBox3d PointKernel::getBoundBox() const
     return bnd;
 }
 
-void PointKernel::operator=(const PointKernel& Kernel)
+PointKernel& PointKernel::operator=(const PointKernel& Kernel)
 {
     if (this != &Kernel) {
         // copy the mesh structure
         setTransform(Kernel._Mtrx);
         this->_Points = Kernel._Points;
     }
+
+    return *this;
+}
+
+PointKernel& PointKernel::operator=(PointKernel&& Kernel) noexcept
+{
+    if (this != &Kernel) {
+        // copy the mesh structure
+        setTransform(Kernel._Mtrx);
+        this->_Points = std::move(Kernel._Points);
+    }
+
+    return *this;
 }
 
 unsigned int PointKernel::getMemSize() const
@@ -152,9 +177,11 @@ std::vector<PointKernel::value_type> PointKernel::getValidPoints() const
     valid.reserve(countValid());
     for (const auto& it : *this) {
         if (!(boost::math::isnan(it.x) || boost::math::isnan(it.y) || boost::math::isnan(it.z))) {
-            valid.emplace_back(static_cast<float_type>(it.x),
-                               static_cast<float_type>(it.y),
-                               static_cast<float_type>(it.z));
+            valid.emplace_back(
+                static_cast<float_type>(it.x),
+                static_cast<float_type>(it.y),
+                static_cast<float_type>(it.z)
+            );
         }
     }
     return valid;
@@ -185,14 +212,14 @@ void PointKernel::Restore(Base::XMLReader& reader)
     clear();
 
     reader.readElement("Points");
-    std::string file(reader.getAttribute("file"));
+    std::string file(reader.getAttribute<const char*>("file"));
 
     if (!file.empty()) {
         // initiate a file read
         reader.addFile(file.c_str(), this);
     }
     if (reader.DocumentSchema > 3) {
-        std::string Matrix(reader.getAttribute("mtrx"));
+        std::string Matrix(reader.getAttribute<const char*>("mtrx"));
         _Mtrx.fromString(Matrix);
     }
 }
@@ -204,9 +231,9 @@ void PointKernel::RestoreDocFile(Base::Reader& reader)
     str >> uCt;
     _Points.resize(uCt);
     for (unsigned long i = 0; i < uCt; i++) {
-        float x;
-        float y;
-        float z;
+        float x {};
+        float y {};
+        float z {};
         str >> x >> y >> z;
         _Points[i].Set(x, y, z);
     }
@@ -231,10 +258,12 @@ void PointKernel::save(std::ostream& out) const
     }
 }
 
-void PointKernel::getPoints(std::vector<Base::Vector3d>& Points,
-                            std::vector<Base::Vector3d>& /*Normals*/,
-                            double /*Accuracy*/,
-                            uint16_t /*flags*/) const
+void PointKernel::getPoints(
+    std::vector<Base::Vector3d>& Points,
+    std::vector<Base::Vector3d>& /*Normals*/,
+    double /*Accuracy*/,
+    uint16_t /*flags*/
+) const
 {
     unsigned long ctpoints = _Points.size();
     Points.reserve(ctpoints);
@@ -247,7 +276,8 @@ void PointKernel::getPoints(std::vector<Base::Vector3d>& Points,
 
 PointKernel::const_point_iterator::const_point_iterator(
     const PointKernel* kernel,
-    std::vector<kernel_type>::const_iterator index)
+    std::vector<kernel_type>::const_iterator index
+)
     : _kernel(kernel)
     , _p_it(index)
 {
@@ -258,12 +288,22 @@ PointKernel::const_point_iterator::const_point_iterator(
 }
 
 PointKernel::const_point_iterator::const_point_iterator(
-    const PointKernel::const_point_iterator& fi) = default;
+    const PointKernel::const_point_iterator& fi
+) = default;
+
+PointKernel::const_point_iterator::const_point_iterator(
+    PointKernel::const_point_iterator&& fi
+) = default;
 
 PointKernel::const_point_iterator::~const_point_iterator() = default;
 
-PointKernel::const_point_iterator&
-PointKernel::const_point_iterator::operator=(const PointKernel::const_point_iterator& pi) = default;
+PointKernel::const_point_iterator& PointKernel::const_point_iterator::operator=(
+    const PointKernel::const_point_iterator& pi
+) = default;
+
+PointKernel::const_point_iterator& PointKernel::const_point_iterator::operator=(
+    PointKernel::const_point_iterator&& pi
+) = default;
 
 void PointKernel::const_point_iterator::dereference()
 {
@@ -283,14 +323,12 @@ const PointKernel::const_point_iterator::value_type* PointKernel::const_point_it
     return &(this->_point);
 }
 
-bool PointKernel::const_point_iterator::operator==(
-    const PointKernel::const_point_iterator& pi) const
+bool PointKernel::const_point_iterator::operator==(const PointKernel::const_point_iterator& pi) const
 {
     return (this->_kernel == pi._kernel) && (this->_p_it == pi._p_it);
 }
 
-bool PointKernel::const_point_iterator::operator!=(
-    const PointKernel::const_point_iterator& pi) const
+bool PointKernel::const_point_iterator::operator!=(const PointKernel::const_point_iterator& pi) const
 {
     return !operator==(pi);
 }
@@ -321,36 +359,33 @@ PointKernel::const_point_iterator PointKernel::const_point_iterator::operator--(
     return tmp;
 }
 
-PointKernel::const_point_iterator
-PointKernel::const_point_iterator::operator+(difference_type off) const
+PointKernel::const_point_iterator PointKernel::const_point_iterator::operator+(difference_type off) const
 {
     PointKernel::const_point_iterator tmp = *this;
     return (tmp += off);
 }
 
-PointKernel::const_point_iterator
-PointKernel::const_point_iterator::operator-(difference_type off) const
+PointKernel::const_point_iterator PointKernel::const_point_iterator::operator-(difference_type off) const
 {
     PointKernel::const_point_iterator tmp = *this;
     return (tmp -= off);
 }
 
-PointKernel::const_point_iterator&
-PointKernel::const_point_iterator::operator+=(difference_type off)
+PointKernel::const_point_iterator& PointKernel::const_point_iterator::operator+=(difference_type off)
 {
     (this->_p_it) += off;
     return *this;
 }
 
-PointKernel::const_point_iterator&
-PointKernel::const_point_iterator::operator-=(difference_type off)
+PointKernel::const_point_iterator& PointKernel::const_point_iterator::operator-=(difference_type off)
 {
     (this->_p_it) -= off;
     return *this;
 }
 
-PointKernel::difference_type
-PointKernel::const_point_iterator::operator-(const PointKernel::const_point_iterator& right) const
+PointKernel::difference_type PointKernel::const_point_iterator::operator-(
+    const PointKernel::const_point_iterator& right
+) const
 {
     return this->_p_it - right._p_it;
 }

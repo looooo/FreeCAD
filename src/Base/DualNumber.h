@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2019 Viktor Titov (DeepSOIC) <vv.titov@gmail.com>       *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef FREECAD_BASE_DUAL_NUMBER_H
-#define FREECAD_BASE_DUAL_NUMBER_H
+#pragma once
 
 #include <cmath>
 
@@ -31,7 +32,7 @@ namespace Base
 
 
 /**
- * @brief Dual Numbers aer 2-part numbers like complex numbers, but different
+ * @brief Dual Numbers are 2-part numbers like complex numbers, but different
  * algebra. They are denoted as a + b*eps, where eps^2 = 0. eps, the nilpotent,
  * is like imaginary unit of complex numbers. The neat utility of dual numbers
  * is that if you use them instead of normal numbers in a function like sin(),
@@ -109,6 +110,3 @@ inline DualNumber pow(DualNumber a, double pw)
 }
 }  // namespace Base
 // NOLINTEND(readability-identifier-length)
-
-
-#endif

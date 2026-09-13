@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2020 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -21,11 +23,8 @@
  ***************************************************************************/
 
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
-#endif
-
 #include "SmartPtrPy.h"
+#include "Interpreter.h"
 #include <CXX/Objects.hxx>
 
 
@@ -42,6 +41,7 @@ void SmartPtr::set(PyObject* pyob, bool owned)
 
 void SmartPtr::release()
 {
+    Base::PyGILStateLocker lock;
     Py::_XDECREF(p);
     p = nullptr;
 }

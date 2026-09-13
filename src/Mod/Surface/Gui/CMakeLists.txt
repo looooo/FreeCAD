@@ -1,16 +1,4 @@
-include_directories(
-    ${CMAKE_BINARY_DIR}
-    ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_BINARY_DIR}/src
-    ${CMAKE_CURRENT_BINARY_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${Boost_INCLUDE_DIRS}
-    ${COIN3D_INCLUDE_DIRS}
-    ${OCC_INCLUDE_DIR}
-    ${PYTHON_INCLUDE_DIRS}
-    ${XercesC_INCLUDE_DIRS}
-    ${ZLIB_INCLUDE_DIR}
-)
+# SPDX-License-Identifier: LGPL-2.1-or-later
 
 set(SurfaceGui_LIBS
     Surface
@@ -18,7 +6,10 @@ set(SurfaceGui_LIBS
     FreeCADGui
 )
 
-qt_add_resources(SurfaceGui_QRC_SRCS Resources/Surface.qrc)
+qt_add_resources(SurfaceGui_QRC_SRCS
+    Resources/Surface.qrc
+    OPTIONS ${FREECAD_RCC_OPTIONS}
+)
 
 SET(SurfaceGui_UIC_SRCS
     TaskFilling.ui
@@ -26,9 +17,12 @@ SET(SurfaceGui_UIC_SRCS
     TaskFillingVertex.ui
     TaskGeomFillSurface.ui
     TaskSections.ui
+    Blending/TaskBlendCurve.ui
 )
 
 SET(BlendingGui_SRCS
+    Blending/TaskBlendCurve.cpp
+    Blending/TaskBlendCurve.h
     Blending/ViewProviderBlendCurve.cpp
     Blending/ViewProviderBlendCurve.h
 )
@@ -49,7 +43,6 @@ SET(SurfaceGui_SRCS
     TaskSections.h
     AppSurfaceGui.cpp
     Command.cpp
-    PreCompiled.cpp
     PreCompiled.h
     ViewProviderExtend.cpp
     ViewProviderExtend.h
@@ -63,17 +56,32 @@ SET(SurfaceGuiIcon_SVG
     Resources/icons/Surface_Workbench.svg
 )
 
+add_library(SurfaceGui SHARED
+    ${SurfaceGui_SRCS}
+    ${SurfaceGuiIcon_SVG}
+)
+
 if(FREECAD_USE_PCH)
-    add_definitions(-D_PreComp_)
-    GET_MSVC_PRECOMPILED_SOURCE("PreCompiled.cpp" PCH_SRCS ${SurfaceGui_SRCS})
-    ADD_MSVC_PRECOMPILED_HEADER(SurfaceGui PreCompiled.h PreCompiled.cpp PCH_SRCS)
+    target_precompile_headers(SurfaceGui PRIVATE
+            $<$<COMPILE_LANGUAGE:CXX>:"${CMAKE_CURRENT_LIST_DIR}/PreCompiled.h">
+    )
 endif(FREECAD_USE_PCH)
 
-link_directories(${OCC_LIBRARY_DIR})
-add_library(SurfaceGui SHARED ${SurfaceGui_SRCS} ${SurfaceGuiIcon_SVG})
-target_link_libraries(SurfaceGui ${SurfaceGui_LIBS})
+target_include_directories(
+    SurfaceGui
+    PRIVATE
+    ${CMAKE_BINARY_DIR}
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_BINARY_DIR}/src
+    ${CMAKE_CURRENT_BINARY_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
 
-SET_BIN_DIR(SurfaceGui SurfaceGui /Mod/Surface)
+target_link_directories(SurfaceGui PUBLIC ${OCC_LIBRARY_DIR})
+target_link_libraries(SurfaceGui ${SurfaceGui_LIBS})
+target_compile_warn_error(SurfaceGui)
+
+SET_BIN_DIR(SurfaceGui)
 SET_PYTHON_PREFIX_SUFFIX(SurfaceGui)
 
 fc_copy_sources(SurfaceGui "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_DATADIR}/Mod/Surface" ${SurfaceGuiIcon_SVG})

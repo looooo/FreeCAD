@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 // Copyright  (C)  2007  Ruben Smits <ruben dot smits at mech dot kuleuven dot be>
 // Copyright  (C)  2011  Erwin Aertbelien  <Erwin dot Aertbelien at mech dot kuleuven dot be>
 
@@ -30,7 +32,7 @@
  * href="http://www.orocos.org">Orocos</a>, but that can be used
  * independently of Orocos. KDL offers different kinds of
  * functionality, grouped in the following  Modules:
- * - \subpage geomprim
+ * - \ref geomprim
  * - \ref KinematicFamily : functionality to build kinematic chains and access their kinematic and dynamic properties, such as e.g. Forward and Inverse kinematics and dynamics.
  * - \ref Motion : functionality to specify motion trajectories of frames and kinematic chains, such as e.g. Trapezoidal Velocity profiles.
  *
@@ -38,7 +40,7 @@
 **/
 /**
  * \page geomprim Geometric Primitives
- * \section Introduction 
+ * \section kdl_geometric_prims Introduction 
  * Geometric primitives are represented by the following classes.
  * - KDL::Vector
  * - KDL::Rotation

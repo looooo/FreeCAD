@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # ***************************************************************************
 # *   Copyright (c) 2019 Bernd Hahnebach <bernd@bimstatik.org>              *
 # *                                                                         *
@@ -30,18 +32,13 @@ __url__ = "https://www.freecad.org"
 #  \brief view provider for reinforced material object
 
 from femtaskpanels import task_material_reinforced
-from . import view_base_femconstraint
+from . import view_base_femmaterial
 
 
-class VPMaterialReinforced(view_base_femconstraint.VPBaseFemConstraint):
+class VPMaterialReinforced(view_base_femmaterial.VPBaseFemMaterial):
     """
     A View Provider for the MaterialReinforced object
     """
 
     def setEdit(self, vobj, mode=0):
-        view_base_femconstraint.VPBaseFemConstraint.setEdit(
-            self,
-            vobj,
-            mode,
-            task_material_reinforced._TaskPanel
-        )
+        return super().setEdit(vobj, mode, task_material_reinforced._TaskPanel)

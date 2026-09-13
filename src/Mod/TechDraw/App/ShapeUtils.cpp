@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2023 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -23,10 +25,8 @@
 //! a class to contain useful shape manipulations. these methods were originally
 //  in GeometryObject.
 
+#include <limits>
 
-#include "PreCompiled.h"
-
-#ifndef _PreComp_
 #include <BRepAlgo_NormalProjection.hxx>
 #include <BRepBndLib.hxx>
 #include <BRepBuilderAPI_Copy.hxx>
@@ -34,7 +34,6 @@
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
 #include <BRepLProp_CLProps.hxx>
-#include <BRepLProp_CurveTool.hxx>
 #include <BRepLib.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRepTools.hxx>
@@ -61,12 +60,9 @@
 #include <gp_Pln.hxx>
 #include <gp_Trsf.hxx>
 #include <gp_Vec.hxx>
-#endif// #ifndef _PreComp_
-
-#include <algorithm>
-#include <chrono>
 
 #include <Base/Console.h>
+#include <Base/Tools.h>
 
 #include "DrawUtil.h"
 #include "ShapeUtils.h"
@@ -84,7 +80,7 @@ using DU = DrawUtil;
 gp_Ax2 ShapeUtils::getViewAxis(const Base::Vector3d origin, const Base::Vector3d& direction,
                              const bool flip)
 {
-    //    Base::Console().Message("GO::getViewAxis() - 1 - use only with getLegacyX\n");
+    //    Base::Console().message("GO::getViewAxis() - 1 - use only with getLegacyX\n");
     (void)flip;
     gp_Ax2 viewAxis;
     gp_Pnt inputCenter(origin.x, origin.y, origin.z);
@@ -99,7 +95,7 @@ gp_Ax2 ShapeUtils::getViewAxis(const Base::Vector3d origin, const Base::Vector3d
         cross = cross.Cross(stdZ);
     }
 
-    if (cross.IsEqual(stdOrg, FLT_EPSILON)) {
+    if (cross.IsEqual(stdOrg, std::numeric_limits<float>::epsilon())) {
         viewAxis = gp_Ax2(inputCenter, gp_Dir(direction.x, direction.y, direction.z));
         return viewAxis;
     }
@@ -114,7 +110,7 @@ gp_Ax2 ShapeUtils::getViewAxis(const Base::Vector3d origin, const Base::Vector3d
 gp_Ax2 ShapeUtils::getViewAxis(const Base::Vector3d origin, const Base::Vector3d& direction,
                              const Base::Vector3d& xAxis, const bool flip)
 {
-    //    Base::Console().Message("GO::getViewAxis() - 2\n");
+    //    Base::Console().message("GO::getViewAxis() - 2\n");
     (void)flip;
     gp_Pnt inputCenter(origin.x, origin.y, origin.z);
     return gp_Ax2(inputCenter,
@@ -127,7 +123,7 @@ gp_Ax2 ShapeUtils::getViewAxis(const Base::Vector3d origin, const Base::Vector3d
 gp_Ax2 ShapeUtils::legacyViewAxis1(const Base::Vector3d origin, const Base::Vector3d& direction,
                                  const bool flip)
 {
-    //    Base::Console().Message("GO::legacyViewAxis1()\n");
+    //    Base::Console().message("GO::legacyViewAxis1()\n");
     gp_Pnt inputCenter(origin.x, origin.y, origin.z);
     Base::Vector3d stdZ(0.0, 0.0, 1.0);
     Base::Vector3d stdOrg(0.0, 0.0, 0.0);
@@ -145,7 +141,7 @@ gp_Ax2 ShapeUtils::legacyViewAxis1(const Base::Vector3d origin, const Base::Vect
         cross = cross.Cross(stdZ);
     }
 
-    if (cross.IsEqual(stdOrg, FLT_EPSILON)) {
+    if (cross.IsEqual(stdOrg, std::numeric_limits<float>::epsilon())) {
         return gp_Ax2(inputCenter, gp_Dir(flipDirection.x, flipDirection.y, flipDirection.z));
     }
 
@@ -181,7 +177,7 @@ gp_Pnt ShapeUtils::findCentroid(const TopoDS_Shape& shape)
 //! Returns the centroid of shape, as viewed according to direction
 gp_Pnt ShapeUtils::findCentroid(const TopoDS_Shape& shape, const Base::Vector3d& direction)
 {
-    //    Base::Console().Message("GO::findCentroid() - 1\n");
+    //    Base::Console().message("GO::findCentroid() - 1\n");
     Base::Vector3d origin(0.0, 0.0, 0.0);
     gp_Ax2 viewAxis = getViewAxis(origin, direction);
     return findCentroid(shape, viewAxis);
@@ -190,7 +186,7 @@ gp_Pnt ShapeUtils::findCentroid(const TopoDS_Shape& shape, const Base::Vector3d&
 //! Returns the centroid of shape, as viewed according to direction
 gp_Pnt ShapeUtils::findCentroid(const TopoDS_Shape& shape, const gp_Ax2& viewAxis)
 {
-    //    Base::Console().Message("GO::findCentroid() - 2\n");
+    //    Base::Console().message("GO::findCentroid() - 2\n");
 
     gp_Trsf tempTransform;
     tempTransform.SetTransformation(viewAxis);
@@ -213,41 +209,18 @@ gp_Pnt ShapeUtils::findCentroid(const TopoDS_Shape& shape, const gp_Ax2& viewAxi
 
 Base::Vector3d ShapeUtils::findCentroidVec(const TopoDS_Shape& shape, const Base::Vector3d& direction)
 {
-    //    Base::Console().Message("GO::findCentroidVec() - 1\n");
+    //    Base::Console().message("GO::findCentroidVec() - 1\n");
     gp_Pnt p = ShapeUtils::findCentroid(shape, direction);
     return Base::Vector3d(p.X(), p.Y(), p.Z());
 }
 
 Base::Vector3d ShapeUtils::findCentroidVec(const TopoDS_Shape& shape, const gp_Ax2& cs)
 {
-    //    Base::Console().Message("GO::findCentroidVec() - 2\n");
+    //    Base::Console().message("GO::findCentroidVec() - 2\n");
     gp_Pnt p = ShapeUtils::findCentroid(shape, cs);
     return Base::Vector3d(p.X(), p.Y(), p.Z());
 }
 
-//! Returns the XY plane center of shape with respect to coordSys
-gp_Pnt ShapeUtils::findCentroidXY(const TopoDS_Shape& shape, const gp_Ax2& coordSys)
-{
-    //    Base::Console().Message("GO::findCentroid() - 2\n");
-
-    gp_Trsf tempTransform;
-    tempTransform.SetTransformation(coordSys);
-    BRepBuilderAPI_Transform builder(shape, tempTransform);
-
-    Bnd_Box tBounds;
-    tBounds.SetGap(0.0);
-    BRepBndLib::AddOptimal(builder.Shape(), tBounds, true, false);
-
-    Standard_Real xMin, yMin, zMin, xMax, yMax, zMax;
-    tBounds.Get(xMin, yMin, zMin, xMax, yMax, zMax);
-
-    Standard_Real x = (xMin + xMax) / 2.0, y = (yMin + yMax) / 2.0, z = 0.0;
-
-    // Get "centroid" back into object space
-    tempTransform.Inverted().Transforms(x, y, z);
-
-    return gp_Pnt(x, y, z);
-}
 
 //!scales & mirrors a shape about a center
 TopoDS_Shape ShapeUtils::mirrorShapeVec(const TopoDS_Shape& input, const Base::Vector3d& inputCenter,
@@ -291,19 +264,17 @@ TopoDS_Shape ShapeUtils::mirrorShape(const TopoDS_Shape& input, const gp_Pnt& in
 
 //!rotates a shape about a viewAxis
 TopoDS_Shape ShapeUtils::rotateShape(const TopoDS_Shape& input, const gp_Ax2& viewAxis,
-                                   double rotAngle)
+                                     double rotAngle)
 {
     TopoDS_Shape transShape;
     if (input.IsNull()) {
         return transShape;
     }
 
-    gp_Ax1 rotAxis = viewAxis.Axis();
-    double rotation = rotAngle * M_PI / 180.0;
-
     try {
+        gp_Ax1 rotAxis = viewAxis.Axis();
         gp_Trsf tempTransform;
-        tempTransform.SetRotation(rotAxis, rotation);
+        tempTransform.SetRotation(rotAxis, Base::toRadians(rotAngle));
         BRepBuilderAPI_Transform mkTrf(input, tempTransform);
         transShape = mkTrf.Shape();
     }
@@ -347,11 +318,74 @@ TopoDS_Shape ShapeUtils::moveShape(const TopoDS_Shape& input, const Base::Vector
     return transShape;
 }
 
-TopoDS_Shape ShapeUtils::centerShapeXY(const TopoDS_Shape& inShape, const gp_Ax2& coordSys)
+//mirror a shape thru XZ plane for Qt's inverted Y coordinate
+TopoDS_Shape ShapeUtils::invertGeometry(const TopoDS_Shape s)
 {
-    gp_Pnt inputCenter = findCentroidXY(inShape, coordSys);
-    Base::Vector3d centroid = DrawUtil::toVector3d(inputCenter);
-    return ShapeUtils::moveShape(inShape, centroid * -1.0);
+    if (s.IsNull()) {
+        return s;
+    }
+
+    gp_Trsf mirrorY;
+    gp_Pnt org(0.0, 0.0, 0.0);
+    gp_Dir Y(0.0, 1.0, 0.0);
+    gp_Ax2 mirrorPlane(org, Y);
+    mirrorY.SetMirror(mirrorPlane);
+    BRepBuilderAPI_Transform mkTrf(s, mirrorY, true);
+    return mkTrf.Shape();
+}
+
+//! transforms a shape defined in invertedY (Qt) coordinates into one defined by
+//! conventional coordinates
+TopoDS_Shape ShapeUtils::fromQt(const TopoDS_Shape& inShape)
+{
+    gp_Ax3  OXYZ;
+    gp_Ax3  Qt;
+    Qt.YReverse();
+    gp_Trsf xFromQt;
+    xFromQt.SetTransformation(Qt, OXYZ);
+    BRepBuilderAPI_Transform mkTrf(inShape, xFromQt);
+    return mkTrf.Shape();
+}
+
+//! specialization offromQt for Faces. should be templated?
+TopoDS_Face ShapeUtils::fromQtAsFace(const TopoDS_Shape& inShape)
+{
+    auto flippedShape = ShapeUtils::fromQt(inShape);
+
+    TopoDS_Face foundFace;
+    TopExp_Explorer expFaces(flippedShape, TopAbs_FACE);
+    if (expFaces.More()) {
+        foundFace = TopoDS::Face(expFaces.Current());
+    }
+
+    return foundFace;
+}
+
+//! specialization offromQt for Wire. should be templated?
+TopoDS_Wire ShapeUtils::fromQtAsWire(const TopoDS_Shape& inShape)
+{
+    auto flippedShape = ShapeUtils::fromQt(inShape);
+
+    TopoDS_Wire foundWire;
+    TopExp_Explorer expWires(flippedShape, TopAbs_WIRE);
+    if (expWires.More()) {
+        foundWire = TopoDS::Wire(expWires.Current());
+    }
+
+    return foundWire;
+}
+
+//! transforms a shape defined in conventional coordinates coordinates into one defined by
+//! invertedY (Qt) coordinates
+TopoDS_Shape ShapeUtils::toQt(const TopoDS_Shape& inShape)
+{
+    gp_Ax3  OXYZ;
+    gp_Ax3  Qt;
+    Qt.YReverse();
+    gp_Trsf xFromQt;
+    xFromQt.SetTransformation(OXYZ, Qt);
+    BRepBuilderAPI_Transform mkTrf(inShape, xFromQt);
+    return mkTrf.Shape();
 }
 
 std::pair<Base::Vector3d, Base::Vector3d> ShapeUtils::getEdgeEnds(TopoDS_Edge edge)
@@ -362,8 +396,8 @@ std::pair<Base::Vector3d, Base::Vector3d> ShapeUtils::getEdgeEnds(TopoDS_Edge ed
     gp_Pnt gpFirst = BRep_Tool::Pnt(tvFirst);
     gp_Pnt gpLast = BRep_Tool::Pnt(tvLast);
 
-    result.first = DU::toVector3d(gpFirst);
-    result.second = DU::toVector3d(gpLast);
+    result.first = Base::convertTo<Base::Vector3d>(gpFirst);
+    result.second = Base::convertTo<Base::Vector3d>(gpLast);
     return result;
 }
 
@@ -374,5 +408,22 @@ bool  ShapeUtils::isShapeReallyNull(TopoDS_Shape shape)
 {
     // if the shape is null or it has no subshapes, then it is really null
     return shape.IsNull() || !TopoDS_Iterator(shape).More();
+}
+
+bool ShapeUtils::edgesAreParallel(TopoDS_Edge edge0, TopoDS_Edge edge1)
+{
+    std::pair<Base::Vector3d, Base::Vector3d> ends0 = getEdgeEnds(edge0);
+    Base::Vector3d vec0 = ends0.second - ends0.first;
+    vec0.Normalize();
+    std::pair<Base::Vector3d, Base::Vector3d> ends1 = getEdgeEnds(edge1);
+    Base::Vector3d vec1 = ends1.second - ends1.first;
+    vec1.Normalize();
+    double dot = fabs(vec0.Dot(vec1));
+    if (DU::fpCompare(dot, 1.0, EWTOLERANCE)) {
+        // parallel vectors
+        return true;
+    }
+    return false;
+
 }
 

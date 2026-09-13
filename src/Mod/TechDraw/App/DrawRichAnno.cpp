@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2019 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,7 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
+#include <Base/Reader.h>
 
 #include "DrawRichAnno.h"
 #include "DrawRichAnnoPy.h"  // generated from DrawRichAnnoPy.xml
@@ -42,11 +44,47 @@ DrawRichAnno::DrawRichAnno()
                       "Object to which this annontation is attached");
     ADD_PROPERTY_TYPE(AnnoText, (""), group, App::Prop_None, "Annotation text");
     ADD_PROPERTY_TYPE(ShowFrame, (true), group, App::Prop_None, "Outline rectangle on/off");
+    // Necessary to support legacy files made before #24624.
+    ADD_PROPERTY_TYPE(OriginCentered, (false), group, App::Prop_None, "Center the annotation on it's origin.");
     ADD_PROPERTY_TYPE(MaxWidth, (-1.0), group, App::Prop_None, "Width limit before auto wrap");
     Caption.setStatus(App::Property::Hidden, true);
     Scale.setStatus(App::Property::Hidden, true);
     ScaleType.setStatus(App::Property::Hidden, true);
 
+}
+
+void DrawRichAnno::Restore(Base::XMLReader& reader)
+{
+    bool originCenteredFound = false;
+
+    // Start parsing the properties block.
+    reader.readElement("Properties");
+    int propCount = reader.getAttribute<long>("Count");
+
+    for (int i = 0; i < propCount; i++) {
+        reader.readElement("Property");
+        const char* propName = reader.getAttribute<const char*>("name");
+
+        // The "checking" part:
+        if (strcmp(propName, "OriginCentered") == 0) {
+            originCenteredFound = true;
+        }
+
+        // The "restoring" part:
+        App::Property* prop = getPropertyByName(propName);
+        if (prop) {
+            prop->Restore(reader);  // Restore the value
+        }
+
+        reader.readEndElement("Property");
+    }
+
+    reader.readEndElement("Properties");
+
+    // Ensure backward compatibility: Old files have their anno centered on origin.
+    if (!originCenteredFound) {
+        OriginCentered.setValue(true);
+    }
 }
 
 void DrawRichAnno::onChanged(const App::Property* prop)
@@ -78,7 +116,7 @@ short DrawRichAnno::mustExecute() const
 
 App::DocumentObjectExecReturn *DrawRichAnno::execute()
 {
-//    Base::Console().Message("DRA::execute() - @ (%.3f, %.3f)\n", X.getValue(), Y.getValue());
+//    Base::Console().message("DRA::execute() - @ (%.3f, %.3f)\n", X.getValue(), Y.getValue());
     if (!keepUpdated()) {
         return App::DocumentObject::StdReturn;
     }
@@ -88,8 +126,8 @@ App::DocumentObjectExecReturn *DrawRichAnno::execute()
 
 DrawView* DrawRichAnno::getBaseView() const
 {
-//    Base::Console().Message("DRA::getBaseView() - %s\n", getNameInDocument());
-    return dynamic_cast<DrawView*>(AnnoParent.getValue());
+//    Base::Console().message("DRA::getBaseView() - %s\n", getNameInDocument());
+    return freecad_cast<DrawView*>(AnnoParent.getValue());
 }
 
 //finds the first DrawPage in this Document that claims to own this DrawRichAnno
@@ -97,12 +135,12 @@ DrawView* DrawRichAnno::getBaseView() const
 //more than 1 DrawPage claims a DrawRichAnno.
 DrawPage* DrawRichAnno::findParentPage() const
 {
-//    Base::Console().Message("DRA::findParentPage()\n");
+//    Base::Console().message("DRA::findParentPage()\n");
     if (!AnnoParent.getValue()) {
         return DrawView::findParentPage();
     }
 
-    DrawView* parent = dynamic_cast<DrawView*>(AnnoParent.getValue());
+    DrawView* parent = freecad_cast<DrawView*>(AnnoParent.getValue());
     if (parent) {
         return parent->findParentPage();
     }

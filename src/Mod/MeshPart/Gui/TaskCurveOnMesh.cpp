@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2017 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <Gui/View3DInventor.h>
 
@@ -54,10 +55,10 @@ CurveOnMeshWidget::~CurveOnMeshWidget()
 void CurveOnMeshWidget::setup()
 {
     ui->meshTolerance->setValue(0.2);
-    ui->continuity->addItem(QString::fromLatin1("C0"), static_cast<int>(GeomAbs_C0));
-    ui->continuity->addItem(QString::fromLatin1("C1"), static_cast<int>(GeomAbs_C1));
-    ui->continuity->addItem(QString::fromLatin1("C2"), static_cast<int>(GeomAbs_C2));
-    ui->continuity->addItem(QString::fromLatin1("C3"), static_cast<int>(GeomAbs_C3));
+    ui->continuity->addItem(QStringLiteral("C0"), static_cast<int>(GeomAbs_C0));
+    ui->continuity->addItem(QStringLiteral("C1"), static_cast<int>(GeomAbs_C1));
+    ui->continuity->addItem(QStringLiteral("C2"), static_cast<int>(GeomAbs_C2));
+    ui->continuity->addItem(QStringLiteral("C3"), static_cast<int>(GeomAbs_C3));
     ui->continuity->setCurrentIndex(2);
 
     for (int i = 0; i < 8; i++) {
@@ -80,10 +81,12 @@ void CurveOnMeshWidget::onStartButtonClicked()
 {
     int cont = ui->continuity->itemData(ui->continuity->currentIndex()).toInt();
     myCurveHandler->enableApproximation(ui->groupBox_2->isChecked());
-    myCurveHandler->setParameters(ui->maxDegree->currentIndex() + 1,
-                                  static_cast<GeomAbs_Shape>(cont),
-                                  ui->meshTolerance->value(),
-                                  ui->splitAngle->value().getValue());
+    myCurveHandler->setParameters(
+        ui->maxDegree->currentIndex() + 1,
+        static_cast<GeomAbs_Shape>(cont),
+        ui->meshTolerance->value(),
+        ui->splitAngle->value().getValue()
+    );
     myCurveHandler->enableCallback(myView);
 }
 
@@ -97,9 +100,7 @@ void CurveOnMeshWidget::reject()
 TaskCurveOnMesh::TaskCurveOnMesh(Gui::View3DInventor* view)
 {
     widget = new CurveOnMeshWidget(view);
-    taskbox = new Gui::TaskView::TaskBox(QPixmap(), widget->windowTitle(), true, nullptr);
-    taskbox->groupLayout()->addWidget(widget);
-    Content.push_back(taskbox);
+    addTaskBox(widget);
 }
 
 bool TaskCurveOnMesh::reject()

@@ -30,8 +30,7 @@
  *
  */
 
-#ifndef GRAPHICSVIEWZOOM_H
-#define GRAPHICSVIEWZOOM_H
+#pragma once
 
 #include <QObject>
 #include <QPointF>
@@ -43,7 +42,7 @@
  *
  * Note that it becomes not possible when the scene's
  * size is not large enough comparing to the viewport size. QGraphicsView centers the picture
- * when it's smaller than the view. And QGraphicsView's scrolls boundaries don't allow to
+ * when it's smaller than the view. And QGraphicsView's scrolls boundaries don't allow one to
  * put any picture point at any viewport position.
  *
  * When the user starts scrolling, this class remembers original scene position and
@@ -70,24 +69,24 @@
 
 class QGraphicsView;
 
-class GraphicsViewZoom : public QObject {
-  Q_OBJECT
+class GraphicsViewZoom: public QObject
+{
+    Q_OBJECT
 public:
-  GraphicsViewZoom(QGraphicsView* view);
-  void gentle_zoom(double factor);
-  void set_modifiers(Qt::KeyboardModifiers modifiers);
-  void set_zoom_factor_base(double value);
-  void set_zoom_inverted(bool on) {
-      m_invert_zoom = on;
-  }
+    GraphicsViewZoom(QGraphicsView* view);
+    void gentle_zoom(double factor);
+    void set_modifiers(Qt::KeyboardModifiers modifiers);
+    void set_zoom_factor_base(double value);
+    void set_zoom_inverted(bool on)
+    {
+        m_invert_zoom = on;
+    }
 
 private:
-  QGraphicsView* _view;
-  Qt::KeyboardModifiers _modifiers;
-  double _zoom_factor_base;
-  bool m_invert_zoom;
-  QPointF target_scene_pos, target_viewport_pos;
-  bool eventFilter(QObject* object, QEvent* event) override;
+    QGraphicsView* _view;
+    Qt::KeyboardModifiers _modifiers;
+    double _zoom_factor_base;
+    bool m_invert_zoom;
+    QPointF target_scene_pos, target_viewport_pos;
+    bool eventFilter(QObject* object, QEvent* event) override;
 };
-
-#endif // GRAPHICSVIEWZOOM_H

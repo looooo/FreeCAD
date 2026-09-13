@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2022 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef VECTOREDITWIDGET_H
-#define VECTOREDITWIDGET_H
+#pragma once
 
 #include <QWidget>
 #include <QSize>
@@ -104,4 +105,3 @@ private:
 };
 
 } //namespace TechDrawGui
-#endif // VECTOREDITWIDGET_H

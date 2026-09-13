@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2009 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,10 +22,8 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <QTimer>
-#endif
+
 
 #include <Gui/Application.h>
 #include <Gui/Document.h>
@@ -36,9 +36,11 @@
 using namespace RobotGui;
 using namespace Gui;
 
-TrajectorySimulate::TrajectorySimulate(Robot::RobotObject* pcRobotObject,
-                                       Robot::TrajectoryObject* pcTrajectoryObject,
-                                       QWidget* parent)
+TrajectorySimulate::TrajectorySimulate(
+    Robot::RobotObject* pcRobotObject,
+    Robot::TrajectoryObject* pcTrajectoryObject,
+    QWidget* parent
+)
     : QDialog(parent)
     , sim(pcTrajectoryObject->Trajectory.getValue(), pcRobotObject->getRobot())
     , Run(false)
@@ -63,39 +65,27 @@ TrajectorySimulate::TrajectorySimulate(Robot::RobotObject* pcRobotObject,
         Robot::Waypoint pt = trac.getWaypoint(i);
         switch (pt.Type) {
             case Robot::Waypoint::UNDEF:
-                ui->trajectoryTable->setItem(i,
-                                             0,
-                                             new QTableWidgetItem(QString::fromLatin1("UNDEF")));
+                ui->trajectoryTable->setItem(i, 0, new QTableWidgetItem(QStringLiteral("UNDEF")));
                 break;
             case Robot::Waypoint::CIRC:
-                ui->trajectoryTable->setItem(i,
-                                             0,
-                                             new QTableWidgetItem(QString::fromLatin1("CIRC")));
+                ui->trajectoryTable->setItem(i, 0, new QTableWidgetItem(QStringLiteral("CIRC")));
                 break;
             case Robot::Waypoint::PTP:
-                ui->trajectoryTable->setItem(i,
-                                             0,
-                                             new QTableWidgetItem(QString::fromLatin1("PTP")));
+                ui->trajectoryTable->setItem(i, 0, new QTableWidgetItem(QStringLiteral("PTP")));
                 break;
             case Robot::Waypoint::LINE:
-                ui->trajectoryTable->setItem(i,
-                                             0,
-                                             new QTableWidgetItem(QString::fromLatin1("LIN")));
+                ui->trajectoryTable->setItem(i, 0, new QTableWidgetItem(QStringLiteral("LIN")));
                 break;
             default:
-                ui->trajectoryTable->setItem(i,
-                                             0,
-                                             new QTableWidgetItem(QString::fromLatin1("UNDEF")));
+                ui->trajectoryTable->setItem(i, 0, new QTableWidgetItem(QStringLiteral("UNDEF")));
                 break;
         }
-        ui->trajectoryTable->setItem(i,
-                                     1,
-                                     new QTableWidgetItem(QString::fromUtf8(pt.Name.c_str())));
+        ui->trajectoryTable->setItem(i, 1, new QTableWidgetItem(QString::fromUtf8(pt.Name.c_str())));
         if (pt.Cont) {
-            ui->trajectoryTable->setItem(i, 2, new QTableWidgetItem(QString::fromLatin1("|")));
+            ui->trajectoryTable->setItem(i, 2, new QTableWidgetItem(QStringLiteral("|")));
         }
         else {
-            ui->trajectoryTable->setItem(i, 2, new QTableWidgetItem(QString::fromLatin1("-")));
+            ui->trajectoryTable->setItem(i, 2, new QTableWidgetItem(QStringLiteral("-")));
         }
         ui->trajectoryTable->setItem(i, 3, new QTableWidgetItem(QString::number(pt.Velocity)));
         ui->trajectoryTable->setItem(i, 4, new QTableWidgetItem(QString::number(pt.Acceleration)));
@@ -121,7 +111,8 @@ TrajectorySimulate::TrajectorySimulate(Robot::RobotObject* pcRobotObject,
 
     // get the view provider
     ViewProv = static_cast<ViewProviderRobotObject*>(
-        Gui::Application::Instance->activeDocument()->getViewProvider(pcRobotObject));
+        Gui::Application::Instance->activeDocument()->getViewProvider(pcRobotObject)
+    );
 
     setTo();
 }
@@ -131,13 +122,15 @@ TrajectorySimulate::~TrajectorySimulate() = default;
 void TrajectorySimulate::setTo()
 {
     sim.setToTime(timePos);
-    ViewProv->setAxisTo(sim.Axis[0],
-                        sim.Axis[1],
-                        sim.Axis[2],
-                        sim.Axis[3],
-                        sim.Axis[4],
-                        sim.Axis[5],
-                        sim.Rob.getTcp());
+    ViewProv->setAxisTo(
+        sim.Axis[0],
+        sim.Axis[1],
+        sim.Axis[2],
+        sim.Axis[3],
+        sim.Axis[4],
+        sim.Axis[5],
+        sim.Rob.getTcp()
+    );
 }
 
 void TrajectorySimulate::start()

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2019 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,9 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
-#include <cfloat>
+#include <limits>
 #include <sstream>
 
 #include <BRepBuilderAPI_MakePolygon.hxx>
@@ -40,7 +40,6 @@
 #include <Inventor/nodes/SoDrawStyle.h>
 #include <Inventor/nodes/SoLineSet.h>
 #include <Inventor/nodes/SoSeparator.h>
-#endif
 
 #include <App/Document.h>
 #include <Gui/Application.h>
@@ -124,13 +123,15 @@ private:
 class MeshCrossSection
 {
 public:
-    MeshCrossSection(const MeshCore::MeshKernel& mesh,
-                     const MeshCore::MeshFacetGrid& grid,
-                     double x,
-                     double y,
-                     double z,
-                     bool connectEdges,
-                     double eps)
+    MeshCrossSection(
+        const MeshCore::MeshKernel& mesh,
+        const MeshCore::MeshFacetGrid& grid,
+        double x,
+        double y,
+        double z,
+        bool connectEdges,
+        double eps
+    )
         : mesh(mesh)
         , grid(grid)
         , x(x)
@@ -179,9 +180,10 @@ CrossSections::CrossSections(const Base::BoundBox3d& bb, QWidget* parent, Qt::Wi
     ui->setupUi(this);
     setupConnections();
 
-    ui->position->setRange(-DBL_MAX, DBL_MAX);
+    constexpr double max = std::numeric_limits<double>::max();
+    ui->position->setRange(-max, max);
     ui->position->setUnit(Base::Unit::Length);
-    ui->distance->setRange(0, DBL_MAX);
+    ui->distance->setRange(0, max);
     ui->distance->setUnit(Base::Unit::Length);
     ui->spinEpsilon->setMinimum(0.0001);
     vp = new ViewProviderCrossSections();
@@ -270,8 +272,9 @@ void CrossSections::accept()
 
 void CrossSections::apply()
 {
-    std::vector<App::DocumentObject*> obj =
-        Gui::Selection().getObjectsOfType(Mesh::Feature::getClassTypeId());
+    std::vector<App::DocumentObject*> obj = Gui::Selection().getObjectsOfType(
+        Mesh::Feature::getClassTypeId()
+    );
 
     std::vector<double> d;
     if (ui->sectionsBox->isChecked()) {
@@ -307,8 +310,8 @@ void CrossSections::apply()
 
         // NOLINTBEGIN
         MeshCrossSection cs(kernel, grid, a, b, c, connectEdges, eps);
-        QFuture<std::list<TopoDS_Wire>> future =
-            QtConcurrent::mapped(d, std::bind(&MeshCrossSection::section, &cs, sp::_1));
+        QFuture<std::list<TopoDS_Wire>> future
+            = QtConcurrent::mapped(d, std::bind(&MeshCrossSection::section, &cs, sp::_1));
         future.waitForFinished();
         // NOLINTEND
 
@@ -327,8 +330,7 @@ void CrossSections::apply()
         App::Document* doc = it->getDocument();
         std::string s = it->getNameInDocument();
         s += "_cs";
-        Part::Feature* section =
-            static_cast<Part::Feature*>(doc->addObject("Part::Feature", s.c_str()));
+        Part::Feature* section = doc->addObject<Part::Feature>(s.c_str());
         section->Shape.setValue(comp);
         section->purgeTouched();
     }
@@ -355,29 +357,33 @@ void CrossSections::apply()
             s += "_cs";
             Gui::Command::runCommand(
                 Gui::Command::App,
-                QString::fromLatin1(
+                QStringLiteral(
                     "points=FreeCAD.getDocument(\"%1\").%2.Mesh.crossSections(%3, %4, %5)\n"
                     "wires=[]\n"
                     "for i in points:\n"
-                    "    wires.extend([Part.makePolygon(j) for j in i])\n")
+                    "    wires.extend([Part.makePolygon(j) for j in i])\n"
+                )
                     .arg(QLatin1String(doc->getName()))
                     .arg(QLatin1String((*it)->getNameInDocument()))
                     .arg(planes)
                     .arg(eps)
                     .arg(connectEdges ? QLatin1String("True") : QLatin1String("False"))
-                    .toLatin1());
+                    .toLatin1()
+            );
 
             Gui::Command::runCommand(
                 Gui::Command::App,
-                QString::fromLatin1(
+                QStringLiteral(
                     "comp=Part.Compound(wires)\n"
                     "slice=FreeCAD.getDocument(\"%1\").addObject(\"Part::Feature\",\"%2\")\n"
                     "slice.Shape=comp\n"
                     "slice.purgeTouched()\n"
-                    "del slice,comp,wires,points")
+                    "del slice,comp,wires,points"
+                )
                     .arg(QLatin1String(doc->getName()))
                     .arg(QLatin1String(s.c_str()))
-                    .toLatin1());
+                    .toLatin1()
+            );
         }
     }
     catch (const Base::Exception& e) {
@@ -627,12 +633,7 @@ void CrossSections::makePlanes(Plane type, const std::vector<double>& d, double 
 TaskCrossSections::TaskCrossSections(const Base::BoundBox3d& bb)
 {
     widget = new CrossSections(bb);
-    taskbox = new Gui::TaskView::TaskBox(Gui::BitmapFactory().pixmap("Mesh_CrossSections"),
-                                         widget->windowTitle(),
-                                         true,
-                                         nullptr);
-    taskbox->groupLayout()->addWidget(widget);
-    Content.push_back(taskbox);
+    addTaskBox(Gui::BitmapFactory().pixmap("Mesh_CrossSections"), widget, true);
 }
 
 bool TaskCrossSections::accept()

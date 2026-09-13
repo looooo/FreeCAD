@@ -1,4 +1,5 @@
-# -*- coding: utf-8 -*-
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # ****************************************************************************
 # *  Copyright (c) 2018 Maurice <easyw@katamail.com>                         *
 # *                                                                          *
@@ -95,7 +96,7 @@ def import_stpz(fn, fc, doc):
         ImportGui.open(tempfilepath)
     else:
         ImportGui.open(tempfilepath, doc.Name)
-    FreeCADGui.SendMsgToActiveView("ViewFit")
+    FreeCADGui.ActiveDocument.ActiveView.sendMessage("ViewFit")
     try:
         os.remove(tempfilepath)
     except OSError:

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2006 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -21,13 +23,10 @@
  ***************************************************************************/
 
 
-#ifndef BASE_ROTATION_H
-#define BASE_ROTATION_H
+#pragma once
 
 #include "Vector3D.h"
-#ifndef FC_GLOBAL_H
 #include <FCGlobal.h>
-#endif
 
 namespace Base
 {
@@ -49,26 +48,6 @@ public:
     Rotation(const Rotation& rot) = default;
     Rotation(Rotation&& rot) = default;
     ~Rotation() = default;
-    //@}
-
-    /** Methods to get or set rotations. */
-    //@{
-    const double* getValue() const;
-    void getValue(double& q0, double& q1, double& q2, double& q3) const;
-    void setValue(double q0, double q1, double q2, double q3);
-    /// If not a null quaternion then \a axis will be normalized
-    void getValue(Vector3d& axis, double& rfAngle) const;
-    /// Does the same as the method above unless normalizing the axis.
-    void getRawValue(Vector3d& axis, double& rfAngle) const;
-    void getValue(Matrix4D& matrix) const;
-    void setValue(const double q[4]);
-    void setValue(const Matrix4D& matrix);
-    void setValue(const Vector3d& axis, double fAngle);
-    void setValue(const Vector3d& rotateFrom, const Vector3d& rotateTo);
-    /// Euler angles in yaw,pitch,roll notation
-    void setYawPitchRoll(double y, double p, double r);
-    /// Euler angles in yaw,pitch,roll notation
-    void getYawPitchRoll(double& y, double& p, double& r) const;
 
     enum EulerSequence
     {
@@ -112,6 +91,33 @@ public:
 
         EulerSequenceLast,
     };
+
+    /// Utility function to create Rotation based on direction / normal vector
+    /// Z base vector is assumed to represent the normal vector
+    static Rotation fromNormalVector(const Vector3d& normal);
+    /// Utility function to create Rotation based on euler angles
+    static Rotation fromEulerAngles(EulerSequence theOrder, double alpha, double beta, double gamma);
+    //@}
+
+    /** Methods to get or set rotations. */
+    //@{
+    const double* getValue() const;
+    void getValue(double& q0, double& q1, double& q2, double& q3) const;
+    void setValue(double q0, double q1, double q2, double q3);
+    /// If not a null quaternion then \a axis will be normalized
+    void getValue(Vector3d& axis, double& rfAngle) const;
+    /// Does the same as the method above unless normalizing the axis.
+    void getRawValue(Vector3d& axis, double& rfAngle) const;
+    void getValue(Matrix4D& matrix) const;
+    void setValue(const double q[4]);
+    void setValue(const Matrix4D& matrix);
+    void setValue(const Vector3d& axis, double fAngle);
+    void setValue(const Vector3d& rotateFrom, const Vector3d& rotateTo);
+    /// Euler angles in yaw,pitch,roll notation
+    void setYawPitchRoll(double y, double p, double r);
+    /// Euler angles in yaw,pitch,roll notation
+    void getYawPitchRoll(double& y, double& p, double& r) const;
+
     static const char* eulerSequenceName(EulerSequence seq);
     static EulerSequence eulerSequenceFromName(const char* name);
     void getEulerAngles(EulerSequence theOrder, double& alpha, double& beta, double& gamma) const;
@@ -174,10 +180,12 @@ public:
      *
      * If only one vector provided is nonzero, the other two directions are picked automatically.
      */
-    static Rotation makeRotationByAxes(Vector3d xdir,
-                                       Vector3d ydir,
-                                       Vector3d zdir,
-                                       const char* priorityOrder = "ZXY");
+    static Rotation makeRotationByAxes(
+        Vector3d xdir,
+        Vector3d ydir,
+        Vector3d zdir,
+        const char* priorityOrder = "ZXY"
+    );
 
 private:
     void normalize();
@@ -188,5 +196,3 @@ private:
 };
 
 }  // namespace Base
-
-#endif  // BASE_ROTATION_H

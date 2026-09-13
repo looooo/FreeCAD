@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2008 Juergen Riegel <juergen.riegel@web.de>             *
  *                                                                         *
@@ -20,10 +22,8 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <boost/math/special_functions/fpclassify.hpp>
-#endif
+
 
 #include <Base/Builder3D.h>
 #include <Base/Converter.h>
@@ -32,10 +32,8 @@
 
 #include "Points.h"
 // inclusion of the generated files (generated out of PointsPy.xml)
-// clang-format off
 #include "PointsPy.h"
 #include "PointsPy.cpp"
-// clang-format on
 
 
 using namespace Points;
@@ -88,7 +86,7 @@ int PointsPy::PyInit(PyObject* args, PyObject* /*kwd*/)
     return 0;
 }
 
-PyObject* PointsPy::copy(PyObject* args)
+PyObject* PointsPy::copy(PyObject* args) const
 {
     if (!PyArg_ParseTuple(args, "")) {
         return nullptr;
@@ -102,7 +100,7 @@ PyObject* PointsPy::copy(PyObject* args)
 
 PyObject* PointsPy::read(PyObject* args)
 {
-    const char* Name;
+    const char* Name {};
     if (!PyArg_ParseTuple(args, "s", &Name)) {
         return nullptr;
     }
@@ -116,9 +114,9 @@ PyObject* PointsPy::read(PyObject* args)
     Py_Return;
 }
 
-PyObject* PointsPy::write(PyObject* args)
+PyObject* PointsPy::write(PyObject* args) const
 {
-    const char* Name;
+    const char* Name {};
     if (!PyArg_ParseTuple(args, "s", &Name)) {
         return nullptr;
     }
@@ -132,7 +130,7 @@ PyObject* PointsPy::write(PyObject* args)
     Py_Return;
 }
 
-PyObject* PointsPy::writeInventor(PyObject* args)
+PyObject* PointsPy::writeInventor(PyObject* args) const
 {
     if (!PyArg_ParseTuple(args, "")) {
         return nullptr;
@@ -156,7 +154,7 @@ PyObject* PointsPy::writeInventor(PyObject* args)
 
 PyObject* PointsPy::addPoints(PyObject* args)
 {
-    PyObject* obj;
+    PyObject* obj {};
     if (!PyArg_ParseTuple(args, "O", &obj)) {
         return nullptr;
     }
@@ -181,19 +179,21 @@ PyObject* PointsPy::addPoints(PyObject* args)
         }
     }
     catch (const Py::Exception&) {
-        PyErr_SetString(PyExc_TypeError,
-                        "either expect\n"
-                        "-- [Vector,...] \n"
-                        "-- [(x,y,z),...]");
+        PyErr_SetString(
+            PyExc_TypeError,
+            "either expect\n"
+            "-- [Vector,...] \n"
+            "-- [(x,y,z),...]"
+        );
         return nullptr;
     }
 
     Py_Return;
 }
 
-PyObject* PointsPy::fromSegment(PyObject* args)
+PyObject* PointsPy::fromSegment(PyObject* args) const
 {
-    PyObject* obj;
+    PyObject* obj {};
     if (!PyArg_ParseTuple(args, "O", &obj)) {
         return nullptr;
     }
@@ -219,7 +219,7 @@ PyObject* PointsPy::fromSegment(PyObject* args)
     }
 }
 
-PyObject* PointsPy::fromValid(PyObject* args)
+PyObject* PointsPy::fromValid(PyObject* args) const
 {
     if (!PyArg_ParseTuple(args, "")) {
         return nullptr;

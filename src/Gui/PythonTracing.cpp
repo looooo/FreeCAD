@@ -21,13 +21,13 @@
  *                                                                         *
  **************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
+
 #include <QApplication>
 #include <QKeyEvent>
-#include <QTime>
 #include <QGuiApplication>
-#endif
+
+
+#include <chrono>
 
 #include "PythonTracing.h"
 #include <App/Application.h>
@@ -35,10 +35,14 @@
 
 using namespace Gui;
 
+using Clock = std::chrono::steady_clock;
+using TimePoint = std::chrono::time_point<Clock>;
+
+
 struct PythonTracing::Private
 {
-    bool active{false};
-    int timeout{200}; //NOLINT
+    bool active {false};
+    int timeout {200};  // NOLINT
 
     // NOLINTBEGIN
     static int profilerInterval;
@@ -52,9 +56,8 @@ bool PythonTracing::Private::profilerDisabled = false;
 // NOLINTEND
 
 PythonTracing::PythonTracing()
-    : d{std::make_unique<Private>()}
-{
-}
+    : d {std::make_unique<Private>()}
+{}
 
 PythonTracing::~PythonTracing() = default;
 
@@ -80,7 +83,8 @@ void PythonTracing::fetchFromSettings()
     const long defaultTimeout = 200;
 
     auto parameterGroup = App::GetApplication().GetParameterGroupByPath(
-        "User parameter:BaseApp/Preferences/PythonConsole");
+        "User parameter:BaseApp/Preferences/PythonConsole"
+    );
     int interval = static_cast<int>(parameterGroup->GetInt("ProfilerInterval", defaultTimeout));
     setTimeout(interval);
 }
@@ -124,16 +128,27 @@ void PythonTracing::setPythonTraceEnabled(bool enabled) const
  * This callback ensures that Qt runs its event loop (i.e. updates the GUI, processes keyboard and
  * mouse events, etc.) at least every 200 ms, even when there is long-running Python code on the
  * main thread. It is registered as the global trace function of the Python environment.
+ *
+ * WARNING! THIS IS PERFORMANCE-CRITICAL CODE!
+ * This callback is even called for per-opcode events in the Python code, so unoptimized code could
+ * dramatically slow down the execution of Python code and FreeCAD macros.
  */
-int PythonTracing::tracer_callback(PyObject *obj, PyFrameObject *frame, int what, PyObject *arg)
+int PythonTracing::tracer_callback(PyObject* obj, PyFrameObject* frame, int what, PyObject* arg)
 {
     Q_UNUSED(obj)
     Q_UNUSED(frame)
     Q_UNUSED(what)
     Q_UNUSED(arg)
 
-    static QTime lastCalledTime = QTime::currentTime();
-    QTime currTime = QTime::currentTime();
+    // no need to check the time at every single Python opcode execution
+    static int skipCounter = 0;
+    if (++skipCounter < 1000) {
+        return 0;
+    }
+    skipCounter = 0;
+
+    static TimePoint lastCalledTime = Clock::now();
+    TimePoint currTime = Clock::now();
 
     // if previous code object was executed
     if (Private::profilerDisabled) {
@@ -141,9 +156,8 @@ int PythonTracing::tracer_callback(PyObject *obj, PyFrameObject *frame, int what
         lastCalledTime = currTime;
     }
 
-    int ms = lastCalledTime.msecsTo(currTime);
-
-    if (ms >= Private::profilerInterval) {
+    const std::chrono::duration<double> duration = currTime - lastCalledTime;
+    if (1000.0 * duration.count() >= static_cast<double>(Private::profilerInterval)) {
         lastCalledTime = currTime;
         QGuiApplication::processEvents();
     }
@@ -154,7 +168,7 @@ int PythonTracing::tracer_callback(PyObject *obj, PyFrameObject *frame, int what
 // ------------------------------------------------------------------------------------------------
 
 PythonTracingLocker::PythonTracingLocker(PythonTracing& trace)
-    : trace{trace}
+    : trace {trace}
 {
     trace.activate();
 }

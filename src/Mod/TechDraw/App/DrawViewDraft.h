@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DrawViewDraft_h_
-#define DrawViewDraft_h_
+#pragma once
 
 #include <App/DocumentObject.h>
 #include <App/FeaturePython.h>
@@ -66,6 +67,8 @@ public:
 
     short mustExecute() const override;
 
+    bool snapsToPosition() const override { return true; }
+
 protected:
 /*    virtual void onChanged(const App::Property* prop) override;*/
     Base::BoundBox3d bbox;
@@ -77,6 +80,3 @@ using DrawViewDraftPython = App::FeaturePythonT<DrawViewDraft>;
 
 
 } //namespace TechDraw
-
-
-#endif

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2018 Abdullah Tahiri <abdullah.tahiri.yo@gmail.com>     *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef SKETCHERGUI_SHORTCUTLISTENER_H
-#define SKETCHERGUI_SHORTCUTLISTENER_H
+#pragma once
 
 #include <QObject>
 
@@ -30,15 +31,6 @@ namespace SketcherGui
 {
 
 class ViewProviderSketch;
-
-class ViewProviderSketchShortcutListenerAttorney
-{
-private:
-    static inline void deleteSelected(ViewProviderSketch& vp);
-
-
-    friend class ShortcutListener;
-};
 
 class ShortcutListener: public QObject
 {
@@ -55,6 +47,3 @@ protected:
 };
 
 }  // namespace SketcherGui
-
-
-#endif  // SKETCHERGUI_SHORTCUTLISTENER_H

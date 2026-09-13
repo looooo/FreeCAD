@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 Stefan Tröger <stefantroeger@gmx.net>              *
  *                                                                         *
@@ -21,15 +23,16 @@
  ***************************************************************************/
 
 
-#ifndef APP_DOCUMENTOBJECTEXTENSION_H
-#define APP_DOCUMENTOBJECTEXTENSION_H
+#pragma once
 
 #include "Extension.h"
 
-namespace Base {
+namespace Base
+{
 class Matrix4D;
 }
-namespace App {
+namespace App
+{
 class DocumentObject;
 class DocumentObjectExecReturn;
 
@@ -37,24 +40,23 @@ class DocumentObjectExecReturn;
  * @brief Extension with special document object calls
  *
  */
-class AppExport DocumentObjectExtension : public App::Extension
+class AppExport DocumentObjectExtension: public App::Extension
 {
 
-    //The cass does not have properties itself, but it is important to provide the property access
-    //functions. see cpp file for details
+    // The cass does not have properties itself, but it is important to provide the property access
+    // functions. see cpp file for details
     EXTENSION_PROPERTY_HEADER_WITH_OVERRIDE(App::DocumentObjectExtension);
 
 public:
+    DocumentObjectExtension();
+    ~DocumentObjectExtension() override;
 
-    DocumentObjectExtension ();
-    ~DocumentObjectExtension () override;
-
-    App::DocumentObject*       getExtendedObject();
+    App::DocumentObject* getExtendedObject();
     const App::DocumentObject* getExtendedObject() const;
 
-    //override if execution is necessary
+    // override if execution is necessary
     virtual short extensionMustExecute();
-    virtual App::DocumentObjectExecReturn *extensionExecute();
+    virtual App::DocumentObjectExecReturn* extensionExecute();
 
 
     /// get called after setting the document
@@ -70,36 +72,74 @@ public:
 
     /// returns the type name of the ViewProviderExtension which is automatically attached
     /// to the viewprovider object when it is initiated
-    virtual const char* getViewProviderExtensionName() const {return "";}
+    virtual const char* getViewProviderExtensionName() const
+    {
+        return "";
+    }
 
     /** Get the sub object by name
      * @sa DocumentObject::getSubObject()
      *
      * @return Return turn if handled, the sub object is returned in \c ret
      */
-    virtual bool extensionGetSubObject(DocumentObject *&ret, const char *subname,
-        PyObject **pyObj, Base::Matrix4D *mat, bool transform, int depth) const;
+    virtual bool extensionGetSubObject(DocumentObject*& ret,
+                                       const char* subname,
+                                       PyObject** pyObj,
+                                       Base::Matrix4D* mat,
+                                       bool transform,
+                                       int depth) const;
 
     /** Get name references of all sub objects
      * @sa DocumentObject::getSubObjects()
      *
      * @return Return turn if handled, the sub object is returned in \c ret
      */
-    virtual bool extensionGetSubObjects(std::vector<std::string> &ret, int reason) const;
+    virtual bool extensionGetSubObjects(std::vector<std::string>& ret, int reason) const;
 
-    /** Get the linked object
-     *  @sa DocumentObject::getLinkedObject()
+    /**
+     * @brief Get the linked object of this extension.
      *
-     * @return Return turn if handled, the linked object is returned in \c ret
+     * This method returns the linked object of this document object.  If there
+     * is no linked object, it will return the container object of the
+     * extension.
+     *
+     * @param[out] ret The linked object is returned in this parameter.
+     *
+     * @param[in] recurse If true, it will recursively resolve the link until it
+     * reaches the final linked object.
+     *
+     * @param mat[in,out] If non-null, it is used as the current transformation
+     * matrix on input. On output it is used as the accumulated transformation
+     * up until the final linked object.
+     *
+     * @param[in] transform If false, then it will not accumulate the object's own
+     * placement into @p mat, which lets you override the object's placement.
+     *
+     * @param[in] depth This parameter indicates the level on which we are
+     * resolving the link.
+     *
+     * @return Returns true if the linked object is successfully retrieved and
+     * returned in @p ret. If the linked object is not found or is invalid, it
+     * returns false.
      */
-    virtual bool extensionGetLinkedObject(DocumentObject *&ret, bool recursive,
-            Base::Matrix4D *mat, bool transform, int depth) const;
+    virtual bool extensionGetLinkedObject(DocumentObject*& ret,
+                                          bool recursive,
+                                          Base::Matrix4D* mat,
+                                          bool transform,
+                                          int depth) const;
 
-    virtual int extensionSetElementVisible(const char *, bool) {return -1;}
-    virtual int extensionIsElementVisible(const char *) {return -1;}
-    virtual bool extensionHasChildElement() const {return false;}
+    virtual int extensionSetElementVisible(const char*, bool)
+    {
+        return -1;
+    }
+    virtual int extensionIsElementVisible(const char*)
+    {
+        return -1;
+    }
+    virtual bool extensionHasChildElement() const
+    {
+        return false;
+    }
 };
 
-} //App
-
-#endif // APP_DOCUMENTOBJECTEXTENSION_H
+}  // namespace App

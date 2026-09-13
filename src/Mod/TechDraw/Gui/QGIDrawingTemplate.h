@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2012-2014 Luke Parry <l.parry@warwick.ac.uk>            *
  *                                                                         *
@@ -20,12 +22,12 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_QGRAPHICSITEMDRAWINGTEMPLATE_H
-#define DRAWINGGUI_QGRAPHICSITEMDRAWINGTEMPLATE_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
 #include "QGITemplate.h"
+#include "QGIUserTypes.h"
 
 QT_BEGIN_NAMESPACE
 class QGraphicsScene;
@@ -48,7 +50,7 @@ public:
     explicit QGIDrawingTemplate(QGSPage *);
     ~QGIDrawingTemplate() override;
 
-    enum {Type = QGraphicsItem::UserType + 151};
+    enum {Type = UserType::QGIDrawingTemplate};
     int type() const override { return Type;}
 
     void clearContents();
@@ -63,5 +65,3 @@ protected:
 };
 
 } // namespace MDIViewPageGui
-
-#endif // DRAWINGGUI_QGRAPHICSITEMDRAWINGTEMPLATE_H

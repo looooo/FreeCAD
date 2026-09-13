@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2012 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,11 +22,9 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
+#include <limits>
 
-#ifndef _PreComp_
-# include <QMessageBox>
-#endif
+#include <QMessageBox>
 
 #include <App/Application.h>
 #include <App/Document.h>
@@ -45,14 +45,14 @@ using namespace PartGui;
 class OffsetWidget::Private
 {
 public:
-    Ui_TaskOffset ui{};
-    Part::Offset* offset{nullptr};
+    Ui_TaskOffset ui {};
+    Part::Offset* offset {nullptr};
 };
 
 /* TRANSLATOR PartGui::OffsetWidget */
 
 OffsetWidget::OffsetWidget(Part::Offset* offset, QWidget* parent)
-  : d(new Private())
+    : d(new Private())
 {
     Q_UNUSED(parent);
     Gui::Command::runCommand(Gui::Command::App, "from FreeCAD import Base");
@@ -63,16 +63,17 @@ OffsetWidget::OffsetWidget(Part::Offset* offset, QWidget* parent)
     setupConnections();
 
     d->ui.spinOffset->setUnit(Base::Unit::Length);
-    d->ui.spinOffset->setRange(-INT_MAX, INT_MAX);
+    d->ui.spinOffset->setRange(-std::numeric_limits<int>::max(), std::numeric_limits<int>::max());
     d->ui.spinOffset->setSingleStep(0.1);
     d->ui.facesButton->hide();
 
-    bool is_2d = d->offset->isDerivedFrom(Part::Offset2D::getClassTypeId());
+    bool is_2d = d->offset->isDerivedFrom<Part::Offset2D>();
     d->ui.selfIntersection->setVisible(!is_2d);
-    if(is_2d)
-        d->ui.modeType->removeItem(2);//remove Recto-Verso mode, not supported by 2d offset
+    if (is_2d) {
+        d->ui.modeType->removeItem(2);  // remove Recto-Verso mode, not supported by 2d offset
+    }
 
-    //block signals to fill values read out from feature...
+    // block signals to fill values read out from feature...
     bool block = true;
     d->ui.fillOffset->blockSignals(block);
     d->ui.intersection->blockSignals(block);
@@ -81,19 +82,21 @@ OffsetWidget::OffsetWidget(Part::Offset* offset, QWidget* parent)
     d->ui.joinType->blockSignals(block);
     d->ui.spinOffset->blockSignals(block);
 
-    //read values from feature
+    // read values from feature
     d->ui.spinOffset->setValue(d->offset->Value.getValue());
     d->ui.fillOffset->setChecked(offset->Fill.getValue());
     d->ui.intersection->setChecked(offset->Intersection.getValue());
     d->ui.selfIntersection->setChecked(offset->SelfIntersection.getValue());
     long mode = offset->Mode.getValue();
-    if (mode >= 0 && mode < d->ui.modeType->count())
+    if (mode >= 0 && mode < d->ui.modeType->count()) {
         d->ui.modeType->setCurrentIndex(mode);
+    }
     long join = offset->Join.getValue();
-    if (join >= 0 && join < d->ui.joinType->count())
+    if (join >= 0 && join < d->ui.joinType->count()) {
         d->ui.joinType->setCurrentIndex(join);
+    }
 
-    //unblock signals
+    // unblock signals
     block = false;
     d->ui.fillOffset->blockSignals(block);
     d->ui.intersection->blockSignals(block);
@@ -112,6 +115,7 @@ OffsetWidget::~OffsetWidget()
 
 void OffsetWidget::setupConnections()
 {
+    // clang-format off
     connect(d->ui.spinOffset, qOverload<double>(&Gui::QuantitySpinBox::valueChanged),
             this, &OffsetWidget::onSpinOffsetValueChanged);
     connect(d->ui.modeType, qOverload<int>(&QComboBox::activated),
@@ -126,6 +130,7 @@ void OffsetWidget::setupConnections()
             this, &OffsetWidget::onFillOffsetToggled);
     connect(d->ui.updateView, &QCheckBox::toggled,
             this, &OffsetWidget::onUpdateViewToggled);
+    // clang-format on
 }
 
 Part::Offset* OffsetWidget::getObject() const
@@ -136,43 +141,49 @@ Part::Offset* OffsetWidget::getObject() const
 void OffsetWidget::onSpinOffsetValueChanged(double val)
 {
     d->offset->Value.setValue(val);
-    if (d->ui.updateView->isChecked())
+    if (d->ui.updateView->isChecked()) {
         d->offset->getDocument()->recomputeFeature(d->offset);
+    }
 }
 
 void OffsetWidget::onModeTypeActivated(int val)
 {
     d->offset->Mode.setValue(val);
-    if (d->ui.updateView->isChecked())
+    if (d->ui.updateView->isChecked()) {
         d->offset->getDocument()->recomputeFeature(d->offset);
+    }
 }
 
 void OffsetWidget::onJoinTypeActivated(int val)
 {
     d->offset->Join.setValue((long)val);
-    if (d->ui.updateView->isChecked())
+    if (d->ui.updateView->isChecked()) {
         d->offset->getDocument()->recomputeFeature(d->offset);
+    }
 }
 
 void OffsetWidget::onIntersectionToggled(bool on)
 {
     d->offset->Intersection.setValue(on);
-    if (d->ui.updateView->isChecked())
+    if (d->ui.updateView->isChecked()) {
         d->offset->getDocument()->recomputeFeature(d->offset);
+    }
 }
 
 void OffsetWidget::onSelfIntersectionToggled(bool on)
 {
     d->offset->SelfIntersection.setValue(on);
-    if (d->ui.updateView->isChecked())
+    if (d->ui.updateView->isChecked()) {
         d->offset->getDocument()->recomputeFeature(d->offset);
+    }
 }
 
 void OffsetWidget::onFillOffsetToggled(bool on)
 {
     d->offset->Fill.setValue(on);
-    if (d->ui.updateView->isChecked())
+    if (d->ui.updateView->isChecked()) {
         d->offset->getDocument()->recomputeFeature(d->offset);
+    }
 }
 
 void OffsetWidget::onUpdateViewToggled(bool on)
@@ -190,18 +201,33 @@ bool OffsetWidget::accept()
         d->ui.spinOffset->apply();
         Gui::cmdAppObjectArgs(d->offset, "Mode = %d", d->ui.modeType->currentIndex());
         Gui::cmdAppObjectArgs(d->offset, "Join = %d", d->ui.joinType->currentIndex());
-        Gui::cmdAppObjectArgs(d->offset, "Intersection = %s", d->ui.intersection->isChecked() ? "True" : "False");
-        Gui::cmdAppObjectArgs(d->offset, "SelfIntersection = %s", d->ui.selfIntersection->isChecked() ? "True" : "False");
+        Gui::cmdAppObjectArgs(
+            d->offset,
+            "Intersection = %s",
+            d->ui.intersection->isChecked() ? "True" : "False"
+        );
+        Gui::cmdAppObjectArgs(
+            d->offset,
+            "SelfIntersection = %s",
+            d->ui.selfIntersection->isChecked() ? "True" : "False"
+        );
         Gui::cmdAppObjectArgs(d->offset, "Fill = %s", d->ui.fillOffset->isChecked() ? "True" : "False");
 
-        Gui::Command::doCommand(Gui::Command::Doc,"App.ActiveDocument.recompute()");
-        if (!d->offset->isValid())
+        Gui::Command::doCommand(Gui::Command::Doc, "App.ActiveDocument.recompute()");
+        if (!d->offset->isValid()) {
             throw Base::CADKernelError(d->offset->getStatusString());
-        Gui::Command::doCommand(Gui::Command::Gui,"Gui.ActiveDocument.resetEdit()");
-        Gui::Command::commitCommand();
+        }
+
+        Gui::Command::doCommand(Gui::Command::Gui, "Gui.ActiveDocument.resetEdit()");
+        d->offset->getDocument()->commitTransaction();  // ViewProviderDocumentObject::startDefaultEditMode()
     }
     catch (const Base::Exception& e) {
-        QMessageBox::warning(this, tr("Input error"), QCoreApplication::translate("Exception", e.what()));
+        d->offset->getDocument()->abortTransaction();  // ViewProviderDocumentObject::startDefaultEditMode()
+        QMessageBox::warning(
+            this,
+            tr("Input error"),
+            QCoreApplication::translate("Exception", e.what())
+        );
         return false;
     }
 
@@ -212,19 +238,19 @@ bool OffsetWidget::reject()
 {
     // get the support and Sketch
     App::DocumentObject* source = d->offset->Source.getValue();
-    if (source){
+    if (source) {
         Gui::Application::Instance->getViewProvider(source)->show();
     }
 
     // roll back the done things
-    Gui::Command::abortCommand();
-    Gui::Command::doCommand(Gui::Command::Gui,"Gui.ActiveDocument.resetEdit()");
+    d->offset->getDocument()->abortTransaction();  // ViewProviderDocumentObject::startDefaultEditMode()
+    Gui::Command::doCommand(Gui::Command::Gui, "Gui.ActiveDocument.resetEdit()");
     Gui::Command::updateActive();
 
     return true;
 }
 
-void OffsetWidget::changeEvent(QEvent *e)
+void OffsetWidget::changeEvent(QEvent* e)
 {
     QWidget::changeEvent(e);
     if (e->type() == QEvent::LanguageChange) {
@@ -238,11 +264,7 @@ void OffsetWidget::changeEvent(QEvent *e)
 TaskOffset::TaskOffset(Part::Offset* offset)
 {
     widget = new OffsetWidget(offset);
-    taskbox = new Gui::TaskView::TaskBox(
-        Gui::BitmapFactory().pixmap("Part_Offset"),
-        widget->windowTitle(), true, nullptr);
-    taskbox->groupLayout()->addWidget(widget);
-    Content.push_back(taskbox);
+    addTaskBox(Gui::BitmapFactory().pixmap("Part_Offset"), widget);
 }
 
 TaskOffset::~TaskOffset() = default;
@@ -253,12 +275,10 @@ Part::Offset* TaskOffset::getObject() const
 }
 
 void TaskOffset::open()
-{
-}
+{}
 
 void TaskOffset::clicked(int)
-{
-}
+{}
 
 bool TaskOffset::accept()
 {

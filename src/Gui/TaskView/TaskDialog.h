@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 /***************************************************************************
  *   Copyright (c) 2009 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -21,8 +22,7 @@
  ***************************************************************************/
 
 
-#ifndef GUI_TASKVIEW_TASKDIALOG_H
-#define GUI_TASKVIEW_TASKDIALOG_H
+#pragma once
 
 #include <string>
 #include <vector>
@@ -32,12 +32,16 @@
 #include <FCGlobal.h>
 
 
-namespace App {
-
+namespace App
+{
+class DocumentObject;
 }
 
-namespace Gui {
-namespace TaskView {
+namespace Gui
+{
+class MDIView;
+namespace TaskView
+{
 
 class TaskContent;
 class TaskDialogAttorney;
@@ -45,74 +49,149 @@ class TaskDialogPy;
 class TaskView;
 
 /// Father class of content with header and Icon
-class GuiExport TaskDialog : public QObject
+class GuiExport TaskDialog: public QObject
 {
     Q_OBJECT
 
 public:
-    enum ButtonPosition {
-        North, South
+    enum ButtonPosition
+    {
+        North,
+        South
     };
 
     TaskDialog();
     ~TaskDialog() override;
 
-    void addTaskBox(QWidget*);
+    QWidget* addTaskBox(QWidget* widget, bool expandable = true, QWidget* parent = nullptr);
+    QWidget* addTaskBox(
+        const QPixmap& icon,
+        QWidget* widget,
+        bool expandable = true,
+        QWidget* parent = nullptr
+    );
+    QWidget* addTaskBoxWithoutHeader(QWidget* widget);
 
     void setButtonPosition(ButtonPosition p)
-    { pos = p; }
+    {
+        pos = p;
+    }
     ButtonPosition buttonPosition() const
-    { return pos; }
-    const std::vector<QWidget*> &getDialogContent() const;
+    {
+        return pos;
+    }
+    const std::vector<QWidget*>& getDialogContent() const;
     bool canClose() const;
 
     /// tells the framework which buttons are wished for the dialog
     virtual QDialogButtonBox::StandardButtons getStandardButtons() const
-    { return QDialogButtonBox::Ok|QDialogButtonBox::Cancel; }
+    {
+        return QDialogButtonBox::Ok | QDialogButtonBox::Cancel;
+    }
     virtual void modifyStandardButtons(QDialogButtonBox*)
     {}
 
     /// Defines whether a task dialog can be rejected by pressing Esc
-    void setEscapeButtonEnabled(bool on) {
+    void setEscapeButtonEnabled(bool on)
+    {
         escapeButton = on;
     }
-    bool isEscapeButtonEnabled() const {
+    bool isEscapeButtonEnabled() const
+    {
         return escapeButton;
     }
+    QDialogButtonBox::ButtonRole roleOnEscape {QDialogButtonBox::ButtonRole::RejectRole};
 
     /// Defines whether a task dialog must be closed if the document changed the
     /// active transaction.
-    void setAutoCloseOnTransactionChange(bool on) {
+    void setAutoCloseOnTransactionChange(bool on)
+    {
         autoCloseTransaction = on;
     }
-    bool isAutoCloseOnTransactionChange() const {
+    bool isAutoCloseOnTransactionChange() const
+    {
         return autoCloseTransaction;
     }
 
+    /// Defines whether a task dialog must be closed if the document exits edit mode.
+    void setAutoCloseOnResetEdit(bool on)
+    {
+        autoCloseResetEdit = on;
+    }
+    bool isAutoCloseOnResetEdit() const
+    {
+        return autoCloseResetEdit;
+    }
+
+    /// Defines whether a task dialog must be closed if the document is
+    /// deleted.
+    void setAutoCloseOnDeletedDocument(bool on)
+    {
+        autoCloseDeletedDocument = on;
+    }
+    bool isAutoCloseOnDeletedDocument() const
+    {
+        return autoCloseDeletedDocument;
+    }
+
     const std::string& getDocumentName() const
-    { return documentName; }
+    {
+        return documentName;
+    }
     void setDocumentName(const std::string& doc)
-    { documentName = doc; }
+    {
+        documentName = doc;
+    }
+
+    /// Defines whether a task dialog must be closed if the associated view
+    /// is deleted.
+    void setAutoCloseOnClosedView(bool on)
+    {
+        autoCloseClosedView = on;
+    }
+    bool isAutoCloseOnClosedView() const
+    {
+        return autoCloseClosedView;
+    }
+    void associateToObject3dView(App::DocumentObject* obj);
+
+    const Gui::MDIView* getAssociatedView() const
+    {
+        return associatedView;
+    }
+    void setAssociatedView(const Gui::MDIView* view)
+    {
+        associatedView = view;
+    }
+
     /*!
       Indicates whether this task dialog allows other commands to modify
       the document while it is open.
     */
     virtual bool isAllowedAlterDocument() const
-    { return false; }
+    {
+        return false;
+    }
     /*!
       Indicates whether this task dialog allows other commands to modify
       the 3d view while it is open.
     */
     virtual bool isAllowedAlterView() const
-    { return true; }
+    {
+        return true;
+    }
     /*!
       Indicates whether this task dialog allows other commands to modify
       the selection while it is open.
     */
     virtual bool isAllowedAlterSelection() const
-    { return true; }
+    {
+        return true;
+    }
     virtual bool needsFullSpace() const
-    { return false; }
+    {
+        return false;
+    }
 
 public:
     /// is called by the framework when the dialog is opened
@@ -122,22 +201,43 @@ public:
     /// is called by the framework when the dialog is automatically closed due to
     /// changing the active transaction
     virtual void autoClosedOnTransactionChange();
+    /// is called by the framework when the dialog is automatically closed due to
+    /// exiting edit mode
+    virtual void autoClosedOnResetEdit();
+    /// is called by the framework when the dialog is automatically closed due to
+    /// deleting the document
+    virtual void autoClosedOnDeletedDocument();
+    /// is called by the framework when the dialog is automatically closed due to
+    /// closing of associated view
+    virtual void autoClosedOnClosedView();
     /// is called by the framework if a button is clicked which has no accept or reject role
     virtual void clicked(int);
     /// is called by the framework if the dialog is accepted (Ok)
     virtual bool accept();
     /// is called by the framework if the dialog is rejected (Cancel)
     virtual bool reject();
-    /// is called by the framework if the user press the help button 
+    /// is called by the framework if the user press the help button
     virtual void helpRequested();
+    /// is called by the framework if the user press the undo button
+    virtual void onUndo();
+    /// is called by the framework if the user press the redo button
+    virtual void onRedo();
 
-    void emitDestructionSignal() {
+    /// Called by the framework when it becomes the shown dialog
+    /// of the stacked task panel (e.g. when it's document becomes active)
+    virtual void activate();
+    /// Called by the framework when it stops being the shown dialog
+    /// of the stacked task panel (e.g. when it's document stops being active)
+    virtual void deactivate();
+
+    void emitDestructionSignal()
+    {
         Q_EMIT aboutToBeDestroyed();
     }
-    
+
 Q_SIGNALS:
     void aboutToBeDestroyed();
-    
+
 protected:
     QPointer<QDialogButtonBox> buttonBox;
     /// List of TaskBoxes of that dialog
@@ -146,18 +246,25 @@ protected:
 
 private:
     std::string documentName;
+    const Gui::MDIView* associatedView;
     bool escapeButton;
     bool autoCloseTransaction;
+    bool autoCloseResetEdit;
+    bool autoCloseDeletedDocument;
+    bool autoCloseClosedView;
 
     friend class TaskDialogAttorney;
 };
 
-class TaskDialogAttorney {
+class TaskDialogAttorney
+{
 private:
-    static void setButtonBox(TaskDialog* dlg, QDialogButtonBox* box) {
+    static void setButtonBox(TaskDialog* dlg, QDialogButtonBox* box)
+    {
         dlg->buttonBox = box;
     }
-    static QDialogButtonBox* getButtonBox(TaskDialog* dlg) {
+    static QDialogButtonBox* getButtonBox(TaskDialog* dlg)
+    {
         return dlg->buttonBox;
     }
 
@@ -165,7 +272,5 @@ private:
     friend class TaskView;
 };
 
-} //namespace TaskView
-} //namespace Gui
-
-#endif // GUI_TASKVIEW_TASKDIALOG_H
+}  // namespace TaskView
+}  // namespace Gui

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 Stefan Tröger <stefantroeger@gmx.net>              *
  *                                                                         *
@@ -20,12 +22,9 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <sstream>
 
-#include "PreCompiled.h"
-
-#ifndef _PreComp_
-# include <sstream>
-#endif
+#include <Base/Interpreter.h>
 
 #include "Application.h"
 
@@ -41,22 +40,24 @@ std::string ExtensionContainerPy::representation() const
     return {"<extension>"};
 }
 
-int  ExtensionContainerPy::initialization() {
+int ExtensionContainerPy::initialization()
+{
 
     if (!this->ob_type->tp_dict) {
-        if (PyType_Ready(this->ob_type) < 0)
+        if (PyType_Ready(this->ob_type) < 0) {
             return 0;
+        }
     }
 
     ExtensionContainer::ExtensionIterator it = this->getExtensionContainerPtr()->extensionBegin();
-    for(; it != this->getExtensionContainerPtr()->extensionEnd(); ++it) {
+    for (; it != this->getExtensionContainerPtr()->extensionEnd(); ++it) {
 
         // The PyTypeObject is shared by all instances of this type and therefore
         // we have to add new methods only once.
         PyObject* obj = (*it).second->getExtensionPyObject();
         PyMethodDef* meth = obj->ob_type->tp_methods;
-        PyTypeObject *type = this->ob_type;
-        PyObject *dict = type->tp_dict;
+        PyTypeObject* type = this->ob_type;
+        PyObject* dict = type->tp_dict;
 
         // make sure to do the initialization only once
         if (meth->ml_name) {
@@ -67,12 +68,14 @@ int  ExtensionContainerPy::initialization() {
                 // to an instance
                 Py_INCREF(dict);
                 while (meth->ml_name) {
-                    PyObject *func;
+                    PyObject* func;
                     func = PyCFunction_New(meth, 0);
-                    if (!func)
+                    if (!func) {
                         break;
-                    if (PyDict_SetItemString(dict, meth->ml_name, func) < 0)
+                    }
+                    if (PyDict_SetItemString(dict, meth->ml_name, func) < 0) {
                         break;
+                    }
                     Py_DECREF(func);
                     ++meth;
                 }
@@ -86,20 +89,22 @@ int  ExtensionContainerPy::initialization() {
     return 1;
 }
 
-int  ExtensionContainerPy::finalization() {
-/*
-    //we need to delete all added python extensions, as we are the owner! 
-    ExtensionContainer::ExtensionIterator it = this->getExtensionContainerPtr()->extensionBegin();
-    for(; it != this->getExtensionContainerPtr()->extensionEnd(); ++it) {
-        if((*it).second->isPythonExtension())
-            delete (*it).second;
-    }*/
+int ExtensionContainerPy::finalization()
+{
+    /*
+        //we need to delete all added python extensions, as we are the owner!
+        ExtensionContainer::ExtensionIterator it =
+       this->getExtensionContainerPtr()->extensionBegin(); for(; it !=
+       this->getExtensionContainerPtr()->extensionEnd(); ++it) {
+            if((*it).second->isPythonExtension())
+                delete (*it).second;
+        }*/
     return 1;
 }
 
-PyObject* ExtensionContainerPy::PyMake(struct _typeobject *, PyObject *, PyObject *)  // Python wrapper
+PyObject* ExtensionContainerPy::PyMake(struct _typeobject*, PyObject*, PyObject*)  // Python wrapper
 {
-    // create a new instance of @self.export.Name@ and the Twin object 
+    // create a new instance of @self.export.Name@ and the Twin object
     return nullptr;
 }
 
@@ -109,7 +114,7 @@ int ExtensionContainerPy::PyInit(PyObject* /*args*/, PyObject* /*kwd*/)
     return 0;
 }
 
-PyObject *ExtensionContainerPy::getCustomAttributes(const char* attr) const
+PyObject* ExtensionContainerPy::getCustomAttributes(const char* attr) const
 {
     if (Base::streq(attr, "__dict__")) {
         PyObject* dict = PyDict_New();
@@ -119,12 +124,13 @@ PyObject *ExtensionContainerPy::getCustomAttributes(const char* attr) const
             Py_DECREF(props);
         }
 
-        ExtensionContainer::ExtensionIterator it = this->getExtensionContainerPtr()->extensionBegin();
+        ExtensionContainer::ExtensionIterator it =
+            this->getExtensionContainerPtr()->extensionBegin();
         for (; it != this->getExtensionContainerPtr()->extensionEnd(); ++it) {
             // The PyTypeObject is shared by all instances of this type and therefore
             // we have to add new methods only once.
             PyObject* obj = (*it).second->getExtensionPyObject();
-            PyTypeObject *tp = Py_TYPE(obj);
+            PyTypeObject* tp = Py_TYPE(obj);
             if (tp && tp->tp_dict) {
                 Py_XINCREF(tp->tp_dict);
                 PyDict_Merge(dict, tp->tp_dict, 0);
@@ -139,13 +145,13 @@ PyObject *ExtensionContainerPy::getCustomAttributes(const char* attr) const
     // Py_FindMethod is successful then a PyCFunction_New instance is returned
     // with the PyObject pointer of the extension to make sure the method will
     // be called for the correct instance.
-    PyObject *func = nullptr;
+    PyObject* func = nullptr;
     ExtensionContainer::ExtensionIterator it = this->getExtensionContainerPtr()->extensionBegin();
     for (; it != this->getExtensionContainerPtr()->extensionEnd(); ++it) {
         // The PyTypeObject is shared by all instances of this type and therefore
         // we have to add new methods only once.
         PyObject* obj = (*it).second->getExtensionPyObject();
-        PyObject *nameobj = PyUnicode_FromString(attr);
+        PyObject* nameobj = PyUnicode_FromString(attr);
         func = PyObject_GenericGetAttr(obj, nameobj);
         Py_DECREF(nameobj);
         Py_DECREF(obj);
@@ -153,33 +159,36 @@ PyObject *ExtensionContainerPy::getCustomAttributes(const char* attr) const
             PyCFunctionObject* cfunc = reinterpret_cast<PyCFunctionObject*>(func);
 
             // OK, that's what we wanted
-            if (cfunc->m_self == obj)
+            if (cfunc->m_self == obj) {
                 break;
+            }
             // otherwise cleanup the result again
             Py_DECREF(func);
             func = nullptr;
         }
-        PyErr_Clear(); // clear the error set inside Py_FindMethod
+        PyErr_Clear();  // clear the error set inside Py_FindMethod
     }
 
     return func;
 }
 
-int ExtensionContainerPy::setCustomAttributes(const char* /*attr*/, PyObject * /*obj*/)
+int ExtensionContainerPy::setCustomAttributes(const char* /*attr*/, PyObject* /*obj*/)
 {
     return 0;
 }
 
-PyObject* ExtensionContainerPy::hasExtension(PyObject *args) {
+PyObject* ExtensionContainerPy::hasExtension(PyObject* args) const
+{
 
-    char *type;
-    PyObject *deriv = Py_True;
-    if (!PyArg_ParseTuple(args, "s|O!", &type, &PyBool_Type, &deriv))
+    char* type;
+    PyObject* deriv = Py_True;
+    if (!PyArg_ParseTuple(args, "s|O!", &type, &PyBool_Type, &deriv)) {
         return nullptr;
+    }
 
-    //get the extension type asked for
+    // get the extension type asked for
     bool derived = Base::asBoolean(deriv);
-    Base::Type extension =  Base::Type::fromName(type);
+    Base::Type extension = Base::Type::fromName(type);
     if (extension.isBad() || !extension.isDerivedFrom(App::Extension::getExtensionClassTypeId())) {
         std::stringstream str;
         str << "No extension found of type '" << type << "'" << std::ends;
@@ -194,30 +203,40 @@ PyObject* ExtensionContainerPy::hasExtension(PyObject *args) {
     return PyBool_FromLong(val ? 1 : 0);
 }
 
-PyObject* ExtensionContainerPy::addExtension(PyObject *args) {
+PyObject* ExtensionContainerPy::addExtension(PyObject* args)
+{
 
-    char *typeId;
+    char* typeId;
     PyObject* proxy = nullptr;
-    if (!PyArg_ParseTuple(args, "s|O", &typeId, &proxy))
+    if (!PyArg_ParseTuple(args, "s|O", &typeId, &proxy)) {
         return nullptr;
-
-    if (proxy) {
-        PyErr_SetString(PyExc_DeprecationWarning, "Second argument is deprecated. It is ignored and will be removed in future versions. "
-                                                  "The default Python feature proxy is used for extension method overrides.");
-        PyErr_Print();
     }
 
-    //get the extension type asked for
-    Base::Type extension =  Base::Type::fromName(typeId);
+    if (proxy) {
+        if (!Base::warnDeprecatedPythonApi(
+                "Argument",
+                "App.ExtensionContainer.addExtension(proxy)",
+                Base::PythonApiDeprecation{
+                    .deprecatedIn = "26.3",
+                    .removedIn = "27.2",
+                    .details = "The second argument is ignored. The default Python feature proxy "
+                               "is used for extension method overrides.",
+                })) {
+            return nullptr;
+        }
+    }
+
+    // get the extension type asked for
+    Base::Type extension = Base::Type::fromName(typeId);
     if (extension.isBad() || !extension.isDerivedFrom(App::Extension::getExtensionClassTypeId())) {
         std::stringstream str;
         str << "No extension found of type '" << typeId << "'" << std::ends;
         throw Py::TypeError(str.str());
     }
 
-    //register the extension
+    // register the extension
     App::Extension* ext = static_cast<App::Extension*>(extension.createInstance());
-    //check if this really is a python extension!
+    // check if this really is a python extension!
     if (!ext->isPythonExtension()) {
         delete ext;
         std::stringstream str;
@@ -232,8 +251,8 @@ PyObject* ExtensionContainerPy::addExtension(PyObject *args) {
     // we have to add new methods only once.
     PyObject* obj = ext->getExtensionPyObject();
     PyMethodDef* meth = obj->ob_type->tp_methods;
-    PyTypeObject *type = this->ob_type;
-    PyObject *dict = type->tp_dict;
+    PyTypeObject* type = this->ob_type;
+    PyObject* dict = type->tp_dict;
 
     // make sure to do the initialization only once
     if (meth->ml_name) {
@@ -244,12 +263,14 @@ PyObject* ExtensionContainerPy::addExtension(PyObject *args) {
             // to an instance
             Py_INCREF(dict);
             while (meth->ml_name) {
-                PyObject *func;
+                PyObject* func;
                 func = PyCFunction_New(meth, 0);
-                if (!func)
+                if (!func) {
                     break;
-                if (PyDict_SetItemString(dict, meth->ml_name, func) < 0)
+                }
+                if (PyDict_SetItemString(dict, meth->ml_name, func) < 0) {
                     break;
+                }
                 Py_DECREF(func);
                 ++meth;
             }
@@ -259,8 +280,8 @@ PyObject* ExtensionContainerPy::addExtension(PyObject *args) {
     }
 
     Py_DECREF(obj);
-    
-    //throw the appropriate event
+
+    // throw the appropriate event
     GetApplication().signalAddedDynamicExtension(*getExtensionContainerPtr(), typeId);
 
     Py_Return;

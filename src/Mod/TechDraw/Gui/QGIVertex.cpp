@@ -1,5 +1,8 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Luke Parry <l.parry@warwick.ac.uk>                 *
+ *   Copyright (c) 2024 Benjamin Bræstrup Sayoc <benj5378@outlook.com>     *
  *                                                                         *
  *   This file is part of the FreeCAD CAx development system.              *
  *                                                                         *
@@ -20,14 +23,13 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 # include <cassert>
 
 # include <QPainter>
 # include <QPainterPath>
 # include <QStyleOptionGraphicsItem>
-#endif
+
+#include <Base/Tools2D.h>
 
 #include "QGIVertex.h"
 #include "PreferencesGui.h"
@@ -46,7 +48,7 @@ QGIVertex::QGIVertex(int index) :
     setRadius(m_radius);
 }
 
-void QGIVertex::setRadius(float r)
+void QGIVertex::setRadius(double r)
 {
     m_radius = r;
     QPainterPath p;
@@ -66,4 +68,17 @@ void QGIVertex::paint(QPainter *painter, const QStyleOptionGraphicsItem *option,
 //    m_brush.setStyle(m_fill);
 //    setBrush(m_brush);
     QGIPrimPath::paint (painter, &myOption, widget);
+}
+
+Base::Vector2d QGIVertex::toVector2d() const
+{
+    QPointF center = boundingRect().center();
+    center = mapToScene(center);
+    return Base::Vector2d(center.x(), center.y());
+}
+
+//! Returns a vector drawn from own position to p2
+Base::Vector2d QGIVertex::vector2dBetweenPoints(const QGIVertex* p2) const
+{
+    return p2->toVector2d() - toVector2d();
 }

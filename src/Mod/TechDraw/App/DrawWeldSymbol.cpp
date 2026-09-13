@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2019 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <App/Document.h>
 #include <App/DocumentObject.h>
@@ -62,11 +63,11 @@ DrawWeldSymbol::DrawWeldSymbol()
 //but if this is a restore of an existing DWS, the tiles will loaded elsewhere
 void DrawWeldSymbol::onSettingDocument()
 {
-//    Base::Console().Message("DWS::onSettingDocument() - doc: %s\n", getDocument()->getName());
+//    Base::Console().message("DWS::onSettingDocument() - doc: %s\n", getDocument()->getName());
     App::Document* doc = getDocument();
 
     if (doc->testStatus(App::Document::Status::Restoring)) {
-//        Base::Console().Message("DWS::onSettingDocument() - restoring!\n");
+//        Base::Console().message("DWS::onSettingDocument() - restoring!\n");
         return;
     }
 
@@ -77,7 +78,7 @@ void DrawWeldSymbol::onSettingDocument()
 
     std::string tileName1 = doc->getUniqueObjectName("TileWeld");
     auto tile1Obj( doc->addObject( "TechDraw::DrawTileWeld", tileName1.c_str() ) );
-    DrawTileWeld* tile1 = dynamic_cast<DrawTileWeld*>(tile1Obj);
+    DrawTileWeld* tile1 = freecad_cast<DrawTileWeld*>(tile1Obj);
     if (tile1) {
         tile1->Label.setValue(DrawUtil::translateArbitrary("DrawTileWeld",  "TileWeld",  tileName1));
         tile1->TileParent.setValue(this);
@@ -85,7 +86,7 @@ void DrawWeldSymbol::onSettingDocument()
 
     std::string tileName2 = doc->getUniqueObjectName("TileWeld");
     auto tile2Obj( doc->addObject( "TechDraw::DrawTileWeld", tileName2.c_str() ) );
-    DrawTileWeld* tile2 = dynamic_cast<DrawTileWeld*>(tile2Obj);
+    DrawTileWeld* tile2 = freecad_cast<DrawTileWeld*>(tile2Obj);
     if (tile2) {
         tile2->Label.setValue(DrawUtil::translateArbitrary("DrawTileWeld",  "TileWeld",  tileName2));
         tile2->TileParent.setValue(this);
@@ -98,6 +99,12 @@ void DrawWeldSymbol::onSettingDocument()
 void DrawWeldSymbol::onChanged(const App::Property* prop)
 {
     DrawView::onChanged(prop);
+
+    // If leader was switched, our coordinates were adjusted, but we want to stick to the new leader line
+    if (prop == &Leader && Leader.getValue()) {
+        X.setValue(0.0);
+        Y.setValue(0.0);
+    }
 }
 
 short DrawWeldSymbol::mustExecute() const
@@ -107,7 +114,7 @@ short DrawWeldSymbol::mustExecute() const
 
 App::DocumentObjectExecReturn *DrawWeldSymbol::execute()
 {
-//    Base::Console().Message("DWS::execute()\n");
+//    Base::Console().message("DWS::execute()\n");
     if (!keepUpdated()) {
         return DrawView::execute();
     }
@@ -118,7 +125,7 @@ App::DocumentObjectExecReturn *DrawWeldSymbol::execute()
 
 std::vector<DrawTileWeld*> DrawWeldSymbol::getTiles() const
 {
-//    Base::Console().Message("DWS::getTiles()\n");
+//    Base::Console().message("DWS::getTiles()\n");
     std::vector<DrawTileWeld*> result;
 
     std::vector<App::DocumentObject*> tiles = getInList();

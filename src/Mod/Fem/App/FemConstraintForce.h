@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Jan Rheinländer                                    *
  *                                   <jrheinlaender@users.sourceforge.net> *
@@ -21,8 +23,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef FEM_CONSTRAINTFORCE_H
-#define FEM_CONSTRAINTFORCE_H
+#pragma once
 
 #include "FemConstraint.h"
 
@@ -38,11 +39,11 @@ public:
     /// Constructor
     ConstraintForce();
 
+    App::PropertyBool EnableAmplitude;
+    App::PropertyStringList AmplitudeValues;
     App::PropertyForce Force;
     App::PropertyLinkSub Direction;
     App::PropertyBool Reversed;
-    // Read-only (calculated values). These trigger changes in the ViewProvider
-    App::PropertyVectorList Points;
     App::PropertyVector DirectionVector;
 
     /// recalculate the object
@@ -55,16 +56,16 @@ public:
     }
 
 protected:
-    void handleChangedPropertyType(Base::XMLReader& reader,
-                                   const char* TypeName,
-                                   App::Property* prop) override;
+    void handleChangedPropertyType(
+        Base::XMLReader& reader,
+        const char* TypeName,
+        App::Property* prop
+    ) override;
     void onChanged(const App::Property* prop) override;
+    void slotChangedObject(const App::DocumentObject& Obj, const App::Property& Prop) override;
 
 private:
     Base::Vector3d naturalDirectionVector;
 };
 
 }  // namespace Fem
-
-
-#endif  // FEM_CONSTRAINTFORCE_H

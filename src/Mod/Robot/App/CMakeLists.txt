@@ -1,16 +1,22 @@
-include_directories(
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
+add_library(Robot SHARED)
+
+target_include_directories(
+    Robot
+    PRIVATE
     ${CMAKE_BINARY_DIR}
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_BINARY_DIR}/src
     ${CMAKE_CURRENT_BINARY_DIR}
-    ${Boost_INCLUDE_DIRS}
-    ${OCC_INCLUDE_DIR}
-    ${EIGEN3_INCLUDE_DIR}
-    ${PYTHON_INCLUDE_DIRS}
-    ${ZLIB_INCLUDE_DIR}
-    ${XercesC_INCLUDE_DIRS}
 )
-link_directories(${OCC_LIBRARY_DIR})
+
+target_include_directories(
+    Robot
+    SYSTEM
+    PUBLIC
+    ${EIGEN3_INCLUDE_DIR}
+)
 
 set(Robot_LIBS
     Part
@@ -18,26 +24,26 @@ set(Robot_LIBS
     FreeCADApp
 )
 
-generate_from_xml(Robot6AxisPy)
-generate_from_xml(TrajectoryPy)
-generate_from_xml(WaypointPy)
-generate_from_xml(RobotObjectPy)
+generate_from_py(Robot6Axis)
+generate_from_py(Trajectory)
+generate_from_py(Waypoint)
+generate_from_py(RobotObject)
+
 
 
 SET(Python_SRCS
-    Robot6AxisPy.xml
+    Robot6Axis.pyi
     Robot6AxisPyImp.cpp
-    TrajectoryPy.xml
+    Trajectory.pyi
     TrajectoryPyImp.cpp
-    RobotObjectPy.xml
+    RobotObject.pyi
     RobotObjectPyImp.cpp
-    WaypointPy.xml
+    Waypoint.pyi
     WaypointPyImp.cpp
 )
 
 SET(Mod_SRCS
     AppRobot.cpp
-    PreCompiled.cpp
     PreCompiled.h
 )
 
@@ -69,9 +75,9 @@ SET(Robot_SRCS
 )
 
 if(FREECAD_USE_PCH)
-    add_definitions(-D_PreComp_)
-    GET_MSVC_PRECOMPILED_SOURCE("PreCompiled.cpp" PCH_SRCS ${Robot_SRCS})
-    ADD_MSVC_PRECOMPILED_HEADER(Robot PreCompiled.h PreCompiled.cpp PCH_SRCS)
+    target_precompile_headers(Robot PRIVATE
+            $<$<COMPILE_LANGUAGE:CXX>:"${CMAKE_CURRENT_LIST_DIR}/PreCompiled.h">
+    )
 endif(FREECAD_USE_PCH)
 
 # FIXME: The bundled KDL has some extensions which makes it incompatible
@@ -121,8 +127,9 @@ endif(FREECAD_USE_PCH)
 SOURCE_GROUP("Python" FILES ${Python_SRCS})
 SOURCE_GROUP("Module" FILES ${Mod_SRCS})
 
-add_library(Robot SHARED ${Robot_SRCS})
+target_sources(Robot PRIVATE ${Robot_SRCS})
 target_link_libraries(Robot ${Robot_LIBS})
+target_compile_warn_error(Robot)
 
 unset(_flag_found CACHE)
 check_cxx_compiler_flag("-Wno-deprecated-copy" _flag_found)
@@ -134,7 +141,7 @@ if(MINGW)
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--export-all-symbols")
 endif()
 
-SET_BIN_DIR(Robot Robot /Mod/Robot)
+SET_BIN_DIR(Robot)
 SET_PYTHON_PREFIX_SUFFIX(Robot)
 
 INSTALL(TARGETS Robot DESTINATION ${CMAKE_INSTALL_LIBDIR})

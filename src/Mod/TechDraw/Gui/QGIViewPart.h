@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Luke Parry <l.parry@warwick.ac.uk>                 *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_QGRAPHICSITEMVIEWPART_H
-#define DRAWINGGUI_QGRAPHICSITEMVIEWPART_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
@@ -32,7 +33,13 @@
 #include <QStyleOptionGraphicsItem>
 
 #include "QGIView.h"
+#include "QGIUserTypes.h"
 
+class QColor;
+
+namespace App {
+class Color;
+}
 
 namespace TechDraw {
 class DrawViewPart;
@@ -58,17 +65,17 @@ public:
     explicit QGIViewPart();
     ~QGIViewPart() override;
 
-    enum {Type = QGraphicsItem::UserType + 102};
+    enum {Type = UserType::QGIViewPart};
     int type() const override { return Type;}
     void paint( QPainter * painter,
                         const QStyleOptionGraphicsItem * option,
                         QWidget * widget = nullptr ) override;
 
-
     void toggleCache(bool state) override;
     void toggleCosmeticLines(bool state);
     void setViewPartFeature(TechDraw::DrawViewPart *obj);
     void updateView(bool update = false) override;
+    void updateFrameVisibility() override;
     void tidy();
     QRectF boundingRect() const override;
 
@@ -85,6 +92,7 @@ public:
     virtual void drawAllHighlights();
     virtual void drawHighlight(TechDraw::DrawViewDetail* viewDetail, bool b);
     virtual void drawMatting();
+    virtual void drawBreakLines();
     bool showSection;
 
     void draw() override;
@@ -109,18 +117,32 @@ public:
                                      double x, double y,
                                      double curx, double cury);
 
+    void addToGroupWithoutUpdate(QGraphicsItem* item);
     bool getGroupSelection() override;
     void setGroupSelection(bool isSelected) override;
     void setGroupSelection(bool isSelected, const std::vector<std::string> &subNames) override;
 
     virtual QGraphicsItem *getQGISubItemByName(const std::string &subName) const;
 
+    virtual bool removeSelectedCosmetic() const;
+
+    virtual double getLineWidth();
+    virtual double getVertexSize();
+
+    bool hideCenterMarks() const;
+
+    void setMovableFlag() override;
+    void setMovableFlagProjGroupItem();
+
 protected:
+    bool sceneEventFilter(QGraphicsItem *watched, QEvent *event) override;
     QPainterPath drawPainterPath(TechDraw::BaseGeomPtr baseGeom) const;
     void drawViewPart();
     QGIFace* drawFace(TechDraw::FacePtr f, int idx);
 
     QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
+    void hoverEnterEvent(QGraphicsSceneHoverEvent* event) override;
+    void hoverLeaveEvent(QGraphicsSceneHoverEvent* event) override;
 
     TechDraw::DrawHatch* faceIsHatched(int i, std::vector<TechDraw::DrawHatch*> hatchObjs) const;
     TechDraw::DrawGeomHatch* faceIsGeomHatched(int i, std::vector<TechDraw::DrawGeomHatch*> geomObjs) const;
@@ -128,21 +150,20 @@ protected:
     void removePrimitives();
     void removeDecorations();
     bool prefFaceEdges();
-    bool prefPrintCenters();
+    Base::Color prefBreaklineColor();
 
     bool formatGeomFromCosmetic(std::string cTag, QGIEdge* item);
     bool formatGeomFromCenterLine(std::string cTag, QGIEdge* item);
 
-    bool showCenterMarks();
-    bool showVertices();
+    bool showCenterMarks() const;
+    bool showVertices() const;
 
 private:
     QList<QGraphicsItem*> deleteItems;
     PathBuilder* m_pathBuilder;
     TechDraw::LineGenerator* m_dashedLineGenerator;
+    QMetaObject::Connection m_selectionChangedConnection;
 
 };
 
 } // namespace
-
-#endif // DRAWINGGUI_QGRAPHICSITEMVIEWPART_H

@@ -2,65 +2,146 @@
 # source:
 # - any: ['src/**/*', '!src/docs/*']
 
-Core:
-- 'src/App/**/*'
-- 'src/Base/**/*'
-- 'src/Gui/**/*'
+# 'Mod' related labels
+
+"Mod: Core":
+- changed-files:
+  - any-glob-to-any-file: ['src/App/**/*', 'src/Base/**/*', 'src/Gui/**/*']
 
 :octocat::
-- '.github/**/*'
+- changed-files:
+  - any-glob-to-any-file:  ['.github/**/*']
 
-Addon Manager:
-- 'src/Mod/AddonManager/**/*'
+"Mod: Addon Manager":
+- changed-files:
+  - any-glob-to-any-file:  ['src/Mod/AddonManager/**/*']
 
-WB Arch:
-- 'src/Mod/Arch/**/*'
+"Mod: Materials":
+- changed-files:
+  - any-glob-to-any-file:  ['src/Mod/Material/**/*']
 
-WB Assembly:
-- 'src/Mod/Assembly/**/*'
+"Mod: Measurement":
+- changed-files:
+  - any-glob-to-any-file:  ['src/Mod/Measure/**/*']
 
-WB Draft:
-- 'src/Mod/Draft/**/*'
+"Mod: BIM":
+- changed-files:
+  - any-glob-to-any-file:  ['src/Mod/BIM/**/*']
 
-WB FEM:
-- 'src/Mod/Fem/**/*'
+"Mod: Assembly":
+- changed-files:
+  - any-glob-to-any-file:  ['src/Mod/Assembly/**/*']
 
-WB Mesh:
-- 'src/Mod/Mesh/**/*'
+"Mod: Draft":
+- changed-files:
+  - any-glob-to-any-file:  ['src/Mod/Draft/**/*']
 
-WB MeshPart:
-- 'src/Mod/MeshPart/**/*'
+"Mod: FEM":
+- changed-files:
+  - any-glob-to-any-file:  ['src/Mod/Fem/**/*']
 
-WB OpenSCAD:
-- 'src/Mod/OpenSCAD/**/*'
+"Mod: Inspection":
+- changed-files:
+  - any-glob-to-any-file:  ['src/Mod/Inspection/**/*']
 
-WB Part:
-- 'src/Mod/Part/**/*'
+"Mod: Mesh":
+- changed-files:
+  - any-glob-to-any-file: ['src/Mod/Mesh/**/*']
 
-WB PartDesign:
-- 'src/Mod/PartDesign/**/*'
+"Mod: MeshPart":
+- changed-files:
+  - any-glob-to-any-file:  ['src/Mod/MeshPart/**/*']
 
-WB Path:
-- 'src/Mod/Path/**/*'
+"Mod: OpenSCAD":
+- changed-files:
+  - any-glob-to-any-file:  ['src/Mod/OpenSCAD/**/*']
 
-WB Points:
-- 'src/Mod/Points/**/*'
+"Mod: Part":
+- changed-files:
+  - any-glob-to-any-file:  ['src/Mod/Part/**/*']
 
-WB ReverseEngineering:
-- 'src/Mod/ReverseEngineering/**/*'
+"Mod: Part Design":
+- changed-files:
+  - any-glob-to-any-file:  ['src/Mod/PartDesign/**/*']
 
-WB Sketcher:
-- 'src/Mod/Sketcher/**/*'
+"Mod: CAM":
+- changed-files:
+  - any-glob-to-any-file:  ['src/Mod/CAM/**/*']
 
-WB Spreadsheet:
-- 'src/Mod/Spreadsheet/**/*'
+"Mod: Points":
+- changed-files:
+  - any-glob-to-any-file:  ['src/Mod/Points/**/*']
 
-WB Surface:
-- 'src/Mod/Surface/**/*/'
+"Mod: Reverse Engineering":
+- changed-files:
+  - any-glob-to-any-file:  ['src/Mod/ReverseEngineering/**/*']
 
-WB TechDraw:
-- 'src/Mod/TechDraw/**/*'
+"Mod: Sketcher":
+- changed-files:
+  - any-glob-to-any-file:  ['src/Mod/Sketcher/**/*']
 
-WB Test:
-- 'src/Mod/Test/**/*'
+"Mod: Spreadsheet":
+- changed-files:
+  - any-glob-to-any-file:  ['src/Mod/Spreadsheet/**/*']
 
+"Mod: Start":
+- changed-files:
+  - any-glob-to-any-file:  ['src/Mod/Start/**/*']
+
+"Mod: Surface":
+- changed-files:
+  - any-glob-to-any-file:  ['src/Mod/Surface/**/*']
+
+"Mod: TechDraw":
+- changed-files:
+  - any-glob-to-any-file:  ['src/Mod/TechDraw/**/*']
+
+"Mod: Test":
+- changed-files:
+  - any-glob-to-any-file:  ['src/Mod/Test/**/*']
+
+"Mod: Import":
+- changed-files:
+  - any-glob-to-any-file:  ['src/Mod/Import/**/*']
+
+"Mod: Robot":
+- changed-files:
+  - any-glob-to-any-file:  ['src/Mod/Robot/**/*']
+
+"Mod: Show":
+- changed-files:
+  - any-glob-to-any-file:  ['src/Mod/Show/**/*']
+
+"Mod: Web":
+- changed-files:
+  - any-glob-to-any-file:  ['src/Mod/Web/**/*']
+
+"Mod: Help":
+- changed-files:
+  - any-glob-to-any-file:  ['src/Mod/Help/**/*']
+
+# 'Packaging' related labels
+
+"Packaging/building":
+- changed-files:
+  - any-glob-to-any-file:  ['cMake/**/*']
+
+"3rd party component":
+- changed-files:
+  - any-glob-to-any-file:  ['src/3rdParty/**/*']
+
+# 'Language' related labels
+
+"Language: C++":
+- changed-files:
+  - any-glob-to-any-file: ['**/*.cpp', '**/*.cxx', '**/*.cc', '**/*.h', '**/*.hpp', '**/*.hxx']
+
+"Language: Python":
+- changed-files:
+  - any-glob-to-any-file: ['**/*.py']
+
+# 'Topic' related labels
+
+"Topic: Stylesheets":
+- changed-files:
+  - any-glob-to-any-file:  ['src/Gui/Stylesheets/**/*']

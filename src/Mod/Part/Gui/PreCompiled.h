@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2002 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,36 +22,24 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef PARTGUI_PRECOMPILED_H
-#define PARTGUI_PRECOMPILED_H
+#pragma once
 
 #include <FCConfig.h>
 
 #include <Mod/Part/PartGlobal.h>
 
-// point at which warnings of overly long specifiers disabled (needed for VC6)
-#ifdef _MSC_VER
-# pragma warning( disable : 4251 )
-# pragma warning( disable : 4503 )
-# pragma warning( disable : 4786 )  // specifier longer then 255 chars
-# pragma warning( disable : 4273 )
-#endif
 
 #ifdef FC_OS_WIN32
-# ifndef NOMINMAX
-#  define NOMINMAX
-# endif
 # include <windows.h>
 #endif
 
-#ifdef _PreComp_
 
 // standard
-#include <cfloat>
 #include <cmath>
 
 // STL
 #include <algorithm>
+#include <limits>
 #include <map>
 #include <sstream>
 #include <string>
@@ -62,13 +52,8 @@
 #include <boost/regex.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 
-// Qt Toolkit
-#ifndef __QtAll__
-# include <Gui/QtAll.h>
-#endif
-
 // GL
-// Include glext before InventorAll
+// Include glext before QtAll/InventorAll
 #ifdef FC_OS_WIN32
 # include <GL/gl.h>
 # include <GL/glext.h>
@@ -82,16 +67,13 @@
 #  endif
 #  include <GL/gl.h>
 #  include <GL/glext.h>
-# endif //FC_OS_MACOSX
-#endif //FC_OS_WIN32
+# endif  // FC_OS_MACOSX
+#endif   // FC_OS_WIN32
 // Should come after glext.h to avoid warnings
 #include <Inventor/C/glue/gl.h>
 
+// Qt Toolkit
+#include <Gui/QtAll.h>
+
 // Inventor includes OpenGL
-#ifndef __InventorAll__
-# include <Gui/InventorAll.h>
-#endif
-
-#endif  //_PreComp_
-
-#endif // PARTGUI_PRECOMPILED_H
+#include <Gui/InventorAll.h>

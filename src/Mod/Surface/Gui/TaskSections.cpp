@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2017 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,8 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <QAction>
 #include <QMenu>
 #include <QMessageBox>
@@ -29,18 +29,20 @@
 
 #include <TopExp.hxx>
 #include <TopTools_IndexedMapOfShape.hxx>
-#endif
 
 #include <App/Document.h>
+#include <Base/Tools.h>
 #include <Gui/Application.h>
 #include <Gui/BitmapFactory.h>
 #include <Gui/Command.h>
 #include <Gui/Control.h>
-#include <Gui/SelectionObject.h>
+#include <Gui/Selection/SelectionObject.h>
+#include <Gui/Tools.h>
 #include <Gui/Widgets.h>
 #include <Mod/Part/Gui/ViewProvider.h>
 
 #include "TaskSections.h"
+
 #include "ui_TaskSections.h"
 
 
@@ -54,7 +56,7 @@ namespace SurfaceGui
 void ViewProviderSections::setupContextMenu(QMenu* menu, QObject* receiver, const char* member)
 {
     QAction* act;
-    act = menu->addAction(QObject::tr("Edit sections"), receiver, member);
+    act = menu->addAction(QObject::tr("Edit Sections"), receiver, member);
     act->setData(QVariant((int)ViewProvider::Default));
     PartGui::ViewProviderSpline::setupContextMenu(menu, receiver, member);
 }
@@ -66,7 +68,7 @@ bool ViewProviderSections::setEdit(int ModNum)
         // object unsets and sets its edit mode without closing
         // the task panel
 
-        Surface::Sections* obj = static_cast<Surface::Sections*>(this->getObject());
+        Surface::Sections* obj = this->getObject<Surface::Sections>();
 
         Gui::TaskView::TaskDialog* dlg = Gui::Control().activeDialog();
 
@@ -92,7 +94,7 @@ void ViewProviderSections::unsetEdit(int ModNum)
 {
     if (ModNum == ViewProvider::Default) {
         // when pressing ESC make sure to close the dialog
-        QTimer::singleShot(0, &Gui::Control(), &Gui::ControlSingleton::closeDialog);
+        QTimer::singleShot(0, [] { Gui::Control().closeDialog(nullptr); });
     }
     else {
         PartGui::ViewProviderSpline::unsetEdit(ModNum);
@@ -110,12 +112,13 @@ void ViewProviderSections::highlightReferences(ShapeType type, const References&
         Part::Feature* base = dynamic_cast<Part::Feature*>(it.first);
         if (base) {
             PartGui::ViewProviderPartExt* svp = dynamic_cast<PartGui::ViewProviderPartExt*>(
-                Gui::Application::Instance->getViewProvider(base));
+                Gui::Application::Instance->getViewProvider(base)
+            );
             if (svp) {
                 switch (type) {
                     case ViewProviderSections::Vertex:
                         if (on) {
-                            std::vector<App::Color> colors;
+                            std::vector<Base::Color> colors;
                             TopTools_IndexedMapOfShape vMap;
                             TopExp::MapShapes(base->Shape.getValue(), TopAbs_VERTEX, vMap);
                             colors.resize(vMap.Extent(), svp->PointColor.getValue());
@@ -123,10 +126,9 @@ void ViewProviderSections::highlightReferences(ShapeType type, const References&
                             for (const auto& jt : it.second) {
                                 // check again that the index is in range because it's possible that
                                 // the sub-names are invalid
-                                std::size_t idx =
-                                    static_cast<std::size_t>(std::stoi(jt.substr(6)) - 1);
+                                std::size_t idx = static_cast<std::size_t>(std::stoi(jt.substr(6)) - 1);
                                 if (idx < colors.size()) {
-                                    colors[idx] = App::Color(1.0, 0.0, 1.0);  // magenta
+                                    colors[idx] = Base::Color(1.0, 0.0, 1.0);  // magenta
                                 }
                             }
 
@@ -138,18 +140,17 @@ void ViewProviderSections::highlightReferences(ShapeType type, const References&
                         break;
                     case ViewProviderSections::Edge:
                         if (on) {
-                            std::vector<App::Color> colors;
+                            std::vector<Base::Color> colors;
                             TopTools_IndexedMapOfShape eMap;
                             TopExp::MapShapes(base->Shape.getValue(), TopAbs_EDGE, eMap);
                             colors.resize(eMap.Extent(), svp->LineColor.getValue());
 
                             for (const auto& jt : it.second) {
-                                std::size_t idx =
-                                    static_cast<std::size_t>(std::stoi(jt.substr(4)) - 1);
+                                std::size_t idx = static_cast<std::size_t>(std::stoi(jt.substr(4)) - 1);
                                 // check again that the index is in range because it's possible that
                                 // the sub-names are invalid
                                 if (idx < colors.size()) {
-                                    colors[idx] = App::Color(1.0, 0.0, 1.0);  // magenta
+                                    colors[idx] = Base::Color(1.0, 0.0, 1.0);  // magenta
                                 }
                             }
 
@@ -161,22 +162,22 @@ void ViewProviderSections::highlightReferences(ShapeType type, const References&
                         break;
                     case ViewProviderSections::Face:
                         if (on) {
-                            std::vector<App::Color> colors;
+                            std::vector<App::Material> materials;
                             TopTools_IndexedMapOfShape fMap;
                             TopExp::MapShapes(base->Shape.getValue(), TopAbs_FACE, fMap);
-                            colors.resize(fMap.Extent(), svp->ShapeColor.getValue());
+                            materials.resize(fMap.Extent(), svp->ShapeAppearance[0]);
 
                             for (const auto& jt : it.second) {
-                                std::size_t idx =
-                                    static_cast<std::size_t>(std::stoi(jt.substr(4)) - 1);
+                                std::size_t idx = static_cast<std::size_t>(std::stoi(jt.substr(4)) - 1);
                                 // check again that the index is in range because it's possible that
                                 // the sub-names are invalid
-                                if (idx < colors.size()) {
-                                    colors[idx] = App::Color(1.0, 0.0, 1.0);  // magenta
+                                if (idx < materials.size()) {
+                                    // magenta
+                                    materials[idx].diffuseColor = Base::Color(1.0, 0.0, 1.0);
                                 }
                             }
 
-                            svp->setHighlightedFaces(colors);
+                            svp->setHighlightedFaces(materials);
                         }
                         else {
                             svp->unsetHighlightedFaces();
@@ -193,15 +194,13 @@ void ViewProviderSections::highlightReferences(ShapeType type, const References&
 class SectionsPanel::ShapeSelection: public Gui::SelectionFilterGate
 {
 public:
-    ShapeSelection(SectionsPanel::SelectionMode& mode, Surface::Sections* editedObject)
+    ShapeSelection(SectionsPanel::SelectionMode mode, Surface::Sections* editedObject)
         : Gui::SelectionFilterGate(nullPointer())
         , mode(mode)
         , editedObject(editedObject)
     {}
     ~ShapeSelection() override
-    {
-        mode = SectionsPanel::None;
-    }
+    {}
     /**
      * Allow the user to pick only edges.
      */
@@ -211,11 +210,11 @@ public:
         if (pObj == editedObject) {
             return false;
         }
-        if (!pObj->isDerivedFrom(Part::Feature::getClassTypeId())) {
+        if (!pObj->isDerivedFrom<Part::Feature>()) {
             return false;
         }
 
-        if (!sSubName || sSubName[0] == '\0') {
+        if (Base::Tools::isNullOrEmpty(sSubName)) {
             return false;
         }
 
@@ -252,7 +251,7 @@ private:
     }
 
 private:
-    SectionsPanel::SelectionMode& mode;
+    SectionsPanel::SelectionMode mode;
     Surface::Sections* editedObject;
 };
 
@@ -278,15 +277,13 @@ SectionsPanel::SectionsPanel(ViewProviderSections* vp, Surface::Sections* obj)
 
     // Create context menu
     QAction* action = new QAction(tr("Remove"), this);
-    action->setShortcut(QKeySequence::Delete);
+    action->setShortcut(Gui::QtTools::deleteKeySequence());
+
     ui->listSections->addAction(action);
     connect(action, &QAction::triggered, this, &SectionsPanel::onDeleteEdge);
     ui->listSections->setContextMenuPolicy(Qt::ActionsContextMenu);
 
-    connect(ui->listSections->model(),
-            &QAbstractItemModel::rowsMoved,
-            this,
-            &SectionsPanel::onIndexesMoved);
+    connect(ui->listSections->model(), &QAbstractItemModel::rowsMoved, this, &SectionsPanel::onIndexesMoved);
 }
 
 /*
@@ -297,10 +294,7 @@ SectionsPanel::~SectionsPanel() = default;
 void SectionsPanel::setupConnections()
 {
     connect(ui->buttonEdgeAdd, &QToolButton::toggled, this, &SectionsPanel::onButtonEdgeAddToggled);
-    connect(ui->buttonEdgeRemove,
-            &QToolButton::toggled,
-            this,
-            &SectionsPanel::onButtonEdgeRemoveToggled);
+    connect(ui->buttonEdgeRemove, &QToolButton::toggled, this, &SectionsPanel::onButtonEdgeRemoveToggled);
 }
 
 // stores object pointer, its old fill type and adjusts radio buttons according to it.
@@ -321,8 +315,10 @@ void SectionsPanel::setEditedObject(Surface::Sections* fea)
         QListWidgetItem* item = new QListWidgetItem(ui->listSections);
         ui->listSections->addItem(item);
 
-        QString text = QString::fromLatin1("%1.%2").arg(QString::fromUtf8(obj->Label.getValue()),
-                                                        QString::fromStdString(edge));
+        QString text = QStringLiteral("%1.%2").arg(
+            QString::fromUtf8(obj->Label.getValue()),
+            QString::fromStdString(edge)
+        );
         item->setText(text);
 
         // The user data field of a list widget item
@@ -340,6 +336,12 @@ void SectionsPanel::setEditedObject(Surface::Sections* fea)
     // attach this document observer
     attachDocument(Gui::Application::Instance->getDocument(doc));
 }
+void SectionsPanel::setSelectionGate()
+{
+    if (selectionMode != None) {
+        Gui::Selection().addSelectionGate(new ShapeSelection(selectionMode, editedObject));
+    }
+}
 
 void SectionsPanel::changeEvent(QEvent* e)
 {
@@ -356,11 +358,18 @@ void SectionsPanel::open()
     checkOpenCommand();
 
     // highlight the boundary edges
-    this->vp->highlightReferences(ViewProviderSections::Edge,
-                                  editedObject->NSections.getSubListValues(),
-                                  true);
+    this->vp->highlightReferences(
+        ViewProviderSections::Edge,
+        editedObject->NSections.getSubListValues(),
+        true
+    );
 
     Gui::Selection().clearSelection();
+
+    // if the surface is not yet created then automatically start "AppendEdge" mode
+    if (editedObject->Shape.getShape().isNull()) {
+        ui->buttonEdgeAdd->setChecked(true);
+    }
 }
 
 void SectionsPanel::clearSelection()
@@ -370,10 +379,10 @@ void SectionsPanel::clearSelection()
 
 void SectionsPanel::checkOpenCommand()
 {
-    if (checkCommand && !Gui::Command::hasPendingCommand()) {
+    if (checkCommand && !editedObject->getDocument()->hasPendingTransaction()) {
         std::string Msg("Edit ");
         Msg += editedObject->Label.getValue();
-        Gui::Command::openCommand(Msg.c_str());
+        editedObject->getDocument()->openTransaction(Msg.c_str());
         checkCommand = false;
     }
 }
@@ -393,9 +402,11 @@ void SectionsPanel::slotDeletedObject(const Gui::ViewProviderDocumentObject& Obj
     // If this view provider is being deleted then reset the colors of
     // referenced part objects. The dialog will be deleted later.
     if (this->vp == &Obj) {
-        this->vp->highlightReferences(ViewProviderSections::Edge,
-                                      editedObject->NSections.getSubListValues(),
-                                      false);
+        this->vp->highlightReferences(
+            ViewProviderSections::Edge,
+            editedObject->NSections.getSubListValues(),
+            false
+        );
     }
 }
 
@@ -408,24 +419,30 @@ bool SectionsPanel::accept()
         editedObject->recomputeFeature();
     }
     if (!editedObject->isValid()) {
-        QMessageBox::warning(this,
-                             tr("Invalid object"),
-                             QString::fromLatin1(editedObject->getStatusString()));
+        QMessageBox::warning(
+            this,
+            tr("Invalid object"),
+            QString::fromLatin1(editedObject->getStatusString())
+        );
         return false;
     }
 
-    this->vp->highlightReferences(ViewProviderSections::Edge,
-                                  editedObject->NSections.getSubListValues(),
-                                  false);
+    this->vp->highlightReferences(
+        ViewProviderSections::Edge,
+        editedObject->NSections.getSubListValues(),
+        false
+    );
 
     return true;
 }
 
 bool SectionsPanel::reject()
 {
-    this->vp->highlightReferences(ViewProviderSections::Edge,
-                                  editedObject->NSections.getSubListValues(),
-                                  false);
+    this->vp->highlightReferences(
+        ViewProviderSections::Edge,
+        editedObject->NSections.getSubListValues(),
+        false
+    );
 
     selectionMode = None;
     Gui::Selection().rmvSelectionGate();
@@ -437,8 +454,7 @@ void SectionsPanel::onButtonEdgeAddToggled(bool checked)
 {
     if (checked) {
         selectionMode = AppendEdge;
-        // 'selectionMode' is passed by reference and changed when the filter is deleted
-        Gui::Selection().addSelectionGate(new ShapeSelection(selectionMode, editedObject));
+        setSelectionGate();
     }
     else if (selectionMode == AppendEdge) {
         exitSelectionMode();
@@ -449,8 +465,7 @@ void SectionsPanel::onButtonEdgeRemoveToggled(bool checked)
 {
     if (checked) {
         selectionMode = RemoveEdge;
-        // 'selectionMode' is passed by reference and changed when the filter is deleted
-        Gui::Selection().addSelectionGate(new ShapeSelection(selectionMode, editedObject));
+        setSelectionGate();
     }
     else if (selectionMode == RemoveEdge) {
         exitSelectionMode();
@@ -470,9 +485,10 @@ void SectionsPanel::onSelectionChanged(const Gui::SelectionChanges& msg)
             ui->listSections->addItem(item);
 
             Gui::SelectionObject sel(msg);
-            QString text = QString::fromLatin1("%1.%2").arg(
+            QString text = QStringLiteral("%1.%2").arg(
                 QString::fromUtf8(sel.getObject()->Label.getValue()),
-                QString::fromLatin1(msg.pSubName));
+                QString::fromLatin1(msg.pSubName)
+            );
             item->setText(text);
 
             QList<QVariant> data;
@@ -564,16 +580,20 @@ void SectionsPanel::appendCurve(App::DocumentObject* obj, const std::string& sub
     element.push_back(subname);
     editedObject->NSections.setValues(objects, element);
 
-    this->vp->highlightReferences(ViewProviderSections::Edge,
-                                  editedObject->NSections.getSubListValues(),
-                                  true);
+    this->vp->highlightReferences(
+        ViewProviderSections::Edge,
+        editedObject->NSections.getSubListValues(),
+        true
+    );
 }
 
 void SectionsPanel::removeCurve(App::DocumentObject* obj, const std::string& subname)
 {
-    this->vp->highlightReferences(ViewProviderSections::Edge,
-                                  editedObject->NSections.getSubListValues(),
-                                  false);
+    this->vp->highlightReferences(
+        ViewProviderSections::Edge,
+        editedObject->NSections.getSubListValues(),
+        false
+    );
 
     auto objects = editedObject->NSections.getValues();
     auto element = editedObject->NSections.getSubValues();
@@ -588,9 +608,11 @@ void SectionsPanel::removeCurve(App::DocumentObject* obj, const std::string& sub
             break;
         }
     }
-    this->vp->highlightReferences(ViewProviderSections::Edge,
-                                  editedObject->NSections.getSubListValues(),
-                                  true);
+    this->vp->highlightReferences(
+        ViewProviderSections::Edge,
+        editedObject->NSections.getSubListValues(),
+        true
+    );
 }
 
 void SectionsPanel::exitSelectionMode()
@@ -598,25 +620,25 @@ void SectionsPanel::exitSelectionMode()
     // 'selectionMode' is passed by reference to the filter and changed when the filter is deleted
     Gui::Selection().clearSelection();
     Gui::Selection().rmvSelectionGate();
+    selectionMode = None;
 }
 
 // ----------------------------------------------------------------------------
 
 TaskSections::TaskSections(ViewProviderSections* vp, Surface::Sections* obj)
+    : editedObj(obj)
 {
     // first task box
     widget1 = new SectionsPanel(vp, obj);
-    Gui::TaskView::TaskBox* taskbox1 =
-        new Gui::TaskView::TaskBox(Gui::BitmapFactory().pixmap("Surface_Sections"),
-                                   widget1->windowTitle(),
-                                   true,
-                                   nullptr);
-    taskbox1->groupLayout()->addWidget(widget1);
-    Content.push_back(taskbox1);
+    addTaskBox(Gui::BitmapFactory().pixmap("Surface_Sections"), widget1);
 }
 
 void TaskSections::setEditedObject(Surface::Sections* obj)
 {
+    if (editedObj != nullptr && obj != editedObj) {
+        editedObj->getDocument()->commitTransaction();
+    }
+    editedObj = obj;
     widget1->setEditedObject(obj);
 }
 
@@ -629,7 +651,7 @@ bool TaskSections::accept()
 {
     bool ok = widget1->accept();
     if (ok) {
-        Gui::Command::commitCommand();
+        editedObj->getDocument()->commitTransaction();
         Gui::Command::doCommand(Gui::Command::Gui, "Gui.ActiveDocument.resetEdit()");
         Gui::Command::updateActive();
     }
@@ -641,7 +663,7 @@ bool TaskSections::reject()
 {
     bool ok = widget1->reject();
     if (ok) {
-        Gui::Command::abortCommand();
+        editedObj->getDocument()->abortTransaction();
         Gui::Command::doCommand(Gui::Command::Gui, "Gui.ActiveDocument.resetEdit()");
         Gui::Command::updateActive();
     }

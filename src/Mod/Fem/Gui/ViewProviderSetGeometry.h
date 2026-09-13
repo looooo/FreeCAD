@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Jürgen Riegel <FreeCAD@juergen-riegel.net>         *
  *                                                                         *
@@ -21,8 +23,7 @@
  ***************************************************************************/
 
 
-#ifndef FEM_ViewProviderSetGeometry_H
-#define FEM_ViewProviderSetGeometry_H
+#pragma once
 
 #include <Gui/ViewProviderGeometryObject.h>
 
@@ -31,7 +32,7 @@ namespace FemGui
 
 class ViewProviderSetGeometry: public Gui::ViewProviderGeometryObject
 {
-    PROPERTY_HEADER_WITH_OVERRIDE(RobotGui::ViewProviderSetGeometry);
+    PROPERTY_HEADER_WITH_OVERRIDE(FemGui::ViewProviderSetGeometry);
 
 public:
     bool doubleClicked() override;
@@ -42,6 +43,3 @@ protected:
 };
 
 }  // namespace FemGui
-
-
-#endif  // FEM_ViewProviderSetGeometry_H

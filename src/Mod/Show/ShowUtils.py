@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # /***************************************************************************
 # *   Copyright (c) 2019 Victor Titov (DeepSOIC) <vv.titov@gmail.com>       *
 # *                                                                         *
@@ -23,7 +25,8 @@
 
 def is3DObject(obj):
     """is3DObject(obj): tests if the object has some 3d geometry.
-    TempoVis is made only for objects in 3d view, so all objects that don't pass this check are ignored by TempoVis."""
+    TempoVis is made only for objects in 3d view, so all objects that don't pass this check are ignored by TempoVis.
+    """
 
     # See "Gui Problem Sketcher and TechDraw" https://forum.freecad.org/viewtopic.php?f=3&t=22797
 

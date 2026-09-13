@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2004 Jürgen Riegel <juergen.riegel@web.de>              *
  *   Copyright (c) 2019 Wanderer Fan <wandererfan@gmail.com>               *
@@ -22,8 +24,7 @@
  ***************************************************************************/
 
 
-#ifndef DRAWINGGUI_VIEWPROVIDERLEADER_H
-#define DRAWINGGUI_VIEWPROVIDERLEADER_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
@@ -48,18 +49,18 @@ public:
     /// constructor
     ViewProviderLeader();
     /// destructor
-    ~ViewProviderLeader() override;
+    ~ViewProviderLeader() override = default;
 
     App::PropertyLength             LineWidth;
     App::PropertyEnumeration        LineStyle;
     App::PropertyColor              Color;
+    App::PropertyBool               UseOldCoords;
 
     bool useNewSelectionModel() const override {return false;}
-    void updateData(const App::Property*) override;
     void onChanged(const App::Property* p) override;
     bool setEdit(int ModNum) override;
     bool doubleClicked() override;
-    bool onDelete(const std::vector<std::string> &) override;
+    bool onDelete(const std::vector<std::string> &parameters) override;
     bool canDelete(App::DocumentObject* obj) const override;
 
     static const char* LineStyleEnums[];
@@ -71,7 +72,7 @@ public:
 
 protected:
     double getDefLineWeight();
-    App::Color getDefLineColor();
+    Base::Color getDefLineColor();
     void handleChangedPropertyType(Base::XMLReader &reader, const char *TypeName, App::Property * prop) override;
 
 private:
@@ -80,6 +81,3 @@ private:
 };
 
 } // namespace TechDrawGui
-
-
-#endif // DRAWINGGUI_VIEWPROVIDERLEADER_H

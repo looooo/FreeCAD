@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2022 Wanderer Fan <wandererfan@gmail.com>               *
  *                                                                         *
@@ -20,12 +22,10 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 # include <QApplication>
 # include <QGuiApplication>
 # include <QMouseEvent>
-#endif
+
 
 #include "QGVNavStyleMaya.h"
 #include "QGVPage.h"
@@ -118,7 +118,7 @@ void QGVNavStyleMaya::handleMouseReleaseEvent(QMouseEvent *event)
 
 bool QGVNavStyleMaya::allowContextMenu(QContextMenuEvent *event)
 {
-//    Base::Console().Message("QGVNSM::allowContextMenu()\n");
+//    Base::Console().message("QGVNSM::allowContextMenu()\n");
     if (event->reason() == QContextMenuEvent::Mouse) {
         //must check for a button combination involving context menu button
         if (QApplication::keyboardModifiers() == Qt::AltModifier) {

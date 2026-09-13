@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2014 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -21,14 +23,12 @@
  ***************************************************************************/
 
 
-#include "PreCompiled.h"
 
 #include "Path.h"
 
 using namespace App;
 
 
-Path::Path(const std::vector<Base::Persistence *> &PathVector)
-  : _PathVector(PathVector)
-{
-}
+Path::Path(const std::vector<Base::Persistence*>& PathVector)
+    : _PathVector(PathVector)
+{}

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 #***************************************************************************
 #*   Copyright (c) 2012 Sebastian Hoogen <github@sebastianhoogen.de>       *
 #*                                                                         *
@@ -58,7 +60,6 @@ def expandplacementsmatrix(obj,matrix):
                 replaceobj.replaceobj(parent, obj, obj.Base)
             out.Document.removeObject(obj.Name)
     elif likeprimitive(obj, True):
-        #if isspecialorthogonalpython(fcsubmatrix(ownmatrix)):
         if isspecialorthogonal(ownmatrix):
             obj.Placement = FreeCAD.Placement()
             #this should never happen unless matrices cancel out
@@ -93,7 +94,6 @@ def expandplacementsmatrix(obj,matrix):
 def expandplacements(obj,placement):
     ownplacement = placement.multiply(obj.Placement)
     if obj.isDerivedFrom('Part::FeaturePython') and isinstance(obj.Proxy, MatrixTransform):
-        #expandplacementsmatrix(obj,ownplacement.toMatrix())
         expandplacementsmatrix(obj,placement.toMatrix())
     elif likeprimitive(obj, False):
         obj.Placement = ownplacement
@@ -110,7 +110,6 @@ def expandplacements(obj,placement):
                 obj.Dir = ownplacement.Rotation.multVec(obj.Dir)
             elif obj.isDerivedFrom('Part::Revolution'):
                 obj.Axis = ownplacement.Rotation.multVec(obj.Axis)
-                #obj.Base=ownplacement.Rotation.multVec(obj.Base)
             expandplacements(outobj, ownplacement)
         obj.Placement = FreeCAD.Placement()
 

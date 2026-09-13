@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /******************************************************************************
  *   Copyright (c) 2013 Jan Rheinländer <jrheinlaender@users.sourceforge.net> *
  *                                                                            *
@@ -21,12 +23,11 @@
  ******************************************************************************/
 
 
-#ifndef PARTDESIGN_FeatureBoolean_H
-#define PARTDESIGN_FeatureBoolean_H
+#pragma once
 
 #include <App/GeoFeatureGroupExtension.h>
 #include <App/PropertyStandard.h>
-#include "Feature.h"
+#include "FeatureRefine.h"
 
 
 namespace PartDesign
@@ -36,7 +37,7 @@ namespace PartDesign
  * Abstract superclass of all features that are created by transformation of another feature
  * Transformations are translation, rotation and mirroring
  */
-class PartDesignExport Boolean : public PartDesign::Feature, public App::GeoFeatureGroupExtension
+class PartDesignExport Boolean: public PartDesign::FeatureRefine, public App::GeoFeatureGroupExtension
 {
     PROPERTY_HEADER_WITH_EXTENSIONS(PartDesign::Boolean);
 
@@ -44,34 +45,45 @@ public:
     Boolean();
 
     /// The type of the boolean operation
-    App::PropertyEnumeration    Type;
+    App::PropertyEnumeration Type;
+    /**
+     * Compatibility property to preserve the historic transformed-body Boolean behavior
+     * in restored documents. New Boolean features use Body-local linked geometry.
+     */
+    App::PropertyBool UseLegacyBodyPlacement;
 
-    App::PropertyBool Refine;
-    App::PropertyBool UsePlacement;
-
-   /** @name methods override feature */
+    /** @name methods override feature */
     //@{
     /// Recalculate the feature
-    App::DocumentObjectExecReturn *execute() override;
+    App::DocumentObjectExecReturn* execute() override;
+    void updatePreviewShape() override;
     short mustExecute() const override;
+    std::vector<App::DocumentObject*> addObject(App::DocumentObject* object) override;
+    std::vector<App::DocumentObject*> addObjects(std::vector<App::DocumentObject*> objects) override;
+    std::vector<App::DocumentObject*> setObjects(std::vector<App::DocumentObject*> objects) override;
+    std::vector<App::DocumentObject*> removeObject(App::DocumentObject* object) override;
+    std::vector<App::DocumentObject*> removeObjects(std::vector<App::DocumentObject*> objects) override;
+    bool hasObject(const App::DocumentObject* object, bool recursive = false) const override;
     /// returns the type name of the view provider
-    const char* getViewProviderName() const override {
+    const char* getViewProviderName() const override
+    {
         return "PartDesignGui::ViewProviderBoolean";
     }
     void onChanged(const App::Property* prop) override;
     //@}
 
 protected:
-    void handleChangedPropertyName(Base::XMLReader &reader, const char * TypeName, const char *PropName) override;
-    TopoDS_Shape refineShapeIfActive(const TopoDS_Shape&) const;
+    void handleChangedPropertyName(
+        Base::XMLReader& reader,
+        const char* TypeName,
+        const char* PropName
+    ) override;
 
 
 private:
-    static const char* TypeEnums[];
+    Part::TopoShape getBooleanTopoShape(const App::DocumentObject* object) const;
 
+    static const char* TypeEnums[];
 };
 
-} //namespace PartDesign
-
-
-#endif // PARTDESIGN_FeatureBoolean_H
+}  // namespace PartDesign

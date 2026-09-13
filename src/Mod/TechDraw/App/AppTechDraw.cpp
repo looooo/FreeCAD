@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2007 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -18,7 +20,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <Base/Console.h>
 #include <Base/Interpreter.h>
@@ -61,6 +62,7 @@
 #include "PropertyCosmeticEdgeList.h"
 #include "PropertyCosmeticVertexList.h"
 #include "PropertyGeomFormatList.h"
+#include "DrawBrokenViewPy.h"
 
 
 
@@ -81,7 +83,7 @@ PyMOD_INIT_FUNC(TechDraw)
         PyMOD_Return(nullptr);
     }
     PyObject* mod = TechDraw::initModule();
-    Base::Console().Log("Loading TechDraw module... done\n");
+    Base::Console().log("Loading TechDraw module… done\n");
 
     TechDraw::DrawPage            ::init();
     TechDraw::DrawView            ::init();
@@ -116,6 +118,7 @@ PyMOD_INIT_FUNC(TechDraw)
     TechDraw::DrawTile            ::init();
     TechDraw::DrawTileWeld        ::init();
     TechDraw::DrawWeldSymbol      ::init();
+    TechDraw::DrawBrokenView      ::init();
 
     TechDraw::PropertyGeomFormatList::init();
     TechDraw::GeomFormat            ::init();
@@ -145,6 +148,9 @@ PyMOD_INIT_FUNC(TechDraw)
     TechDraw::DrawTilePython      ::init();
     TechDraw::DrawTileWeldPython  ::init();
     TechDraw::DrawWeldSymbolPython::init();
+    TechDraw::DrawBrokenViewPython::init();
+
+    TechDraw::LineFormat::initCurrentLineFormat();
 
     PyMOD_Return(mod);
 }

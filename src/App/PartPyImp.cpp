@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2014 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -21,7 +23,6 @@
  ***************************************************************************/
 
 
-#include "PreCompiled.h"
 
 // inclusion of the generated files (generated out of PartPy.xml)
 #include "PartPy.h"
@@ -35,7 +36,7 @@ std::string PartPy::representation() const
     return {"<Part object>"};
 }
 
-PyObject *PartPy::getCustomAttributes(const char* /*attr*/) const
+PyObject* PartPy::getCustomAttributes(const char* /*attr*/) const
 {
     return nullptr;
 }
@@ -44,4 +45,3 @@ int PartPy::setCustomAttributes(const char* /*attr*/, PyObject* /*obj*/)
 {
     return 0;
 }
-

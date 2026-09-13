@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 FreeCAD Developers                                 *
  *   Authors: Michael Hindley <hindlemp@eskom.co.za>                       *
@@ -23,13 +25,12 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef GUI_TASKVIEW_TaskFemConstraintTemperature_H
-#define GUI_TASKVIEW_TaskFemConstraintTemperature_H
+#pragma once
 
 #include <QObject>
 #include <memory>
 
-#include <Gui/Selection.h>
+#include <Gui/Selection/Selection.h>
 #include <Gui/TaskView/TaskView.h>
 
 #include "TaskFemConstraintOnBoundary.h"
@@ -45,8 +46,10 @@ class TaskFemConstraintTemperature: public TaskFemConstraintOnBoundary
     Q_OBJECT
 
 public:
-    explicit TaskFemConstraintTemperature(ViewProviderFemConstraintTemperature* ConstraintView,
-                                          QWidget* parent = nullptr);
+    explicit TaskFemConstraintTemperature(
+        ViewProviderFemConstraintTemperature* ConstraintView,
+        QWidget* parent = nullptr
+    );
     ~TaskFemConstraintTemperature() override;
     const std::string getReferences() const override;
     std::string get_temperature() const;
@@ -62,7 +65,6 @@ private Q_SLOTS:
     void removeFromSelection() override;
 
 protected:
-    bool event(QEvent* e) override;
     void changeEvent(QEvent* e) override;
     void clearButtons(const SelectionChangeModes notThis) override;
 
@@ -77,11 +79,7 @@ class TaskDlgFemConstraintTemperature: public TaskDlgFemConstraint
 
 public:
     explicit TaskDlgFemConstraintTemperature(ViewProviderFemConstraintTemperature* ConstraintView);
-    void open() override;
     bool accept() override;
-    bool reject() override;
 };
 
 }  // namespace FemGui
-
-#endif  // GUI_TASKVIEW_TaskFemConstraintTemperature_H

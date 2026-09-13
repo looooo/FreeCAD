@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2002 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -21,13 +23,13 @@
  ***************************************************************************/
 
 
-#include "PreCompiled.h"
+#include <string>
 
-#ifndef _PreComp_
-# include <QApplication>
-#endif
+#include <QApplication>
+
 
 #include <App/Part.h>
+#include <Base/Tools.h>
 #include <Gui/Application.h>
 #include <Gui/Command.h>
 #include <Gui/Document.h>
@@ -37,20 +39,26 @@
 //===========================================================================
 // Utils
 //===========================================================================
-namespace {
-QString getAutoGroupCommandStr()
-// Helper function to get the python code to add the newly created object to the active Part object if present
+namespace
 {
-    App::Part* activePart = Gui::Application::Instance->activeView()->getActiveObject<App::Part*>("part");
+QString getAutoGroupCommandStr()
+// Helper function to get the python code to add the newly created object to the active Part object
+// if present
+{
+    App::Part* activePart = Gui::Application::Instance->activeView()->getActiveObject<App::Part*>(
+        "part"
+    );
     if (activePart) {
         QString activePartName = QString::fromLatin1(activePart->getNameInDocument());
-        return QString::fromLatin1("App.ActiveDocument.getObject('%1\')."
-            "addObject(App.ActiveDocument.ActiveObject)\n")
+        return QStringLiteral(
+                   "App.ActiveDocument.getObject('%1\')."
+                   "addObject(App.ActiveDocument.ActiveObject)\n"
+        )
             .arg(activePartName);
     }
-    return QString::fromLatin1("# Object created at document root.");
+    return QStringLiteral("# Object created at document root.");
 }
-}
+}  // namespace
 
 //===========================================================================
 // Part_Cylinder
@@ -58,40 +66,42 @@ QString getAutoGroupCommandStr()
 DEF_STD_CMD_A(CmdPartCylinder)
 
 CmdPartCylinder::CmdPartCylinder()
-  : Command("Part_Cylinder")
+    : Command("Part_Cylinder")
 {
-    sAppModule    = "Part";
-    sGroup        = QT_TR_NOOP("Part");
-    sMenuText     = QT_TR_NOOP("Cylinder");
-    sToolTipText  = QT_TR_NOOP("Create a Cylinder");
-    sWhatsThis    = "Part_Cylinder";
-    sStatusTip    = sToolTipText;
-    sPixmap       = "Part_Cylinder";
+    sAppModule = "Part";
+    sGroup = QT_TR_NOOP("Part");
+    sMenuText = QT_TR_NOOP("Cylinder");
+    sToolTipText = QT_TR_NOOP("Creates a solid cylinder");
+    sWhatsThis = "Part_Cylinder";
+    sStatusTip = sToolTipText;
+    sPixmap = "Part_Cylinder_Parametric";
 }
 
 void CmdPartCylinder::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
-    QString cmd;
-    cmd = qApp->translate("CmdPartCylinder","Cylinder");
-    openCommand((const char*)cmd.toUtf8());
+    std::string name = qApp->translate("CmdPartCylinder", "Cylinder").toUtf8().toStdString();
+    name = Base::Tools::escapeEncodeString(name);
+    openCommand(name);
 
-    runCommand(Doc,"App.ActiveDocument.addObject(\"Part::Cylinder\",\"Cylinder\")");
-    cmd = QString::fromLatin1("App.ActiveDocument.ActiveObject.Label = \"%1\"")
-        .arg(qApp->translate("CmdPartCylinder","Cylinder"));
-    runCommand(Doc,cmd.toUtf8());
+    runCommand(Doc, "App.ActiveDocument.addObject(\"Part::Cylinder\",\"Cylinder\")");
+    QString cmd = QStringLiteral("App.ActiveDocument.ActiveObject.Label = \"%1\"")
+                      .arg(QString::fromUtf8(name.c_str()));
+    runCommand(Doc, cmd.toUtf8());
     runCommand(Doc, getAutoGroupCommandStr().toUtf8());
     commitCommand();
     updateActive();
-    runCommand(Gui, "Gui.SendMsgToActiveView(\"ViewFit\")");
+    runCommand(Gui, "Gui.ActiveDocument.ActiveView.sendMessage(\"ViewFit\")");
 }
 
 bool CmdPartCylinder::isActive()
 {
-    if (getActiveGuiDocument())
+    if (getActiveGuiDocument()) {
         return true;
-    else
+    }
+    else {
         return false;
+    }
 }
 
 //===========================================================================
@@ -100,40 +110,42 @@ bool CmdPartCylinder::isActive()
 DEF_STD_CMD_A(CmdPartBox)
 
 CmdPartBox::CmdPartBox()
-  : Command("Part_Box")
+    : Command("Part_Box")
 {
-    sAppModule    = "Part";
-    sGroup        = QT_TR_NOOP("Part");
-    sMenuText     = QT_TR_NOOP("Cube");
-    sToolTipText  = QT_TR_NOOP("Create a cube solid");
-    sWhatsThis    = "Part_Box";
-    sStatusTip    = sToolTipText;
-    sPixmap       = "Part_Box";
+    sAppModule = "Part";
+    sGroup = QT_TR_NOOP("Part");
+    sMenuText = QT_TR_NOOP("Cube");
+    sToolTipText = QT_TR_NOOP("Creates a solid cube");
+    sWhatsThis = "Part_Box";
+    sStatusTip = sToolTipText;
+    sPixmap = "Part_Box_Parametric";
 }
 
 void CmdPartBox::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
-    QString cmd;
-    cmd = qApp->translate("CmdPartBox","Cube");
-    openCommand((const char*)cmd.toUtf8());
+    std::string name = qApp->translate("CmdPartBox", "Cube").toUtf8().toStdString();
+    name = Base::Tools::escapeEncodeString(name);
+    openCommand(name);
 
-    runCommand(Doc,"App.ActiveDocument.addObject(\"Part::Box\",\"Box\")");
-    cmd = QString::fromLatin1("App.ActiveDocument.ActiveObject.Label = \"%1\"")
-        .arg(qApp->translate("CmdPartBox","Cube"));
-    runCommand(Doc,cmd.toUtf8());
+    runCommand(Doc, "App.ActiveDocument.addObject(\"Part::Box\",\"Box\")");
+    QString cmd = QStringLiteral("App.ActiveDocument.ActiveObject.Label = \"%1\"")
+                      .arg(QString::fromUtf8(name.c_str()));
+    runCommand(Doc, cmd.toUtf8());
     runCommand(Doc, getAutoGroupCommandStr().toUtf8());
     commitCommand();
     updateActive();
-    runCommand(Gui, "Gui.SendMsgToActiveView(\"ViewFit\")");
+    runCommand(Gui, "Gui.ActiveDocument.ActiveView.sendMessage(\"ViewFit\")");
 }
 
 bool CmdPartBox::isActive()
 {
-    if (getActiveGuiDocument())
+    if (getActiveGuiDocument()) {
         return true;
-    else
+    }
+    else {
         return false;
+    }
 }
 
 //===========================================================================
@@ -142,40 +154,42 @@ bool CmdPartBox::isActive()
 DEF_STD_CMD_A(CmdPartSphere)
 
 CmdPartSphere::CmdPartSphere()
-  : Command("Part_Sphere")
+    : Command("Part_Sphere")
 {
-    sAppModule    = "Part";
-    sGroup        = QT_TR_NOOP("Part");
-    sMenuText     = QT_TR_NOOP("Sphere");
-    sToolTipText  = QT_TR_NOOP("Create a sphere solid");
-    sWhatsThis    = "Part_Sphere";
-    sStatusTip    = sToolTipText;
-    sPixmap       = "Part_Sphere";
+    sAppModule = "Part";
+    sGroup = QT_TR_NOOP("Part");
+    sMenuText = QT_TR_NOOP("Sphere");
+    sToolTipText = QT_TR_NOOP("Creates a solid sphere");
+    sWhatsThis = "Part_Sphere";
+    sStatusTip = sToolTipText;
+    sPixmap = "Part_Sphere_Parametric";
 }
 
 void CmdPartSphere::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
-    QString cmd;
-    cmd = qApp->translate("CmdPartSphere","Sphere");
-    openCommand((const char*)cmd.toUtf8());
+    std::string name = qApp->translate("CmdPartSphere", "Sphere").toUtf8().toStdString();
+    name = Base::Tools::escapeEncodeString(name);
+    openCommand(name);
 
-    runCommand(Doc,"App.ActiveDocument.addObject(\"Part::Sphere\",\"Sphere\")");
-    cmd = QString::fromLatin1("App.ActiveDocument.ActiveObject.Label = \"%1\"")
-        .arg(qApp->translate("CmdPartSphere","Sphere"));
-    runCommand(Doc,cmd.toUtf8());
+    runCommand(Doc, "App.ActiveDocument.addObject(\"Part::Sphere\",\"Sphere\")");
+    QString cmd = QStringLiteral("App.ActiveDocument.ActiveObject.Label = \"%1\"")
+                      .arg(QString::fromUtf8(name.c_str()));
+    runCommand(Doc, cmd.toUtf8());
     runCommand(Doc, getAutoGroupCommandStr().toUtf8());
     commitCommand();
     updateActive();
-    runCommand(Gui, "Gui.SendMsgToActiveView(\"ViewFit\")");
+    runCommand(Gui, "Gui.ActiveDocument.ActiveView.sendMessage(\"ViewFit\")");
 }
 
 bool CmdPartSphere::isActive()
 {
-    if (getActiveGuiDocument())
+    if (getActiveGuiDocument()) {
         return true;
-    else
+    }
+    else {
         return false;
+    }
 }
 
 //===========================================================================
@@ -184,40 +198,42 @@ bool CmdPartSphere::isActive()
 DEF_STD_CMD_A(CmdPartCone)
 
 CmdPartCone::CmdPartCone()
-  : Command("Part_Cone")
+    : Command("Part_Cone")
 {
-    sAppModule    = "Part";
-    sGroup        = QT_TR_NOOP("Part");
-    sMenuText     = QT_TR_NOOP("Cone");
-    sToolTipText  = QT_TR_NOOP("Create a cone solid");
-    sWhatsThis    = "Part_Cone";
-    sStatusTip    = sToolTipText;
-    sPixmap       = "Part_Cone";
+    sAppModule = "Part";
+    sGroup = QT_TR_NOOP("Part");
+    sMenuText = QT_TR_NOOP("Cone");
+    sToolTipText = QT_TR_NOOP("Creates a solid cone");
+    sWhatsThis = "Part_Cone";
+    sStatusTip = sToolTipText;
+    sPixmap = "Part_Cone_Parametric";
 }
 
 void CmdPartCone::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
-    QString cmd;
-    cmd = qApp->translate("CmdPartCone","Cone");
-    openCommand((const char*)cmd.toUtf8());
+    std::string name = qApp->translate("CmdPartCone", "Cone").toUtf8().toStdString();
+    name = Base::Tools::escapeEncodeString(name);
+    openCommand(name);
 
-    runCommand(Doc,"App.ActiveDocument.addObject(\"Part::Cone\",\"Cone\")");
-    cmd = QString::fromLatin1("App.ActiveDocument.ActiveObject.Label = \"%1\"")
-        .arg(qApp->translate("CmdPartCone","Cone"));
-    runCommand(Doc,cmd.toUtf8());
+    runCommand(Doc, "App.ActiveDocument.addObject(\"Part::Cone\",\"Cone\")");
+    QString cmd = QStringLiteral("App.ActiveDocument.ActiveObject.Label = \"%1\"")
+                      .arg(QString::fromUtf8(name.c_str()));
+    runCommand(Doc, cmd.toUtf8());
     runCommand(Doc, getAutoGroupCommandStr().toUtf8());
     commitCommand();
     updateActive();
-    runCommand(Gui, "Gui.SendMsgToActiveView(\"ViewFit\")");
+    runCommand(Gui, "Gui.ActiveDocument.ActiveView.sendMessage(\"ViewFit\")");
 }
 
 bool CmdPartCone::isActive()
 {
-    if (getActiveGuiDocument())
+    if (getActiveGuiDocument()) {
         return true;
-    else
+    }
+    else {
         return false;
+    }
 }
 
 //===========================================================================
@@ -226,40 +242,42 @@ bool CmdPartCone::isActive()
 DEF_STD_CMD_A(CmdPartTorus)
 
 CmdPartTorus::CmdPartTorus()
-  : Command("Part_Torus")
+    : Command("Part_Torus")
 {
-    sAppModule    = "Part";
-    sGroup        = QT_TR_NOOP("Part");
-    sMenuText     = QT_TR_NOOP("Torus");
-    sToolTipText  = QT_TR_NOOP("Create a torus solid");
-    sWhatsThis    = "Part_Torus";
-    sStatusTip    = sToolTipText;
-    sPixmap       = "Part_Torus";
+    sAppModule = "Part";
+    sGroup = QT_TR_NOOP("Part");
+    sMenuText = QT_TR_NOOP("Torus");
+    sToolTipText = QT_TR_NOOP("Creates a solid torus");
+    sWhatsThis = "Part_Torus";
+    sStatusTip = sToolTipText;
+    sPixmap = "Part_Torus_Parametric";
 }
 
 void CmdPartTorus::activated(int iMsg)
 {
     Q_UNUSED(iMsg);
-    QString cmd;
-    cmd = qApp->translate("CmdPartTorus","Torus");
-    openCommand((const char*)cmd.toUtf8());
+    std::string name = qApp->translate("CmdPartTorus", "Torus").toUtf8().toStdString();
+    name = Base::Tools::escapeEncodeString(name);
+    openCommand(name);
 
-    runCommand(Doc,"App.ActiveDocument.addObject(\"Part::Torus\",\"Torus\")");
-    cmd = QString::fromLatin1("App.ActiveDocument.ActiveObject.Label = \"%1\"")
-        .arg(qApp->translate("CmdPartTorus","Torus"));
-    runCommand(Doc,cmd.toUtf8());
+    runCommand(Doc, "App.ActiveDocument.addObject(\"Part::Torus\",\"Torus\")");
+    QString cmd = QStringLiteral("App.ActiveDocument.ActiveObject.Label = \"%1\"")
+                      .arg(QString::fromUtf8(name.c_str()));
+    runCommand(Doc, cmd.toUtf8());
     runCommand(Doc, getAutoGroupCommandStr().toUtf8());
     commitCommand();
     updateActive();
-    runCommand(Gui, "Gui.SendMsgToActiveView(\"ViewFit\")");
+    runCommand(Gui, "Gui.ActiveDocument.ActiveView.sendMessage(\"ViewFit\")");
 }
 
 bool CmdPartTorus::isActive()
 {
-    if (getActiveGuiDocument())
+    if (getActiveGuiDocument()) {
         return true;
-    else
+    }
+    else {
         return false;
+    }
 }
 
 
@@ -267,7 +285,7 @@ bool CmdPartTorus::isActive()
 
 void CreateParamPartCommands()
 {
-    Gui::CommandManager &rcCmdMgr = Gui::Application::Instance->commandManager();
+    Gui::CommandManager& rcCmdMgr = Gui::Application::Instance->commandManager();
     rcCmdMgr.addCommand(new CmdPartCylinder());
     rcCmdMgr.addCommand(new CmdPartBox());
     rcCmdMgr.addCommand(new CmdPartSphere());

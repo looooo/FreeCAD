@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2011 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -22,8 +24,7 @@
 //this file originally part of Drawing workbench
 //migrated to TechDraw workbench 2022-01-26 by Wandererfan
 
-#ifndef TECHDRAW_EXPORT_H
-#define TECHDRAW_EXPORT_H
+#pragma once
 
 #include <string>
 #include <TopoDS_Edge.hxx>
@@ -76,5 +77,3 @@ private:
 };
 
 } //namespace TechDraw
-
-#endif // TECHDRAW_EXPORT_H

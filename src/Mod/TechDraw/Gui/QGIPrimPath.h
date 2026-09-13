@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_QGIPRIMPATH_H
-#define DRAWINGGUI_QGIPRIMPATH_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
@@ -30,6 +31,8 @@
 #include <QPen>
 
 #include <Base/Parameter.h>
+
+#include "QGIUserTypes.h"
 
 QT_BEGIN_NAMESPACE
 class QPainter;
@@ -45,36 +48,34 @@ public:
     explicit QGIPrimPath();
     ~QGIPrimPath() override = default;
 
-    enum {Type = QGraphicsItem::UserType + 170};
+    enum {Type = UserType::QGIPrimPath};
 
     int type() const override { return Type;}
     void paint(QPainter * painter, const QStyleOptionGraphicsItem * option, QWidget * widget = nullptr ) override;
     QPainterPath shape() const override { return path(); }
 
-    void setHighlighted(bool state);
     virtual void setPrettyNormal();
     virtual void setPrettyPre();
     virtual void setPrettySel();
     virtual void setWidth(double w);
-    virtual double getWidth() { return m_width;}
-    Qt::PenStyle getStyle() { return m_styleCurrent; }
+    virtual double getWidth() { return m_pen.widthF();}
+    Qt::PenStyle getStyle() { return m_pen.style(); }
     void setStyle(Qt::PenStyle s);
     void setStyle(int s);
     virtual void setNormalColor(QColor c);
     virtual void setCapStyle(Qt::PenCapStyle c);
 
     //plain color fill parms
-    void setFillStyle(Qt::BrushStyle f) { m_fillStyleCurrent = f; }
-    Qt::BrushStyle getFillStyle() { return m_fillStyleCurrent; }
+    void setFillStyle(Qt::BrushStyle f) { m_brush.setStyle(f); }
+    Qt::BrushStyle getFillStyle() { return m_brush.style(); }
 
     void setFill(QColor c, Qt::BrushStyle s);
     void setFill(QBrush b);
     void resetFill();
     void setFillColor(QColor c);
-    QColor getFillColor() { return m_colDefFill; }
-    void setFillOverride(bool b) { m_fillOverride = b; }
+    QColor getFillColor() { return getDefaultFillColor(); }
 
-    virtual void setCurrentPen();
+    void setHighlightFill(bool on) { m_highlightFill = on; }
 
 protected:
     void hoverEnterEvent(QGraphicsSceneHoverEvent *event) override;
@@ -89,37 +90,28 @@ protected:
     virtual QColor getNormalColor();
     virtual QColor getPreColor();
     virtual QColor getSelectColor();
+    virtual QColor getDefaultFillColor() {
+        return Qt::white;
+    }
+    virtual Qt::BrushStyle getDefaultFillStyle() {
+        return Qt::NoBrush;
+    }
     Base::Reference<ParameterGrp> getParmGroup();
     virtual Qt::PenCapStyle prefCapStyle();
 
-    bool isHighlighted;
     bool multiselectActivated;
 
     QPen m_pen;
-    QColor m_colCurrent;
     QColor m_colNormal;
-    bool   m_colOverride;
-    Qt::PenStyle m_styleCurrent;
     Qt::PenStyle m_styleNormal;
-    double m_width;
-    Qt::PenCapStyle m_capStyle;
 
     QBrush m_brush;
-    Qt::BrushStyle m_fillStyleCurrent;                 //current fill style
-    QColor m_fillColorCurrent;                         //current fill color
 
-    QColor m_colDefFill;                        //"no color" default normal fill color
     QColor m_colNormalFill;                     //current Normal fill color def or plain fill
-    Qt::BrushStyle m_fillDef;                  //default Normal fill style
     Qt::BrushStyle m_fillNormal;               //current Normal fill style
-    Qt::BrushStyle m_fillSelect;               //Select/preSelect fill style
 
-    bool m_fillOverride;
-
-private:
-
+    double m_edgeFuzz;
+    bool m_highlightFill = true;
 };
 
 } // namespace MDIViewPageGui
-
-#endif // DRAWINGGUI_QGIPRIMPATH_H

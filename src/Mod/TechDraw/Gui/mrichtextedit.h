@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-only WITH Digia-Qt-LGPL-exception-1.1
+
 /*
 ** Copyright (C) 2013 Jiří Procházka (Hobrasoft)
 ** Contact: http://www.hobrasoft.cz/
@@ -26,8 +28,7 @@
  ********************************/
 
 
-#ifndef MRICHTEXTEDIT_H_
-#define MRICHTEXTEDIT_H_
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
@@ -38,7 +39,7 @@
 /**
  * @brief A simple rich-text editor
  */
-class MRichTextEdit : public QWidget, protected Ui::MRichTextEdit {
+class MRichTextEdit : public QFrame, protected Ui::MRichTextEdit {
     Q_OBJECT
 
 public:
@@ -55,6 +56,8 @@ public:
     QString getDefFontSize();
     int getDefFontSizeNum();
     QFont getDefFont();
+
+    void setMinimalMode(bool on);
 
 public Q_SLOTS:
     void setText(const QString &text);
@@ -73,6 +76,7 @@ protected:
   void focusInEvent(QFocusEvent *event) override;
   void keyPressEvent(QKeyEvent *event) override;
   bool hasMultipleSizes();
+  void updateFontSizeDisplay();
 
   void addFontSize(QString fontSize);
 
@@ -122,5 +126,3 @@ private:
     QString m_defFont;
 
 };
-
-#endif

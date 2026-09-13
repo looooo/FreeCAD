@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,14 +22,15 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_QGCUSTOMBORDER_H
-#define DRAWINGGUI_QGCUSTOMBORDER_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
 #include <QGraphicsItem>
 #include <QGraphicsRectItem>
 #include <QPointF>
+
+#include "QGIUserTypes.h"
 
 QT_BEGIN_NAMESPACE
 class QPainter;
@@ -43,7 +46,7 @@ public:
     explicit QGCustomBorder();
     ~QGCustomBorder() override = default;
 
-    enum {Type = QGraphicsItem::UserType + 136};
+    enum {Type = UserType::QGCustomBorder};
     int type() const override { return Type;}
 
     void paint(QPainter * painter, const QStyleOptionGraphicsItem * option, QWidget * widget = nullptr ) override;
@@ -57,5 +60,3 @@ private:
 };
 
 } // namespace MDIViewPageGui
-
-#endif // DRAWINGGUI_QGCUSTOMBORDER_H

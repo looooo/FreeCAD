@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2019 WandererFan <wandererfan@gmail.com>                *
  *   Copyright (c) 2022 Benjamin Bræstrup Sayoc <benj5378@outlook.com>     *
@@ -21,11 +23,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
-    #include <boost/uuid/uuid_generators.hpp>
-    #include <boost/uuid/uuid_io.hpp>
-#endif // _PreComp_
+//! CosmeticVertex point is stored in unscaled, unrotated form
 
 #include <App/Application.h>
 #include <Base/Persistence.h>
@@ -46,68 +44,54 @@ TYPESYSTEM_SOURCE(TechDraw::CosmeticVertex, Base::Persistence)
 
 CosmeticVertex::CosmeticVertex() : TechDraw::Vertex()
 {
-    point(Base::Vector3d(0.0, 0.0, 0.0));
-    permaPoint = Base::Vector3d(0.0, 0.0, 0.0);
-    linkGeom = -1;
     color = Preferences::vertexColor();
     size  = Preferences::vertexScale() *
             LineGroup::getDefaultWidth("Thin");
-    style = 1;
-    visible = true;
+
     hlrVisible = true;
     cosmetic = true;
-
-    createNewTag();
+    cosmeticTag = getTagAsString();
 }
 
-CosmeticVertex::CosmeticVertex(const TechDraw::CosmeticVertex* cv) : TechDraw::Vertex(cv)
+CosmeticVertex::CosmeticVertex(const TechDraw::CosmeticVertex* cv) : TechDraw::Vertex(cv),
+    permaPoint(cv->permaPoint),
+    linkGeom(cv->linkGeom),
+    color(cv->color),
+    size(cv->size),
+    style(cv->style),
+    visible(cv->visible)
 {
-    permaPoint = cv->permaPoint;
-    linkGeom = cv->linkGeom;
-    color = cv->color;
-    size  = cv->size;
-    style = cv->style;
-    visible = cv->visible;
+    // Base fields
     hlrVisible = true;
     cosmetic = true;
-
-    createNewTag();
+    cosmeticTag = getTagAsString();
 }
 
-CosmeticVertex::CosmeticVertex(const Base::Vector3d& loc) : TechDraw::Vertex(loc)
+CosmeticVertex::CosmeticVertex(const Base::Vector3d& loc) : TechDraw::Vertex(loc),
+    permaPoint(loc),
+    color(Preferences::vertexColor())
 {
-//    Base::Console().Message("CV::CV(%s)\n", DU::formatVector(loc).c_str());
-    permaPoint = loc;
-    linkGeom = -1;
-    color = Preferences::vertexColor();
     size  = Preferences::vertexScale() *
             LineGroup::getDefaultWidth("Thick");
-    style = 1;        //TODO: implement styled vertexes
-    visible = true;
+
     hlrVisible = true;
     cosmetic = true;
-
-    createNewTag();
-
+    cosmeticTag = getTagAsString();
 }
 
 void CosmeticVertex::move(const Base::Vector3d& newPos)
 {
-    permaPoint = newPos;
+    point(newPos);
 }
 
 void CosmeticVertex::moveRelative(const Base::Vector3d& movement)
 {
-    permaPoint += movement;
+    point( point() += movement);
 }
 
 std::string CosmeticVertex::toString() const
 {
     std::stringstream ss;
-    ss << permaPoint.x << ", " <<
-          permaPoint.y << ", " <<
-          permaPoint.z << ", " <<
-          " / ";
     ss << point().x << ", " <<
           point().y << ", " <<
           point().z << ", " <<
@@ -138,14 +122,16 @@ void CosmeticVertex::Save(Base::Writer &writer) const
                 << "X=\"" <<  permaPoint.x <<
                 "\" Y=\"" <<  permaPoint.y <<
                 "\" Z=\"" <<  permaPoint.z <<
-                 "\"/>" << endl;
-    writer.Stream() << writer.ind() << "<LinkGeom value=\"" <<  linkGeom << "\"/>" << endl;
-    writer.Stream() << writer.ind() << "<Color value=\"" <<  color.asHexString() << "\"/>" << endl;
-    writer.Stream() << writer.ind() << "<Size value=\"" <<  size << "\"/>" << endl;
-    writer.Stream() << writer.ind() << "<Style value=\"" <<  style << "\"/>" << endl;
+                 "\"/>" << '\n';
+    writer.Stream() << writer.ind() << "<LinkGeom value=\"" <<  linkGeom << "\"/>" << '\n';
+    writer.Stream() << writer.ind() << "<Color value=\"" <<  color.asHexString() << "\"/>" << '\n';
+    writer.Stream() << writer.ind() << "<Size value=\"" <<  size << "\"/>" << '\n';
+    writer.Stream() << writer.ind() << "<Style value=\"" <<  style << "\"/>" << '\n';
     const char v = visible?'1':'0';
-    writer.Stream() << writer.ind() << "<Visible value=\"" <<  v << "\"/>" << endl;
-    writer.Stream() << writer.ind() << "<Tag value=\"" <<  getTagAsString() << "\"/>" << endl;
+    writer.Stream() << writer.ind() << "<Visible value=\"" <<  v << "\"/>" << '\n';
+
+    //NOLINTNEXTLINE
+    Tag::Save(writer);      // as "Tag"
 }
 
 void CosmeticVertex::Restore(Base::XMLReader &reader)
@@ -154,40 +140,43 @@ void CosmeticVertex::Restore(Base::XMLReader &reader)
         return;
     }
     TechDraw::Vertex::Restore(reader);
-    reader.readElement("PermaPoint");
-    permaPoint.x = reader.getAttributeAsFloat("X");
-    permaPoint.y = reader.getAttributeAsFloat("Y");
-    permaPoint.z = reader.getAttributeAsFloat("Z");
+
+    // Vertex::Restore call to readNextElement may leave us already positioned on the PermaPoint element.
+    if(strcmp(reader.localName(),"PermaPoint") != 0) {
+        reader.readElement("PermaPoint");
+    }
+    permaPoint.x = reader.getAttribute<double>("X");
+    permaPoint.y = reader.getAttribute<double>("Y");
+    permaPoint.z = reader.getAttribute<double>("Z");
     reader.readElement("LinkGeom");
-    linkGeom = reader.getAttributeAsInteger("value");
+    linkGeom = reader.getAttribute<int>("value");
     reader.readElement("Color");
-    std::string temp = reader.getAttribute("value");
+    std::string temp = reader.getAttribute<const char*>("value");
     color.fromHexString(temp);
     reader.readElement("Size");
-    size = reader.getAttributeAsFloat("value");
+    size = reader.getAttribute<double>("value");
     reader.readElement("Style");
-    style = reader.getAttributeAsInteger("value");
+    style = reader.getAttribute<int>("value");
     reader.readElement("Visible");
-    visible = (int)reader.getAttributeAsInteger("value")==0?false:true;
-    reader.readElement("Tag");
-    temp = reader.getAttribute("value");
-    boost::uuids::string_generator gen;
-    boost::uuids::uuid u1 = gen(temp);
-    tag = u1;
+    visible = reader.getAttribute<bool>("value");
+
+    Tag::Restore(reader);
 }
 
-Base::Vector3d CosmeticVertex::scaled(const double factor)
+Base::Vector3d CosmeticVertex::scaled(const double factor) const
 {
     return permaPoint * factor;
 }
 
-Base::Vector3d CosmeticVertex::rotatedAndScaled(const double scale, const double rotDegrees)
+//! returns a transformed version of our coordinates (permaPoint)
+Base::Vector3d CosmeticVertex::rotatedAndScaled(const double scale, const double rotDegrees) const
 {
     Base::Vector3d scaledPoint = scaled(scale);
     if (rotDegrees != 0.0) {
         // invert the Y coordinate so the rotation math works out
+        // the stored point is inverted
         scaledPoint = DU::invertY(scaledPoint);
-        scaledPoint.RotateZ(rotDegrees * M_PI / 180.0);
+        scaledPoint.RotateZ(rotDegrees * std::numbers::pi / DegreesHalfCircle);
         scaledPoint = DU::invertY(scaledPoint);
     }
     return scaledPoint;
@@ -195,16 +184,15 @@ Base::Vector3d CosmeticVertex::rotatedAndScaled(const double scale, const double
 
 //! converts a point into its unscaled, unrotated form.  If point is Gui space coordinates,
 //! it should be inverted (DU::invertY) before calling this method, and the result should be
-//! inverted on return.
+//! inverted back on return.
 Base::Vector3d CosmeticVertex::makeCanonicalPoint(DrawViewPart* dvp, Base::Vector3d point, bool unscale)
 {
-    // Base::Console().Message("CV::makeCanonicalPoint(%s)\n", DU::formatVector(point).c_str());
     double rotDeg = dvp->Rotation.getValue();
 
     Base::Vector3d result = point;
     if (rotDeg != 0.0) {
         // unrotate the point
-        double rotRad = rotDeg * M_PI / 180.0;
+        double rotRad = rotDeg * std::numbers::pi / DegreesHalfCircle;
         // we always rotate around the origin.
         result.RotateZ(-rotRad);
     }
@@ -219,50 +207,26 @@ Base::Vector3d CosmeticVertex::makeCanonicalPoint(DrawViewPart* dvp, Base::Vecto
     return result;
 }
 
-boost::uuids::uuid CosmeticVertex::getTag() const
+//! a version of makeCanonicalPoint that accepts and returns an invertedPoint.
+Base::Vector3d CosmeticVertex::makeCanonicalPointInverted(DrawViewPart* dvp, Base::Vector3d invertedPoint, bool unscale)
 {
-    return tag;
-}
-
-std::string CosmeticVertex::getTagAsString() const
-{
-    return boost::uuids::to_string(getTag());
-}
-
-void CosmeticVertex::createNewTag()
-{
-    // Initialize a random number generator, to avoid Valgrind false positives.
-    static boost::mt19937 ran;
-    static bool seeded = false;
-
-    if (!seeded) {
-        ran.seed(static_cast<unsigned int>(std::time(nullptr)));
-        seeded = true;
-    }
-    static boost::uuids::basic_random_generator<boost::mt19937> gen(&ran);
-
-    tag = gen();
-}
-
-void CosmeticVertex::assignTag(const TechDraw::CosmeticVertex* cv)
-{
-    if(cv->getTypeId() == this->getTypeId())
-        this->tag = cv->tag;
-    else
-        throw Base::TypeError("CosmeticVertex tag can not be assigned as types do not match.");
+    Base::Vector3d result = makeCanonicalPoint(dvp,
+                                               DU::invertY(invertedPoint),
+                                               unscale);
+    return DU::invertY(result);
 }
 
 CosmeticVertex* CosmeticVertex::copy() const
 {
-//    Base::Console().Message("CV::copy()\n");
+//    Base::Console().message("CV::copy()\n");
     return new CosmeticVertex(this);
 }
 
 CosmeticVertex* CosmeticVertex::clone() const
 {
-//    Base::Console().Message("CV::clone()\n");
+//    Base::Console().message("CV::clone()\n");
     CosmeticVertex* cpy = this->copy();
-    cpy->tag = this->tag;
+    cpy->setTag(this->getTag());
     return cpy;
 }
 
@@ -278,6 +242,6 @@ PyObject* CosmeticVertex::getPyObject()
 // To do: make const
 void CosmeticVertex::dump(const char* title)
 {
-    Base::Console().Message("CV::dump - %s \n", title);
-    Base::Console().Message("CV::dump - %s \n", toString().c_str());
+    Base::Console().message("CV::dump - %s \n", title);
+    Base::Console().message("CV::dump - %s \n", toString().c_str());
 }

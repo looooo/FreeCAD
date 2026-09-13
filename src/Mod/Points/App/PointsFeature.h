@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2011 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,12 +22,11 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef POINTS_FEATURE_H
-#define POINTS_FEATURE_H
+#pragma once
 
 #include <App/FeatureCustom.h>
 #include <App/FeaturePython.h>
-#include <App/GeoFeature.h>  // must be first include
+#include <App/GeoFeature.h>
 #include <App/PropertyGeo.h>
 
 #include "Points.h"
@@ -88,6 +89,3 @@ using FeatureCustom = App::FeatureCustomT<Feature>;
 using FeaturePython = App::FeaturePythonT<Feature>;
 
 }  // namespace Points
-
-
-#endif

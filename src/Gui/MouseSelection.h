@@ -20,11 +20,12 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef MOUSESELECTION_H
-#define MOUSESELECTION_H
+#pragma once
 
 #include <bitset>
 #include <vector>
+
+#include <QColor>
 #include <QCursor>
 #include <Gui/GLPainter.h>
 #include <Gui/Namespace.h>
@@ -43,7 +44,8 @@ class SoMouseButtonEvent;
 class SoLocation2Event;
 class SoKeyboardEvent;
 
-namespace Gui {
+namespace Gui
+{
 class View3DInventorViewer;
 
 /**
@@ -56,7 +58,15 @@ class View3DInventorViewer;
 class GuiExport AbstractMouseSelection
 {
 public:
-    enum { Continue=0, Restart=1, Finish=2, Cancel=3, Ignore=4 };
+    enum
+    {
+        Continue = 0,
+        Restart = 1,
+        Finish = 2,
+        Cancel = 3,
+        Ignore = 4,
+        FinishAndConsume = 5
+    };
 
     AbstractMouseSelection();
     virtual ~AbstractMouseSelection() = default;
@@ -66,14 +76,14 @@ public:
     virtual void terminate(bool abort = false) = 0;
     void grabMouseModel(Gui::View3DInventorViewer*);
     void releaseMouseModel(bool abort = false);
-    const std::vector<SbVec2s>& getPositions() const {
+    const std::vector<SbVec2s>& getPositions() const
+    {
         return _clPoly;
     }
-    SelectionRole selectedRole() const {
+    SelectionRole selectedRole() const
+    {
         return m_selectedRole;
     }
-
-    void redraw();
 
     /** @name Mouse events*/
     //@{
@@ -81,24 +91,28 @@ public:
     //@}
 
 protected:
-    virtual int mouseButtonEvent(const SoMouseButtonEvent* const, const QPoint&) {
+    virtual int mouseButtonEvent(const SoMouseButtonEvent* const, const QPoint&)
+    {
         return 0;
     }
-    virtual int locationEvent(const SoLocation2Event* const, const QPoint&) {
+    virtual int locationEvent(const SoLocation2Event* const, const QPoint&)
+    {
         return 0;
     }
-    virtual int keyboardEvent(const SoKeyboardEvent* const){
+    virtual int keyboardEvent(const SoKeyboardEvent* const)
+    {
         return 0;
     }
 
     /// drawing stuff
-    virtual void draw() {}
+    virtual void draw()
+    {}
 
 protected:
-    Gui::View3DInventorViewer* _pcView3D{nullptr};
+    Gui::View3DInventorViewer* _pcView3D {nullptr};
     QCursor m_cPrevCursor;
-    int  m_iXold, m_iYold;
-    int  m_iXnew, m_iYnew;
+    int m_iXold, m_iYold;
+    int m_iXnew, m_iYnew;
     SelectionRole m_selectedRole;
     std::vector<SbVec2s> _clPoly;
 };
@@ -109,7 +123,7 @@ protected:
  * The standard mouse selection class
  * \author Jürgen Riegel
  */
-class GuiExport BaseMouseSelection : public AbstractMouseSelection
+class GuiExport BaseMouseSelection: public AbstractMouseSelection
 {
 public:
     BaseMouseSelection();
@@ -123,7 +137,7 @@ public:
  * Create a polygon
  * \author Werner Mayer
  */
-class GuiExport PolyPickerSelection : public BaseMouseSelection
+class GuiExport PolyPickerSelection: public BaseMouseSelection
 {
 public:
     PolyPickerSelection();
@@ -137,8 +151,8 @@ public:
 
 protected:
     int mouseButtonEvent(const SoMouseButtonEvent* const e, const QPoint& pos) override;
-    int locationEvent(const SoLocation2Event*    const e, const QPoint& pos) override;
-    int keyboardEvent(const SoKeyboardEvent*     const e) override;
+    int locationEvent(const SoLocation2Event* const e, const QPoint& pos) override;
+    int keyboardEvent(const SoKeyboardEvent* const e) override;
 
     /// draw the polygon
     void draw() override;
@@ -156,16 +170,18 @@ protected:
  * Create a polygon
  * \author Werner Mayer
  */
-class GuiExport PolyClipSelection : public PolyPickerSelection
+class GuiExport PolyClipSelection: public PolyPickerSelection
 {
 public:
     PolyClipSelection();
     ~PolyClipSelection() override;
 
-    inline void setRole(SelectionRole pos, bool on) {
+    inline void setRole(SelectionRole pos, bool on)
+    {
         selectionBits.set(static_cast<size_t>(pos), on);
     }
-    inline bool testRole(SelectionRole pos) const {
+    inline bool testRole(SelectionRole pos) const
+    {
         return selectionBits.test(static_cast<size_t>(pos));
     }
 
@@ -182,7 +198,7 @@ private:
  * The freehand selection class
  * \author Werner Mayer
  */
-class GuiExport FreehandSelection : public PolyPickerSelection
+class GuiExport FreehandSelection: public PolyPickerSelection
 {
 public:
     FreehandSelection();
@@ -193,7 +209,7 @@ public:
 protected:
     int popupMenu() override;
     int mouseButtonEvent(const SoMouseButtonEvent* const e, const QPoint& pos) override;
-    int locationEvent(const SoLocation2Event*  const e, const QPoint& pos) override;
+    int locationEvent(const SoLocation2Event* const e, const QPoint& pos) override;
 };
 
 // -----------------------------------------------------------------------------------
@@ -203,7 +219,7 @@ protected:
  * Draws a rectangle for selection
  * \author Werner Mayer
  */
-class GuiExport RubberbandSelection : public BaseMouseSelection
+class GuiExport RubberbandSelection: public BaseMouseSelection
 {
 public:
     RubberbandSelection();
@@ -216,14 +232,17 @@ public:
 
 protected:
     int mouseButtonEvent(const SoMouseButtonEvent* const e, const QPoint& pos) override;
-    int locationEvent(const SoLocation2Event*    const e, const QPoint& pos) override;
-    int keyboardEvent(const SoKeyboardEvent*     const e) override;
+    int locationEvent(const SoLocation2Event* const e, const QPoint& pos) override;
+    int keyboardEvent(const SoKeyboardEvent* const e) override;
 
     /// draw the rectangle
     void draw() override;
 
 protected:
-    Gui::Rubberband rubberband;
+    QColor rubberbandColor;
+
+    void updateOverlayPosition();
+    void setOverlayVisible(bool visible);
 };
 
 // -----------------------------------------------------------------------------------
@@ -233,7 +252,7 @@ protected:
  * Draws a rectangle for selection
  * \author Werner Mayer
  */
-class GuiExport RectangleSelection : public RubberbandSelection
+class GuiExport RectangleSelection: public RubberbandSelection
 {
 public:
     RectangleSelection();
@@ -247,7 +266,7 @@ public:
  * Draws a rectangle for box zooming
  * \author Werner Mayer
  */
-class GuiExport BoxZoomSelection : public RubberbandSelection
+class GuiExport BoxZoomSelection: public RubberbandSelection
 {
 public:
     BoxZoomSelection();
@@ -255,6 +274,37 @@ public:
     void terminate(bool abort = false) override;
 };
 
-} // namespace Gui
+/**
+ * Rubberband selection model used by delayed drag box selection in the 3D view.
+ * Unlike RectangleSelection, it starts from an externally supplied anchor after
+ * the initial press event and consumes the release event to avoid click selection.
+ */
+class GuiExport BoxSelectSelection: public RubberbandSelection
+{
+public:
+    explicit BoxSelectSelection(bool additiveSelection = false, bool selectElement = false);
+    ~BoxSelectSelection() override;
 
-#endif // MOUSESELECTION_H
+    /// Initialize the delayed drag-select anchor when the rubberband starts after press.
+    void setAnchor(const SbVec2s& startPosition, const SbVec2s& currentPosition);
+
+    void initialize() override;
+    void terminate(bool abort = false) override;
+
+protected:
+    int mouseButtonEvent(const SoMouseButtonEvent* const e, const QPoint& pos) override;
+    int locationEvent(const SoLocation2Event* const e, const QPoint& pos) override;
+    int keyboardEvent(const SoKeyboardEvent* const e) override;
+
+private:
+    QPoint toWidgetPoint(const SbVec2s& position) const;
+
+private:
+    SbVec2s startPosition;
+    SbVec2s currentPosition;
+    bool additiveSelection;
+    bool selectElement;
+    bool selectionEnabled {true};
+};
+
+}  // namespace Gui

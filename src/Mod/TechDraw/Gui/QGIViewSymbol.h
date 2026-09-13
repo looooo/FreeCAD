@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Luke Parry <l.parry@warwick.ac.uk>                 *
  *   Copyright (c) 2014 WandererFan <wandererfan@gmail.com>                *
@@ -21,14 +23,14 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_QGRAPHICSITEMVIEWSYMBOL_H
-#define DRAWINGGUI_QGRAPHICSITEMVIEWSYMBOL_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
 #include <QByteArray>
 
 #include "QGIView.h"
+#include "QGIUserTypes.h"
 
 
 namespace TechDraw {
@@ -46,7 +48,7 @@ public:
     QGIViewSymbol();
     ~QGIViewSymbol() override;
 
-    enum {Type = QGraphicsItem::UserType + 121};
+    enum {Type = UserType::QGIViewSymbol};
     int type() const override { return Type;}
 
     void updateView(bool update = false) override;
@@ -59,10 +61,11 @@ public:
 protected:
     virtual void drawSvg();
     void symbolToSvg(QByteArray qba);
+    double legacyScaler(TechDraw::DrawViewSymbol* feature) const;
+    double symbolScaler(TechDraw::DrawViewSymbol* feature) const;
 
     QGDisplayArea* m_displayArea;
     QGCustomSvg *m_svgItem;
 };
 
 } // namespace
-#endif // DRAWINGGUI_QGRAPHICSITEMVIEWSYMBOL_H

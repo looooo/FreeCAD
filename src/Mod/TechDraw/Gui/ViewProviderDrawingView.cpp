@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2004 Jürgen Riegel <juergen.riegel@web.de>              *
  *   Copyright (c) 2012 Luke Parry <l.parry@warwick.ac.uk>                 *
@@ -21,18 +23,17 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
+#include <limits>
+#include <fastsignals/signal.h>
+#include <fastsignals/connection.h>
 
-#ifndef _PreComp_
-#include <boost_signals2.hpp>
-#include <boost/signals2/connection.hpp>
-#endif
-
-#include <climits>
-
+#include <App/Application.h>
+#include <App/Document.h>
 #include <App/DocumentObject.h>
+#include <App/Metadata.h>
+#include <Base/Color.h>
 #include <Base/Console.h>
-#include <Base/Tools.h>
+#include <Base/ProgramVersion.h>
 #include <Gui/Application.h>
 #include <Gui/Control.h>
 #include <Gui/Document.h>
@@ -40,6 +41,9 @@
 
 #include <Mod/TechDraw/App/DrawPage.h>
 #include <Mod/TechDraw/App/DrawView.h>
+#include <Mod/TechDraw/App/DrawViewBalloon.h>
+#include <Mod/TechDraw/App/DrawViewDimension.h>
+#include <Mod/TechDraw/App/Preferences.h>
 
 #include "ViewProviderDrawingView.h"
 #include "ViewProviderDrawingViewExtension.h"
@@ -49,6 +53,7 @@
 #include "ViewProviderPage.h"
 
 using namespace TechDrawGui;
+using namespace TechDraw;
 namespace sp = std::placeholders;
 
 PROPERTY_SOURCE(TechDrawGui::ViewProviderDrawingView, Gui::ViewProviderDocumentObject)
@@ -56,13 +61,14 @@ PROPERTY_SOURCE(TechDrawGui::ViewProviderDrawingView, Gui::ViewProviderDocumentO
 ViewProviderDrawingView::ViewProviderDrawingView() :
     m_myName(std::string())
 {
-//    Base::Console().Message("VPDV::VPDV\n");
     initExtension(this);
 
     sPixmap = "TechDraw_TreeView";
     static const char *group = "Base";
 
-    ADD_PROPERTY_TYPE(KeepLabel ,(false), group, App::Prop_None, "Keep Label on Page even if toggled off");
+    auto showLabel = Preferences::alwaysShowLabel();
+
+    ADD_PROPERTY_TYPE(KeepLabel ,(showLabel), group, App::Prop_None, "Keep Label on Page even if toggled off");
     ADD_PROPERTY_TYPE(StackOrder,(0),group,App::Prop_None,"Over or under lap relative to other views");
 
     // Do not show in property editor   why? wf  WF: because DisplayMode applies only to coin and we
@@ -76,7 +82,6 @@ ViewProviderDrawingView::~ViewProviderDrawingView()
 
 void ViewProviderDrawingView::attach(App::DocumentObject *pcFeat)
 {
-//    Base::Console().Message("VPDV::attach(%s)\n", pcFeat->getNameInDocument());
     ViewProviderDocumentObject::attach(pcFeat);
 
     //NOLINTBEGIN
@@ -97,7 +102,7 @@ void ViewProviderDrawingView::attach(App::DocumentObject *pcFeat)
         // but parent page might.  we may not be part of the document yet though!
         // :( we're not part of the page yet either!
     } else {
-        Base::Console().Warning("VPDV::attach has no Feature!\n");
+        Base::Console().warning("VPDV::attach has no Feature!\n");
     }
 }
 
@@ -109,14 +114,9 @@ void ViewProviderDrawingView::onChanged(const App::Property *prop)
             return;
     }
 
-    if (prop == &Visibility) {
-        //handled by ViewProviderDocumentObject
-    } else if (prop == &KeepLabel) {
-        QGIView* qgiv = getQView();
-        if (qgiv) {
-            qgiv->updateView(true);
-        }
-    }
+    // if (prop == &Visibility) {
+    //     //handled by ViewProviderDocumentObject
+    // }
 
     if (prop == &StackOrder) {
         QGIView* qgiv = getQView();
@@ -168,7 +168,6 @@ void ViewProviderDrawingView::hide()
         }
     }
 }
-
 QGIView* ViewProviderDrawingView::getQView()
 {
     TechDraw::DrawView* dv = getViewObject();
@@ -186,11 +185,40 @@ QGIView* ViewProviderDrawingView::getQView()
         return nullptr;
     }
 
-    if (vpp->getQGSPage()) {
-        return dynamic_cast<QGIView *>(vpp->getQGSPage()->findQViewForDocObj(getViewObject()));
+    QGSPage* page = vpp->getQGSPage();
+    if (page) {
+        return page->findQViewForDocObj(getViewObject());
     }
 
     return nullptr;
+}
+
+//! Returns the parent graphics item of the passed item or nullptr if the passed item has no parent item.  The parent/child
+//! relationship is based on TD features, not the QGraphicsScene.
+//! this is just qgiv->parentItem() with extra steps??
+QGIView* ViewProviderDrawingView::getOwnerQView(const QGIView* qgiv)
+{
+    auto page = dynamic_cast<QGSPage *>(qgiv->scene());
+    if (!page) {
+        return nullptr;
+    }
+
+    TechDraw::DrawView* obj = qgiv->getViewObject();
+    if (!obj) {
+        return nullptr;
+    }
+
+    App::PropertyLink* ownerProp = obj->getOwnerProperty();
+    if (!ownerProp) {
+        return nullptr;
+    }
+
+    auto* owner = dynamic_cast<TechDraw::DrawView *>(ownerProp->getValue());
+    if (!owner) {
+        return nullptr;
+    }
+
+    return page->getQGIVByName(owner->getNameInDocument());
 }
 
 bool ViewProviderDrawingView::isShow() const
@@ -210,23 +238,51 @@ void ViewProviderDrawingView::startRestoring()
 
 void ViewProviderDrawingView::finishRestoring()
 {
-    if (Visibility.getValue()) {
-        show();
-    } else {
-        hide();
-    }
+    fixColorAlphaValues();
+
     Gui::ViewProviderDocumentObject::finishRestoring();
 }
 
 void ViewProviderDrawingView::updateData(const App::Property* prop)
 {
+    QGIView* qgiv = getQView();
+    if (!qgiv)  {
+        return;
+    }
+
+    TechDraw::DrawView* obj = getViewObject();
+    if (!obj) {
+        return;
+    }
+
+    App::PropertyLink* ownerProp = obj->getOwnerProperty();
+
     //only move the view on X, Y change
-    if (prop == &(getViewObject()->X)  ||
-        prop == &(getViewObject()->Y) ){
-        QGIView* qgiv = getQView();
-        if (qgiv) {
-            qgiv->QGIView::updateView(true);
+    if (prop == &obj->X ||
+        prop == &obj->Y) {
+
+        if (qgiv->isSnapping() ||
+            obj->LockPosition.getValue()) {
+            Gui::ViewProviderDocumentObject::updateData(prop);
+            return;
         }
+
+        qgiv->updatePositionFromFeatureXY();
+
+        // Update also the owner/parent view, if there is any
+        QGIView* ownerView = getOwnerQView(qgiv);
+        if (ownerView) {
+            ownerView->updateView();
+        }
+
+        Gui::ViewProviderDocumentObject::updateData(prop);
+        return;
+    }
+
+    if (ownerProp && prop == ownerProp) {
+        QGIView* ownerView = getOwnerQView(qgiv);  // ownerView is allowed to be null here
+        qgiv->switchParentItem(ownerView);
+        qgiv->updateView();
     }
 
     Gui::ViewProviderDocumentObject::updateData(prop);
@@ -237,7 +293,7 @@ ViewProviderPage* ViewProviderDrawingView::getViewProviderPage() const
     Gui::Document* guiDoc = Gui::Application::Instance->getDocument(getViewObject()->getDocument());
     if (guiDoc) {
         Gui::ViewProvider* vp = guiDoc->getViewProvider(getViewObject()->findParentPage());
-        return dynamic_cast<ViewProviderPage*>(vp);
+        return freecad_cast<ViewProviderPage*>(vp);
     }
     return nullptr;
 }
@@ -258,10 +314,10 @@ Gui::MDIView *ViewProviderDrawingView::getMDIView() const
 
 void ViewProviderDrawingView::onGuiRepaint(const TechDraw::DrawView* dv)
 {
-//    Base::Console().Message("VPDV::onGuiRepaint(%s) - this: %x\n", dv->getNameInDocument(), this);
     Gui::Document* guiDoc = Gui::Application::Instance->getDocument(getViewObject()->getDocument());
-    if (!guiDoc)
+    if (!guiDoc) {
         return;
+    }
 
     std::vector<TechDraw::DrawPage*> pages = getViewObject()->findAllParentPages();
     if (pages.size() > 1) {
@@ -319,24 +375,22 @@ void ViewProviderDrawingView::onProgressMessage(const TechDraw::DrawView* dv,
                                               const std::string featureName,
                                               const std::string text)
 {
-//    Q_UNUSED(featureName)
     Q_UNUSED(dv)
-//    Q_UNUSED(text)
     showProgressMessage(featureName, text);
 }
 
 void ViewProviderDrawingView::showProgressMessage(const std::string featureName, const std::string text) const
 {
-    QString msg = QString::fromUtf8("%1 %2")
-            .arg(Base::Tools::fromStdString(featureName),
-                 Base::Tools::fromStdString(text));
+    QString msg = QStringLiteral("%1 %2")
+            .arg(QString::fromStdString(featureName),
+                 QString::fromStdString(text));
     if (Gui::getMainWindow()) {
-        //neither of these work! Base::Console().Message() output preempts these messages??
+        //neither of these work! Base::Console().message() output preempts these messages??
 //        Gui::getMainWindow()->showMessage(msg, 3000);
 //        Gui::getMainWindow()->showStatus(Gui::MainWindow::Msg, msg);
         //Temporary implementation. This works, but the messages are queued up and
         //not displayed in the report window in real time??
-        Base::Console().Message("%s\n", qPrintable(msg));
+        Base::Console().message("%s\n", qPrintable(msg));
     }
 }
 
@@ -369,7 +423,7 @@ void ViewProviderDrawingView::stackTop()
         //no view, nothing to stack
         return;
     }
-    int maxZ = INT_MIN;
+    int maxZ = std::numeric_limits<int>::min();
     auto parent = qView->parentItem();
     if (parent) {
         //if we have a parentItem, we have to stack within the parentItem, not within the page
@@ -404,7 +458,7 @@ void ViewProviderDrawingView::stackBottom()
         //no view, nothing to stack
         return;
     }
-    int minZ = INT_MAX;
+    int minZ = std::numeric_limits<int>::max();
     auto parent = qView->parentItem();
     if (parent) {
         //if we have a parentItem, we have to stack within the parentItem, not within the page
@@ -442,3 +496,94 @@ TechDraw::DrawView* ViewProviderDrawingView::getViewObject() const
 {
     return dynamic_cast<TechDraw::DrawView*>(pcObject);
 }
+
+
+//! it can happen that child graphic items can lose their parent item if the
+//! the parent is deleted, then undo is invoked.  The linkages on the App side are
+//! handled by the undo mechanism, but the QGraphicsScene parentage is not reset.
+void ViewProviderDrawingView::fixSceneDependencies()
+{
+    auto page = getViewProviderPage();
+    if (!page) {
+        return;
+    }
+
+    auto scene = page->getQGSPage();
+    auto ourQView = getQView();
+
+    // this is the logic for items other than Dimensions and Balloons
+    auto children = getViewObject()->getUniqueChildren();
+    for (auto& child : children) {
+        if (child->isDerivedFrom<DrawViewDimension>() ||
+            child->isDerivedFrom<DrawViewBalloon>() ) {
+            // these are handled by ViewProviderViewPart
+            continue;
+        }
+        auto* childQView = scene->findQViewForDocObj(child);
+        auto* childGraphicParent = scene->findParent(childQView);
+        if (childGraphicParent != ourQView) {
+            scene->addItemToParent(childQView, ourQView);
+        }
+    }
+}
+
+
+std::vector<App::DocumentObject*> ViewProviderDrawingView::claimChildren() const
+{
+    std::vector<App::DocumentObject*> temp;
+    const std::vector<App::DocumentObject *> &potentialChildren = getViewObject()->getInList();
+    try {
+      for(auto& child : potentialChildren) {
+          auto* view = freecad_cast<DrawView *>(child);
+          if (view && view->claimParent() == getViewObject()) {
+              temp.push_back(view);
+              continue;
+          }
+      }
+    }
+    catch (...) {
+        return {};
+    }
+    return temp;
+}
+
+
+//! convert old style transparency values in PropertyColor to new style alpha channel values
+void ViewProviderDrawingView::fixColorAlphaValues()
+{
+    if (!Preferences::fixColorAlphaOnLoad() ||
+        checkMinimumDocumentVersion(Base::Version::v1_1)) {
+        return;
+    }
+
+    // check every PropertyColor for transparency vs alpha
+    std::vector<App::Property*> allProperties;
+    getPropertyList(allProperties);
+
+    constexpr double alphaNone{0.0};
+    constexpr double alphaFull{1.0};
+
+    for (auto& prop : allProperties) {
+        auto* colorProp = freecad_cast<App::PropertyColor*>(prop);
+        if (colorProp) {
+            // Here we are assuming that transparent colors are not used/need not be converted.
+            // To invert more generally, colorOut.a = 1 - colorIn.a;, but we would need a different
+            // mechanism to determine when to do the conversion.
+            Base::Color colorTemp = colorProp->getValue();
+            if (colorTemp.a == alphaNone) {
+                colorTemp.a = alphaFull;
+                colorProp->setValue(colorTemp);
+            }
+        }
+    }
+}
+
+bool ViewProviderDrawingView::checkMinimumDocumentVersion(App::Document* toBeChecked,
+                                                           Base::Version minVersion)
+{
+    const char* docVersionText = toBeChecked->getProgramVersion();
+    Base::Version documentVersion = Base::getVersion(docVersionText);
+    return documentVersion >= minVersion;
+}
+
+

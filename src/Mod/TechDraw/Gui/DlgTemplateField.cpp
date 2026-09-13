@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,19 +22,37 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include "DlgTemplateField.h"
 #include "ui_DlgTemplateField.h"
 
+#include <QPainter>
+
 
 using namespace TechDrawGui;
 
+void LineEditFrame::paintEvent(QPaintEvent*)
+{
+    QPainter p(this);
+    QStyleOptionFrame opt;
+    initStyleOption(&opt);
+
+    opt.state = focused ? opt.state | QStyle::State_HasFocus : opt.state &= ~QStyle::State_HasFocus;
+    style()->drawPrimitive(QStyle::PE_PanelLineEdit, &opt, &p, this);
+}
+
 DlgTemplateField::DlgTemplateField( QWidget *parent /* = nullptr */ ) :
-    QDialog(parent), ui(new Ui_dlgTemplateField)
+    QDialog(parent), templateObj(nullptr),  ui(new Ui_dlgTemplateField)
 {
     ui->setupUi(this);
-    ui->leInput->setFocus();
+
+    ui->leAutofill->setReadOnly(true);
+    QPalette palette = ui->leAutofill->palette();
+    palette.setColor(QPalette::Base, palette.color(QPalette::Disabled, QPalette::Base));
+    ui->leAutofill->setPalette(palette);
+
+    connect(qApp, &QApplication::focusChanged, this, &DlgTemplateField::focusChanged);
+    connect(ui->btnAutofill, &QAbstractButton::clicked, this, &DlgTemplateField::autofillClicked);
 }
 
 void DlgTemplateField::changeEvent(QEvent *e)
@@ -45,16 +65,34 @@ void DlgTemplateField::changeEvent(QEvent *e)
     }
 }
 
-void DlgTemplateField::setFieldName(std::string name)
+void DlgTemplateField::focusChanged(QWidget*, QWidget*)
 {
-    QString qs = QString::fromUtf8(name.data(), name.size());
-    ui->lblName->setText(qs);
+    ui->leFrame->drawFocused(ui->leInput->hasFocus());
+    ui->leFrame->repaint();
 }
 
-void DlgTemplateField::setFieldContent(std::string content)
+void DlgTemplateField::setTemplate(TechDraw::DrawTemplate* tmplte)
 {
-    QString qs = QString::fromUtf8(content.data(), content.size());
-    ui->leInput->setText(qs);
+    templateObj = tmplte;
+}
+
+void DlgTemplateField::setFieldName(QString name)
+{
+    ui->lblName->setText(name);
+
+    if (templateObj) {
+        ui->leInput->bind(templateObj->EditableTexts.getItemPath(name.toStdString()));
+    }
+}
+
+void DlgTemplateField::setFieldContent(QString content)
+{
+    ui->leInput->setText(content);
+}
+
+void DlgTemplateField::setAutofillContent(QString autofill)
+{
+    ui->leAutofill->setText(autofill);
 }
 
 QString DlgTemplateField::getFieldContent()
@@ -62,14 +100,23 @@ QString DlgTemplateField::getFieldContent()
     return ui->leInput->text();
 }
 
-void DlgTemplateField::accept()
+int DlgTemplateField::exec()
 {
-    QDialog::accept();
+    if (!ui->leInput->hasExpression()) {
+        ui->leInput->setFocus();
+    }
+    else {
+        ui->bbButtons->button(QDialogButtonBox::Cancel)->setFocus();
+    }
+
+    ui->btnAutofill->setDisabled(ui->leAutofill->text().isEmpty());
+
+    return QDialog::exec();
 }
 
-void DlgTemplateField::reject()
-{
-    QDialog::reject();
+void DlgTemplateField::autofillClicked(bool) {
+    ui->leInput->setExpression(std::shared_ptr<App::Expression>());
+    ui->leInput->setText(ui->leAutofill->text());
 }
 
 #include <Mod/TechDraw/Gui/moc_DlgTemplateField.cpp>

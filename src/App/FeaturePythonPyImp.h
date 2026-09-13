@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,8 +22,8 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef APP_FEATUREPYTHONPYIMP_H
-#define APP_FEATUREPYTHONPYIMP_H
+// clang-format off
+#pragma once
 
 #include <Base/BaseClass.h>
 #include <Base/Interpreter.h>
@@ -45,12 +47,13 @@
         virtual ~_class_(); \
     };
 
-#if PY_VERSION_HEX >= 0x03090000
-#define PYTHON_TYPE_SLOTS 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-#elif PY_VERSION_HEX >= 0x03080000
+#if PY_VERSION_HEX >= 0x030d0000
+#define PYTHON_TYPE_SLOTS 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+#elif PY_VERSION_HEX >= 0x030c0000
 #define PYTHON_TYPE_SLOTS 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 #else
-#define PYTHON_TYPE_SLOTS 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+#define PYTHON_TYPE_SLOTS 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+
 #endif \
 
 #define PYTHON_TYPE_IMP(_class_, _subclass_) \
@@ -114,4 +117,4 @@ private:
 # pragma GCC diagnostic pop
 #endif
 
-#endif // APP_FEATUREPYTHONPYIMP_H
+// clang-format on

@@ -20,62 +20,63 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef GUI_TEXTDOCUMENTEDITORVIEW_H
-#define GUI_TEXTDOCUMENTEDITORVIEW_H
+#pragma once
 
-#include <string>
 #include <QPlainTextEdit>
 
 #include <App/TextDocument.h>
 #include <Gui/MDIView.h>
 
 
-namespace Gui {
+namespace Gui
+{
 
-class GuiExport TextDocumentEditorView : public MDIView {
+class GuiExport TextDocumentEditorView: public MDIView
+{
     Q_OBJECT
-    TYPESYSTEM_HEADER_WITH_OVERRIDE();
+    Q_DISABLE_COPY_MOVE(TextDocumentEditorView)
+    TYPESYSTEM_HEADER_WITH_OVERRIDE();  // NOLINT
 
 public:
-    TextDocumentEditorView(
-            App::TextDocument* textDocument,
-            QPlainTextEdit* editor, QWidget* parent);
+    TextDocumentEditorView(App::TextDocument* textDocument, QPlainTextEdit* editor, QWidget* parent);
     ~TextDocumentEditorView() override;
-    const char *getName() const override { return "TextDocumentEditorView"; }
-    bool onMsg(const char* msg, const char**) override;
+    const char* getName() const override
+    {
+        return "TextDocumentEditorView";
+    }
+    bool onMsg(const char* msg) override;
     bool onHasMsg(const char* msg) const override;
-    bool canClose() override;
 
-    bool event(QEvent *event) override;
-
-    QPlainTextEdit* getEditor() const { return editor; }
-    App::TextDocument* getTextObject() const { return textDocument; }
+    QPlainTextEdit* getEditor() const
+    {
+        return editor;
+    }
+    App::TextDocument* getTextObject() const
+    {
+        return textDocument;
+    }
     QStringList undoActions() const override;
     QStringList redoActions() const override;
 
 protected:
-    void showEvent(QShowEvent*) override;
-    void hideEvent(QHideEvent*) override;
-    void closeEvent(QCloseEvent*) override;
+    void showEvent(QShowEvent* event) override;
+    void closeEvent(QCloseEvent* event) override;
 
 private:
     void setupEditor();
     void setupConnection();
     void saveToObject();
     void sourceChanged();
+    void textChanged();
     void labelChanged();
     void refresh();
-    bool isEditorModified() const;
 
 private:
-    QPlainTextEdit *const editor;
-    App::TextDocument *const textDocument;
-    boost::signals2::connection textConnection;
-    boost::signals2::connection labelConnection;
-    bool sourceModified = false;
+    QPlainTextEdit* const editor;
+    App::TextDocument* const textDocument;
+    fastsignals::advanced_connection textConnection;
+    fastsignals::connection labelConnection;
     bool aboutToClose = false;
 };
 
-}
-
-#endif
+}  // namespace Gui

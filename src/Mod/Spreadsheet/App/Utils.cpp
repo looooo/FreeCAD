@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 Eivind Kvedalen <eivind@kvedalen.name>             *
  *                                                                         *
@@ -20,11 +22,9 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
-#ifndef _PreComp_
 #include <sstream>
-#endif
+
 
 #include "Sheet.h"
 #include "Utils.h"
@@ -42,16 +42,15 @@
 
 std::string Spreadsheet::columnName(int col)
 {
-    std::stringstream s;
-
-    if (col < 26) {
-        s << ((char)('A' + col));
-    }
-    else {
-        s << ((char)('A' + (col - 26) / 26)) << ((char)('A' + (col - 26) % 26));
+    if (col < 0) {
+        return {};
     }
 
-    return s.str();
+    std::string result;
+    for (int value = col + 1; value > 0; value = (value - 1) / 26) {
+        result.insert(result.begin(), static_cast<char>('A' + (value - 1) % 26));
+    }
+    return result;
 }
 
 /**
@@ -73,8 +72,10 @@ std::string Spreadsheet::rowName(int row)
 }
 
 
-void Spreadsheet::createRectangles(std::set<std::pair<int, int>>& cells,
-                                   std::map<std::pair<int, int>, std::pair<int, int>>& rectangles)
+void Spreadsheet::createRectangles(
+    std::set<std::pair<int, int>>& cells,
+    std::map<std::pair<int, int>, std::pair<int, int>>& rectangles
+)
 {
     while (!cells.empty()) {
         int row, col;

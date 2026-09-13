@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2005 Imetric 3D GmbH                                    *
  *                                                                         *
@@ -21,15 +23,17 @@
  ***************************************************************************/
 
 
-#ifndef BASE_VIEWPROJ_H
-#define BASE_VIEWPROJ_H
+#pragma once
 
-#include "Vector3D.h"
 #include "Matrix.h"
 
 
 namespace Base
 {
+template<typename T>
+class Vector3;
+using Vector3d = Vector3<double>;
+
 
 /**
  * Abstract base class for all project methods.
@@ -117,5 +121,3 @@ private:
 };
 
 }  // namespace Base
-
-#endif  // BASE_VIEWPROJ_H

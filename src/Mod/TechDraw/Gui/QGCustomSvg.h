@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_QGCUSTOMSVG_H
-#define DRAWINGGUI_QGCUSTOMSVG_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
@@ -31,6 +32,7 @@
 #include <QPointF>
 #include <QSvgRenderer>
 
+#include "QGIUserTypes.h"
 
 QT_BEGIN_NAMESPACE
 class QPainter;
@@ -46,7 +48,7 @@ public:
     explicit QGCustomSvg();
     ~QGCustomSvg() override;
 
-    enum {Type = QGraphicsItem::UserType + 131};
+    enum {Type = UserType::QGCustomSvg};
     int type() const override { return Type;}
 
     void paint( QPainter *painter,
@@ -62,5 +64,3 @@ protected:
 };
 
 } // namespace TechDrawGui
-
-#endif // DRAWINGGUI_QGCUSTOMSVG_H

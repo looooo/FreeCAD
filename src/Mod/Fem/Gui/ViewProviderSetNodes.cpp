@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Jürgen Riegel <FreeCAD@juergen-riegel.net>         *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <Gui/Control.h>
 #include <Mod/Fem/App/FemSetNodesObject.h>
@@ -35,8 +36,7 @@ PROPERTY_SOURCE(FemGui::ViewProviderSetNodes, Gui::ViewProviderGeometryObject)
 
 bool ViewProviderSetNodes::doubleClicked()
 {
-    Gui::TaskView::TaskDialog* dlg =
-        new TaskDlgCreateNodeSet(static_cast<Fem::FemSetNodesObject*>(getObject()));
+    Gui::TaskView::TaskDialog* dlg = new TaskDlgCreateNodeSet(getObject<Fem::FemSetNodesObject>());
     Gui::Control().showDialog(dlg);
     return true;
 }
@@ -44,8 +44,7 @@ bool ViewProviderSetNodes::doubleClicked()
 
 bool ViewProviderSetNodes::setEdit(int)
 {
-    Gui::TaskView::TaskDialog* dlg =
-        new TaskDlgCreateNodeSet(static_cast<Fem::FemSetNodesObject*>(getObject()));
+    Gui::TaskView::TaskDialog* dlg = new TaskDlgCreateNodeSet(getObject<Fem::FemSetNodesObject>());
     Gui::Control().showDialog(dlg);
     return true;
 }

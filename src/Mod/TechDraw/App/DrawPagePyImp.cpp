@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <App/DocumentObject.h>
 #include <Base/Console.h>
@@ -77,6 +78,39 @@ PyObject* DrawPagePy::removeView(PyObject* args)
     return PyLong_FromLong(rc);
 }
 
+PyObject* DrawPagePy::getViews(PyObject* args)
+{
+    if (!PyArg_ParseTuple(args, "")) {
+        return nullptr;
+    }
+
+    DrawPage* page = getDrawPagePtr();
+    std::vector<App::DocumentObject*> allViews = page->getViews();
+
+    Py::List ret;
+    for (auto v: allViews) {
+        auto dvp = freecad_cast<DrawViewPart*>(v);
+        if (dvp && DrawView::isProjGroupItem(dvp)) {
+            TechDraw::DrawProjGroupItem* dpgi = static_cast<TechDraw::DrawProjGroupItem*>(v);
+            ret.append(Py::asObject(new TechDraw::DrawProjGroupItemPy(dpgi)));
+        }
+        else if (v->isDerivedFrom<TechDraw::DrawViewPart>()) {
+            TechDraw::DrawViewPart* dvp = static_cast<TechDraw::DrawViewPart*>(v);
+            ret.append(Py::asObject(new TechDraw::DrawViewPartPy(dvp)));
+        }
+        else if (v->isDerivedFrom<TechDraw::DrawViewAnnotation>()) {
+            TechDraw::DrawViewAnnotation* dva = static_cast<TechDraw::DrawViewAnnotation*>(v);
+            ret.append(Py::asObject(new TechDraw::DrawViewAnnotationPy(dva)));
+        }
+        else {
+            TechDraw::DrawView* dv = static_cast<TechDraw::DrawView*>(v);
+            ret.append(Py::asObject(new TechDraw::DrawViewPy(dv)));
+        }
+    }
+
+    return Py::new_reference_to(ret);
+}
+
 PyObject* DrawPagePy::getAllViews(PyObject* args)
 {
     if (!PyArg_ParseTuple(args, "")) {
@@ -88,15 +122,16 @@ PyObject* DrawPagePy::getAllViews(PyObject* args)
 
     Py::List ret;
     for (auto v: allViews) {
-        if (v->isDerivedFrom(TechDraw::DrawProjGroupItem::getClassTypeId())) {
+        auto dvp = freecad_cast<DrawViewPart*>(v);
+        if (dvp && DrawView::isProjGroupItem(dvp)) {
             TechDraw::DrawProjGroupItem* dpgi = static_cast<TechDraw::DrawProjGroupItem*>(v);
             ret.append(Py::asObject(new TechDraw::DrawProjGroupItemPy(dpgi)));
         }
-        else if (v->isDerivedFrom(TechDraw::DrawViewPart::getClassTypeId())) {
+        else if (v->isDerivedFrom<TechDraw::DrawViewPart>()) {
             TechDraw::DrawViewPart* dvp = static_cast<TechDraw::DrawViewPart*>(v);
             ret.append(Py::asObject(new TechDraw::DrawViewPartPy(dvp)));
         }
-        else if (v->isDerivedFrom(TechDraw::DrawViewAnnotation::getClassTypeId())) {
+        else if (v->isDerivedFrom<TechDraw::DrawViewAnnotation>()) {
             TechDraw::DrawViewAnnotation* dva = static_cast<TechDraw::DrawViewAnnotation*>(v);
             ret.append(Py::asObject(new TechDraw::DrawViewAnnotationPy(dva)));
         }

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2005 Berthold Grupp                                     *
  *                                                                         *
@@ -20,12 +22,10 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
-#ifndef _PreComp_
 #include <fstream>
 #include <ios>
-#endif
+
 
 #include <Base/Builder3D.h>
 #include <Base/Sequencer.h>
@@ -45,11 +45,13 @@ using namespace Base;
 using namespace MeshCore;
 
 
-SetOperations::SetOperations(const MeshKernel& cutMesh1,
-                             const MeshKernel& cutMesh2,
-                             MeshKernel& result,
-                             OperationType opType,
-                             float minDistanceToPoint)
+SetOperations::SetOperations(
+    const MeshKernel& cutMesh1,
+    const MeshKernel& cutMesh2,
+    MeshKernel& result,
+    OperationType opType,
+    float minDistanceToPoint
+)
     : _cutMesh0(cutMesh1)
     , _cutMesh1(cutMesh2)
     , _resultMesh(result)
@@ -59,9 +61,9 @@ SetOperations::SetOperations(const MeshKernel& cutMesh1,
 
 void SetOperations::Do()
 {
-    _minDistanceToPoint = 0.000001f;
+    _minDistanceToPoint = 0.000001F;
     float saveMinMeshDistance = MeshDefinitions::_fMinPointDistance;
-    MeshDefinitions::SetMinPointDistance(0.000001f);
+    MeshDefinitions::SetMinPointDistance(0.000001F);
 
     //  Base::Sequencer().start("set operation", 5);
 
@@ -117,28 +119,28 @@ void SetOperations::Do()
     float mult0 {}, mult1 {};
     switch (_operationType) {
         case Union:
-            mult0 = -1.0f;
-            mult1 = -1.0f;
+            mult0 = -1.0F;
+            mult1 = -1.0F;
             break;
         case Intersect:
-            mult0 = 1.0f;
-            mult1 = 1.0f;
+            mult0 = 1.0F;
+            mult1 = 1.0F;
             break;
         case Difference:
-            mult0 = -1.0f;
-            mult1 = 1.0f;
+            mult0 = -1.0F;
+            mult1 = 1.0F;
             break;
         case Inner:
-            mult0 = 1.0f;
-            mult1 = 0.0f;
+            mult0 = 1.0F;
+            mult1 = 0.0F;
             break;
         case Outer:
-            mult0 = -1.0f;
-            mult1 = 0.0f;
+            mult0 = -1.0F;
+            mult1 = 0.0F;
             break;
         default:
-            mult0 = 0.0f;
-            mult1 = 0.0f;
+            mult0 = 0.0F;
+            mult1 = 0.0F;
             break;
     }
 
@@ -171,8 +173,7 @@ void SetOperations::Do()
     MeshDefinitions::SetMinPointDistance(saveMinMeshDistance);
 }
 
-void SetOperations::Cut(std::set<FacetIndex>& facetsCuttingEdge0,
-                        std::set<FacetIndex>& facetsCuttingEdge1)
+void SetOperations::Cut(std::set<FacetIndex>& facetsCuttingEdge0, std::set<FacetIndex>& facetsCuttingEdge1)
 {
     MeshFacetGrid grid1(_cutMesh0, 20);
     MeshFacetGrid grid2(_cutMesh1, 20);
@@ -248,10 +249,10 @@ void SetOperations::Cut(std::set<FacetIndex>& facetsCuttingEdge0,
                                         _cutPoints.insert(mp0);
                                         _cutPoints.insert(mp1);
 
-                                        std::pair<std::set<MeshPoint>::iterator, bool> pit0 =
-                                            _cutPoints.insert(mp0);
-                                        std::pair<std::set<MeshPoint>::iterator, bool> pit1 =
-                                            _cutPoints.insert(mp1);
+                                        std::pair<std::set<MeshPoint>::iterator, bool> pit0
+                                            = _cutPoints.insert(mp0);
+                                        std::pair<std::set<MeshPoint>::iterator, bool> pit1
+                                            = _cutPoints.insert(mp1);
 
                                         _edges[Edge(mp0, mp1)] = EdgeInfo();
 
@@ -261,8 +262,8 @@ void SetOperations::Cut(std::set<FacetIndex>& facetsCuttingEdge0,
                                         _facet2points[1][fidx2].push_back(pit1.first);
                                     }
                                     else {
-                                        std::pair<std::set<MeshPoint>::iterator, bool> pit =
-                                            _cutPoints.insert(mp0);
+                                        std::pair<std::set<MeshPoint>::iterator, bool> pit
+                                            = _cutPoints.insert(mp0);
 
                                         // do not insert a facet when only one corner point cuts the
                                         // edge if (!((mp0 == f1._aclPoints[0]) || (mp0 ==
@@ -279,15 +280,14 @@ void SetOperations::Cut(std::set<FacetIndex>& facetsCuttingEdge0,
                                             _facet2points[1][fidx2].push_back(pit.first);
                                         }
                                     }
-
-                                }  // if (f1.IntersectWithFacet(f2, p0, p1))
-                            }      // for (it2 = vecFacets2.begin(); it2 != vecFacets2.end(); ++it2)
-                        }          // for (it1 = vecFacets1.begin(); it1 != vecFacets1.end(); ++it1)
-                    }              // if (vecFacets2.size() > 0)
-                }                  // if (grid1.GetCtElements(gx1, gy1, gz1) > 0)
-            }                      // for (gz1 = 0; gz1 < ctGz1; gz1++)
-        }                          // for (gy1 = 0; gy1 < ctGy1; gy1++)
-    }                              // for (gx1 = 0; gx1 < ctGx1; gx1++)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 void SetOperations::TriangulateMesh(const MeshKernel& cutMesh, int side)
@@ -348,9 +348,11 @@ void SetOperations::TriangulateMesh(const MeshKernel& cutMesh, int side)
                 continue;
             }
 
-            MeshGeomFacet facet(points[it._aulPoints[0]],
-                                points[it._aulPoints[1]],
-                                points[it._aulPoints[2]]);
+            MeshGeomFacet facet(
+                points[it._aulPoints[0]],
+                points[it._aulPoints[1]],
+                points[it._aulPoints[2]]
+            );
 
             // if (side == 1)
             //  _builder.addSingleTriangle(facet._aclPoints[0], facet._aclPoints[1],
@@ -361,15 +363,18 @@ void SetOperations::TriangulateMesh(const MeshKernel& cutMesh, int side)
             //   continue;
             // }
 
-            float dist0 =
-                facet._aclPoints[0].DistanceToLine(facet._aclPoints[1],
-                                                   facet._aclPoints[1] - facet._aclPoints[2]);
-            float dist1 =
-                facet._aclPoints[1].DistanceToLine(facet._aclPoints[0],
-                                                   facet._aclPoints[0] - facet._aclPoints[2]);
-            float dist2 =
-                facet._aclPoints[2].DistanceToLine(facet._aclPoints[0],
-                                                   facet._aclPoints[0] - facet._aclPoints[1]);
+            float dist0 = facet._aclPoints[0].DistanceToLine(
+                facet._aclPoints[1],
+                facet._aclPoints[1] - facet._aclPoints[2]
+            );
+            float dist1 = facet._aclPoints[1].DistanceToLine(
+                facet._aclPoints[0],
+                facet._aclPoints[0] - facet._aclPoints[2]
+            );
+            float dist2 = facet._aclPoints[2].DistanceToLine(
+                facet._aclPoints[0],
+                facet._aclPoints[0] - facet._aclPoints[1]
+            );
 
             if ((dist0 < _minDistanceToPoint) || (dist1 < _minDistanceToPoint)
                 || (dist2 < _minDistanceToPoint)) {
@@ -387,15 +392,14 @@ void SetOperations::TriangulateMesh(const MeshKernel& cutMesh, int side)
             // }
 
             facet.CalcNormal();
-            if ((facet.GetNormal() * f.GetNormal()) < 0.0f) {  // adjust normal
+            if ((facet.GetNormal() * f.GetNormal()) < 0.0F) {  // adjust normal
                 std::swap(facet._aclPoints[0], facet._aclPoints[1]);
                 facet.CalcNormal();
             }
 
 
             for (int j = 0; j < 3; j++) {
-                std::map<Edge, EdgeInfo>::iterator eit =
-                    _edges.find(Edge(facet._aclPoints[j], facet._aclPoints[(j + 1) % 3]));
+                auto eit = _edges.find(Edge(facet._aclPoints[j], facet._aclPoints[(j + 1) % 3]));
 
                 if (eit != _edges.end()) {
 
@@ -407,16 +411,14 @@ void SetOperations::TriangulateMesh(const MeshKernel& cutMesh, int side)
                         eit->second.facet[side] = fidx;
                         eit->second.facets[side][eit->second.fcounter[side]] = facet;
                         eit->second.fcounter[side]++;
-                        facet.SetFlag(
-                            MeshFacet::MARKED);  // set all facets connected to an edge: MARKED
+                        facet.SetFlag(MeshFacet::MARKED);  // set all facets connected to an edge: MARKED
                     }
                 }
             }
 
             _newMeshFacets[side].push_back(facet);
-
-        }  // for (i = 0; i < (out->numberoftriangles * 3); i += 3)
-    }      // for (it1 = _facet2points[side].begin(); it1 != _facet2points[side].end(); ++it1)
+        }
+    }
 }
 
 void SetOperations::CollectFacets(int side, float mult)
@@ -468,12 +470,14 @@ void SetOperations::CollectFacets(int side, float mult)
     // MeshDefinitions::SetMinPointDistance(distSave);
 }
 
-SetOperations::CollectFacetVisitor::CollectFacetVisitor(const MeshKernel& mesh,
-                                                        std::vector<FacetIndex>& facets,
-                                                        std::map<Edge, EdgeInfo>& edges,
-                                                        int side,
-                                                        float mult,
-                                                        Base::Builder3D& builder)
+SetOperations::CollectFacetVisitor::CollectFacetVisitor(
+    const MeshKernel& mesh,
+    std::vector<FacetIndex>& facets,
+    std::map<Edge, EdgeInfo>& edges,
+    int side,
+    float mult,
+    Base::Builder3D& builder
+)
     : _facets(facets)
     , _mesh(mesh)
     , _edges(edges)
@@ -482,10 +486,12 @@ SetOperations::CollectFacetVisitor::CollectFacetVisitor(const MeshKernel& mesh,
     , _builder(builder)
 {}
 
-bool SetOperations::CollectFacetVisitor::Visit(const MeshFacet& rclFacet,
-                                               const MeshFacet& rclFrom,
-                                               FacetIndex ulFInd,
-                                               unsigned long ulLevel)
+bool SetOperations::CollectFacetVisitor::Visit(
+    const MeshFacet& rclFacet,
+    const MeshFacet& rclFrom,
+    FacetIndex ulFInd,
+    unsigned long ulLevel
+)
 {
     (void)rclFacet;
     (void)rclFrom;
@@ -495,11 +501,13 @@ bool SetOperations::CollectFacetVisitor::Visit(const MeshFacet& rclFacet,
 }
 
 // static int matchCounter = 0;
-bool SetOperations::CollectFacetVisitor::AllowVisit(const MeshFacet& rclFacet,
-                                                    const MeshFacet& rclFrom,
-                                                    FacetIndex ulFInd,
-                                                    unsigned long ulLevel,
-                                                    unsigned short neighbourIndex)
+bool SetOperations::CollectFacetVisitor::AllowVisit(
+    const MeshFacet& rclFacet,
+    const MeshFacet& rclFrom,
+    FacetIndex ulFInd,
+    unsigned long ulLevel,
+    unsigned short neighbourIndex
+)
 {
     (void)ulFInd;
     (void)ulLevel;
@@ -514,24 +522,24 @@ bool SetOperations::CollectFacetVisitor::AllowVisit(const MeshFacet& rclFacet,
         if (it != _edges.end()) {
             if (_addFacets == -1) {
                 // determine if the facets should add or not only once
-                MeshGeomFacet facet = _mesh.GetFacet(rclFrom);  // triangulated facet
-                MeshGeomFacet facetOther =
-                    it->second
-                        .facets[1 - _side][0];  // triangulated facet from same edge and other mesh
+                MeshGeomFacet facet = _mesh.GetFacet(rclFrom);               // triangulated facet
+                MeshGeomFacet facetOther = it->second.facets[1 - _side][0];  // triangulated facet
+                                                                             // from same edge and
+                                                                             // other mesh
                 Vector3f normalOther = facetOther.GetNormal();
                 // Vector3f normal = facet.GetNormal();
 
                 Vector3f edgeDir = it->first.pt1 - it->first.pt2;
                 Vector3f ocDir = (edgeDir % (facet.GetGravityPoint() - it->first.pt1)) % edgeDir;
                 ocDir.Normalize();
-                Vector3f ocDirOther =
-                    (edgeDir % (facetOther.GetGravityPoint() - it->first.pt1)) % edgeDir;
+                Vector3f ocDirOther = (edgeDir % (facetOther.GetGravityPoint() - it->first.pt1))
+                    % edgeDir;
                 ocDirOther.Normalize();
 
                 // Vector3f dir = ocDir % normal;
                 // Vector3f dirOther = ocDirOther % normalOther;
 
-                bool match = ((ocDir * normalOther) * _mult) < 0.0f;
+                bool match = ((ocDir * normalOther) * _mult) < 0.0F;
 
                 // if (matchCounter == 1)
                 //{
@@ -625,11 +633,7 @@ bool MeshIntersection::hasIntersection() const
         return false;
     }
 
-    if (testIntersection(kernel1, kernel2)) {
-        return true;
-    }
-
-    return false;
+    return (testIntersection(kernel1, kernel2));
 }
 
 void MeshIntersection::getIntersection(std::list<MeshIntersection::Tuple>& intsct) const
@@ -661,7 +665,7 @@ void MeshIntersection::getIntersection(std::list<MeshIntersection::Tuple>& intsc
     Base::Vector3f pt1, pt2;
 
     // Iterate over the facets of the 2nd mesh and find the grid elements of the 1st mesh
-    for (MeshFacetArray::_TConstIterator it = rFaces2.begin(); it != rFaces2.end(); ++it, index++) {
+    for (auto it = rFaces2.begin(); it != rFaces2.end(); ++it, index++) {
         seq.next();
         std::vector<FacetIndex> elements;
         cMeshFacetGrid.Inside(boxes2[index], elements, true);
@@ -713,7 +717,7 @@ bool MeshIntersection::testIntersection(const MeshKernel& k1, const MeshKernel& 
     Base::Vector3f pt1, pt2;
 
     // Iterate over the facets of the 2nd mesh and find the grid elements of the 1st mesh
-    for (MeshFacetArray::_TConstIterator it = rFaces2.begin(); it != rFaces2.end(); ++it, index++) {
+    for (auto it = rFaces2.begin(); it != rFaces2.end(); ++it, index++) {
         seq.next();
         std::vector<FacetIndex> elements;
         cMeshFacetGrid.Inside(boxes2[index], elements, true);
@@ -737,9 +741,11 @@ bool MeshIntersection::testIntersection(const MeshKernel& k1, const MeshKernel& 
     return false;
 }
 
-void MeshIntersection::connectLines(bool onlyclosed,
-                                    const std::list<MeshIntersection::Tuple>& rdata,
-                                    std::list<std::list<MeshIntersection::Triple>>& lines)
+void MeshIntersection::connectLines(
+    bool onlyclosed,
+    const std::list<MeshIntersection::Tuple>& rdata,
+    std::list<std::list<MeshIntersection::Triple>>& lines
+)
 {
     float fMinEps = minDistance * minDistance;
 
@@ -793,7 +799,7 @@ void MeshIntersection::connectLines(bool onlyclosed,
                     bEndFirst = false;
                 }
 
-                if (fFrontMin == 0.0f || fEndMin == 0.0f) {
+                if (fFrontMin == 0.0F || fEndMin == 0.0F) {
                     break;
                 }
             }

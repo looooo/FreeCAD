@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2008 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,10 +22,8 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
+#include <limits>
 #include <sstream>
-#endif
 
 #include <Base/VectorPy.h>
 
@@ -86,7 +86,7 @@ PyObject* MeshPointPy::unbound(PyObject* args)
     if (!PyArg_ParseTuple(args, "")) {
         return nullptr;
     }
-    getMeshPointPtr()->Index = UINT_MAX;
+    getMeshPointPtr()->Index = std::numeric_limits<unsigned>::max();
     getMeshPointPtr()->Mesh = nullptr;
     Py_Return;
 }
@@ -98,21 +98,23 @@ Py::Long MeshPointPy::getIndex() const
 
 Py::Boolean MeshPointPy::getBound() const
 {
-    return {getMeshPointPtr()->Index != UINT_MAX};
+    return {getMeshPointPtr()->Index != std::numeric_limits<unsigned>::max()};
 }
 
 Py::Object MeshPointPy::getNormal() const
 {
     if (!getMeshPointPtr()->isBound()) {
         throw Py::RuntimeError(
-            "This object is not bound to a mesh, so no topological operation is possible!");
+            "This object is not bound to a mesh, so no topological operation is possible!"
+        );
     }
     if (getMeshPointPtr()->Mesh->countPoints() <= getMeshPointPtr()->Index) {
         throw Py::IndexError("Index out of range");
     }
 
-    Base::Vector3d* v =
-        new Base::Vector3d(getMeshPointPtr()->Mesh->getPointNormal(getMeshPointPtr()->Index));
+    Base::Vector3d* v = new Base::Vector3d(
+        getMeshPointPtr()->Mesh->getPointNormal(getMeshPointPtr()->Index)
+    );
     Base::VectorPy* normal = new Base::VectorPy(v);
     normal->setConst();
     return Py::Object(normal, true);

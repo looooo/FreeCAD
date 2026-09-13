@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2006 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,12 +22,11 @@
  *                                                                         *
  ***************************************************************************/
 
-
-#include "PreCompiled.h"
-#include <array>
+#include <limits>
 
 #include <boost/algorithm/string/predicate.hpp>
 #include "Base/Exception.h"
+#include "Base/Tools.h"
 
 #include "Rotation.h"
 #include "Matrix.h"
@@ -79,6 +80,19 @@ Rotation::Rotation(const Vector3d& rotateFrom, const Vector3d& rotateTo)
     : Rotation()
 {
     this->setValue(rotateFrom, rotateTo);
+}
+
+Rotation Rotation::fromNormalVector(const Vector3d& normal)
+{
+    // We rotate Z axis to be aligned with the supplied normal vector
+    return Rotation(Vector3d(0, 0, 1), normal);
+}
+
+Rotation Rotation::fromEulerAngles(EulerSequence theOrder, double alpha, double beta, double gamma)
+{
+    Rotation rotation;
+    rotation.setEulerAngles(theOrder, alpha, beta, gamma);
+    return rotation;
 }
 
 const double* Rotation::getValue() const
@@ -153,8 +167,10 @@ void Rotation::getValue(Matrix4D& matrix) const
 {
     // Taken from <http://de.wikipedia.org/wiki/Quaternionen>
     //
-    const double l = sqrt(this->quat[0] * this->quat[0] + this->quat[1] * this->quat[1]
-                          + this->quat[2] * this->quat[2] + this->quat[3] * this->quat[3]);
+    const double l = sqrt(
+        this->quat[0] * this->quat[0] + this->quat[1] * this->quat[1]
+        + this->quat[2] * this->quat[2] + this->quat[3] * this->quat[3]
+    );
     const double x = this->quat[0] / l;
     const double y = this->quat[1] / l;
     const double z = this->quat[2] / l;
@@ -233,11 +249,12 @@ void Rotation::setValue(const Matrix4D& m)
 
 void Rotation::setValue(const Vector3d& axis, double fAngle)
 {
+    using std::numbers::pi;
     // Taken from <http://de.wikipedia.org/wiki/Quaternionen>
     //
     // normalization of the angle to be in [0, 2pi[
     _angle = fAngle;
-    double theAngle = fAngle - floor(fAngle / (2.0 * D_PI)) * (2.0 * D_PI);
+    double theAngle = fAngle - floor(fAngle / (2.0 * pi)) * (2.0 * pi);
     this->quat[3] = cos(theAngle / 2.0);
 
     Vector3d norm = axis;
@@ -296,8 +313,10 @@ void Rotation::setValue(const Vector3d& rotateFrom, const Vector3d& rotateTo)
 
 void Rotation::normalize()
 {
-    double len = sqrt(this->quat[0] * this->quat[0] + this->quat[1] * this->quat[1]
-                      + this->quat[2] * this->quat[2] + this->quat[3] * this->quat[3]);
+    double len = sqrt(
+        this->quat[0] * this->quat[0] + this->quat[1] * this->quat[1]
+        + this->quat[2] * this->quat[2] + this->quat[3] * this->quat[3]
+    );
     if (len > 0.0) {
         this->quat[0] /= len;
         this->quat[1] /= len;
@@ -373,10 +392,12 @@ Rotation& Rotation::multRight(const Base::Rotation& q)
     double w1 {};
     q.getValue(x1, y1, z1, w1);
 
-    this->setValue(w0 * x1 + x0 * w1 + y0 * z1 - z0 * y1,
-                   w0 * y1 - x0 * z1 + y0 * w1 + z0 * x1,
-                   w0 * z1 + x0 * y1 - y0 * x1 + z0 * w1,
-                   w0 * w1 - x0 * x1 - y0 * y1 - z0 * z1);
+    this->setValue(
+        w0 * x1 + x0 * w1 + y0 * z1 - z0 * y1,
+        w0 * y1 - x0 * z1 + y0 * w1 + z0 * x1,
+        w0 * z1 + x0 * y1 - y0 * x1 + z0 * w1,
+        w0 * w1 - x0 * x1 - y0 * y1 - z0 * z1
+    );
     return *this;
 }
 
@@ -401,10 +422,12 @@ Rotation& Rotation::multLeft(const Base::Rotation& q)
     double w1 {};
     this->getValue(x1, y1, z1, w1);
 
-    this->setValue(w0 * x1 + x0 * w1 + y0 * z1 - z0 * y1,
-                   w0 * y1 - x0 * z1 + y0 * w1 + z0 * x1,
-                   w0 * z1 + x0 * y1 - y0 * x1 + z0 * w1,
-                   w0 * w1 - x0 * x1 - y0 * y1 - z0 * z1);
+    this->setValue(
+        w0 * x1 + x0 * w1 + y0 * z1 - z0 * y1,
+        w0 * y1 - x0 * z1 + y0 * w1 + z0 * x1,
+        w0 * z1 + x0 * y1 - y0 * x1 + z0 * w1,
+        w0 * w1 - x0 * x1 - y0 * y1 - z0 * z1
+    );
     return *this;
 }
 
@@ -436,12 +459,12 @@ void Rotation::multVec(const Vector3d& src, Vector3d& dst) const
     double z2 = z * z;
     double w2 = w * w;
 
-    double dx =
-        (x2 + w2 - y2 - z2) * src.x + 2.0 * (x * y - z * w) * src.y + 2.0 * (x * z + y * w) * src.z;
-    double dy =
-        2.0 * (x * y + z * w) * src.x + (w2 - x2 + y2 - z2) * src.y + 2.0 * (y * z - x * w) * src.z;
-    double dz =
-        2.0 * (x * z - y * w) * src.x + 2.0 * (x * w + y * z) * src.y + (w2 - x2 - y2 + z2) * src.z;
+    double dx = (x2 + w2 - y2 - z2) * src.x + 2.0 * (x * y - z * w) * src.y
+        + 2.0 * (x * z + y * w) * src.z;
+    double dy = 2.0 * (x * y + z * w) * src.x + (w2 - x2 + y2 - z2) * src.y
+        + 2.0 * (y * z - x * w) * src.z;
+    double dz = 2.0 * (x * z - y * w) * src.x + 2.0 * (x * w + y * z) * src.y
+        + (w2 - x2 - y2 + z2) * src.z;
     dst.x = dx;
     dst.y = dy;
     dst.z = dz;
@@ -515,8 +538,7 @@ Rotation Rotation::identity()
     return {0.0, 0.0, 0.0, 1.0};
 }
 
-Rotation
-Rotation::makeRotationByAxes(Vector3d xdir, Vector3d ydir, Vector3d zdir, const char* priorityOrder)
+Rotation Rotation::makeRotationByAxes(Vector3d xdir, Vector3d ydir, Vector3d zdir, const char* priorityOrder)
 {
     const double tol = Precision::Confusion();
     enum dirIndex
@@ -534,9 +556,11 @@ Rotation::makeRotationByAxes(Vector3d xdir, Vector3d ydir, Vector3d zdir, const 
     for (int i = 0; i < 3; ++i) {
         order[i] = priorityOrder[i] - 'X';
         if (order[i] < 0 || order[i] > 2) {
-            THROWM(ValueError,
-                   "makeRotationByAxes: characters in priorityOrder must be uppercase X, Y, or Z. "
-                   "Some other character encountered.")
+            THROWM(
+                ValueError,
+                "makeRotationByAxes: characters in priorityOrder must be uppercase X, Y, or Z. "
+                "Some other character encountered."
+            )
         }
     }
 
@@ -679,9 +703,9 @@ void Rotation::setYawPitchRoll(double y, double p, double r)
 {
     // The Euler angles (yaw,pitch,roll) are in XY'Z''-notation
     // convert to radians
-    y = (y / 180.0) * D_PI;
-    p = (p / 180.0) * D_PI;
-    r = (r / 180.0) * D_PI;
+    y = toRadians(y);
+    p = toRadians(p);
+    r = toRadians(r);
 
     double c1 = cos(y / 2.0);
     double s1 = sin(y / 2.0);
@@ -690,14 +714,18 @@ void Rotation::setYawPitchRoll(double y, double p, double r)
     double c3 = cos(r / 2.0);
     double s3 = sin(r / 2.0);
 
-    this->setValue(c1 * c2 * s3 - s1 * s2 * c3,
-                   c1 * s2 * c3 + s1 * c2 * s3,
-                   s1 * c2 * c3 - c1 * s2 * s3,
-                   c1 * c2 * c3 + s1 * s2 * s3);
+    this->setValue(
+        c1 * c2 * s3 - s1 * s2 * c3,
+        c1 * s2 * c3 + s1 * c2 * s3,
+        s1 * c2 * c3 - c1 * s2 * s3,
+        c1 * c2 * c3 + s1 * s2 * s3
+    );
 }
 
 void Rotation::getYawPitchRoll(double& y, double& p, double& r) const
 {
+    using std::numbers::pi;
+
     double q00 = quat[0] * quat[0];
     double q11 = quat[1] * quat[1];
     double q22 = quat[2] * quat[2];
@@ -710,30 +738,31 @@ void Rotation::getYawPitchRoll(double& y, double& p, double& r) const
     double q23 = quat[2] * quat[3];
     double qd2 = 2.0 * (q13 - q02);
 
+    // Tolerance copied from OCC "gp_Quaternion.cxx"
+    constexpr double tolerance = 16 * std::numeric_limits<double>::epsilon();
     // handle gimbal lock
-    if (fabs(qd2 - 1.0) <= 16 * DBL_EPSILON) {  // Tolerance copied from OCC "gp_Quaternion.cxx"
+    if (fabs(qd2 - 1.0) <= tolerance) {
         // north pole
         y = 0.0;
-        p = D_PI / 2.0;
+        p = pi / 2.0;
         r = 2.0 * atan2(quat[0], quat[3]);
     }
-    else if (fabs(qd2 + 1.0)
-             <= 16 * DBL_EPSILON) {  // Tolerance copied from OCC "gp_Quaternion.cxx"
+    else if (fabs(qd2 + 1.0) <= tolerance) {
         // south pole
         y = 0.0;
-        p = -D_PI / 2.0;
+        p = -pi / 2.0;
         r = 2.0 * atan2(quat[0], quat[3]);
     }
     else {
         y = atan2(2.0 * (q01 + q23), (q00 + q33) - (q11 + q22));
-        p = qd2 > 1.0 ? D_PI / 2.0 : (qd2 < -1.0 ? -D_PI / 2.0 : asin(qd2));
+        p = qd2 > 1.0 ? pi / 2.0 : (qd2 < -1.0 ? -pi / 2.0 : asin(qd2));
         r = atan2(2.0 * (q12 + q03), (q22 + q33) - (q00 + q11));
     }
 
     // convert to degree
-    y = (y / D_PI) * 180;
-    p = (p / D_PI) * 180;
-    r = (r / D_PI) * 180;
+    y = toDegrees(y);
+    p = toDegrees(p);
+    r = toDegrees(r);
 }
 
 bool Rotation::isSame(const Rotation& q) const
@@ -761,15 +790,17 @@ bool Rotation::isSame(const Rotation& q, double tol) const
     // Is it safe to assume that?
     // Because a quaternion (x1,x2,x3,x4) is equal to (-x1,-x2,-x3,-x4) we use the
     // absolute value of the scalar product
-    double dot =
-        q.quat[0] * quat[0] + q.quat[1] * quat[1] + q.quat[2] * quat[2] + q.quat[3] * quat[3];
+    double dot = q.quat[0] * quat[0] + q.quat[1] * quat[1] + q.quat[2] * quat[2]
+        + q.quat[3] * quat[3];
     return fabs(dot) >= 1.0 - tol / 2;
 }
 
 bool Rotation::isIdentity() const
 {
-    return ((this->quat[0] == 0.0 && this->quat[1] == 0.0 && this->quat[2] == 0.0)
-            && (this->quat[3] == 1.0 || this->quat[3] == -1.0));
+    return (
+        (this->quat[0] == 0.0 && this->quat[1] == 0.0 && this->quat[2] == 0.0)
+        && (this->quat[3] == 1.0 || this->quat[3] == -1.0)
+    );
 }
 
 bool Rotation::isIdentity(double tol) const
@@ -779,8 +810,9 @@ bool Rotation::isIdentity(double tol) const
 
 bool Rotation::isNull() const
 {
-    return (this->quat[0] == 0.0 && this->quat[1] == 0.0 && this->quat[2] == 0.0
-            && this->quat[3] == 0.0);
+    return (
+        this->quat[0] == 0.0 && this->quat[1] == 0.0 && this->quat[2] == 0.0 && this->quat[3] == 0.0
+    );
 }
 
 //=======================================================================
@@ -961,20 +993,19 @@ Rotation::EulerSequence Rotation::eulerSequenceFromName(const char* name)
     return Invalid;
 }
 
-void Rotation::setEulerAngles(EulerSequence theOrder,
-                              double theAlpha,
-                              double theBeta,
-                              double theGamma)
+void Rotation::setEulerAngles(EulerSequence theOrder, double theAlpha, double theBeta, double theGamma)
 {
+    using std::numbers::pi;
+
     if (theOrder == Invalid || theOrder >= EulerSequenceLast) {
         throw Base::ValueError("invalid euler sequence");
     }
 
     EulerSequence_Parameters o = translateEulerSequence(theOrder);
 
-    theAlpha *= D_PI / 180.0;
-    theBeta *= D_PI / 180.0;
-    theGamma *= D_PI / 180.0;
+    theAlpha = Base::toRadians(theAlpha);
+    theBeta = Base::toRadians(theBeta);
+    theGamma = Base::toRadians(theGamma);
 
     double a = theAlpha;
     double b = theBeta;
@@ -1022,12 +1053,10 @@ void Rotation::setEulerAngles(EulerSequence theOrder,
     quat[1] = values[2];
     quat[2] = values[3];
     quat[3] = values[0];
+    this->evaluateVector();
 }
 
-void Rotation::getEulerAngles(EulerSequence theOrder,
-                              double& theAlpha,
-                              double& theBeta,
-                              double& theGamma) const
+void Rotation::getEulerAngles(EulerSequence theOrder, double& theAlpha, double& theBeta, double& theGamma) const
 {
     Mat M;
     getValue(M);
@@ -1035,7 +1064,7 @@ void Rotation::getEulerAngles(EulerSequence theOrder,
     EulerSequence_Parameters o = translateEulerSequence(theOrder);
     if (o.isTwoAxes) {
         double sy = sqrt(M(o.i, o.j) * M(o.i, o.j) + M(o.i, o.k) * M(o.i, o.k));
-        if (sy > 16 * DBL_EPSILON) {
+        if (sy > 16 * std::numeric_limits<double>::epsilon()) {
             theAlpha = atan2(M(o.i, o.j), M(o.i, o.k));
             theGamma = atan2(M(o.j, o.i), -M(o.k, o.i));
         }
@@ -1047,7 +1076,7 @@ void Rotation::getEulerAngles(EulerSequence theOrder,
     }
     else {
         double cy = sqrt(M(o.i, o.i) * M(o.i, o.i) + M(o.j, o.i) * M(o.j, o.i));
-        if (cy > 16 * DBL_EPSILON) {
+        if (cy > 16 * std::numeric_limits<double>::epsilon()) {
             theAlpha = atan2(M(o.k, o.j), M(o.k, o.k));
             theGamma = atan2(M(o.j, o.i), M(o.i, o.i));
         }
@@ -1068,7 +1097,7 @@ void Rotation::getEulerAngles(EulerSequence theOrder,
         theGamma = aFirst;
     }
 
-    theAlpha *= 180.0 / D_PI;
-    theBeta *= 180.0 / D_PI;
-    theGamma *= 180.0 / D_PI;
+    theAlpha = Base::toDegrees(theAlpha);
+    theBeta = Base::toDegrees(theBeta);
+    theGamma = Base::toDegrees(theGamma);
 }

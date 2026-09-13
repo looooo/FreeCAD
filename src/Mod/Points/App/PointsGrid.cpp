@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2004 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include "PointsGrid.h"
 
@@ -33,14 +34,14 @@ PointsGrid::PointsGrid(const PointKernel& rclM)
     , _ulCtGridsX(0)
     , _ulCtGridsY(0)
     , _ulCtGridsZ(0)
-    , _fGridLenX(0.0f)
-    , _fGridLenY(0.0f)
-    , _fGridLenZ(0.0f)
-    , _fMinX(0.0f)
-    , _fMinY(0.0f)
-    , _fMinZ(0.0f)
+    , _fGridLenX(0.0F)
+    , _fGridLenY(0.0F)
+    , _fGridLenZ(0.0F)
+    , _fMinX(0.0F)
+    , _fMinY(0.0F)
+    , _fMinZ(0.0F)
 {
-    RebuildGrid();
+    PointsGrid::RebuildGrid();
 }
 
 PointsGrid::PointsGrid()
@@ -49,31 +50,28 @@ PointsGrid::PointsGrid()
     , _ulCtGridsX(POINTS_CT_GRID)
     , _ulCtGridsY(POINTS_CT_GRID)
     , _ulCtGridsZ(POINTS_CT_GRID)
-    , _fGridLenX(0.0f)
-    , _fGridLenY(0.0f)
-    , _fGridLenZ(0.0f)
-    , _fMinX(0.0f)
-    , _fMinY(0.0f)
-    , _fMinZ(0.0f)
+    , _fGridLenX(0.0F)
+    , _fGridLenY(0.0F)
+    , _fGridLenZ(0.0F)
+    , _fMinX(0.0F)
+    , _fMinY(0.0F)
+    , _fMinZ(0.0F)
 {}
 
-PointsGrid::PointsGrid(const PointKernel& rclM,
-                       unsigned long ulX,
-                       unsigned long ulY,
-                       unsigned long ulZ)
+PointsGrid::PointsGrid(const PointKernel& rclM, unsigned long ulX, unsigned long ulY, unsigned long ulZ)
     : _pclPoints(&rclM)
     , _ulCtElements(0)
     , _ulCtGridsX(0)
     , _ulCtGridsY(0)
     , _ulCtGridsZ(0)
-    , _fGridLenX(0.0f)
-    , _fGridLenY(0.0f)
-    , _fGridLenZ(0.0f)
-    , _fMinX(0.0f)
-    , _fMinY(0.0f)
-    , _fMinZ(0.0f)
+    , _fGridLenX(0.0F)
+    , _fGridLenY(0.0F)
+    , _fGridLenZ(0.0F)
+    , _fMinX(0.0F)
+    , _fMinY(0.0F)
+    , _fMinZ(0.0F)
 {
-    Rebuild(ulX, ulY, ulZ);
+    PointsGrid::Rebuild(ulX, ulY, ulZ);
 }
 
 PointsGrid::PointsGrid(const PointKernel& rclM, int iCtGridPerAxis)
@@ -82,14 +80,14 @@ PointsGrid::PointsGrid(const PointKernel& rclM, int iCtGridPerAxis)
     , _ulCtGridsX(0)
     , _ulCtGridsY(0)
     , _ulCtGridsZ(0)
-    , _fGridLenX(0.0f)
-    , _fGridLenY(0.0f)
-    , _fGridLenZ(0.0f)
-    , _fMinX(0.0f)
-    , _fMinY(0.0f)
-    , _fMinZ(0.0f)
+    , _fGridLenX(0.0F)
+    , _fGridLenY(0.0F)
+    , _fGridLenZ(0.0F)
+    , _fMinX(0.0F)
+    , _fMinY(0.0F)
+    , _fMinZ(0.0F)
 {
-    Rebuild(iCtGridPerAxis);
+    PointsGrid::Rebuild(iCtGridPerAxis);
 }
 
 PointsGrid::PointsGrid(const PointKernel& rclM, double fGridLen)
@@ -98,20 +96,22 @@ PointsGrid::PointsGrid(const PointKernel& rclM, double fGridLen)
     , _ulCtGridsX(0)
     , _ulCtGridsY(0)
     , _ulCtGridsZ(0)
-    , _fGridLenX(0.0f)
-    , _fGridLenY(0.0f)
-    , _fGridLenZ(0.0f)
-    , _fMinX(0.0f)
-    , _fMinY(0.0f)
-    , _fMinZ(0.0f)
+    , _fGridLenX(0.0F)
+    , _fGridLenY(0.0F)
+    , _fGridLenZ(0.0F)
+    , _fMinX(0.0F)
+    , _fMinY(0.0F)
+    , _fMinZ(0.0F)
 {
     Base::BoundBox3d clBBPts;  // = _pclPoints->GetBoundBox();
     for (const auto& pnt : *_pclPoints) {
         clBBPts.Add(pnt);
     }
-    Rebuild(std::max<unsigned long>((unsigned long)(clBBPts.LengthX() / fGridLen), 1),
-            std::max<unsigned long>((unsigned long)(clBBPts.LengthY() / fGridLen), 1),
-            std::max<unsigned long>((unsigned long)(clBBPts.LengthZ() / fGridLen), 1));
+    PointsGrid::Rebuild(
+        std::max<unsigned long>((unsigned long)(clBBPts.LengthX() / fGridLen), 1),
+        std::max<unsigned long>((unsigned long)(clBBPts.LengthY() / fGridLen), 1),
+        std::max<unsigned long>((unsigned long)(clBBPts.LengthZ() / fGridLen), 1)
+    );
 }
 
 void PointsGrid::Attach(const PointKernel& rclM)
@@ -153,8 +153,6 @@ void PointsGrid::InitGrid()
 {
     assert(_pclPoints);
 
-    unsigned long i, j;
-
     // Calculate grid lengths if not initialized
     //
     if ((_ulCtGridsX == 0) || (_ulCtGridsY == 0) || (_ulCtGridsZ == 0)) {
@@ -180,8 +178,8 @@ void PointsGrid::InitGrid()
             if (num == 0) {
                 num = 1;
             }
-            _fGridLenX = (1.0f + fLengthX) / double(num);
-            _fMinX = clBBPts.MinX - 0.5f;
+            _fGridLenX = (1.0F + fLengthX) / double(num);
+            _fMinX = clBBPts.MinX - 0.5F;
         }
 
         {
@@ -189,8 +187,8 @@ void PointsGrid::InitGrid()
             if (num == 0) {
                 num = 1;
             }
-            _fGridLenY = (1.0f + fLengthY) / double(num);
-            _fMinY = clBBPts.MinY - 0.5f;
+            _fGridLenY = (1.0F + fLengthY) / double(num);
+            _fMinY = clBBPts.MinY - 0.5F;
         }
 
         {
@@ -198,27 +196,34 @@ void PointsGrid::InitGrid()
             if (num == 0) {
                 num = 1;
             }
-            _fGridLenZ = (1.0f + fLengthZ) / double(num);
-            _fMinZ = clBBPts.MinZ - 0.5f;
+            _fGridLenZ = (1.0F + fLengthZ) / double(num);
+            _fMinZ = clBBPts.MinZ - 0.5F;
         }
     }
 
     // Create data structure
     _aulGrid.clear();
     _aulGrid.resize(_ulCtGridsX);
-    for (i = 0; i < _ulCtGridsX; i++) {
+    for (unsigned long i = 0; i < _ulCtGridsX; i++) {
         _aulGrid[i].resize(_ulCtGridsY);
-        for (j = 0; j < _ulCtGridsY; j++) {
+        for (unsigned long j = 0; j < _ulCtGridsY; j++) {
             _aulGrid[i][j].resize(_ulCtGridsZ);
         }
     }
 }
 
-unsigned long PointsGrid::InSide(const Base::BoundBox3d& rclBB,
-                                 std::vector<unsigned long>& raulElements,
-                                 bool bDelDoubles) const
+unsigned long PointsGrid::InSide(
+    const Base::BoundBox3d& rclBB,
+    std::vector<unsigned long>& raulElements,
+    bool bDelDoubles
+) const
 {
-    unsigned long i, j, k, ulMinX, ulMinY, ulMinZ, ulMaxX, ulMaxY, ulMaxZ;
+    unsigned long ulMinX {};
+    unsigned long ulMinY {};
+    unsigned long ulMinZ {};
+    unsigned long ulMaxX {};
+    unsigned long ulMaxY {};
+    unsigned long ulMaxZ {};
 
     raulElements.clear();
 
@@ -226,12 +231,11 @@ unsigned long PointsGrid::InSide(const Base::BoundBox3d& rclBB,
     Position(Base::Vector3d(rclBB.MinX, rclBB.MinY, rclBB.MinZ), ulMinX, ulMinY, ulMinZ);
     Position(Base::Vector3d(rclBB.MaxX, rclBB.MaxY, rclBB.MaxZ), ulMaxX, ulMaxY, ulMaxZ);
 
-    for (i = ulMinX; i <= ulMaxX; i++) {
-        for (j = ulMinY; j <= ulMaxY; j++) {
-            for (k = ulMinZ; k <= ulMaxZ; k++) {
-                raulElements.insert(raulElements.end(),
-                                    _aulGrid[i][j][k].begin(),
-                                    _aulGrid[i][j][k].end());
+    for (auto i = ulMinX; i <= ulMaxX; i++) {
+        for (auto j = ulMinY; j <= ulMaxY; j++) {
+            for (auto k = ulMinZ; k <= ulMaxZ; k++) {
+                raulElements
+                    .insert(raulElements.end(), _aulGrid[i][j][k].begin(), _aulGrid[i][j][k].end());
             }
         }
     }
@@ -239,20 +243,22 @@ unsigned long PointsGrid::InSide(const Base::BoundBox3d& rclBB,
     if (bDelDoubles) {
         // remove duplicate mentions
         std::sort(raulElements.begin(), raulElements.end());
-        raulElements.erase(std::unique(raulElements.begin(), raulElements.end()),
-                           raulElements.end());
+        raulElements.erase(std::unique(raulElements.begin(), raulElements.end()), raulElements.end());
     }
 
     return raulElements.size();
 }
 
-unsigned long PointsGrid::InSide(const Base::BoundBox3d& rclBB,
-                                 std::vector<unsigned long>& raulElements,
-                                 const Base::Vector3d& rclOrg,
-                                 double fMaxDist,
-                                 bool bDelDoubles) const
+unsigned long PointsGrid::InSide(
+    const Base::BoundBox3d& rclBB,
+    std::vector<unsigned long>& raulElements,
+    const Base::Vector3d& rclOrg,
+    double fMaxDist,
+    bool bDelDoubles
+) const
 {
-    unsigned long i, j, k, ulMinX, ulMinY, ulMinZ, ulMaxX, ulMaxY, ulMaxZ;
+    unsigned long ulMinX {}, ulMinY {}, ulMinZ {};
+    unsigned long ulMaxX {}, ulMaxY {}, ulMaxZ {};
     double fGridDiag = GetBoundBox(0, 0, 0).CalcDiagonalLength();
     double fMinDistP2 = (fGridDiag * fGridDiag) + (fMaxDist * fMaxDist);
 
@@ -262,13 +268,15 @@ unsigned long PointsGrid::InSide(const Base::BoundBox3d& rclBB,
     Position(Base::Vector3d(rclBB.MinX, rclBB.MinY, rclBB.MinZ), ulMinX, ulMinY, ulMinZ);
     Position(Base::Vector3d(rclBB.MaxX, rclBB.MaxY, rclBB.MaxZ), ulMaxX, ulMaxY, ulMaxZ);
 
-    for (i = ulMinX; i <= ulMaxX; i++) {
-        for (j = ulMinY; j <= ulMaxY; j++) {
-            for (k = ulMinZ; k <= ulMaxZ; k++) {
+    for (auto i = ulMinX; i <= ulMaxX; i++) {
+        for (auto j = ulMinY; j <= ulMaxY; j++) {
+            for (auto k = ulMinZ; k <= ulMaxZ; k++) {
                 if (Base::DistanceP2(GetBoundBox(i, j, k).GetCenter(), rclOrg) < fMinDistP2) {
-                    raulElements.insert(raulElements.end(),
-                                        _aulGrid[i][j][k].begin(),
-                                        _aulGrid[i][j][k].end());
+                    raulElements.insert(
+                        raulElements.end(),
+                        _aulGrid[i][j][k].begin(),
+                        _aulGrid[i][j][k].end()
+                    );
                 }
             }
         }
@@ -277,17 +285,16 @@ unsigned long PointsGrid::InSide(const Base::BoundBox3d& rclBB,
     if (bDelDoubles) {
         // remove duplicate mentions
         std::sort(raulElements.begin(), raulElements.end());
-        raulElements.erase(std::unique(raulElements.begin(), raulElements.end()),
-                           raulElements.end());
+        raulElements.erase(std::unique(raulElements.begin(), raulElements.end()), raulElements.end());
     }
 
     return raulElements.size();
 }
 
-unsigned long PointsGrid::InSide(const Base::BoundBox3d& rclBB,
-                                 std::set<unsigned long>& raulElements) const
+unsigned long PointsGrid::InSide(const Base::BoundBox3d& rclBB, std::set<unsigned long>& raulElements) const
 {
-    unsigned long i, j, k, ulMinX, ulMinY, ulMinZ, ulMaxX, ulMaxY, ulMaxZ;
+    unsigned long ulMinX {}, ulMinY {}, ulMinZ {};
+    unsigned long ulMaxX {}, ulMaxY {}, ulMaxZ {};
 
     raulElements.clear();
 
@@ -295,9 +302,9 @@ unsigned long PointsGrid::InSide(const Base::BoundBox3d& rclBB,
     Position(Base::Vector3d(rclBB.MinX, rclBB.MinY, rclBB.MinZ), ulMinX, ulMinY, ulMinZ);
     Position(Base::Vector3d(rclBB.MaxX, rclBB.MaxY, rclBB.MaxZ), ulMaxX, ulMaxY, ulMaxZ);
 
-    for (i = ulMinX; i <= ulMaxX; i++) {
-        for (j = ulMinY; j <= ulMaxY; j++) {
-            for (k = ulMinZ; k <= ulMaxZ; k++) {
+    for (auto i = ulMinX; i <= ulMaxX; i++) {
+        for (auto j = ulMinY; j <= ulMaxY; j++) {
+            for (auto k = ulMinZ; k <= ulMaxZ; k++) {
                 raulElements.insert(_aulGrid[i][j][k].begin(), _aulGrid[i][j][k].end());
             }
         }
@@ -306,33 +313,41 @@ unsigned long PointsGrid::InSide(const Base::BoundBox3d& rclBB,
     return raulElements.size();
 }
 
-void PointsGrid::Position(const Base::Vector3d& rclPoint,
-                          unsigned long& rulX,
-                          unsigned long& rulY,
-                          unsigned long& rulZ) const
+void PointsGrid::Position(
+    const Base::Vector3d& rclPoint,
+    unsigned long& rulX,
+    unsigned long& rulY,
+    unsigned long& rulZ
+) const
 {
     if (rclPoint.x <= _fMinX) {
         rulX = 0;
     }
     else {
-        rulX = std::min<unsigned long>((unsigned long)((rclPoint.x - _fMinX) / _fGridLenX),
-                                       _ulCtGridsX - 1);
+        rulX = std::min<unsigned long>(
+            (unsigned long)((rclPoint.x - _fMinX) / _fGridLenX),
+            _ulCtGridsX - 1
+        );
     }
 
     if (rclPoint.y <= _fMinY) {
         rulY = 0;
     }
     else {
-        rulY = std::min<unsigned long>((unsigned long)((rclPoint.y - _fMinY) / _fGridLenY),
-                                       _ulCtGridsY - 1);
+        rulY = std::min<unsigned long>(
+            (unsigned long)((rclPoint.y - _fMinY) / _fGridLenY),
+            _ulCtGridsY - 1
+        );
     }
 
     if (rclPoint.z <= _fMinZ) {
         rulZ = 0;
     }
     else {
-        rulZ = std::min<unsigned long>((unsigned long)((rclPoint.z - _fMinZ) / _fGridLenZ),
-                                       _ulCtGridsZ - 1);
+        rulZ = std::min<unsigned long>(
+            (unsigned long)((rclPoint.z - _fMinZ) / _fGridLenZ),
+            _ulCtGridsZ - 1
+        );
     }
 }
 
@@ -345,29 +360,24 @@ void PointsGrid::CalculateGridLength(unsigned long ulCtGrid, unsigned long ulMax
     for (const auto& pnt : *_pclPoints) {
         clBBPtsEnlarged.Add(pnt);
     }
-    double fVolElem;
+    double fVolElem {};
 
     if (_ulCtElements > (ulMaxGrids * ulCtGrid)) {
-        fVolElem =
-            (clBBPtsEnlarged.LengthX() * clBBPtsEnlarged.LengthY() * clBBPtsEnlarged.LengthZ())
+        fVolElem = (clBBPtsEnlarged.LengthX() * clBBPtsEnlarged.LengthY() * clBBPtsEnlarged.LengthZ())
             / float(ulMaxGrids * ulCtGrid);
     }
     else {
-        fVolElem =
-            (clBBPtsEnlarged.LengthX() * clBBPtsEnlarged.LengthY() * clBBPtsEnlarged.LengthZ())
+        fVolElem = (clBBPtsEnlarged.LengthX() * clBBPtsEnlarged.LengthY() * clBBPtsEnlarged.LengthZ())
             / float(_ulCtElements);
     }
 
     double fVol = fVolElem * float(ulCtGrid);
-    double fGridLen = float(pow((float)fVol, 1.0f / 3.0f));
+    double fGridLen = float(pow((float)fVol, 1.0F / 3.0F));
 
     if (fGridLen > 0) {
-        _ulCtGridsX =
-            std::max<unsigned long>((unsigned long)(clBBPtsEnlarged.LengthX() / fGridLen), 1);
-        _ulCtGridsY =
-            std::max<unsigned long>((unsigned long)(clBBPtsEnlarged.LengthY() / fGridLen), 1);
-        _ulCtGridsZ =
-            std::max<unsigned long>((unsigned long)(clBBPtsEnlarged.LengthZ() / fGridLen), 1);
+        _ulCtGridsX = std::max<unsigned long>((unsigned long)(clBBPtsEnlarged.LengthX() / fGridLen), 1);
+        _ulCtGridsY = std::max<unsigned long>((unsigned long)(clBBPtsEnlarged.LengthY() / fGridLen), 1);
+        _ulCtGridsZ = std::max<unsigned long>((unsigned long)(clBBPtsEnlarged.LengthZ() / fGridLen), 1);
     }
     else {
         // Degenerated grid
@@ -398,7 +408,7 @@ void PointsGrid::CalculateGridLength(int iCtGridPerAxis)
 
     double fLenghtD = clBBPts.CalcDiagonalLength();
 
-    double fLengthTol = 0.05f * fLenghtD;
+    double fLengthTol = 0.05F * fLenghtD;
 
     bool bLenghtXisZero = (fLenghtX <= fLengthTol);
     bool bLenghtYisZero = (fLenghtY <= fLengthTol);
@@ -444,7 +454,7 @@ void PointsGrid::CalculateGridLength(int iCtGridPerAxis)
                 fVolumenGrid = fVolumen / (float)iMaxGrids;
             }
 
-            double fLengthGrid = float(pow((float)fVolumenGrid, 1.0f / 3.0f));
+            double fLengthGrid = float(pow((float)fVolumenGrid, 1.0F / 3.0F));
 
             _ulCtGridsX = std::max<unsigned long>((unsigned long)(fLenghtX / fLengthGrid), 1);
             _ulCtGridsY = std::max<unsigned long>((unsigned long)(fLenghtY / fLengthGrid), 1);
@@ -522,14 +532,15 @@ void PointsGrid::CalculateGridLength(int iCtGridPerAxis)
     }
 }
 
-void PointsGrid::SearchNearestFromPoint(const Base::Vector3d& rclPt,
-                                        std::set<unsigned long>& raclInd) const
+void PointsGrid::SearchNearestFromPoint(const Base::Vector3d& rclPt, std::set<unsigned long>& raclInd) const
 {
     raclInd.clear();
     Base::BoundBox3d clBB = GetBoundBox();
 
     if (clBB.IsInBox(rclPt)) {  // Point lies within
-        unsigned long ulX, ulY, ulZ;
+        unsigned long ulX {};
+        unsigned long ulY {};
+        unsigned long ulZ {};
         Position(rclPt, ulX, ulY, ulZ);
         unsigned long ulLevel = 0;
         while (raclInd.empty()) {
@@ -619,11 +630,13 @@ void PointsGrid::SearchNearestFromPoint(const Base::Vector3d& rclPt,
     }
 }
 
-void PointsGrid::GetHull(unsigned long ulX,
-                         unsigned long ulY,
-                         unsigned long ulZ,
-                         unsigned long ulDistance,
-                         std::set<unsigned long>& raclInd) const
+void PointsGrid::GetHull(
+    unsigned long ulX,
+    unsigned long ulY,
+    unsigned long ulZ,
+    unsigned long ulDistance,
+    std::set<unsigned long>& raclInd
+) const
 {
     int nX1 = std::max<int>(0, int(ulX) - int(ulDistance));
     int nY1 = std::max<int>(0, int(ulY) - int(ulDistance));
@@ -632,50 +645,50 @@ void PointsGrid::GetHull(unsigned long ulX,
     int nY2 = std::min<int>(int(_ulCtGridsY) - 1, int(ulY) + int(ulDistance));
     int nZ2 = std::min<int>(int(_ulCtGridsZ) - 1, int(ulZ) + int(ulDistance));
 
-    int i, j;
-
     // top plane
-    for (i = nX1; i <= nX2; i++) {
-        for (j = nY1; j <= nY2; j++) {
+    for (int i = nX1; i <= nX2; i++) {
+        for (int j = nY1; j <= nY2; j++) {
             GetElements(i, j, nZ1, raclInd);
         }
     }
     // bottom plane
-    for (i = nX1; i <= nX2; i++) {
-        for (j = nY1; j <= nY2; j++) {
+    for (int i = nX1; i <= nX2; i++) {
+        for (int j = nY1; j <= nY2; j++) {
             GetElements(i, j, nZ2, raclInd);
         }
     }
     // left plane
-    for (i = nY1; i <= nY2; i++) {
-        for (j = (nZ1 + 1); j <= (nZ2 - 1); j++) {
+    for (int i = nY1; i <= nY2; i++) {
+        for (int j = (nZ1 + 1); j <= (nZ2 - 1); j++) {
             GetElements(nX1, i, j, raclInd);
         }
     }
     // right plane
-    for (i = nY1; i <= nY2; i++) {
-        for (j = (nZ1 + 1); j <= (nZ2 - 1); j++) {
+    for (int i = nY1; i <= nY2; i++) {
+        for (int j = (nZ1 + 1); j <= (nZ2 - 1); j++) {
             GetElements(nX2, i, j, raclInd);
         }
     }
     // front plane
-    for (i = (nX1 + 1); i <= (nX2 - 1); i++) {
-        for (j = (nZ1 + 1); j <= (nZ2 - 1); j++) {
+    for (int i = (nX1 + 1); i <= (nX2 - 1); i++) {
+        for (int j = (nZ1 + 1); j <= (nZ2 - 1); j++) {
             GetElements(i, nY1, j, raclInd);
         }
     }
     // back plane
-    for (i = (nX1 + 1); i <= (nX2 - 1); i++) {
-        for (j = (nZ1 + 1); j <= (nZ2 - 1); j++) {
+    for (int i = (nX1 + 1); i <= (nX2 - 1); i++) {
+        for (int j = (nZ1 + 1); j <= (nZ2 - 1); j++) {
             GetElements(i, nY2, j, raclInd);
         }
     }
 }
 
-unsigned long PointsGrid::GetElements(unsigned long ulX,
-                                      unsigned long ulY,
-                                      unsigned long ulZ,
-                                      std::set<unsigned long>& raclInd) const
+unsigned long PointsGrid::GetElements(
+    unsigned long ulX,
+    unsigned long ulY,
+    unsigned long ulZ,
+    std::set<unsigned long>& raclInd
+) const
 {
     const std::set<unsigned long>& rclSet = _aulGrid[ulX][ulY][ulZ];
     if (!rclSet.empty()) {
@@ -688,7 +701,7 @@ unsigned long PointsGrid::GetElements(unsigned long ulX,
 
 void PointsGrid::AddPoint(const Base::Vector3d& rclPt, unsigned long ulPtIndex, float /*fEpsilon*/)
 {
-    unsigned long ulX, ulY, ulZ;
+    unsigned long ulX {}, ulY {}, ulZ {};
     Pos(Base::Vector3d(rclPt.x, rclPt.y, rclPt.z), ulX, ulY, ulZ);
     if ((ulX < _ulCtGridsX) && (ulY < _ulCtGridsY) && (ulZ < _ulCtGridsZ)) {
         _aulGrid[ulX][ulY][ulZ].insert(ulPtIndex);
@@ -754,20 +767,24 @@ void PointsGrid::RebuildGrid()
     }
 }
 
-void PointsGrid::Pos(const Base::Vector3d& rclPoint,
-                     unsigned long& rulX,
-                     unsigned long& rulY,
-                     unsigned long& rulZ) const
+void PointsGrid::Pos(
+    const Base::Vector3d& rclPoint,
+    unsigned long& rulX,
+    unsigned long& rulY,
+    unsigned long& rulZ
+) const
 {
     rulX = (unsigned long)((rclPoint.x - _fMinX) / _fGridLenX);
     rulY = (unsigned long)((rclPoint.y - _fMinY) / _fGridLenY);
     rulZ = (unsigned long)((rclPoint.z - _fMinZ) / _fGridLenZ);
 }
 
-unsigned long PointsGrid::FindElements(const Base::Vector3d& rclPoint,
-                                       std::set<unsigned long>& aulElements) const
+unsigned long PointsGrid::FindElements(
+    const Base::Vector3d& rclPoint,
+    std::set<unsigned long>& aulElements
+) const
 {
-    unsigned long ulX, ulY, ulZ;
+    unsigned long ulX {}, ulY {}, ulZ {};
     Pos(rclPoint, ulX, ulY, ulZ);
 
     // check if the given point is inside the grid structure
@@ -782,28 +799,32 @@ unsigned long PointsGrid::FindElements(const Base::Vector3d& rclPoint,
 
 PointsGridIterator::PointsGridIterator(const PointsGrid& rclG)
     : _rclGrid(rclG)
-    , _clPt(0.0f, 0.0f, 0.0f)
-    , _clDir(0.0f, 0.0f, 0.0f)
+    , _clPt(0.0F, 0.0F, 0.0F)
+    , _clDir(0.0F, 0.0F, 0.0F)
 {}
 
-bool PointsGridIterator::InitOnRay(const Base::Vector3d& rclPt,
-                                   const Base::Vector3d& rclDir,
-                                   float fMaxSearchArea,
-                                   std::vector<unsigned long>& raulElements)
+bool PointsGridIterator::InitOnRay(
+    const Base::Vector3d& rclPt,
+    const Base::Vector3d& rclDir,
+    float fMaxSearchArea,
+    std::vector<unsigned long>& raulElements
+)
 {
     bool ret = InitOnRay(rclPt, rclDir, raulElements);
     _fMaxSearchArea = fMaxSearchArea;
     return ret;
 }
 
-bool PointsGridIterator::InitOnRay(const Base::Vector3d& rclPt,
-                                   const Base::Vector3d& rclDir,
-                                   std::vector<unsigned long>& raulElements)
+bool PointsGridIterator::InitOnRay(
+    const Base::Vector3d& rclPt,
+    const Base::Vector3d& rclDir,
+    std::vector<unsigned long>& raulElements
+)
 {
     // needed in NextOnRay() to avoid an infinite loop
     _cSearchPositions.clear();
 
-    _fMaxSearchArea = FLOAT_MAX;
+    _fMaxSearchArea = std::numeric_limits<float>::max();
 
     raulElements.clear();
 
@@ -814,17 +835,21 @@ bool PointsGridIterator::InitOnRay(const Base::Vector3d& rclPt,
     // point lies within global BB
     if (_rclGrid.GetBoundBox().IsInBox(rclPt)) {  // determine the voxel by the starting point
         _rclGrid.Position(rclPt, _ulX, _ulY, _ulZ);
-        raulElements.insert(raulElements.end(),
-                            _rclGrid._aulGrid[_ulX][_ulY][_ulZ].begin(),
-                            _rclGrid._aulGrid[_ulX][_ulY][_ulZ].end());
+        raulElements.insert(
+            raulElements.end(),
+            _rclGrid._aulGrid[_ulX][_ulY][_ulZ].begin(),
+            _rclGrid._aulGrid[_ulX][_ulY][_ulZ].end()
+        );
         _bValidRay = true;
     }
     else {  // StartPoint outside
         Base::Vector3d cP0, cP1;
-        if (_rclGrid.GetBoundBox().IntersectWithLine(rclPt,
-                                                     rclDir,
-                                                     cP0,
-                                                     cP1)) {  // determine the next point
+        if (_rclGrid.GetBoundBox().IntersectWithLine(
+                rclPt,
+                rclDir,
+                cP0,
+                cP1
+            )) {  // determine the next point
             if ((cP0 - rclPt).Length() < (cP1 - rclPt).Length()) {
                 _rclGrid.Position(cP0, _ulX, _ulY, _ulZ);
             }
@@ -832,9 +857,11 @@ bool PointsGridIterator::InitOnRay(const Base::Vector3d& rclPt,
                 _rclGrid.Position(cP1, _ulX, _ulY, _ulZ);
             }
 
-            raulElements.insert(raulElements.end(),
-                                _rclGrid._aulGrid[_ulX][_ulY][_ulZ].begin(),
-                                _rclGrid._aulGrid[_ulX][_ulY][_ulZ].end());
+            raulElements.insert(
+                raulElements.end(),
+                _rclGrid._aulGrid[_ulX][_ulY][_ulZ].begin(),
+                _rclGrid._aulGrid[_ulX][_ulY][_ulZ].end()
+            );
             _bValidRay = true;
         }
     }
@@ -853,8 +880,8 @@ bool PointsGridIterator::NextOnRay(std::vector<unsigned long>& raulElements)
     Base::Vector3d clIntersectPoint;
 
     // Look for the next adjacent BB on the search beam
-    Base::BoundBox3d::SIDE tSide =
-        _rclGrid.GetBoundBox(_ulX, _ulY, _ulZ).GetSideFromRay(_clPt, _clDir, clIntersectPoint);
+    Base::BoundBox3d::SIDE tSide
+        = _rclGrid.GetBoundBox(_ulX, _ulY, _ulZ).GetSideFromRay(_clPt, _clDir, clIntersectPoint);
 
     // Search area
     //
@@ -890,17 +917,18 @@ bool PointsGridIterator::NextOnRay(std::vector<unsigned long>& raulElements)
 
         GridElement pos(_ulX, _ulY, _ulZ);
         if (_cSearchPositions.find(pos) != _cSearchPositions.end()) {
-            _bValidRay =
-                false;  // grid element already visited => result from GetSideFromRay invalid
+            _bValidRay = false;  // grid element already visited => result from GetSideFromRay invalid
         }
     }
 
     if (_bValidRay && _rclGrid.CheckPos(_ulX, _ulY, _ulZ)) {
         GridElement pos(_ulX, _ulY, _ulZ);
         _cSearchPositions.insert(pos);
-        raulElements.insert(raulElements.end(),
-                            _rclGrid._aulGrid[_ulX][_ulY][_ulZ].begin(),
-                            _rclGrid._aulGrid[_ulX][_ulY][_ulZ].end());
+        raulElements.insert(
+            raulElements.end(),
+            _rclGrid._aulGrid[_ulX][_ulY][_ulZ].begin(),
+            _rclGrid._aulGrid[_ulX][_ulY][_ulZ].end()
+        );
     }
     else {
         _bValidRay = false;  // ray exited

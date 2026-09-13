@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2011 Juergen Riegel <juergen.riegel@web.de>             *
  *   Copyright (c) 2015 Eivind Kvedalen <eivind@kvedalen.name>             *
@@ -21,25 +23,18 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef SPREADSHEET_ViewProviderImagePlane_H
-#define SPREADSHEET_ViewProviderImagePlane_H
+#pragma once
 
 #include <QPointer>
 
 #include <Gui/ViewProviderDocumentObject.h>
-#include <Gui/ViewProviderPythonFeature.h>
+#include <Gui/ViewProviderFeaturePython.h>
 #include <Mod/Spreadsheet/SpreadsheetGlobal.h>
+#include <Mod/Spreadsheet/Gui/SpreadsheetView.h>
 
-
-namespace Spreadsheet
-{
-class Sheet;
-}
 
 namespace SpreadsheetGui
 {
-
-class SheetView;
 
 class SpreadsheetGuiExport ViewProviderSheet: public Gui::ViewProviderDocumentObject
 {
@@ -52,12 +47,10 @@ public:
     /// destructor.
     ~ViewProviderSheet() override;
 
-    void setDisplayMode(const char* ModeName) override;
     bool useNewSelectionModel() const override
     {
         return false;
     }
-    std::vector<std::string> getDisplayModes() const override;
 
     bool doubleClicked() override;
     void setupContextMenu(QMenu* menu, QObject* receiver, const char* member) override;
@@ -84,6 +77,10 @@ public:
 
     PyObject* getPyObject() override;
 
+    void showSheetMdi();
+
+    void exportAsFile();
+
 protected:
     SheetView* showSpreadsheetView();
     void updateData(const App::Property* prop) override;
@@ -92,9 +89,6 @@ private:
     QPointer<SheetView> view;
 };
 
-using ViewProviderSheetPython = Gui::ViewProviderPythonFeatureT<ViewProviderSheet>;
+using ViewProviderSheetPython = Gui::ViewProviderFeaturePythonT<ViewProviderSheet>;
 
 }  // namespace SpreadsheetGui
-
-
-#endif  // SPREADSHEET_ViewProviderSpreadsheet_H

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2002 Juergen Riegel <juergen.riegel@web.de>             *
  *   Copyright (c) 2015 Eivind Kvedalen <eivind@kvedalen.name>             *
@@ -21,7 +23,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <Base/Console.h>
 #include <Base/Interpreter.h>
@@ -62,6 +63,6 @@ PyMOD_INIT_FUNC(Spreadsheet)
     Spreadsheet::SheetPython::init();
 
     PyObject* mod = Spreadsheet::initModule();
-    Base::Console().Log("Loading Spreadsheet module... done\n");
+    Base::Console().log("Loading Spreadsheet module... done\n");
     PyMOD_Return(mod);
 }

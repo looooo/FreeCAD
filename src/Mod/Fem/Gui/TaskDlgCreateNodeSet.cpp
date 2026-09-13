@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Jürgen Riegel <FreeCAD@juergen-riegel.net>         *
  *                                                                         *
@@ -20,8 +22,8 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
+#include <App/Document.h>
 #include <Base/Console.h>
 #include <Base/Exception.h>
 #include <Gui/Application.h>
@@ -74,11 +76,13 @@ bool TaskDlgCreateNodeSet::accept()
         param->MeshViewProvider->resetHighlightNodes();
         FemSetNodesObject->Label.setValue(name->name);
         Gui::Command::doCommand(Gui::Command::Gui, "Gui.activeDocument().resetEdit()");
+        FemSetNodesObject->getDocument()->commitTransaction();
 
         return true;
     }
     catch (const Base::Exception& e) {
-        Base::Console().Warning("TaskDlgCreateNodeSet::accept(): %s\n", e.what());
+        FemSetNodesObject->getDocument()->abortTransaction();
+        Base::Console().warning("TaskDlgCreateNodeSet::accept(): %s\n", e.what());
     }
 
     return false;
@@ -91,7 +95,7 @@ bool TaskDlgCreateNodeSet::reject()
     // if(doc)
     //     doc->resetEdit();
     param->MeshViewProvider->resetHighlightNodes();
-    Gui::Command::abortCommand();
+    FemSetNodesObject->getDocument()->abortTransaction();
     Gui::Command::doCommand(Gui::Command::Gui, "Gui.activeDocument().resetEdit()");
 
     return true;

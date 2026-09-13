@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_QGCUSTOMCLIP_H
-#define DRAWINGGUI_QGCUSTOMCLIP_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
@@ -30,6 +31,8 @@
 #include <QRectF>
 
 #include <Base/Vector3D.h>
+
+#include "QGIUserTypes.h"
 
 QT_BEGIN_NAMESPACE
 class QPainter;
@@ -45,7 +48,7 @@ public:
     explicit QGCustomClip();
     ~QGCustomClip() override {}
 
-    enum {Type = QGraphicsItem::UserType + 132};
+    enum {Type = UserType::QGCustomClip};
     int type() const override { return Type;}
     QRectF boundingRect() const override;
 
@@ -66,6 +69,3 @@ private:
 };
 
 } // namespace MDIViewPageGui
-
-#endif // DRAWINGGUI_QGCUSTOMCLIP_H
-

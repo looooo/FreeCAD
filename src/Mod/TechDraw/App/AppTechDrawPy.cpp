@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2002 Jürgen Riegel <juergen.riegel@web.de>              *
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
@@ -21,8 +23,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 # include <BRep_Builder.hxx>
 # include <BRepBuilderAPI_Transform.hxx>
 # include <gp_Trsf.hxx>
@@ -32,7 +32,7 @@
 # include <TopoDS_Edge.hxx>
 # include <TopoDS_Face.hxx>
 # include <TopoDS_Wire.hxx>
-#endif
+
 
 #include <boost_regex.hpp>
 
@@ -43,6 +43,7 @@
 #include <Base/PyWrapParseTupleAndKeywords.h>
 #include <Base/Vector3D.h>
 #include <Base/VectorPy.h>
+
 #include <Mod/Import/App/dxf/ImpExpDxf.h>
 #include <Mod/Part/App/OCCError.h>
 #include <Mod/Part/App/TopoShape.h>
@@ -71,8 +72,7 @@
 #include "GeometryObject.h"
 #include "ProjectionAlgos.h"
 #include "TechDrawExport.h"
-#include "CosmeticVertexPy.h"
-
+#include "DrawLeaderLinePy.h"
 
 namespace TechDraw {
 //module level static C++ functions go here
@@ -191,6 +191,17 @@ public:
         add_varargs_method("makeCanonicalPoint", &Module::makeCanonicalPoint,
             "makeCanonicalPoint(DrawViewPart, Vector3d) - Returns the unscaled, unrotated version of the input point)"
         );
+        add_varargs_method("makeLeader", &Module::makeLeader,
+            "makeLeader(parent - DrawViewPart, points - [Vector], startSymbol - int, endSymbol - int) - Creates a leader line attached to parent. Points are in page coordinates with (0, 0) at lowerleft.s"
+        );
+        add_varargs_method("nearestFraction", &Module::nearestFraction,
+        "nearestFraction(float) - returns the numerator and denominator of the nearest fraction as a tuple."
+        );
+        add_varargs_method("scrubEdges", &Module::scrubEdges,
+            "scrubbedEdges = scrubEdges(edgeList) -- remove duplicate edges. Also converts partial overlaps into 3 edges as in: "
+             "scrubEdges([A, B]) = [a shortened A, an edge for overlap region, a shortened B]."
+        );
+
         initialize("This is a module for making drawings"); // register with Python
     }
     ~Module() override {}
@@ -208,7 +219,7 @@ private:
             str += " ";
             if (msg) {str += msg;}
             else     {str += "No OCCT Exception Message";}
-            Base::Console().Error("%s\n", str.c_str());
+            Base::Console().error("%s\n", str.c_str());
             throw Py::Exception(Part::PartExceptionOCCError, str);
         }
         catch (const Base::Exception &e) {
@@ -216,7 +227,7 @@ private:
             str += "FreeCAD exception thrown (";
             str += e.what();
             str += ")";
-            e.ReportException();
+            e.reportException();
             throw Py::RuntimeError(str);
         }
         catch (const std::exception &e) {
@@ -224,7 +235,7 @@ private:
             str += "C++ exception thrown (";
             str += e.what();
             str += ")";
-            Base::Console().Error("%s\n", str.c_str());
+            Base::Console().error("%s\n", str.c_str());
             throw Py::RuntimeError(str);
         }
     }
@@ -267,6 +278,8 @@ private:
 
         std::vector<TopoDS_Edge> closedEdges;
         edgeList = DrawProjectSplit::scrubEdges(edgeList, closedEdges);
+        // Need to also check closed edges- those are valid wires
+        edgeList.insert( edgeList.end(), closedEdges.begin(), closedEdges.end() );
 
         std::vector<TopoDS_Wire> sortedWires;
         try {
@@ -279,7 +292,7 @@ private:
         }
 
         if (sortedWires.empty()) {
-            Base::Console().Warning("ATDP::edgeWalker: Wire detection failed\n");
+            Base::Console().warning("ATDP::edgeWalker: Wire detection failed\n");
             return Py::None();
         }
         else {
@@ -317,12 +330,14 @@ private:
         }
 
         if (edgeList.empty()) {
-            Base::Console().Message("ATDP::findOuterWire: input is empty\n");
+            Base::Console().message("ATDP::findOuterWire: input is empty\n");
             return Py::None();
         }
 
         std::vector<TopoDS_Edge> closedEdges;
         edgeList = DrawProjectSplit::scrubEdges(edgeList, closedEdges);
+        // Need to also check closed edges, since that may be the outline
+        edgeList.insert( edgeList.end(), closedEdges.begin(), closedEdges.end() );
 
         PyObject* outerWire = nullptr;
         std::vector<TopoDS_Wire> sortedWires;
@@ -336,7 +351,7 @@ private:
         }
 
         if(sortedWires.empty()) {
-            Base::Console().Warning("ATDP::findOuterWire: Outline wire detection failed\n");
+            Base::Console().warning("ATDP::findOuterWire: Outline wire detection failed\n");
             return Py::None();
         } else {
             outerWire = new TopoShapeWirePy(new TopoShape(*sortedWires.begin()));
@@ -365,7 +380,7 @@ private:
 
         TopoShapePy* pShape = static_cast<TopoShapePy*>(pcObjShape);
         if (!pShape) {
-            Base::Console().Message("TRACE - AATDP::findShapeOutline - input shape is null\n");
+            Base::Console().message("TRACE - AATDP::findShapeOutline - input shape is null\n");
             return Py::None();
         }
 
@@ -386,6 +401,8 @@ private:
 
         std::vector<TopoDS_Edge> closedEdges;
         edgeList = DrawProjectSplit::scrubEdges(edgeList, closedEdges);
+        // Need to also check closed edges, since that may be the outline
+        edgeList.insert( edgeList.end(), closedEdges.begin(), closedEdges.end() );
 
         PyObject* outerWire = nullptr;
         std::vector<TopoDS_Wire> sortedWires;
@@ -399,7 +416,7 @@ private:
         }
 
         if(sortedWires.empty()) {
-            Base::Console().Warning("ATDP::findShapeOutline: Outline wire detection failed\n");
+            Base::Console().warning("ATDP::findShapeOutline: Outline wire detection failed\n");
             return Py::None();
         } else {
             outerWire = new TopoShapeWirePy(new TopoShape(*sortedWires.begin()));
@@ -425,6 +442,10 @@ private:
                 obj = static_cast<App::DocumentObjectPy*>(viewObj)->getDocumentObjectPtr();
                 dvp = static_cast<TechDraw::DrawViewPart*>(obj);
                 TechDraw::GeometryObjectPtr gObj = dvp->getGeometryObject();
+                if (!gObj) {
+                    Base::Console().message("TechDraw: %s has no geometry object!\n", dvp->Label.getValue());
+                    return Py::String();
+                }
                 TopoDS_Shape shape = ShapeUtils::mirrorShape(gObj->getVisHard());
                 ss << dxfOut.exportEdges(shape);
                 shape = ShapeUtils::mirrorShape(gObj->getVisOutline());
@@ -463,6 +484,7 @@ private:
         return dxfReturn;
     }
 
+
     Py::Object viewPartAsSvg(const Py::Tuple& args)
     {
         PyObject *viewObj(nullptr);
@@ -483,9 +505,13 @@ private:
                 obj = static_cast<App::DocumentObjectPy*>(viewObj)->getDocumentObjectPtr();
                 dvp = static_cast<TechDraw::DrawViewPart*>(obj);
                 TechDraw::GeometryObjectPtr gObj = dvp->getGeometryObject();
+                if (!gObj) {
+                    Base::Console().message("TechDraw: %s has no geometry object!\n", dvp->Label.getValue());
+                    return Py::String();
+                }
+
                 //visible group begin "<g ... >"
                 ss << grpHead1;
-//                double thick = dvp->LineWidth.getValue();
                 double thick = DrawUtil::getDefaultLineWeight("Thick");
                 ss << thick;
                 ss << grpHead2;
@@ -509,7 +535,6 @@ private:
                      dvp->SeamHidden.getValue() ) {
                     //hidden group begin
                     ss << grpHead1;
-//                    thick = dvp->HiddenWidth.getValue();
                     thick = DrawUtil::getDefaultLineWeight("Thin");
                     ss << thick;
                     ss << grpHead2;
@@ -544,13 +569,20 @@ private:
 
     void write1ViewDxf( ImpExpDxfWrite& writer, TechDraw::DrawViewPart* dvp, bool alignPage)
     {
-        if(!dvp->hasGeometry())
+        if(!dvp->hasGeometry()) {
             return;
+        }
+
         TechDraw::GeometryObjectPtr gObj = dvp->getGeometryObject();
+        if (!gObj) {
+            // this test might be redundant here since we already checked hasGeometry.
+            Base::Console().message("TechDraw: %s has no geometry object!\n", dvp->Label.getValue());
+            return;
+        }
         TopoDS_Shape shape = ShapeUtils::mirrorShape(gObj->getVisHard());
         double offX = 0.0;
         double offY = 0.0;
-        if (dvp->isDerivedFrom(TechDraw::DrawProjGroupItem::getClassTypeId())) {
+        if (DrawView::isProjGroupItem(dvp)) {
             TechDraw::DrawProjGroupItem* dpgi = static_cast<TechDraw::DrawProjGroupItem*>(dvp);
             TechDraw::DrawProjGroup*      dpg = dpgi->getPGroup();
             if (dpg) {
@@ -607,7 +639,7 @@ private:
             shape = mkTrf.Shape();
             writer.exportShape(shape);
         }
-        //add the cosmetic edges also
+        //add the cosmetic edges also (centerlines, cosmetic lines, etc)
         std::vector<TechDraw::BaseGeomPtr> geoms = dvp->getEdgeGeometry();
         std::vector<TopoDS_Edge> cosmeticEdges;
         for (auto& g : geoms) {
@@ -616,9 +648,14 @@ private:
             }
         }
         if (!cosmeticEdges.empty()) {
-            shape = ShapeUtils::mirrorShape(DrawUtil::vectorToCompound(cosmeticEdges));
-            mkTrf.Perform(shape);
-            shape = mkTrf.Shape();
+            // cosmetic edges (centerlines, etc) are already in correct Y orientation
+            // so they only need translation, not mirroring like the regular geometry
+            // issue #22470
+            shape = DrawUtil::vectorToCompound(cosmeticEdges);
+            gp_Trsf xLateCosmetics;
+            xLateCosmetics.SetTranslation(gp_Vec(dvpX, dvpY, 0.0));
+            BRepBuilderAPI_Transform mkTrfCosmetics(shape, xLateCosmetics);
+            shape = mkTrfCosmetics.Shape();
             writer.exportShape(shape);
         }
     }
@@ -684,13 +721,13 @@ private:
                 dPage = static_cast<TechDraw::DrawPage*>(obj);
                 auto views = dPage->getAllViews();
                 for (auto& view : views) {
-                    if (view->isDerivedFrom(TechDraw::DrawViewPart::getClassTypeId())) {
+                    if (view->isDerivedFrom<TechDraw::DrawViewPart>()) {
                         TechDraw::DrawViewPart* dvp = static_cast<TechDraw::DrawViewPart*>(view);
                         layerName = dvp->getNameInDocument();
                         writer.setLayerName(layerName);
                         write1ViewDxf(writer, dvp, true);
 
-                    } else if (view->isDerivedFrom(TechDraw::DrawViewAnnotation::getClassTypeId())) {
+                    } else if (view->isDerivedFrom<TechDraw::DrawViewAnnotation>()) {
                         TechDraw::DrawViewAnnotation* dva = static_cast<TechDraw::DrawViewAnnotation*>(view);
                         layerName = dva->getNameInDocument();
                         writer.setLayerName(layerName);
@@ -700,7 +737,7 @@ private:
                         auto lines = dva->Text.getValues();
                         writer.exportText(lines[0].c_str(), loc, loc, height, just);
 
-                    } else if (view->isDerivedFrom(TechDraw::DrawViewDimension::getClassTypeId())) {
+                    } else if (view->isDerivedFrom<TechDraw::DrawViewDimension>()) {
                         DrawViewDimension* dvd = static_cast<TechDraw::DrawViewDimension*>(view);
                         TechDraw::DrawViewPart* dvp = dvd->getViewPart();
                         if (!dvp) {
@@ -708,7 +745,7 @@ private:
                         }
                         double grandParentX = 0.0;
                         double grandParentY = 0.0;
-                        if (dvp->isDerivedFrom(TechDraw::DrawProjGroupItem::getClassTypeId())) {
+                        if (DrawView::isProjGroupItem(dvp)) {
                             TechDraw::DrawProjGroupItem* dpgi = static_cast<TechDraw::DrawProjGroupItem*>(dvp);
                             TechDraw::DrawProjGroup* dpg = dpgi->getPGroup();
                             if (!dpg) {
@@ -723,9 +760,9 @@ private:
                         std::string sDimText;
                         //this is the same code as in QGIViewDimension::updateDim
                         if (dvd->isMultiValueSchema()) {
-                            sDimText = dvd->getFormattedDimensionValue(0); //don't format multis
+                            sDimText = dvd->getFormattedDimensionValue(DimensionFormatter::Format::UNALTERED); //don't format multis
                         } else {
-                            sDimText = dvd->getFormattedDimensionValue(1);
+                            sDimText = dvd->getFormattedDimensionValue(DimensionFormatter::Format::FORMATTED);
                         }
                         char* dimText = &sDimText[0u];                  //hack for const-ness
                         float gap = 5.0;                                //hack. don't know font size here.
@@ -825,15 +862,14 @@ private:
 
         TopoShapePy* pShape = static_cast<TopoShapePy*>(pcObjShape);
         if (!pShape) {
-            Base::Console().Error("ShapeUtils::findCentroid - input shape is null\n");
+            Base::Console().error("ShapeUtils::findCentroid - input shape is null\n");
             return Py::None();
         }
 
         const TopoDS_Shape& shape = pShape->getTopoShapePtr()->getShape();
         Base::Vector3d dir = static_cast<Base::VectorPy*>(pcObjDir)->value();
         Base::Vector3d centroid = ShapeUtils::findCentroidVec(shape, dir);
-        PyObject* result = nullptr;
-        result = new Base::VectorPy(new Base::Vector3d(centroid));
+        PyObject* result = new Base::VectorPy(new Base::Vector3d(centroid));
         return Py::asObject(result);
     }
 
@@ -867,10 +903,15 @@ private:
             throw Py::Exception(Part::PartExceptionOCCError, e.GetMessageString());
         }
 
+        DrawViewDimension* dvde =
         DrawDimHelper::makeExtentDim(dvp,
                                      edgeList,
                                      direction);
-        return Py::None();
+        if (!dvde){
+            return Py::None();
+        }
+        PyObject* dvdePy = dvde->getPyObject();
+        return Py::asObject(dvdePy);
     }
 
     Py::Object makeDistanceDim(const Py::Tuple& args)
@@ -992,7 +1033,7 @@ private:
         }
         Base::FileInfo fi(patFile);
         if (!fi.isReadable()) {
-            Base::Console().Error(".pat File: %s is not readable\n", patFile.c_str());
+            Base::Console().error(".pat File: %s is not readable\n", patFile.c_str());
             return Py::None();
         }
         std::vector<TechDraw::PATLineSpec> specs = TechDraw::DrawGeomHatch::getDecodedSpecsFromFile(patFile, patName);
@@ -1281,6 +1322,97 @@ private:
     cPoint = CosmeticVertex::makeCanonicalPoint(dvp, cPoint, unscale);
     return Py::asObject(new Base::VectorPy(cPoint));
 }
+
+    Py::Object makeLeader(const Py::Tuple& args)
+    {
+        PyObject* pDvp(nullptr);
+        PyObject* pPointList(nullptr);
+        int iStartSymbol = 0;
+        int iEndSymbol = 0;
+        TechDraw::DrawViewPart* dvp = nullptr;
+
+        if (!PyArg_ParseTuple(args.ptr(), "OO!|ii", &pDvp, &(PyList_Type), &pPointList, &iStartSymbol, &iEndSymbol)) {
+            throw Py::TypeError("expected (DrawViewPart, listofpoints, startsymbolindex, endsymbolindex");
+        }
+        if (PyObject_TypeCheck(pDvp, &(TechDraw::DrawViewPartPy::Type))) {
+            App::DocumentObject* obj = static_cast<App::DocumentObjectPy*>(pDvp)->getDocumentObjectPtr();
+            dvp = static_cast<TechDraw::DrawViewPart*>(obj);
+        }
+
+        std::vector<Base::Vector3d> pointList;
+        try {
+            Py::Sequence list(pPointList);
+            for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
+                    if (PyObject_TypeCheck((*it).ptr(), &(Base::VectorPy::Type))) {
+                        Base::Vector3d temp = static_cast<Base::VectorPy*>((*it).ptr())->value();
+                        pointList.push_back(temp);
+                    }
+            }
+        }
+        catch (Standard_Failure& e) {
+            throw Py::Exception(Part::PartExceptionOCCError, e.GetMessageString());
+        }
+        auto newLeader = DrawLeaderLine::makeLeader(dvp, pointList, iStartSymbol, iEndSymbol);
+
+        // return the new leader as DrawLeaderPy
+        return Py::asObject(new DrawLeaderLinePy(newLeader));
+   }
+
+    Py::Object nearestFraction(const Py::Tuple& args)
+    {
+        double valueWithDecimals{0.0};
+        if (!PyArg_ParseTuple(args.ptr(), "d", &valueWithDecimals)) {
+            throw Py::TypeError("expected (valueWithDecimals)");
+        }
+
+        std::pair<int, int> numAndDen = DrawUtil::nearestFraction(valueWithDecimals);
+        PyObject* pyNumAndDen = Py_BuildValue("(ii)", numAndDen.first, numAndDen.second);
+        return Py::asObject(pyNumAndDen);
+    }
+
+    Py::Object scrubEdges(const Py::Tuple& args)
+    {
+        PyObject *pcObj{nullptr};
+        if (!PyArg_ParseTuple(args.ptr(), "O!", &(PyList_Type), &pcObj)) {
+            throw Py::TypeError("expected listofedges");
+        }
+
+        std::vector<TopoDS_Edge> edgeList;
+
+        try {
+            Py::Sequence list(pcObj);
+            for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
+                if (PyObject_TypeCheck((*it).ptr(), &(Part::TopoShapeEdgePy::Type))) {
+                    const TopoDS_Shape& shape = static_cast<TopoShapePy*>((*it).ptr())->
+                        getTopoShapePtr()->getShape();
+                    const TopoDS_Edge edge = TopoDS::Edge(shape);
+                    edgeList.push_back(edge);
+                }
+            }
+        }
+        catch (Standard_Failure& e) {
+            throw Py::Exception(Part::PartExceptionOCCError, e.GetMessageString());
+        }
+
+        if (edgeList.empty()) {
+            Base::Console().message("TechDraw::scrubEdges - list of edges is empty\n");
+            return Py::None();
+        }
+
+        std::vector<TopoDS_Edge> closedEdges;
+        edgeList = DrawProjectSplit::scrubEdges(edgeList, closedEdges);
+        // Need to also check closed edges, since that may be the outline
+        edgeList.insert( edgeList.end(), closedEdges.begin(), closedEdges.end() );
+
+        Py::List cleanEdgeList;
+        for (auto& edge: edgeList) {
+            PyObject* pyEdgePtr = new TopoShapeEdgePy(new TopoShape(edge));
+            cleanEdgeList.append(Py::asObject(pyEdgePtr));
+        }
+
+        return cleanEdgeList;
+    }
+
  };
 
  PyObject* initModule()

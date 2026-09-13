@@ -1,12 +1,4 @@
-include_directories(
-    ${CMAKE_CURRENT_BINARY_DIR}
-    ${Boost_INCLUDE_DIRS}
-    ${COIN3D_INCLUDE_DIRS}
-    ${COIN3D_INCLUDE_DIRS}/Inventor/annex
-    ${PYTHON_INCLUDE_DIRS}
-    ${ZLIB_INCLUDE_DIR}
-    ${XercesC_INCLUDE_DIRS}
-)
+# SPDX-License-Identifier: LGPL-2.1-or-later
 
 if(MSVC)
     include_directories(
@@ -21,10 +13,10 @@ set(MeshGui_LIBS
     FreeCADGui
 )
 
-generate_from_xml(ViewProviderMeshPy)
+generate_from_py(ViewProviderMesh)
 
 SET(MeshGui_XML_SRCS
-    ViewProviderMeshPy.xml
+    ViewProviderMesh.pyi
 )
 SOURCE_GROUP("XML" FILES ${MeshGui_XML_SRCS})
 
@@ -98,7 +90,11 @@ set (Mesh_TR_QRC ${CMAKE_CURRENT_BINARY_DIR}/Resources/Mesh_translation.qrc)
 qt_find_and_add_translation(QM_SRCS "Resources/translations/*_*.ts"
     ${CMAKE_CURRENT_BINARY_DIR}/Resources/translations)
 qt_create_resource_file(${Mesh_TR_QRC} ${QM_SRCS})
-qt_add_resources(resource_SRCS Resources/Mesh.qrc ${Mesh_TR_QRC})
+qt_add_resources(resource_SRCS
+    Resources/Mesh.qrc
+    ${Mesh_TR_QRC}
+    OPTIONS ${FREECAD_RCC_OPTIONS}
+)
 
 SET(resource_SRCS
     ${QM_SRCS}
@@ -135,8 +131,6 @@ SET(MeshGui_SRCS
     ${ViewProvider_SRCS}
     AppMeshGui.cpp
     Command.cpp
-    Doxygen.cpp
-    PreCompiled.cpp
     PreCompiled.h
     MeshEditor.cpp
     MeshEditor.h
@@ -149,12 +143,6 @@ SET(MeshGui_SRCS
     Workbench.cpp
     Workbench.h
 )
-
-if(FREECAD_USE_PCH)
-    add_definitions(-D_PreComp_)
-    GET_MSVC_PRECOMPILED_SOURCE("PreCompiled.cpp" PCH_SRCS ${MeshGui_SRCS})
-    ADD_MSVC_PRECOMPILED_HEADER(MeshGui PreCompiled.h PreCompiled.cpp PCH_SRCS)
-endif(FREECAD_USE_PCH)
 
 SET(MeshGuiIcon_SVG
     Resources/icons/MeshWorkbench.svg
@@ -169,10 +157,28 @@ if (EIGEN3_NO_DEPRECATED_COPY)
 endif ()
 
 add_library(MeshGui SHARED ${MeshGui_SRCS} ${MeshGuiIcon_SVG})
+
+if(FREECAD_USE_PCH)
+    target_precompile_headers(MeshGui PRIVATE
+            $<$<COMPILE_LANGUAGE:CXX>:"${CMAKE_CURRENT_LIST_DIR}/PreCompiled.h">
+    )
+endif(FREECAD_USE_PCH)
+
+target_include_directories(
+    MeshGui
+    PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}
+)
 target_link_libraries(MeshGui ${MeshGui_LIBS})
 
+if (MSVC)
+    target_compile_options(MeshGui PRIVATE /wd4251 /wd4273 /wd4275)
+endif()
 
-SET_BIN_DIR(MeshGui MeshGui /Mod/Mesh)
+target_compile_warn_error(MeshGui)
+
+
+SET_BIN_DIR(MeshGui)
 SET_PYTHON_PREFIX_SUFFIX(MeshGui)
 
 fc_copy_sources(MeshGui "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_DATADIR}/Mod/Mesh" ${MeshGuiIcon_SVG})

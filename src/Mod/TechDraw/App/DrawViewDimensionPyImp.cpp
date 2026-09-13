@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2018 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <Base/Vector3D.h>
 #include <Base/VectorPy.h>
@@ -108,6 +109,22 @@ PyObject* DrawViewDimensionPy::getAnglePoints(PyObject* args)
     ret.append(Py::asObject(new Base::VectorPy(new Base::Vector3d(pts.first()))));
     ret.append(Py::asObject(new Base::VectorPy(new Base::Vector3d(pts.second()))));
     ret.append(Py::asObject(new Base::VectorPy(new Base::Vector3d(pts.vertex()))));
+    return Py::new_reference_to(ret);
+}
+
+
+PyObject* DrawViewDimensionPy::getAreaPoints(PyObject* args)
+{
+    if (!PyArg_ParseTuple(args, "")) {
+        return nullptr;
+    }
+
+    DrawViewDimension* dvd = getDrawViewDimensionPtr();
+    areaPoint pts = dvd->getAreaPoint();
+    Py::List ret;
+    ret.append(Py::asObject(new Base::VectorPy(new Base::Vector3d(pts.getCenter()))));
+    ret.append(Py::asObject(PyFloat_FromDouble(pts.getFilledArea())));
+    ret.append(Py::asObject(PyFloat_FromDouble(pts.getActualArea())));
     return Py::new_reference_to(ret);
 }
 

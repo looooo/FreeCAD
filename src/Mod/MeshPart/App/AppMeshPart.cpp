@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2008 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <Base/Console.h>
 #include <Base/Interpreter.h>
@@ -38,13 +39,12 @@ PyMOD_INIT_FUNC(MeshPart)
     // load dependent module
     try {
         Base::Interpreter().loadModule("Part");
-        // Base::Interpreter().loadModule("Mesh");
     }
     catch (const Base::Exception& e) {
         PyErr_SetString(PyExc_ImportError, e.what());
         PyMOD_Return(nullptr);
     }
     PyObject* mod = MeshPart::initModule();
-    Base::Console().Log("Loading MeshPart module... done\n");
+    Base::Console().log("Loading MeshPart module… done\n");
     PyMOD_Return(mod);
 }

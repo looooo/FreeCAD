@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2018 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef MESHGUI_SEGMENTATIONBESTFIT_H
-#define MESHGUI_SEGMENTATIONBESTFIT_H
+#pragma once
 
 #include <list>
 #include <QDialog>
@@ -68,11 +69,13 @@ class ParametersDialog: public QDialog
     Q_OBJECT
 
 public:
-    ParametersDialog(std::vector<float>&,
-                     FitParameter*,
-                     ParameterList,
-                     Mesh::Feature* mesh,
-                     QWidget* parent = nullptr);
+    ParametersDialog(
+        std::vector<float>&,
+        FitParameter*,
+        ParameterList,
+        Mesh::Feature* mesh,
+        QWidget* parent = nullptr
+    );
     ~ParametersDialog() override;
     void accept() override;
     void reject() override;
@@ -90,6 +93,8 @@ private:
     Mesh::Feature* myMesh;
     MeshSelection meshSel;
     std::vector<QDoubleSpinBox*> spinBoxes;
+
+    Q_DISABLE_COPY_MOVE(ParametersDialog)
 };
 
 class MeshGuiExport SegmentationBestFit: public QWidget
@@ -97,9 +102,11 @@ class MeshGuiExport SegmentationBestFit: public QWidget
     Q_OBJECT
 
 public:
-    explicit SegmentationBestFit(Mesh::Feature* mesh,
-                                 QWidget* parent = nullptr,
-                                 Qt::WindowFlags fl = Qt::WindowFlags());
+    explicit SegmentationBestFit(
+        Mesh::Feature* mesh,
+        QWidget* parent = nullptr,
+        Qt::WindowFlags fl = Qt::WindowFlags()
+    );
     ~SegmentationBestFit() override;
     void accept();
 
@@ -119,6 +126,8 @@ private:
     Ui_SegmentationBestFit* ui;
     Mesh::Feature* myMesh;
     MeshSelection meshSel;
+
+    Q_DISABLE_COPY_MOVE(SegmentationBestFit)
 };
 
 /**
@@ -139,9 +148,6 @@ public:
 
 private:
     SegmentationBestFit* widget;
-    Gui::TaskView::TaskBox* taskbox;
 };
 
 }  // namespace MeshGui
-
-#endif  // MESHGUI_SEGMENTATIONBESTFIT_H

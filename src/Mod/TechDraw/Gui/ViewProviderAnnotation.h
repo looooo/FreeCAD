@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2004 Jürgen Riegel <juergen.riegel@web.de>              *
  *   Copyright (c) 2012 Luke Parry <l.parry@warwick.ac.uk>                 *
@@ -21,8 +23,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_VIEWPROVIDERANNOTATION_H
-#define DRAWINGGUI_VIEWPROVIDERANNOTATION_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
@@ -51,9 +52,9 @@ public:
     std::vector<App::DocumentObject*> claimChildren(void) const override;
 
     TechDraw::DrawViewAnnotation* getViewObject() const override;
+
+    bool doubleClicked() override;
+    bool setEdit(int ModNum) override;
 };
 
 }// namespace TechDrawGui
-
-
-#endif// DRAWINGGUI_VIEWPROVIDERANNOTATION_H

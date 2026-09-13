@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2023 WandererFan  <wandererfan@gmail.com>               *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TECHDRAWGUI_PATPATHMAKER_H
-#define TECHDRAWGUI_PATPATHMAKER_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
@@ -40,7 +41,7 @@ public:
     explicit PATPathMaker(QGraphicsItem* parent = nullptr, double lineWidth = 0.50, double fillScale = 1.0);
     ~PATPathMaker() = default;
 
-    void setLineWidth(double width) {  m_lineWidth = width; }
+    void setLineWidth(double width);
     void setScale(double scale) { m_fillScale = scale; }
     void setPen(QPen pen) { m_pen = pen; }
     QPen getPen()  { return m_pen; }
@@ -50,17 +51,15 @@ public:
 
 protected:
     QGraphicsPathItem* geomToLine(TechDraw::BaseGeomPtr base, TechDraw::LineSet& ls);
-    QGraphicsPathItem* geomToStubbyLine(TechDraw::BaseGeomPtr base, double offset, TechDraw::LineSet& ls);
+    QGraphicsPathItem* simpleLine(TechDraw::BaseGeomPtr base);
     QGraphicsPathItem* lineFromPoints(Base::Vector3d start, Base::Vector3d end, TechDraw::DashSpec ds);
     std::vector<double> offsetDash(const std::vector<double> dv, const double offset);
     QPainterPath dashedPPath(const std::vector<double> dv, const Base::Vector3d start, const Base::Vector3d end);
-    double dashRemain(const std::vector<double> dv, const double offset);
     double calcOffset(TechDraw::BaseGeomPtr g, TechDraw::LineSet ls);
     std::vector<double> decodeDashSpec(TechDraw::DashSpec d);
 
 private:
     QGraphicsItem* m_parent;
-    QPainterPath m_geomhatch;                  //crosshatch fill lines
     QPen m_pen;
 
     std::vector<TechDraw::LineSet> m_lineSets;
@@ -75,5 +74,3 @@ private:
 };
 
 }
-#endif // TECHDRAWGUI_PATPATHMAKER_H
-

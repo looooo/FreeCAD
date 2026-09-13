@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 Eivind Kvedalen <eivind@kvedalen.name>             *
  *                                                                         *
@@ -20,13 +22,20 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef PROPERTYSHEET_H
-#define PROPERTYSHEET_H
+#pragma once
+
+#ifdef _MSC_VER
+# ifdef PropertySheet
+#  undef PropertySheet  // Microsoft's #define conflicts with the use below
+# endif
+#endif
 
 #include <map>
 
 #include <App/DocumentObject.h>
 #include <App/PropertyLinks.h>
+
+#include <Mod/Spreadsheet/SpreadsheetGlobal.h>
 
 #include "Cell.h"
 
@@ -51,20 +60,27 @@ public:
     std::map<App::ObjectIdentifier, const App::Expression*> getExpressions() const override;
     void setExpressions(std::map<App::ObjectIdentifier, App::ExpressionPtr>&& exprs) override;
     void onRelabeledDocument(const App::Document& doc) override;
+    void onRenameDynamicProperty(const App::Property& prop, const char* oldName) override;
+    void onMoveDynamicProperty(const App::Property& prop, const App::DocumentObject& targetObj) override;
 
-    void updateElementReference(App::DocumentObject* feature,
-                                bool reverse = false,
-                                bool notify = false) override;
+    void updateElementReference(
+        App::DocumentObject* feature,
+        bool reverse = false,
+        bool notify = false
+    ) override;
     bool referenceChanged() const override;
     bool adjustLink(const std::set<App::DocumentObject*>& inList) override;
-    Property*
-    CopyOnImportExternal(const std::map<std::string, std::string>& nameMap) const override;
-    Property* CopyOnLabelChange(App::DocumentObject* obj,
-                                const std::string& ref,
-                                const char* newLabel) const override;
-    Property* CopyOnLinkReplace(const App::DocumentObject* parent,
-                                App::DocumentObject* oldObj,
-                                App::DocumentObject* newObj) const override;
+    Property* CopyOnImportExternal(const std::map<std::string, std::string>& nameMap) const override;
+    Property* CopyOnLabelChange(
+        App::DocumentObject* obj,
+        const std::string& ref,
+        const char* newLabel
+    ) const override;
+    Property* CopyOnLinkReplace(
+        const App::DocumentObject* parent,
+        App::DocumentObject* oldObj,
+        App::DocumentObject* newObj
+    ) const override;
     void breakLink(App::DocumentObject* obj, bool clear) override;
 
     void afterRestore() override;
@@ -78,6 +94,13 @@ public:
 
     void Restore(Base::XMLReader& reader) override;
 
+    void getLinksTo(
+        std::vector<App::ObjectIdentifier>& identifiers,
+        App::DocumentObject* obj,
+        const char* subname = nullptr,
+        bool all = false
+    ) const override;
+
     void copyCells(Base::Writer& writer, const std::vector<App::Range>& ranges) const;
 
     void pasteCells(Base::XMLReader& reader, App::Range dstRange);
@@ -90,18 +113,28 @@ public:
     void setContent(App::CellAddress address, const char* value);
 
     void setAlignment(App::CellAddress address, int _alignment);
+    void setAlignment(App::Range range, int _alignment);
 
     void setStyle(App::CellAddress address, const std::set<std::string>& _style);
+    void setStyle(App::Range address, const std::set<std::string>& _style);
 
-    void setForeground(App::CellAddress address, const App::Color& color);
+    void setForeground(App::CellAddress address, const Base::Color& color);
+    void setForeground(App::Range range, const Base::Color& color);
 
-    void setBackground(App::CellAddress address, const App::Color& color);
+    void clearForeground(App::CellAddress address);
+
+    void setBackground(App::CellAddress address, const Base::Color& color);
+    void setBackground(App::Range range, const Base::Color& color);
+
+    void clearBackground(App::CellAddress address);
 
     void setDisplayUnit(App::CellAddress address, const std::string& unit);
+    void setDisplayUnit(App::Range range, const std::string& unit);
 
     void setAlias(App::CellAddress address, const std::string& alias);
 
     void setComputedUnit(App::CellAddress address, const Base::Unit& unit);
+    void setComputedUnit(App::Range range, const Base::Unit& unit);
 
     void setSpans(App::CellAddress address, int rows, int columns);
 
@@ -118,6 +151,9 @@ public:
     const Cell* getValueFromAlias(const std::string& alias) const;
 
     bool isValidAlias(const std::string& candidate);
+
+    // checks whether candidate is of form A1, C4, etc.
+    bool isValidCellAddressName(const std::string& candidate);
 
     std::vector<App::CellAddress> getUsedCells() const;
 
@@ -157,8 +193,7 @@ public:
         return dirty.size() > 0;
     }
 
-    void
-    pasteCells(const std::map<App::CellAddress, std::string>& cells, int rowOffset, int colOffset);
+    void pasteCells(const std::map<App::CellAddress, std::string>& cells, int rowOffset, int colOffset);
 
     void insertRows(int row, int count);
 
@@ -201,9 +236,7 @@ public:
 
     void invalidateDependants(const App::DocumentObject* docObj);
 
-    void renamedDocumentObject(const App::DocumentObject* docObj);
-    void
-    renameObjectIdentifiers(const std::map<App::ObjectIdentifier, App::ObjectIdentifier>& paths);
+    void renameObjectIdentifiers(const std::map<App::ObjectIdentifier, App::ObjectIdentifier>& paths);
 
     void deletedDocumentObject(const App::DocumentObject* docObj);
 
@@ -221,10 +254,12 @@ public:
 
     unsigned getBindingBorder(App::CellAddress address) const;
 
-    bool isBindingPath(const App::ObjectIdentifier& path,
-                       App::CellAddress* from = nullptr,
-                       App::CellAddress* to = nullptr,
-                       bool* href = nullptr) const;
+    bool isBindingPath(
+        const App::ObjectIdentifier& path,
+        App::CellAddress* from = nullptr,
+        App::CellAddress* to = nullptr,
+        bool* href = nullptr
+    ) const;
 
     enum BindingType
     {
@@ -232,10 +267,12 @@ public:
         BindingNormal,
         BindingHiddenRef,
     };
-    BindingType getBinding(const App::Range& range,
-                           App::ExpressionPtr* pStart = nullptr,
-                           App::ExpressionPtr* pEnd = nullptr,
-                           App::ObjectIdentifier* pTarget = nullptr) const;
+    BindingType getBinding(
+        const App::Range& range,
+        App::ExpressionPtr* pStart = nullptr,
+        App::ExpressionPtr* pEnd = nullptr,
+        App::ObjectIdentifier* pTarget = nullptr
+    ) const;
 
 protected:
     void hasSetValue() override;
@@ -284,9 +321,11 @@ private:
 
     void moveAlias(App::CellAddress currPos, App::CellAddress newPos);
 
-    void moveCell(App::CellAddress currPos,
-                  App::CellAddress newPos,
-                  std::map<App::ObjectIdentifier, App::ObjectIdentifier>& renames);
+    void moveCell(
+        App::CellAddress currPos,
+        App::CellAddress newPos,
+        std::map<App::ObjectIdentifier, App::ObjectIdentifier>& renames
+    );
 
     /*
      * Cell dependency tracking
@@ -324,11 +363,10 @@ private:
     /*! The associated python object */
     Py::SmartPtr PythonObject;
 
-    std::map<const App::DocumentObject*, boost::signals2::scoped_connection> depConnections;
+    std::map<const App::DocumentObject*, fastsignals::scoped_connection> depConnections;
 
     int updateCount = 0;
     bool restoring = false;
 };
 
 }  // namespace Spreadsheet
-#endif  // PROPERTYSHEET_H

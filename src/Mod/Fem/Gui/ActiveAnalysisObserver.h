@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -21,8 +23,7 @@
  ***************************************************************************/
 
 
-#ifndef FEMGUI_ACTIVEANALYSISOBSERVER_H
-#define FEMGUI_ACTIVEANALYSISOBSERVER_H
+#pragma once
 
 #include <App/DocumentObserver.h>
 #include <Gui/Tree.h>
@@ -66,5 +67,3 @@ private:
 };
 
 }  // namespace FemGui
-
-#endif  // FEMGUI_ACTIVEANALYSISOBSERVER_H

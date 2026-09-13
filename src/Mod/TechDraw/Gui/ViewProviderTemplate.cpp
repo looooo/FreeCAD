@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2014 Luke Parry <l.parry@warwick.ac.uk>                 *
  *                                                                         *
@@ -21,14 +23,14 @@
  ***************************************************************************/
 
 
-#include "PreCompiled.h"
 
-#ifndef _PreComp_
 #include <QMessageBox>
 #include <QTextStream>
+
+#include <FCConfig.h>
+
 #ifdef FC_OS_WIN32
 #include <windows.h>
-#endif
 #endif
 
 #include <App/DocumentObject.h>
@@ -69,7 +71,7 @@ ViewProviderTemplate::ViewProviderTemplate() : m_myName(std::string())
 
 void ViewProviderTemplate::attach(App::DocumentObject* pcFeat)
 {
-    //    Base::Console().Message("VPT::attach(%s)\n", pcFeat->getNameInDocument());
+    //    Base::Console().message("VPT::attach(%s)\n", pcFeat->getNameInDocument());
     ViewProviderDocumentObject::attach(pcFeat);
 
     auto feature = getTemplate();
@@ -81,12 +83,12 @@ void ViewProviderTemplate::attach(App::DocumentObject* pcFeat)
 void ViewProviderTemplate::updateData(const App::Property* prop)
 {
     //This doesn't belong here.  Should be in a ViewProviderSvgTemplate?
-    if (getTemplate()->isDerivedFrom(TechDraw::DrawSVGTemplate::getClassTypeId())) {
+    if (getTemplate()->isDerivedFrom<TechDraw::DrawSVGTemplate>()) {
         auto t = static_cast<TechDraw::DrawSVGTemplate*>(getTemplate());
         if (prop == &(t->Template)) {
             auto page = t->getParentPage();
             Gui::ViewProvider* vp =
-                Gui::Application::Instance->getDocument(t->getDocument())->getViewProvider(page);
+                Gui::Application::Instance->getDocument(t->DocumentObject::getDocument())->getViewProvider(page);
             TechDrawGui::ViewProviderPage* vpp = dynamic_cast<TechDrawGui::ViewProviderPage*>(vp);
             if (vpp) {
                 vpp->getQGSPage()->attachTemplate(t);
@@ -164,7 +166,7 @@ QGITemplate* ViewProviderTemplate::getQTemplate()
 
 void ViewProviderTemplate::setMarkers(bool state)
 {
-    //    Base::Console().Message("VPT::setMarkers(%d)\n", state);
+    //    Base::Console().message("VPT::setMarkers(%d)\n", state);
     QGITemplate* qTemplate = getQTemplate();
     QGISVGTemplate* qSvgTemplate = dynamic_cast<QGISVGTemplate*>(qTemplate);
     if (qSvgTemplate) {

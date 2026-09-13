@@ -4,19 +4,19 @@
   <context>
     <name>TestGui::UnitTest</name>
     <message>
-      <location filename="../../UnitTest.ui" line="17"/>
-      <source>FreeCAD UnitTest</source>
-      <translation>FreeCAD UnitTest</translation>
-    </message>
-    <message>
       <location filename="../../UnitTest.ui" line="32"/>
       <source>Test</source>
       <translation>Тест</translation>
     </message>
     <message>
+      <location filename="../../UnitTest.ui" line="17"/>
+      <source>FreeCAD Unit Test</source>
+      <translation>FreeCAD UnitTest</translation>
+    </message>
+    <message>
       <location filename="../../UnitTest.ui" line="44"/>
-      <source>Select test name:</source>
-      <translation>Изаберите назив теста:</translation>
+      <source>Select test name</source>
+      <translation>Изабери назив теста</translation>
     </message>
     <message>
       <location filename="../../UnitTest.ui" line="96"/>
@@ -30,71 +30,81 @@
     </message>
     <message>
       <location filename="../../UnitTest.ui" line="128"/>
+      <source>&amp;Copy</source>
+      <translation>&amp;Копирај</translation>
+    </message>
+    <message>
+      <location filename="../../UnitTest.ui" line="131"/>
+      <source>Ctrl+C</source>
+      <translation>Ctrl+C</translation>
+    </message>
+    <message>
+      <location filename="../../UnitTest.ui" line="141"/>
       <source>&amp;Help</source>
       <translation>&amp;Помоћ</translation>
     </message>
     <message>
-      <location filename="../../UnitTest.ui" line="131"/>
+      <location filename="../../UnitTest.ui" line="144"/>
       <source>F1</source>
       <translation>F1</translation>
     </message>
     <message>
-      <location filename="../../UnitTest.ui" line="141"/>
+      <location filename="../../UnitTest.ui" line="154"/>
       <source>&amp;About</source>
       <translation>&amp;О</translation>
     </message>
     <message>
-      <location filename="../../UnitTest.ui" line="144"/>
+      <location filename="../../UnitTest.ui" line="157"/>
       <source>Alt+A</source>
       <translation>Alt+A</translation>
     </message>
     <message>
-      <location filename="../../UnitTest.ui" line="154"/>
-      <source>&amp;Close</source>
-      <translation>&amp;Затвори</translation>
+      <location filename="../../UnitTest.ui" line="167"/>
+      <source>Close</source>
+      <translation>Затвори</translation>
     </message>
     <message>
-      <location filename="../../UnitTest.ui" line="157"/>
+      <location filename="../../UnitTest.ui" line="170"/>
       <source>Alt+C</source>
       <translation>Alt+C</translation>
     </message>
     <message>
-      <location filename="../../UnitTest.ui" line="169"/>
+      <location filename="../../UnitTest.ui" line="182"/>
       <source>Progress</source>
       <translation>Напредак</translation>
     </message>
     <message>
-      <location filename="../../UnitTest.ui" line="188"/>
-      <source>Run:</source>
-      <translation>Покрени:</translation>
+      <location filename="../../UnitTest.ui" line="201"/>
+      <source>Run</source>
+      <translation>Покрени</translation>
     </message>
     <message>
-      <location filename="../../UnitTest.ui" line="205"/>
-      <source>Failures:</source>
-      <translation>Кварови:</translation>
+      <location filename="../../UnitTest.ui" line="218"/>
+      <source>Failures</source>
+      <translation>Неисправности</translation>
     </message>
     <message>
-      <location filename="../../UnitTest.ui" line="222"/>
-      <source>Errors:</source>
-      <translation>Грешке:</translation>
+      <location filename="../../UnitTest.ui" line="235"/>
+      <source>Errors</source>
+      <translation>Поруке о грешкама</translation>
     </message>
     <message>
-      <location filename="../../UnitTest.ui" line="239"/>
-      <source>Remaining:</source>
-      <translation>Преостали:</translation>
+      <location filename="../../UnitTest.ui" line="252"/>
+      <source>Remaining</source>
+      <translation>Преостало</translation>
     </message>
     <message>
-      <location filename="../../UnitTest.ui" line="259"/>
-      <source>Failures and errors</source>
-      <translation>Кварови и грешке</translation>
+      <location filename="../../UnitTest.ui" line="272"/>
+      <source>Failures and Errors</source>
+      <translation>Неисправности и грешке</translation>
     </message>
     <message>
-      <location filename="../../UnitTest.ui" line="275"/>
+      <location filename="../../UnitTest.ui" line="288"/>
       <source>Description</source>
       <translation>Опис</translation>
     </message>
     <message>
-      <location filename="../../UnitTest.ui" line="292"/>
+      <location filename="../../UnitTest.ui" line="305"/>
       <source>Idle</source>
       <translation>Неактиван</translation>
     </message>
@@ -102,34 +112,39 @@
   <context>
     <name>TestGui::UnitTestDialog</name>
     <message>
-      <location filename="../../UnitTestImp.cpp" line="165"/>
+      <location filename="../../UnitTestImp.cpp" line="172"/>
       <source>Help</source>
       <translation>Помоћ</translation>
     </message>
     <message>
-      <location filename="../../UnitTestImp.cpp" line="166"/>
+      <location filename="../../UnitTestImp.cpp" line="173"/>
       <source>Enter the name of a callable object which, when called, will return a TestCase.
 Click 'start', and the test thus produced will be run.
 
 Double click on an error in the tree view to see more information about it, including the stack trace.</source>
-      <translation>Упишите назив позовивог објекта који ће, када је позван, дати случај тестирања.
-Кликните на „покрени“, и тест који производи биће покренут.
+      <translation>Унеси име објекта који ће, када се позове, вратити ТестЦасе.
+Кликни на 'старт' и тако произведен тест ц́е бити покренут.
 
-Два пута кликните на грешку у прегледу стаблом да видите више информација о њему, укључујући праћење спремника.</translation>
+Двапут кликни на грешку у стаблу документа да би видео више информација о њој, укључујући праћење стека.</translation>
     </message>
     <message>
-      <location filename="../../UnitTestImp.cpp" line="179"/>
+      <location filename="../../UnitTestImp.cpp" line="187"/>
       <source>About FreeCAD UnitTest</source>
       <translation>О FreeCAD UnitTest програму</translation>
     </message>
     <message>
-      <location filename="../../UnitTestImp.cpp" line="180"/>
+      <location filename="../../UnitTestImp.cpp" line="188"/>
       <source>Copyright (c) Werner Mayer
 
 FreeCAD UnitTest is part of FreeCAD and supports writing Unit Tests for ones own modules.</source>
       <translation>Ауторска права © Werner Mayer
 
-„FreeCAD UnitTest“ је део FreeCAD-а и подржава писање тестирања јединице за њихове личне модуле.</translation>
+FreeCAD UnitTest је део FreeCAD-а и подржава писање тестова за сопствене модуле.</translation>
+    </message>
+    <message>
+      <location filename="../../UnitTestImp.cpp" line="206"/>
+      <source>Errors copied to clipboard</source>
+      <translation>Грешка је копирана у привремену меморију</translation>
     </message>
   </context>
 </TS>

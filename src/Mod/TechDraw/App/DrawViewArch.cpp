@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 York van Havre <yorik@uncreated.net>               *
  *                                                                         *
@@ -20,12 +22,10 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
-#ifndef _PreComp_
 # include <iomanip>
 # include <sstream>
-#endif
+
 
 #include <Base/Console.h>
 #include <Base/Interpreter.h>
@@ -49,14 +49,14 @@ const char* DrawViewArch::RenderModeEnums[]= {"Wireframe",
 
 DrawViewArch::DrawViewArch()
 {
-    static const char *group = "Arch view";
+    static const char *group = "BIM view";
 
     ADD_PROPERTY_TYPE(Source ,(nullptr), group, App::Prop_None, "SectionPlane or BuildingPart object for this view");
     Source.setScope(App::LinkScope::Global);
     ADD_PROPERTY_TYPE(AllOn ,(false), group, App::Prop_None, "If hidden objects must be shown or not");
     RenderMode.setEnums(RenderModeEnums);
     ADD_PROPERTY_TYPE(RenderMode, ((long)0), group, App::Prop_None, "The render mode to use");
-    ADD_PROPERTY_TYPE(FillSpaces ,(false), group, App::Prop_None, "If True, Arch Spaces are shown as a colored area");
+    ADD_PROPERTY_TYPE(FillSpaces ,(false), group, App::Prop_None, "If True, BIM Spaces are shown as a colored area");
     ADD_PROPERTY_TYPE(ShowHidden ,(false), group, App::Prop_None, "If the hidden geometry behind the section plane is shown or not");
     ADD_PROPERTY_TYPE(ShowFill ,(false), group, App::Prop_None, "If cut areas must be filled with a hatch pattern or not");
     ADD_PROPERTY_TYPE(LineWidth, (0.25), group, App::Prop_None, "Line width of this view");
@@ -101,7 +101,7 @@ App::DocumentObjectExecReturn *DrawViewArch::execute()
         //if (sourceObj is not ArchSection) return
         App::Property* proxy = sourceObj->getPropertyByName("Proxy");
         if (!proxy) {
-            Base::Console().Error("DVA::execute - %s is not an ArchSection\n", sourceObj->Label.getValue());
+            Base::Console().error("DVA::execute - %s is not an ArchSection\n", sourceObj->Label.getValue());
             //this is definitely not an ArchSection
             return DrawView::execute();
         }

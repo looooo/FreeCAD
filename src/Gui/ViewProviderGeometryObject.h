@@ -21,31 +21,36 @@
  ***************************************************************************/
 
 
-#ifndef GUI_VIEWPROVIDER_GEOMETRYOBJECT_H
-#define GUI_VIEWPROVIDER_GEOMETRYOBJECT_H
+#pragma once
 
 #include "ViewProviderDragger.h"
 #include <Inventor/lists/SoPickedPointList.h>
 
 class SoPickedPointList;
+class SoPickStyle;
 class SoSwitch;
 class SoSensor;
 class SbVec2s;
 class SoBaseColor;
+class SoNodeSensor;
 
-namespace Gui {
+namespace Gui
+{
 
 class SoFCSelection;
 class SoFCBoundingBox;
 class View3DInventorViewer;
 
 /**
- * The base class for all view providers that display geometric data, like mesh, point clouds and shapes.
+ * The base class for all view providers that display geometric data, like mesh, point clouds and
+ * shapes.
  * @author Werner Mayer
  */
-class GuiExport ViewProviderGeometryObject : public ViewProviderDragger
+class GuiExport ViewProviderGeometryObject: public ViewProviderDragger
 {
     PROPERTY_HEADER_WITH_OVERRIDE(Gui::ViewProviderGeometryObject);
+
+    typedef ViewProviderDragger inherited;
 
 public:
     /// constructor.
@@ -55,30 +60,36 @@ public:
     ~ViewProviderGeometryObject() override;
 
     // Display properties
-    App::PropertyColor ShapeColor;
     App::PropertyPercent Transparency;
-    App::PropertyMaterial ShapeMaterial;
+    App::PropertyMaterialList ShapeAppearance;  // May be different from material
     App::PropertyBool BoundingBox;
     App::PropertyBool Selectable;
 
     /**
      * Attaches the document object to this view provider.
      */
-    void attach(App::DocumentObject *pcObject) override;
+    void attach(App::DocumentObject* pcObject) override;
     void updateData(const App::Property*) override;
 
-    bool isSelectable() const override {return Selectable.getValue();}
+    bool isSelectable() const override
+    {
+        return Selectable.getValue();
+    }
 
     /**
      * Returns a list of picked points from the geometry under \a getRoot().
-     * If \a pickAll is false (the default) only the intersection point closest to the camera will be picked, otherwise
-     * all intersection points will be picked.
+     * If \a pickAll is false (the default) only the intersection point closest to the camera will
+     * be picked, otherwise all intersection points will be picked.
      */
-    SoPickedPointList getPickedPoints(const SbVec2s& pos, const View3DInventorViewer& viewer,bool pickAll=false) const;
+    SoPickedPointList getPickedPoints(
+        const SbVec2s& pos,
+        const View3DInventorViewer& viewer,
+        bool pickAll = false
+    ) const;
     /**
-     * This method is provided for convenience and does basically the same as getPickedPoints() unless that only the closest
-     * point to the camera will be picked.
-     * \note It is in the response of the client programmer to delete the returned SoPickedPoint object.
+     * This method is provided for convenience and does basically the same as getPickedPoints()
+     * unless that only the closest point to the camera will be picked. \note It is in the response
+     * of the client programmer to delete the returned SoPickedPoint object.
      */
     SoPickedPoint* getPickedPoint(const SbVec2s& pos, const View3DInventorViewer& viewer) const;
 
@@ -87,21 +98,40 @@ public:
     virtual void showBoundingBox(bool);
     //@}
 
+    void hide() override;
+    void show() override;
+
+    /// Get the python wrapper for that ViewProvider
+    PyObject* getPyObject() override;
+
 protected:
     /// get called by the container whenever a property has been changed
     void onChanged(const App::Property* prop) override;
-    void setSelectable(bool Selectable=true);
+    void setSelectable(bool Selectable = true);
 
     virtual unsigned long getBoundColor() const;
+    void updateBoundingBox();
+    void addBoundSwitch();
+
+    void handleChangedPropertyName(
+        Base::XMLReader& reader,
+        const char* TypeName,
+        const char* PropName
+    ) override;
+    void setCoinAppearance(const App::Material& source);
+
+private:
+    bool isSelectionEnabled() const;
 
 protected:
-    SoMaterial       * pcShapeMaterial{nullptr};
-    SoFCBoundingBox  * pcBoundingBox{nullptr};
-    SoSwitch         * pcBoundSwitch{nullptr};
-    SoBaseColor      * pcBoundColor{nullptr};
+    SoMaterial* pcShapeMaterial {nullptr};
+    SoFCBoundingBox* pcBoundingBox {nullptr};
+    SoSwitch* pcBoundSwitch {nullptr};
+    SoBaseColor* pcBoundColor {nullptr};
+    SoPickStyle* pickStyle {nullptr};
+    SoNodeSensor* pcSwitchSensor {nullptr};
+
+    App::Material materialAppearance;
 };
 
-} // namespace Gui
-
-
-#endif // GUI_VIEWPROVIDER_GEOMETRYOBJECT_H
+}  // namespace Gui

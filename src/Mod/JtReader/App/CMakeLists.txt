@@ -1,17 +1,12 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 set(JTREADER_TKJT_INCLUDE_DIRS CACHE PATH  "Include directory of TKJT headers")
 set(JTREADER_TKJT_LIBRARIES CACHE FILEPATH  "File path to TKJT library")
 
 include_directories(
     ${CMAKE_BINARY_DIR}
     ${CMAKE_CURRENT_BINARY_DIR}
-    ${Boost_INCLUDE_DIRS}
-    ${OCC_INCLUDE_DIR}
-    ${ZLIB_INCLUDE_DIR}
-    ${PYTHON_INCLUDE_PATH}
-    ${QT_INCLUDE_DIR}
 )
-
-link_directories(${OCC_LIBRARY_DIR})
 
 set(JtReader_LIBS
     Mesh
@@ -23,7 +18,6 @@ set(JtReader_LIBS
 SET(JtReader_SRCS
     AppJtReader.cpp
     AppJtReaderPy.cpp
-    PreCompiled.cpp
     PreCompiled.h
     TestJtReader.cpp
     TestJtReader.h
@@ -33,7 +27,7 @@ SET(JtReader_SRCS
 
 if (EXISTS "${JTREADER_TKJT_INCLUDE_DIRS}/JtData_Object.hxx")
     add_definitions(-DJTREADER_HAVE_TKJT)
-    include_directories(${JTREADER_TKJT_INCLUDE_DIRS})
+    include_directories(SYSTEM ${JTREADER_TKJT_INCLUDE_DIRS})
     list (APPEND JtReader_LIBS
         ${JTREADER_TKJT_LIBRARIES}
     )
@@ -55,14 +49,27 @@ SOURCE_GROUP("JrJt" FILES ${JRJT_SRCS}  )
 SOURCE_GROUP("Module" FILES ${JtReader_SRCS})
 
 add_library(JtReader SHARED ${JtReader_SRCS} ${JRJT_SRCS} ${JtReader_Scripts})
+
+if(FREECAD_USE_PCH)
+    target_precompile_headers(JtReader PRIVATE
+            $<$<COMPILE_LANGUAGE:CXX>:"${CMAKE_CURRENT_LIST_DIR}/PreCompiled.h">
+    )
+endif(FREECAD_USE_PCH)
+
 target_link_libraries(JtReader ${JtReader_LIBS})
+
+if (MSVC)
+    target_compile_options(JtReader PRIVATE /wd4251 /wd4275)
+endif()
+
+target_compile_warn_error(JtReader)
 
 fc_target_copy_resource_flat(JtReader
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_BINARY_DIR}/Mod/JtReader
     ${JtReader_Scripts})
 
-SET_BIN_DIR(JtReader JtReader /Mod/JtReader)
+SET_BIN_DIR(JtReader)
 SET_PYTHON_PREFIX_SUFFIX(JtReader)
 
 INSTALL(TARGETS JtReader DESTINATION ${CMAKE_INSTALL_LIBDIR})

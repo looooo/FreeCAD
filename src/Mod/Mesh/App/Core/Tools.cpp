@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2005 Imetric 3D GmbH                                    *
  *                                                                         *
@@ -20,11 +22,9 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
-#ifndef _PreComp_
 #include <algorithm>
-#endif
+
 
 #include "Tools.h"
 
@@ -49,11 +49,12 @@ void MeshSearchNeighbours::Reinit(float fSampleDistance)
     MeshAlgorithm(_rclMesh).ResetPointFlag(MeshPoint::MARKED);
 }
 
-unsigned long
-MeshSearchNeighbours::NeighboursFromFacet(FacetIndex ulFacetIdx,
-                                          float fDistance,
-                                          unsigned long ulMinPoints,
-                                          std::vector<Base::Vector3f>& raclResultPoints)
+unsigned long MeshSearchNeighbours::NeighboursFromFacet(
+    FacetIndex ulFacetIdx,
+    float fDistance,
+    unsigned long ulMinPoints,
+    std::vector<Base::Vector3f>& raclResultPoints
+)
 {
     bool bAddPoints = false;
 
@@ -123,8 +124,7 @@ MeshSearchNeighbours::NeighboursFromFacet(FacetIndex ulFacetIdx,
     // copy points in result container
     raclResultPoints.resize(_aclResult.size());
     size_t i = 0;
-    for (std::set<PointIndex>::iterator pI = _aclResult.begin(); pI != _aclResult.end();
-         ++pI, i++) {
+    for (auto pI = _aclResult.begin(); pI != _aclResult.end(); ++pI, i++) {
         raclResultPoints[i] = _rclPAry[*pI];
     }
 
@@ -154,10 +154,11 @@ void MeshSearchNeighbours::SampleAllFacets()
     }
 }
 
-unsigned long
-MeshSearchNeighbours::NeighboursFromSampledFacets(FacetIndex ulFacetIdx,
-                                                  float fDistance,
-                                                  std::vector<Base::Vector3f>& raclResultPoints)
+unsigned long MeshSearchNeighbours::NeighboursFromSampledFacets(
+    FacetIndex ulFacetIdx,
+    float fDistance,
+    std::vector<Base::Vector3f>& raclResultPoints
+)
 {
     SampleAllFacets();
 
@@ -236,9 +237,11 @@ bool MeshSearchNeighbours::AccumulateNeighbours(const MeshFacet& rclF, FacetInde
 
     bool bFound = false;
     if (k == 3) {  // add all sample points
-        _aclPointsResult.insert(_aclPointsResult.end(),
-                                _aclSampledFacets[ulFIdx].begin(),
-                                _aclSampledFacets[ulFIdx].end());
+        _aclPointsResult.insert(
+            _aclPointsResult.end(),
+            _aclSampledFacets[ulFIdx].begin(),
+            _aclSampledFacets[ulFIdx].end()
+        );
         bFound = true;
     }
     else {  // add points inner radius
@@ -272,16 +275,16 @@ bool MeshSearchNeighbours::ExpandRadius(unsigned long ulMinPoints)
         _fMaxDistanceP2 *= float(ulMinPoints) / float(_aclResult.size());
         return true;
     }
-    else {
-        return false;
-    }
+
+    return false;
 }
 
-unsigned long
-MeshSearchNeighbours::NeighboursFacetFromFacet(FacetIndex ulFacetIdx,
-                                               float fDistance,
-                                               std::vector<Base::Vector3f>& raclResultPoints,
-                                               std::vector<FacetIndex>& raclResultFacets)
+unsigned long MeshSearchNeighbours::NeighboursFacetFromFacet(
+    FacetIndex ulFacetIdx,
+    float fDistance,
+    std::vector<Base::Vector3f>& raclResultPoints,
+    std::vector<FacetIndex>& raclResultFacets
+)
 {
     std::set<FacetIndex> aulFacetSet;
 
@@ -344,8 +347,7 @@ MeshSearchNeighbours::NeighboursFacetFromFacet(FacetIndex ulFacetIdx,
     // copy points in result container
     raclResultPoints.resize(_aclResult.size());
     size_t i = 0;
-    for (std::set<PointIndex>::iterator pI = _aclResult.begin(); pI != _aclResult.end();
-         ++pI, i++) {
+    for (auto pI = _aclResult.begin(); pI != _aclResult.end(); ++pI, i++) {
         raclResultPoints[i] = _rclPAry[*pI];
     }
 

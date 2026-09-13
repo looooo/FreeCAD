@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2009 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -22,8 +24,7 @@
 //this file originally part of Drawing workbench
 //migrated to TechDraw workbench 2022-01-26 by Wandererfan
 
-#ifndef TECHDRAWGUI_TASKDIALOG
-#define TECHDRAWGUI_TASKDIALOG
+#pragma once
 
 #include <QWidget>
 
@@ -92,7 +93,3 @@ private:
 };
 
 } //namespace TechDrawGui
-
-
-
-#endif // TECHDRAWGUI_TASKDIALOG

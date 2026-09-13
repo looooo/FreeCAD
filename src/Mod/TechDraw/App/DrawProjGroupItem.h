@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Luke Parry <l.parry@warwick.ac.uk>                 *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DrawProjGroupItem_h_
-#define DrawProjGroupItem_h_
+#pragma once
 
 #include <gp_Ax2.hxx>
 
@@ -34,17 +35,6 @@
 
 namespace TechDraw
 {
-
-enum ProjItemType{ Front,
-          Left,
-          Right,
-          Rear,
-          Top,
-          Bottom,
-          FrontTopLeft,
-          FrontTopRight,
-          FrontBottomLeft,
-          FrontBottomRight };
 
 class DrawProjGroup;
 
@@ -60,7 +50,6 @@ public:
     App::PropertyEnumeration Type;
     App::PropertyVector      RotationVector;    //this is superseded by dvp xdirection
 
-    short mustExecute() const override;
     void onDocumentRestored() override;
     void unsetupObject() override;
 
@@ -81,11 +70,8 @@ public:
     //return PyObject as DrawProjGroupItemPy
     PyObject *getPyObject() override;
 
-    gp_Ax2 getViewAxis(const Base::Vector3d& pt,
-                       const Base::Vector3d& direction,
-                       const bool flip=true) const override;
-
     double getScale() const override;
+    int getScaleType() const override;
     void autoPosition();
     bool isAnchor() const;
 
@@ -98,15 +84,14 @@ public:
     DrawPage* findParentPage() const override;
     std::vector<DrawPage*> findAllParentPages() const override;
 
-protected:
-    void onChanged(const App::Property* prop) override;
     bool isLocked() const override;
     bool showLock() const override;
+
+protected:
+    void onChanged(const App::Property* prop) override;
 
 private:
     static const char* TypeEnums[];
 };
 
 } //namespace TechDraw
-
-#endif

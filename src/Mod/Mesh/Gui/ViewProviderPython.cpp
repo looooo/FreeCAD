@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2010 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -22,7 +24,6 @@
 
 
 // clang-format off
-#include "PreCompiled.h"
 #include "ViewProviderPython.h"
 // clang-format on
 
@@ -33,5 +34,5 @@ PROPERTY_SOURCE_TEMPLATE(MeshGui::ViewProviderPython, MeshGui::ViewProviderMeshF
 /// @endcond
 
 // explicit template instantiation
-template class MeshGuiExport ViewProviderPythonFeatureT<MeshGui::ViewProviderMeshFaceSet>;
+template class MeshGuiExport ViewProviderFeaturePythonT<MeshGui::ViewProviderMeshFaceSet>;
 }  // namespace Gui

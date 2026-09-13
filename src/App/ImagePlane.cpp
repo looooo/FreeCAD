@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2011 Jürgen Riegel (juergen.riegel@web.de)              *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include "ImagePlane.h"
 
@@ -32,9 +33,9 @@ PROPERTY_SOURCE(Image::ImagePlane, App::GeoFeature)
 
 ImagePlane::ImagePlane()
 {
-    ADD_PROPERTY_TYPE( ImageFile,(nullptr)  , "ImagePlane",App::Prop_None,"File of the image");
-    ADD_PROPERTY_TYPE( XSize,    (100), "ImagePlane",App::Prop_None,"Size of a pixel in X");
-    ADD_PROPERTY_TYPE( YSize,    (100), "ImagePlane",App::Prop_None,"Size of a pixel in Y");
+    ADD_PROPERTY_TYPE(ImageFile, (nullptr), "ImagePlane", App::Prop_None, "File of the image");
+    ADD_PROPERTY_TYPE(XSize, (100), "ImagePlane", App::Prop_None, "Size of a pixel in X");
+    ADD_PROPERTY_TYPE(YSize, (100), "ImagePlane", App::Prop_None, "Size of a pixel in Y");
 }
 
 int ImagePlane::getXSizeInPixel()

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /****************************************************************************
  *   Copyright (c) 2018 Zheng, Lei (realthunder) <realthunder.dev@gmail.com>*
  *                                                                          *
@@ -21,12 +23,10 @@
  ****************************************************************************/
 
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <TDataStd_Name.hxx>
 #include <TDF_ChildIterator.hxx>
 #include <TDF_Tool.hxx>
-#endif
+
 
 #include <boost/algorithm/string.hpp>
 #include <boost/format.hpp>
@@ -35,35 +35,33 @@
 #include <Base/Console.h>
 #include <Mod/Part/App/TopoShape.h>
 
-#if OCC_VERSION_HEX >= 0x070500
 // See https://dev.opencascade.org/content/occt-3d-viewer-becomes-srgb-aware
 #define OCC_COLOR_SPACE Quantity_TOC_sRGB
-#else
-#define OCC_COLOR_SPACE Quantity_TOC_RGB
-#endif
 
 FC_LOG_LEVEL_INIT("Import", true, true)
 
 using namespace Import;
 
-App::Color Tools::convertColor(const Quantity_ColorRGBA& rgba)
+Base::Color Tools::convertColor(const Quantity_ColorRGBA& rgba)
 {
     Standard_Real red, green, blue;
     rgba.GetRGB().Values(red, green, blue, OCC_COLOR_SPACE);
-    return App::Color(static_cast<float>(red),
-                      static_cast<float>(green),
-                      static_cast<float>(blue),
-                      1.0f - static_cast<float>(rgba.Alpha()));
+    return Base::Color(
+        static_cast<float>(red),
+        static_cast<float>(green),
+        static_cast<float>(blue),
+        static_cast<float>(rgba.Alpha())
+    );
 }
 
-Quantity_ColorRGBA Tools::convertColor(const App::Color& col)
+Quantity_ColorRGBA Tools::convertColor(const Base::Color& col)
 {
-    return Quantity_ColorRGBA(Quantity_Color(col.r, col.g, col.b, OCC_COLOR_SPACE), 1.0f - col.a);
+    return Quantity_ColorRGBA(Quantity_Color(col.r, col.g, col.b, OCC_COLOR_SPACE), col.a);
 }
 
 static inline std::ostream& operator<<(std::ostream& os, const Quantity_ColorRGBA& rgba)
 {
-    App::Color color = Tools::convertColor(rgba);
+    Base::Color color = Tools::convertColor(rgba);
     auto toHex = [](float v) {
         return boost::format("%02X") % static_cast<int>(v * 255);
     };
@@ -85,10 +83,12 @@ std::string Tools::labelName(TDF_Label label)
     return txt;
 }
 
-void Tools::printLabel(TDF_Label label,
-                       Handle(XCAFDoc_ShapeTool) aShapeTool,
-                       Handle(XCAFDoc_ColorTool) aColorTool,
-                       const char* msg)
+void Tools::printLabel(
+    TDF_Label label,
+    Handle(XCAFDoc_ShapeTool) aShapeTool,
+    Handle(XCAFDoc_ColorTool) aColorTool,
+    const char* msg
+)
 {
     if (label.IsNull() || !FC_LOG_INSTANCE.isEnabled(FC_LOGLEVEL_LOG)) {
         return;
@@ -128,13 +128,15 @@ void Tools::printLabel(TDF_Label label,
     }
 
     ss << std::endl;
-    Base::Console().Notify<Base::LogStyle::Log>("ImportOCAF2", ss.str().c_str());
+    Base::Console().notify<Base::LogStyle::Log>("ImportOCAF2", ss.str().c_str());
 }
 
-void Tools::dumpLabels(TDF_Label label,
-                       Handle(XCAFDoc_ShapeTool) aShapeTool,
-                       Handle(XCAFDoc_ColorTool) aColorTool,
-                       int depth)
+void Tools::dumpLabels(
+    TDF_Label label,
+    Handle(XCAFDoc_ShapeTool) aShapeTool,
+    Handle(XCAFDoc_ColorTool) aColorTool,
+    int depth
+)
 {
     std::string indent(depth * 2, ' ');
     printLabel(label, aShapeTool, aColorTool, indent.c_str());

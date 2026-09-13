@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 Ian Rees <ian.rees@gmail.com>                      *
  *                                                                         *
@@ -20,14 +22,15 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_TEMPLATETEXTFIELD_H
-#define DRAWINGGUI_TEMPLATETEXTFIELD_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
 #include <QGraphicsItemGroup>
 #include <QGraphicsRectItem>
 #include <QGraphicsPathItem>
+
+#include "QGIUserTypes.h"
 
 namespace TechDraw {
 class DrawTemplate;
@@ -49,29 +52,42 @@ class TechDrawGuiExport TemplateTextField : public QGraphicsItemGroup
 
         ~TemplateTextField() override = default;
 
-        enum {Type = QGraphicsItem::UserType + 160};
+        enum {Type = UserType::TemplateTextField};
         int type() const override { return Type;}
 
         /// Returns the field name that this TemplateTextField represents
-        std::string fieldName() const { return fieldNameStr; }
+        const std::string& getFieldName() const { return fieldName; }
+
+        const std::string &getAutofillId() const { return autofillId; }
+        void setAutofillId(const std::string& id) { this->autofillId = id; }
 
         void setRectangle(QRectF rect);
         void setLine(QPointF from, QPointF to);
         void setLineColor(QColor color);
+        void hideLine();
+        void showLine() { m_line->show(); }
+        void setShortText(bool newState) { m_isShortText = newState;}
+        bool isShortText() const { return m_isShortText; }
 
     protected:
-        TechDraw::DrawTemplate *tmplte;
-        std::string fieldNameStr;
-
         /// Need this to properly handle mouse release
-        void mousePressEvent(QGraphicsSceneMouseEvent *event) override;
+        void mousePressEvent(QGraphicsSceneMouseEvent* event) override;
 
         /// Trigger the dialog for editing template text
         void mouseReleaseEvent(QGraphicsSceneMouseEvent *event) override;
 
+        void hoverEnterEvent(QGraphicsSceneHoverEvent *event) override;
+        void hoverLeaveEvent(QGraphicsSceneHoverEvent *event) override;
+
+    private:
+        TechDraw::DrawTemplate *tmplte;
+        std::string fieldName;
+        std::string autofillId;
+
         QGraphicsRectItem* m_rect;
         QGraphicsPathItem* m_line;
+
+        bool m_isShortText;
 };
 }   // namespace TechDrawGui
 
-#endif // #ifndef DRAWINGGUI_TEMPLATETEXTFIELD_H

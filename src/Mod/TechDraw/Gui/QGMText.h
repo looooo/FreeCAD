@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2019 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -23,12 +25,12 @@
 //QGMText.h
 //a movable, editable text item
 
-#ifndef TECHDRAWGUI_MOVABLETEXT_H
-#define TECHDRAWGUI_MOVABLETEXT_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
 #include "QGCustomText.h"
+#include "QGIUserTypes.h"
 
 
 QT_BEGIN_NAMESPACE
@@ -48,7 +50,7 @@ public:
     explicit QGMText(void);
     ~QGMText() override = default;
 
-    enum {Type = QGraphicsItem::UserType + 300};
+    enum {Type = UserType::QGMText};
     int type() const override { return Type;}
     void paint( QPainter * painter,
                 const QStyleOptionGraphicsItem * option,
@@ -81,5 +83,3 @@ private:
 };
 
 }
-
-#endif // TECHDRAWGUI_MOVABLETEXT_H

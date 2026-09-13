@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2002 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -21,7 +23,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <Base/Console.h>
 #include <Base/Interpreter.h>
@@ -56,7 +57,7 @@ PyMOD_INIT_FUNC(ImportGui)
     }
 
     PyObject* mod = ImportGui::initModule();
-    Base::Console().Log("Loading GUI of Import module... done\n");
+    Base::Console().log("Loading GUI of Import module... done\n");
 
     CreateImportCommands();
     ImportGui::Workbench::init();

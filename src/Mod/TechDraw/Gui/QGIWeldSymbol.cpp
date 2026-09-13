@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2019 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,12 +22,11 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
+#include <qpainter.h>
 # include <cmath>
 # include <QGraphicsScene>
 # include <QPainterPath>
-#endif
+
 
 #include <Base/Console.h>
 #include <Base/Tools.h>
@@ -34,6 +35,7 @@
 #include <Mod/TechDraw/App/DrawTile.h>
 #include <Mod/TechDraw/App/DrawTileWeld.h>
 #include <Mod/TechDraw/App/DrawWeldSymbol.h>
+#include <Mod/TechDraw/App/DrawUtil.h>
 
 #include "QGIWeldSymbol.h"
 #include "PreferencesGui.h"
@@ -42,6 +44,7 @@
 #include "QGIPrimPath.h"
 #include "QGITile.h"
 #include "QGIVertex.h"
+#include "Rez.h"
 
 #include "ViewProviderWeld.h"
 #include "ZVALUE.h"
@@ -49,37 +52,30 @@
 
 using namespace TechDraw;
 using namespace TechDrawGui;
+using DU = DrawUtil;
 
 
 //**************************************************************
-QGIWeldSymbol::QGIWeldSymbol(QGILeaderLine* myParent) :
-    m_weldFeat(nullptr),
-    m_leadFeat(nullptr),
+QGIWeldSymbol::QGIWeldSymbol() :
     m_arrowFeat(nullptr),
     m_otherFeat(nullptr),
-    m_qgLead(myParent),
-    m_tailText(nullptr),
-    m_fieldFlag(nullptr),
-    m_allAround(nullptr),
+    m_tailText(new QGCustomText()),
+    m_fieldFlag(new QGIPrimPath()),
+    m_allAround(new QGIVertex(-1)),
     m_blockDraw(false)
 {
-    setFiltersChildEvents(true);    //qt5
+    setFiltersChildEvents(true);
     setFlag(QGraphicsItem::ItemIsMovable, false);
 
     setCacheMode(QGraphicsItem::NoCache);
-
-    setParentItem(m_qgLead);
-    m_leadFeat = m_qgLead->getFeature();
     setZValue(ZVALUE::DIMENSION);
 
-    m_tailText = new QGCustomText();
     m_tailText->setPlainText(
-                QString::fromUtf8(" "));
+                QStringLiteral(" "));
     addToGroup(m_tailText);
     m_tailText->hide();
     m_tailText->setPos(0.0, 0.0);         //avoid bRect issues
 
-    m_allAround = new QGIVertex(-1);
     addToGroup(m_allAround);
     m_allAround->setPos(0.0, 0.0);
     m_allAround->setAcceptHoverEvents(false);
@@ -89,7 +85,6 @@ QGIWeldSymbol::QGIWeldSymbol(QGILeaderLine* myParent) :
     m_allAround->setFlag(QGraphicsItem::ItemSendsGeometryChanges, true);
     m_allAround->setFlag(QGraphicsItem::ItemStacksBehindParent, true);
 
-    m_fieldFlag = new QGIPrimPath();
     addToGroup(m_fieldFlag);
     m_fieldFlag->setPos(0.0, 0.0);
     m_fieldFlag->setAcceptHoverEvents(false);
@@ -98,9 +93,10 @@ QGIWeldSymbol::QGIWeldSymbol(QGILeaderLine* myParent) :
     m_fieldFlag->setFlag(QGraphicsItem::ItemSendsScenePositionChanges, false);
     m_fieldFlag->setFlag(QGraphicsItem::ItemSendsGeometryChanges, true);
     m_fieldFlag->setFlag(QGraphicsItem::ItemStacksBehindParent, true);
-    m_fieldFlag->setFill(prefNormalColor(), Qt::SolidPattern);
 
+    m_fieldFlag->setFill(prefNormalColor(), Qt::SolidPattern);
     setNormalColor(prefNormalColor());
+
     setCurrentColor(getNormalColor());
     setSettingColor(getNormalColor());
 
@@ -109,7 +105,6 @@ QGIWeldSymbol::QGIWeldSymbol(QGILeaderLine* myParent) :
 
 QVariant QGIWeldSymbol::itemChange(GraphicsItemChange change, const QVariant &value)
 {
-//    Base::Console().Message("QGIWS::itemChange(%d)\n", change);
     if (change == ItemSelectedHasChanged && scene()) {
         if(isSelected()) {
             setPrettySel();
@@ -124,14 +119,15 @@ QVariant QGIWeldSymbol::itemChange(GraphicsItemChange change, const QVariant &va
 
 void QGIWeldSymbol::updateView(bool update)
 {
-//    Base::Console().Message("QGIWS::updateView()\n");
     Q_UNUSED(update);
-    auto viewWeld( dynamic_cast<TechDraw::DrawWeldSymbol*>(getViewObject()) );
-    if (!viewWeld)
-        return;
 
-    if (!getFeature()) {
-        Base::Console().Warning("QGIWS::updateView - no feature!\n");
+    TechDraw::DrawWeldSymbol *feature = getFeature();
+    if (!feature) {
+        Base::Console().warning("QGIWS::updateView - no feature!\n");
+        return;
+    }
+
+    if (feature->isRestoring() || !getLeader()) {
         return;
     }
 
@@ -140,7 +136,6 @@ void QGIWeldSymbol::updateView(bool update)
 
 void QGIWeldSymbol::draw()
 {
-//    Base::Console().Message("QGIWS::draw()- %s\n", getFeature()->getNameInDocument());
     if (!isVisible()) {
         return;
     }
@@ -165,31 +160,33 @@ void QGIWeldSymbol::draw()
 
 void QGIWeldSymbol::drawTile(TechDraw::DrawTileWeld* tileFeat)
 {
-//    Base::Console().Message("QGIWS::drawTile() - tileFeat: %X\n", tileFeat);
     if (!tileFeat) {
-        Base::Console().Message("QGIWS::drawTile - tile is null\n");
+        Base::Console().message("QGIWS::drawTile - tile is null\n");
         return;
     }
 
-    const auto sym( dynamic_cast<TechDraw::DrawWeldSymbol *>(getViewObject()) );
-    if (!sym)
+    const auto symbol = getFeature();
+    if (!symbol) {
         return;
-    auto vp = static_cast<ViewProviderWeld*>(getViewProvider(getViewObject()));
-    if (!vp)
+    }
+    auto vp = dynamic_cast<ViewProviderWeld *>(getViewProvider(symbol));
+    if (!vp) {
         return;
+    }
+
     std::string fontName = vp->Font.getValue();
     int         fontSize = QGIView::exactFontSize(vp->Font.getValue(),
                                                   vp->TileFontSize.getValue());
-    double featScale = m_leadFeat->getScale();
+
+    double featScale = getLeader()->getScale();
 
     std::string tileTextL = tileFeat->LeftText.getValue();
     std::string tileTextR = tileFeat->RightText.getValue();
     std::string tileTextC = tileFeat->CenterText.getValue();
-//    std::string symbolFile = tileFeat->SymbolFile.getValue();
-    int row = tileFeat->TileRow.getValue();
-    int col = tileFeat->TileColumn.getValue();
+    int row = (int)tileFeat->TileRow.getValue();
+    int col = (int)tileFeat->TileColumn.getValue();
 
-    QGITile* tile = new QGITile(tileFeat);
+    auto tile = new QGITile(tileFeat);
     addToGroup(tile);
 
     QPointF org = getTileOrigin();
@@ -199,18 +196,32 @@ void QGIWeldSymbol::drawTile(TechDraw::DrawTileWeld* tileFeat)
     tile->setTileTextLeft(tileTextL);
     tile->setTileTextRight(tileTextR);
     tile->setTileTextCenter(tileTextC);
-//    tile->setSymbolFile(symbolFile);
     tile->setZValue(ZVALUE::DIMENSION);
     tile->setTileScale(featScale);
-    tile->setTailRight(m_weldFeat->isTailRightSide());
-    tile->setAltWeld(m_weldFeat->AlternatingWeld.getValue());
+    tile->setTailRight(getFeature()->isTailRightSide());
+    tile->setAltWeld(getFeature()->AlternatingWeld.getValue());
+
+    auto localAxes = getLocalAxes();
+    tile->setLocalAxes(localAxes.first, localAxes.second);
+    auto tilePos = tile->calcTilePosition();    // this is not the center! pos is left and up from center
+
+    auto rotationDeg = getLastSegAngle();
+    Base::Vector3d stdX{1, 0, 0};
+    auto xdir = localAxes.first;
+    auto dot = stdX.Dot(xdir);
+    constexpr double DegreesHalfCircle{180.0};
+    if (dot < 0) {
+        rotationDeg -= DegreesHalfCircle;
+    }
+    tile->setRotation(rotationDeg);        // Qt angles are clockwise
 
     tile->draw();
+    tile->setPos(tilePos);
+
 }
 
 void QGIWeldSymbol::drawAllAround()
 {
-//    Base::Console().Message("QGIWS::drawAllAround()\n");
     QPointF allAroundPos = getKinkPoint();
     m_allAround->setPos(allAroundPos);
 
@@ -225,35 +236,43 @@ void QGIWeldSymbol::drawAllAround()
     m_allAround->setNormalColor(getCurrentColor());
 
     m_allAround->setFill(Qt::NoBrush);
-//    m_allAround->setRadius(calculateFontPixelSize(getDimFontSize()));
     m_allAround->setRadius(PreferencesGui::dimFontSizePX());
-    double width = m_qgLead->getLineWidth();
-    m_allAround->setWidth(width);
+
+    auto qgiLead = dynamic_cast<QGILeaderLine *>(getQGIVByName(getLeader()->getNameInDocument()));
+    if (qgiLead) {
+         m_allAround->setWidth(qgiLead->getLineWidth());
+    }
     m_allAround->setZValue(ZVALUE::DIMENSION);
 }
 
 void QGIWeldSymbol::drawTailText()
 {
-//    Base::Console().Message("QGIWS::drawTailText()\n");
+    constexpr double DegreesHalfCircle{180.0};
+    constexpr double verticalBRectAdjustFactor{1.2};    // text bounding rect is bigger than font size and text is not
+                                                        // vertically aligned with brect midline, so we artificially
+                                                        // bump the text size so the middle aligns with the leader
+
     QPointF textPos = getTailPoint();
     m_tailText->setPos(textPos);  //avoid messing up brect with empty item at 0, 0 !!!
     std::string tText = getFeature()->TailText.getValue();
     if (tText.empty()) {
         m_tailText->hide();
         return;
-    } else {
-        m_tailText->show();
     }
-    const auto sym( dynamic_cast<TechDraw::DrawWeldSymbol *>(getViewObject()) );
-    if (!sym)
+
+    m_tailText->show();
+
+    const auto symbol = getFeature();
+    if (!symbol) {
         return;
-    auto vp = static_cast<ViewProviderWeld*>(getViewProvider(getViewObject()));
+    }
+    auto vp = dynamic_cast<ViewProviderWeld *>(getViewProvider(symbol));
     if (!vp) {
         return;
     }
-    QString qFontName = Base::Tools::fromStdString(vp->Font.getValue());
+    QString qFontName = QString::fromStdString(vp->Font.getValue());
     int fontSize = QGIView::exactFontSize(vp->Font.getValue(),
-                                          vp->FontSize.getValue());
+                                          vp->FontSize.getValue());     // this is different from the size used in the tiles
 
     m_font.setFamily(qFontName);
     m_font.setPixelSize(fontSize);
@@ -264,23 +283,42 @@ void QGIWeldSymbol::drawTailText()
     m_tailText->setColor(getCurrentColor());
     m_tailText->setZValue(ZVALUE::DIMENSION);
 
-    double textWidth = m_tailText->boundingRect().width();
-    double charWidth = textWidth / tText.size();
-    double hMargin = charWidth + prefArrowSize();
+    auto brWidth = m_tailText->boundingRect().width();
+    auto brHeight = m_tailText->boundingRect().height();
+    auto brCharWidth = brWidth / tText.length();
 
-    double textHeight = m_tailText->boundingRect().width();
-    double vFudge = textHeight * 0.1;
+    double hMargin = brCharWidth + prefArrowSize();  // leave a gap from the graphic
+    auto angleDeg = getLastSegAngle();
 
-    if (getFeature()->isTailRightSide()) {
-        m_tailText->justifyLeftAt(textPos.x() + hMargin, textPos.y() - vFudge, true);
-    } else {
-        m_tailText->justifyRightAt(textPos.x() - hMargin, textPos.y() - vFudge, true);
+    auto localAxes = getLocalAxes();
+    auto xdir = localAxes.first;
+    auto ydir = localAxes.second;
+    Base::Vector3d stdX{1, 0, 0};
+    auto xdirStartOffset = DU::toQPointF(xdir * brWidth) * -1;  // start of text in xDir when leader points left
+    auto dot = stdX.Dot(xdir);
+    if (dot < 0) {
+        angleDeg -= DegreesHalfCircle;
+        xdirStartOffset = QPointF(0, 0);
+        ydir = -ydir;
     }
+
+    auto xAdjust = DU::toQPointF(xdir * hMargin);
+    auto yAdjust = DU::toQPointF(ydir * (brHeight * verticalBRectAdjustFactor) / 2);
+
+    // QGCustomText doesn't know about rotation so we can't use the justify methods
+    QPointF justPoint = textPos - xAdjust + yAdjust;            // original
+    justPoint += xdirStartOffset;
+
+    m_tailText->setPos(justPoint);
+
+    auto kink = getLeader()->getKinkPoint();
+    m_tailText->setTransformOriginPoint(DU::toQPointF(kink));
+
+    m_tailText->setRotation(angleDeg);
 }
 
 void QGIWeldSymbol::drawFieldFlag()
 {
-//    Base::Console().Message("QGIWS::drawFieldFlag()\n");
     QPointF fieldFlagPos = getKinkPoint();
     m_fieldFlag->setPos(fieldFlagPos);
 
@@ -290,23 +328,39 @@ void QGIWeldSymbol::drawFieldFlag()
         m_fieldFlag->hide();
         return;
     }
-    std::vector<QPointF> flagPoints = { QPointF(0.0, 0.0),
-                                        QPointF(0.0, -3.0),
-                                        QPointF(-2.0, -2.5),
-                                        QPointF(0.0, -2.0) };
-    //flag sb about 2x text?
-//    double scale = calculateFontPixelSize(getDimFontSize()) / 2.0;
-    double scale = PreferencesGui::dimFontSizePX() / 2.0;
-    QPainterPath path;
-    path.moveTo(flagPoints.at(0) * scale);
-    int i = 1;
-    int stop = flagPoints.size();
-    for ( ; i < stop; i++) {
-        path.lineTo(flagPoints.at(i) * scale);
+
+    auto localAxes = getLocalAxes();
+    auto xdir = localAxes.first;
+    auto ydir = localAxes.second;
+
+    // TODO: similar code used here and in QGITiled to handle leader points left.  different actions, though.
+    // used here and QGITile.
+    Base::Vector3d stdX{1, 0, 0};
+    auto dot = stdX.Dot(xdir);
+    if (dot < 0) {
+        // our leader points left, so yDir should be +Y, but we need -Y up
+        ydir = -ydir;
     }
 
-    double width = m_qgLead->getLineWidth();
-    m_fieldFlag->setWidth(width);
+// NOLINTBEGIN readability-magic-numbers
+    std::vector<QPointF> flagPoints = { QPointF(0.0, 0.0),
+                                        DU::toQPointF(ydir * 3.0),
+                                        DU::toQPointF(xdir * -2.0 + ydir * 2.5),
+                                        DU::toQPointF(ydir * 2.0) };
+// NOLINTEND readability-magic-numbers
+
+    double scale = (float)PreferencesGui::dimFontSizePX() / 2;
+    QPainterPath path;
+    path.moveTo(flagPoints.at(0) * scale);
+    size_t iSeg = 1;
+    for ( ; iSeg < flagPoints.size(); iSeg++) {
+        path.lineTo(flagPoints.at(iSeg) * scale);
+    }
+
+    auto qgiLead = dynamic_cast<QGILeaderLine *>(getQGIVByName(getLeader()->getNameInDocument()));
+    if (qgiLead) {
+        m_fieldFlag->setWidth(qgiLead->getLineWidth());
+    }
     m_fieldFlag->setZValue(ZVALUE::DIMENSION);
 
     m_fieldFlag->setPath(path);
@@ -338,17 +392,17 @@ void QGIWeldSymbol::getTileFeats()
 
 void QGIWeldSymbol::removeQGITiles()
 {
-    std::vector<QGITile*> tiles = getQGITiles();
-    for (auto t: tiles) {
-            QList<QGraphicsItem*> tChildren = t->childItems();
+    std::vector<QGITile*> tilesAll = getQGITiles();
+    for (auto tile: tilesAll) {
+            QList<QGraphicsItem*> tChildren = tile->childItems();
             for (auto tc: tChildren) {
-                t->removeFromGroup(tc);
+                tile->removeFromGroup(tc);
                 scene()->removeItem(tc);
                 //tc gets deleted when QGIWS gets deleted
             }
-        removeFromGroup(t);
-        scene()->removeItem(t);
-        delete t;
+        removeFromGroup(tile);
+        scene()->removeItem(tile);
+        delete tile;
     }
 }
 
@@ -356,8 +410,8 @@ std::vector<QGITile*> QGIWeldSymbol::getQGITiles() const
 {
     std::vector<QGITile*> result;
     QList<QGraphicsItem*> children = childItems();
-    for (auto& c:children) {
-         QGITile* tile = dynamic_cast<QGITile*>(c);
+    for (auto& child:children) {
+         auto tile = dynamic_cast<QGITile*>(child);
          if (tile) {
             result.push_back(tile);
          }
@@ -399,10 +453,10 @@ void QGIWeldSymbol::drawBorder()
 
 void QGIWeldSymbol::setPrettyNormal()
 {
-    std::vector<QGITile*> tiles = getQGITiles();
-    for (auto t: tiles) {
-        t->setColor(getNormalColor());
-        t->draw();
+    std::vector<QGITile*> tilesAll = getQGITiles();
+    for (auto tile: tilesAll) {
+        tile->setColor(getNormalColor());
+        tile->draw();
     }
     setCurrentColor(getNormalColor());
     m_fieldFlag->setNormalColor(getNormalColor());
@@ -415,10 +469,10 @@ void QGIWeldSymbol::setPrettyNormal()
 
 void QGIWeldSymbol::setPrettyPre()
 {
-    std::vector<QGITile*> tiles = getQGITiles();
-    for (auto t: tiles) {
-        t->setColor(getPreColor());
-        t->draw();
+    std::vector<QGITile*> tilesAll = getQGITiles();
+    for (auto tile: tilesAll) {
+        tile->setColor(getPreColor());
+        tile->draw();
     }
 
     setCurrentColor(getPreColor());
@@ -432,10 +486,10 @@ void QGIWeldSymbol::setPrettyPre()
 
 void QGIWeldSymbol::setPrettySel()
 {
-    std::vector<QGITile*> tiles = getQGITiles();
-    for (auto t: tiles) {
-        t->setColor(getSelectColor());
-        t->draw();
+    std::vector<QGITile*> tilesAll = getQGITiles();
+    for (auto tile: tilesAll) {
+        tile->setColor(getSelectColor());
+        tile->draw();
     }
 
     setCurrentColor(getSelectColor());
@@ -449,36 +503,58 @@ void QGIWeldSymbol::setPrettySel()
 
 QPointF QGIWeldSymbol::getTileOrigin()
 {
-    Base::Vector3d org = m_leadFeat->getTileOrigin();
-    QPointF result(org.x, org.y);
+    Base::Vector3d org = getLeader()->getTileOrigin();
+    QPointF result = DU::toQPointF(Rez::guiX(org));
     return result;
 }
 
 QPointF QGIWeldSymbol::getKinkPoint()
 {
-    Base::Vector3d org = m_leadFeat->getKinkPoint();
-    QPointF result(org.x, org.y);
+    Base::Vector3d org = getLeader()->getKinkPoint();
+    QPointF result = DU::toQPointF(Rez::guiX(org));
     return result;
 }
 
 QPointF QGIWeldSymbol::getTailPoint()
 {
-    Base::Vector3d org = m_leadFeat->getTailPoint();
-    QPointF result(org.x, org.y);
+    Base::Vector3d org = getLeader()->getTailPoint();
+    QPointF result = DU::toQPointF(Rez::guiX(org));
     return result;
-}
-
-void QGIWeldSymbol::setFeature(TechDraw::DrawWeldSymbol* feat)
-{
-//    Base::Console().Message("QGIWS::setFeature(%s)\n", feat->getNameInDocument());
-    m_weldFeat = feat;
-    m_weldFeatName = feat->getNameInDocument();
 }
 
 TechDraw::DrawWeldSymbol* QGIWeldSymbol::getFeature()
 {
-    return m_weldFeat;
+    return dynamic_cast<TechDraw::DrawWeldSymbol *>(getViewObject());
 }
+
+TechDraw::DrawLeaderLine *QGIWeldSymbol::getLeader()
+{
+    DrawWeldSymbol *feature = getFeature();
+    if (!feature) {
+        return nullptr;
+    }
+
+    return dynamic_cast<TechDraw::DrawLeaderLine *>(feature->Leader.getValue());
+}
+
+//! get the angle for the transformed last segment
+double QGIWeldSymbol::getLastSegAngle()
+{
+    auto lastSegDirection = getLeader()->lastSegmentDirection();
+    auto lastSegAngleRad = DU::angleWithX(lastSegDirection);
+    return Base::toDegrees(lastSegAngleRad);
+}
+
+std::pair<Base::Vector3d, Base::Vector3d> QGIWeldSymbol::getLocalAxes()
+{
+    auto localX = getLeader()->lastSegmentDirection();
+    auto localY = DU::invertY(localX);
+    localY.RotateZ(std::numbers::pi/2);
+    localY.Normalize();
+    localY = DU::invertY(localY);
+    return {localX, localY};
+}
+
 
 //preference
 QColor QGIWeldSymbol::prefNormalColor()
@@ -487,7 +563,7 @@ QColor QGIWeldSymbol::prefNormalColor()
     return getNormalColor();
 }
 
-double QGIWeldSymbol::prefArrowSize()
+double QGIWeldSymbol::prefArrowSize() const
 {
     return PreferencesGui::dimArrowSize();
 }
@@ -522,8 +598,8 @@ QRectF QGIWeldSymbol::customBoundingRect() const
     }
 
     std::vector<QGITile*> qgTiles = getQGITiles();
-    for (auto& t: qgTiles) {
-        QRectF childRect = mapFromItem(t, t->boundingRect()).boundingRect();
+    for (auto& tile: qgTiles) {
+        QRectF childRect = mapFromItem(tile, tile->boundingRect()).boundingRect();
         result = result.united(childRect);
     }
     return result;
@@ -539,10 +615,11 @@ void QGIWeldSymbol::paint ( QPainter * painter, const QStyleOptionGraphicsItem *
     QStyleOptionGraphicsItem myOption(*option);
     myOption.state &= ~QStyle::State_Selected;
 
-//    painter->setPen(Qt::red);
-//    painter->drawRect(boundingRect());          //good for debugging
+   // painter->setPen(Qt::red);
+   // painter->drawRect(boundingRect());          //good for debugging
 
     QGIView::paint (painter, &myOption, widget);
 }
+
 
 #include <Mod/TechDraw/Gui/moc_QGIWeldSymbol.cpp>

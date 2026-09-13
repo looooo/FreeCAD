@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2011 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -21,8 +23,7 @@
  ***************************************************************************/
 
 
-#ifndef POINTS_POINT_H
-#define POINTS_POINT_H
+#pragma once
 
 #include <iterator>
 #include <vector>
@@ -58,9 +59,11 @@ public:
         resize(size);
     }
     PointKernel(const PointKernel&);
+    PointKernel(PointKernel&&) noexcept;
     ~PointKernel() override = default;
 
-    void operator=(const PointKernel&);
+    PointKernel& operator=(const PointKernel&);
+    PointKernel& operator=(PointKernel&&) noexcept;
 
     /** @name Subelement management */
     //@{
@@ -99,11 +102,14 @@ public:
         this->_Points.swap(pts);
     }
 
-    void getPoints(std::vector<Base::Vector3d>& Points,
-                   std::vector<Base::Vector3d>& Normals,
-                   double Accuracy,
-                   uint16_t flags = 0) const override;
+    void getPoints(
+        std::vector<Base::Vector3d>& Points,
+        std::vector<Base::Vector3d>& Normals,
+        double Accuracy,
+        uint16_t flags = 0
+    ) const override;
     void transformGeometry(const Base::Matrix4D& rclMat) override;
+    void moveGeometry(const Base::Vector3d& vec);
     Base::BoundBox3d getBoundBox() const override;
 
     /** @name I/O */
@@ -180,13 +186,15 @@ public:
 
         const_point_iterator(const PointKernel*, std::vector<kernel_type>::const_iterator index);
         const_point_iterator(const const_point_iterator& pi);
+        const_point_iterator(const_point_iterator&& pi);
         ~const_point_iterator();
 
-        const_point_iterator& operator=(const const_point_iterator& fi);
+        const_point_iterator& operator=(const const_point_iterator& pi);
+        const_point_iterator& operator=(const_point_iterator&& pi);
         const value_type& operator*();
         const value_type* operator->();
-        bool operator==(const const_point_iterator& fi) const;
-        bool operator!=(const const_point_iterator& fi) const;
+        bool operator==(const const_point_iterator& pi) const;
+        bool operator!=(const const_point_iterator& pi) const;
         const_point_iterator& operator++();
         const_point_iterator operator++(int);
         const_point_iterator& operator--();
@@ -229,6 +237,3 @@ public:
 };
 
 }  // namespace Points
-
-
-#endif  // POINTS_POINTPROPERTIES_H

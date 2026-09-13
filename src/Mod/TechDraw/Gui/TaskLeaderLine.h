@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2019 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TECHDRAWGUI_TASKTEXTLEADER_H
-#define TECHDRAWGUI_TASKTEXTLEADER_H
+#pragma once
 
 #include "QGTracker.h"
 
@@ -57,6 +58,7 @@ class TaskLeaderLine : public QWidget
 public:
     TaskLeaderLine(TechDraw::DrawView* baseFeat,
                    TechDraw::DrawPage* page);
+    //ctor for edit
     explicit TaskLeaderLine(TechDrawGui::ViewProviderLeader* leadVP);
     ~TaskLeaderLine() override = default;
 
@@ -76,13 +78,13 @@ public Q_SLOTS:
     void onTrackerFinished(std::vector<QPointF> pts, TechDrawGui::QGIView* qgParent);
 
 protected:
-    void trackerPointsFromQPoints(std::vector<QPointF> pts);
+    std::vector<Base::Vector3d> scenePointsToDeltas(std::vector<QPointF> pts);
     void changeEvent(QEvent *event) override;
     void startTracker();
     void removeTracker();
     void abandonEditSession();
 
-    void createLeaderFeature(std::vector<Base::Vector3d> converted);
+    void createLeaderFeature(std::vector<Base::Vector3d> sceneDeltas);
     void updateLeaderFeature();
     void commonFeatureUpdate();
     void removeFeature();
@@ -90,52 +92,50 @@ protected:
     void setUiPrimary();
     void setUiEdit();
     void enableVPUi(bool enable);
-    void setEditCursor(QCursor cursor);
+    void setEditCursor(const QCursor& cursor);
 
     QGIView* findParentQGIV();
-    int getPrefArrowStyle();
-    double prefWeight() const;
-    App::Color prefLineColor();
 
    void saveState();
    void restoreState();
+
+   void dumpTrackerPoints(std::vector<Base::Vector3d>& tPoints) const;
 
 protected Q_SLOTS:
     void onPointEditComplete();
 
 private:
     std::unique_ptr<Ui_TaskLeaderLine> ui;
-
     QGTracker* m_tracker;
-
-    ViewProviderPage* m_vpp;
     ViewProviderLeader* m_lineVP;
     TechDraw::DrawView* m_baseFeat;
     TechDraw::DrawPage* m_basePage;
     TechDraw::DrawLeaderLine* m_lineFeat;
-    std::string m_leaderName;
-    std::string m_leaderType;
     QGIView* m_qgParent;
-    std::string m_qgParentName;
-
-    std::vector<Base::Vector3d> m_trackerPoints;
-    Base::Vector3d m_attachPoint;
-
     bool m_createMode;
-
     QGTracker::TrackerMode m_trackerMode;
     Qt::ContextMenuPolicy  m_saveContextPolicy;
     bool m_inProgressLock;
+    QGILeaderLine* m_qgLeader;
 
-    QGILeaderLine* m_qgLine;
     QPushButton* m_btnOK;
     QPushButton* m_btnCancel;
 
-    int m_pbTrackerState;
+    TrackerAction m_pbTrackerState;
 
-    std::vector<Base::Vector3d> m_savePoints;
     double m_saveX;
     double m_saveY;
+
+    ViewProviderPage* m_vpp;
+    std::string m_leaderName;
+    std::string m_leaderType;
+    std::string m_qgParentName;
+
+    std::vector<Base::Vector3d> m_sceneDeltas;
+
+    Base::Vector3d m_attachPoint;
+
+    std::vector<Base::Vector3d> m_savePoints;
 
 private Q_SLOTS:
     void onStartSymbolChanged();
@@ -176,5 +176,3 @@ private:
 };
 
 } //namespace TechDrawGui
-
-#endif // #ifndef TECHDRAWGUI_TASKTEXTLEADER_H

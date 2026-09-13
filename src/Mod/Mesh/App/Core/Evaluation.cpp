@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2005 Imetric 3D GmbH                                    *
  *                                                                         *
@@ -20,12 +22,10 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
-#ifndef _PreComp_
 #include <algorithm>
 #include <vector>
-#endif
+
 
 #include <Base/Matrix.h>
 #include <Base/Sequencer.h>
@@ -44,10 +44,12 @@ using namespace MeshCore;
 
 MeshOrientationVisitor::MeshOrientationVisitor() = default;
 
-bool MeshOrientationVisitor::Visit(const MeshFacet& rclFacet,
-                                   const MeshFacet& rclFrom,
-                                   FacetIndex ulFInd,
-                                   unsigned long ulLevel)
+bool MeshOrientationVisitor::Visit(
+    const MeshFacet& rclFacet,
+    const MeshFacet& rclFrom,
+    FacetIndex ulFInd,
+    unsigned long ulLevel
+)
 {
     (void)ulFInd;
     (void)ulLevel;
@@ -64,16 +66,20 @@ bool MeshOrientationVisitor::HasNonUnifomOrientedFacets() const
     return _nonuniformOrientation;
 }
 
-MeshOrientationCollector::MeshOrientationCollector(std::vector<FacetIndex>& aulIndices,
-                                                   std::vector<FacetIndex>& aulComplement)
+MeshOrientationCollector::MeshOrientationCollector(
+    std::vector<FacetIndex>& aulIndices,
+    std::vector<FacetIndex>& aulComplement
+)
     : _aulIndices(aulIndices)
     , _aulComplement(aulComplement)
 {}
 
-bool MeshOrientationCollector::Visit(const MeshFacet& rclFacet,
-                                     const MeshFacet& rclFrom,
-                                     FacetIndex ulFInd,
-                                     unsigned long ulLevel)
+bool MeshOrientationCollector::Visit(
+    const MeshFacet& rclFacet,
+    const MeshFacet& rclFrom,
+    FacetIndex ulFInd,
+    unsigned long ulLevel
+)
 {
     (void)ulLevel;
     // different orientation of rclFacet and rclFrom
@@ -108,10 +114,12 @@ MeshSameOrientationCollector::MeshSameOrientationCollector(std::vector<FacetInde
     : _aulIndices(aulIndices)
 {}
 
-bool MeshSameOrientationCollector::Visit(const MeshFacet& rclFacet,
-                                         const MeshFacet& rclFrom,
-                                         FacetIndex ulFInd,
-                                         unsigned long ulLevel)
+bool MeshSameOrientationCollector::Visit(
+    const MeshFacet& rclFacet,
+    const MeshFacet& rclFrom,
+    FacetIndex ulFInd,
+    unsigned long ulLevel
+)
 {
     // different orientation of rclFacet and rclFrom
     (void)ulLevel;
@@ -133,7 +141,7 @@ bool MeshEvalOrientation::Evaluate()
     const MeshFacetArray& rFAry = _rclMesh.GetFacets();
     MeshFacetArray::_TConstIterator iBeg = rFAry.begin();
     MeshFacetArray::_TConstIterator iEnd = rFAry.end();
-    for (MeshFacetArray::_TConstIterator it = iBeg; it != iEnd; ++it) {
+    for (auto it = iBeg; it != iEnd; ++it) {
         for (int i = 0; i < 3; i++) {
             if (it->_aulNeighbours[i] != FACET_INDEX_MAX) {
                 const MeshFacet& rclFacet = iBeg[it->_aulNeighbours[i]];
@@ -215,7 +223,7 @@ std::vector<FacetIndex> MeshEvalOrientation::GetIndices() const
         // In the currently visited component we have found less than 40% as correct
         // oriented and the rest as false oriented. So, we decide that it should be the other
         // way round and swap the indices of this component.
-        if (uComplement.size() < static_cast<unsigned long>(0.4f * static_cast<float>(ulVisited))) {
+        if (uComplement.size() < static_cast<unsigned long>(0.4F * static_cast<float>(ulVisited))) {
             uIndices.erase(uIndices.begin() + wrongFacets, uIndices.end());
             uIndices.insert(uIndices.end(), uComplement.begin(), uComplement.end());
         }
@@ -252,11 +260,7 @@ std::vector<FacetIndex> MeshEvalOrientation::GetIndices() const
 
         std::vector<FacetIndex> diff;
         std::back_insert_iterator<std::vector<FacetIndex>> biit(diff);
-        std::set_difference(uIndices.begin(),
-                            uIndices.end(),
-                            falsePos.begin(),
-                            falsePos.end(),
-                            biit);
+        std::set_difference(uIndices.begin(), uIndices.end(), falsePos.begin(), falsePos.end(), biit);
         uIndices = diff;
 
         cAlg.ResetFacetFlag(MeshFacet::TMP0);
@@ -318,13 +322,13 @@ struct Edge_Less
         if (x.p0 < y.p0) {
             return true;
         }
-        else if (x.p0 > y.p0) {
+        if (x.p0 > y.p0) {
             return false;
         }
-        else if (x.p1 < y.p1) {
+        if (x.p1 < y.p1) {
             return true;
         }
-        else if (x.p1 > y.p1) {
+        if (x.p1 > y.p1) {
             return false;
         }
         return false;
@@ -403,8 +407,7 @@ void MeshEvalTopology::GetFacetManifolds(std::vector<FacetIndex>& raclFacetIndLi
             PointIndex ulPt1 = std::max<PointIndex>(pI->_aulPoints[i], pI->_aulPoints[(i + 1) % 3]);
             std::pair<PointIndex, PointIndex> edge = std::make_pair(ulPt0, ulPt1);
 
-            if (std::find(nonManifoldList.begin(), nonManifoldList.end(), edge)
-                != nonManifoldList.end()) {
+            if (std::ranges::find(nonManifoldList, edge) != nonManifoldList.end()) {
                 raclFacetIndList.push_back(pI - rclFAry.begin());
             }
         }
@@ -458,8 +461,7 @@ bool MeshFixTopology::Fixup()
     if (!deletedFaces.empty()) {
         // remove duplicates
         std::sort(deletedFaces.begin(), deletedFaces.end());
-        deletedFaces.erase(std::unique(deletedFaces.begin(), deletedFaces.end()),
-                           deletedFaces.end());
+        deletedFaces.erase(std::unique(deletedFaces.begin(), deletedFaces.end()), deletedFaces.end());
 
         _rclMesh.DeleteFacets(deletedFaces);
         _rclMesh.RebuildNeighbours();
@@ -629,14 +631,12 @@ bool MeshEvalSelfIntersection::Evaluate()
 
         MeshGeomFacet facet1, facet2;
         Base::Vector3f pt1, pt2;
-        for (std::vector<FacetIndex>::iterator it = aulGridElements.begin();
-             it != aulGridElements.end();
-             ++it) {
+        for (auto it = aulGridElements.begin(); it != aulGridElements.end(); ++it) {
             const Base::BoundBox3f& box1 = boxes[*it];
             cMFI.Set(*it);
             facet1 = *cMFI;
             const MeshFacet& rface1 = rFaces[*it];
-            for (std::vector<FacetIndex>::iterator jt = it; jt != aulGridElements.end(); ++jt) {
+            for (auto jt = it; jt != aulGridElements.end(); ++jt) {
                 if (jt == it) {  // the identical facet
                     continue;
                 }
@@ -679,7 +679,8 @@ bool MeshEvalSelfIntersection::Evaluate()
 
 void MeshEvalSelfIntersection::GetIntersections(
     const std::vector<std::pair<FacetIndex, FacetIndex>>& indices,
-    std::vector<std::pair<Base::Vector3f, Base::Vector3f>>& intersection) const
+    std::vector<std::pair<Base::Vector3f, Base::Vector3f>>& intersection
+) const
 {
     intersection.reserve(indices.size());
     MeshFacetIterator cMF1(_rclMesh);
@@ -703,7 +704,8 @@ void MeshEvalSelfIntersection::GetIntersections(
 }
 
 void MeshEvalSelfIntersection::GetIntersections(
-    std::vector<std::pair<FacetIndex, FacetIndex>>& intersection) const
+    std::vector<std::pair<FacetIndex, FacetIndex>>& intersection
+) const
 {
     // Contains bounding boxes for every facet
     std::vector<Base::BoundBox3f> boxes;
@@ -735,14 +737,12 @@ void MeshEvalSelfIntersection::GetIntersections(
 
         MeshGeomFacet facet1, facet2;
         Base::Vector3f pt1, pt2;
-        for (std::vector<FacetIndex>::iterator it = aulGridElements.begin();
-             it != aulGridElements.end();
-             ++it) {
+        for (auto it = aulGridElements.begin(); it != aulGridElements.end(); ++it) {
             const Base::BoundBox3f& box1 = boxes[*it];
             cMFI.Set(*it);
             facet1 = *cMFI;
             const MeshFacet& rface1 = rFaces[*it];
-            for (std::vector<FacetIndex>::iterator jt = it; jt != aulGridElements.end(); ++jt) {
+            for (auto jt = it; jt != aulGridElements.end(); ++jt) {
                 if (jt == it) {  // the identical facet
                     continue;
                 }
@@ -977,9 +977,8 @@ void MeshKernel::RebuildNeighbours(FacetIndex index)
     edges.reserve(3 * (this->_aclFacetArray.size() - index));
 
     // build up an array of edges
-    MeshFacetArray::_TConstIterator pI;
-    MeshFacetArray::_TConstIterator pB = this->_aclFacetArray.begin();
-    for (pI = pB + index; pI != this->_aclFacetArray.end(); ++pI) {
+    auto pB = this->_aclFacetArray.begin();
+    for (auto pI = pB + index; pI != this->_aclFacetArray.end(); ++pI) {
         for (int i = 0; i < 3; i++) {
             Edge_Index item {};
             item.p0 = std::min<PointIndex>(pI->_aulPoints[i], pI->_aulPoints[(i + 1) % 3]);
@@ -991,7 +990,7 @@ void MeshKernel::RebuildNeighbours(FacetIndex index)
 
     // sort the edges
     // std::sort(edges.begin(), edges.end(), Edge_Less());
-    int threads = QThread::idealThreadCount();
+    int threads = int(std::thread::hardware_concurrency());
     MeshCore::parallel_sort(edges.begin(), edges.end(), Edge_Less(), threads);
 
     PointIndex p0 = POINT_INDEX_MAX, p1 = POINT_INDEX_MAX;
@@ -1054,9 +1053,9 @@ void MeshKernel::RebuildNeighbours()
 
 MeshEigensystem::MeshEigensystem(const MeshKernel& rclB)
     : MeshEvaluation(rclB)
-    , _cU(1.0f, 0.0f, 0.0f)
-    , _cV(0.0f, 1.0f, 0.0f)
-    , _cW(0.0f, 0.0f, 1.0f)
+    , _cU(1.0F, 0.0F, 0.0F)
+    , _cV(0.0F, 1.0F, 0.0F)
+    , _cW(0.0F, 0.0F, 1.0F)
 {
     // use the values of world coordinates as default
     Base::BoundBox3f box = _rclMesh.GetBoundBox();
@@ -1108,7 +1107,7 @@ bool MeshEigensystem::Evaluate()
 {
     CalculateLocalSystem();
 
-    float xmin = 0.0f, xmax = 0.0f, ymin = 0.0f, ymax = 0.0f, zmin = 0.0f, zmax = 0.0f;
+    float xmin = 0.0F, xmax = 0.0F, ymin = 0.0F, ymax = 0.0F, zmin = 0.0F, zmax = 0.0F;
 
     Base::Vector3f clVect, clProj;
     float fH {};
@@ -1122,7 +1121,7 @@ bool MeshEigensystem::Evaluate()
         fH = clVect.Length();
 
         // point vectors in the same direction ?
-        if ((clVect * _cU) < 0.0f) {
+        if ((clVect * _cU) < 0.0F) {
             fH = -fH;
         }
 
@@ -1136,7 +1135,7 @@ bool MeshEigensystem::Evaluate()
         fH = clVect.Length();
 
         // point vectors in the same direction ?
-        if ((clVect * _cV) < 0.0f) {
+        if ((clVect * _cV) < 0.0F) {
             fH = -fH;
         }
 
@@ -1150,7 +1149,7 @@ bool MeshEigensystem::Evaluate()
         fH = clVect.Length();
 
         // point vectors in the same direction ?
-        if ((clVect * _cW) < 0.0f) {
+        if ((clVect * _cW) < 0.0F) {
             fH = -fH;
         }
 
@@ -1203,17 +1202,17 @@ void MeshEigensystem::CalculateLocalSystem()
     }
 
     // avoid ambiguities concerning directions
-    if (fSumU < 0.0f) {
-        _cU *= -1.0f;
+    if (fSumU < 0.0F) {
+        _cU *= -1.0F;
     }
-    if (fSumV < 0.0f) {
-        _cV *= -1.0f;
+    if (fSumV < 0.0F) {
+        _cV *= -1.0F;
     }
-    if (fSumW < 0.0f) {
-        _cW *= -1.0f;
+    if (fSumW < 0.0F) {
+        _cW *= -1.0F;
     }
 
-    if ((_cU % _cV) * _cW < 0.0f) {
+    if ((_cU % _cV) * _cW < 0.0F) {
         _cW = -_cW;  // make a right-handed system
     }
 }

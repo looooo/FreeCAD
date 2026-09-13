@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 Eivind Kvedalen <eivind@kvedalen.name>             *
  *                                                                         *
@@ -20,15 +22,18 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef Spreadsheet_Spreadsheet_H
-#define Spreadsheet_Spreadsheet_H
+#pragma once
 
 #ifdef signals
-#undef signals
-#define signals signals
+# undef signals
+# define signals signals
 #endif
 
 #include <map>
+#include <tuple>
+#include <set>
+#include <string>
+#include <vector>
 
 #include <App/DocumentObject.h>
 #include <App/DynamicProperty.h>
@@ -36,6 +41,8 @@
 #include <App/PropertyUnits.h>
 #include <App/Range.h>
 #include <Base/Unit.h>
+
+#include <Mod/Spreadsheet/SpreadsheetGlobal.h>
 
 #include "PropertyColumnWidths.h"
 #include "PropertyRowHeights.h"
@@ -81,23 +88,28 @@ public:
         return "SpreadsheetGui::ViewProviderSheet";
     }
 
-    bool importFromFile(const std::string& filename,
-                        char delimiter = '\t',
-                        char quoteChar = '\0',
-                        char escapeChar = '\\');
+    bool importFromFile(
+        const std::string& filename,
+        char delimiter = '\t',
+        char quoteChar = '\0',
+        char escapeChar = '\\'
+    );
 
     bool getCharsFromPrefs(char& delimiter, char& quote, char& escape, std::string& errMsg);
 
-    bool exportToFile(const std::string& filename,
-                      char delimiter = '\t',
-                      char quoteChar = '\0',
-                      char escapeChar = '\\') const;
+    bool exportToFile(
+        const std::string& filename,
+        char delimiter = '\t',
+        char quoteChar = '\0',
+        char escapeChar = '\\'
+    ) const;
 
     bool mergeCells(const App::Range& range);
 
     void splitCell(App::CellAddress address);
 
     Cell* getCell(App::CellAddress address);
+    const Cell* getCell(App::CellAddress address) const;
 
     Cell* getNewCell(App::CellAddress address);
 
@@ -111,10 +123,12 @@ public:
     };
     unsigned getCellBindingBorder(App::CellAddress address) const;
 
-    PropertySheet::BindingType getCellBinding(App::Range& range,
-                                              App::ExpressionPtr* pStart = nullptr,
-                                              App::ExpressionPtr* pEnd = nullptr,
-                                              App::ObjectIdentifier* pTarget = nullptr) const;
+    PropertySheet::BindingType getCellBinding(
+        App::Range& range,
+        App::ExpressionPtr* pStart = nullptr,
+        App::ExpressionPtr* pEnd = nullptr,
+        App::ObjectIdentifier* pTarget = nullptr
+    ) const;
 
     void setCell(const char* address, const char* value);
 
@@ -151,20 +165,39 @@ public:
     void setContent(App::CellAddress address, const char* value);
 
     void setAlignment(App::CellAddress address, int alignment);
+    void setAlignment(App::Range range, int alignment);
 
     void setStyle(App::CellAddress address, const std::set<std::string>& style);
+    void setStyle(App::Range range, const std::set<std::string>& style);
 
-    void setForeground(App::CellAddress address, const App::Color& color);
+    void setForeground(App::CellAddress address, const Base::Color& color);
+    void setForeground(App::Range range, const Base::Color& color);
 
-    void setBackground(App::CellAddress address, const App::Color& color);
+    void clearForeground(App::CellAddress address);
+
+    void setBackground(App::CellAddress address, const Base::Color& color);
+    void setBackground(App::Range range, const Base::Color& color);
+
+    void clearBackground(App::CellAddress address);
 
     void setDisplayUnit(App::CellAddress address, const std::string& unit);
+    void setDisplayUnit(App::Range range, const std::string& unit);
 
     void setComputedUnit(App::CellAddress address, const Base::Unit& unit);
+    void setComputedUnit(App::Range range, const Base::Unit& unit);
 
     void setAlias(App::CellAddress address, const std::string& alias);
 
     std::string getAddressFromAlias(const std::string& alias) const;
+
+    enum class ReservedAliasToken
+    {
+        None,
+        Unit,
+        Constant
+    };
+
+    static ReservedAliasToken classifyReservedAliasName(const std::string& candidate);
 
     bool isValidAlias(const std::string& candidate);
 
@@ -186,8 +219,10 @@ public:
 
     App::Property* getDynamicPropertyByName(const char* name) const override;
 
-    void
-    getPropertyNamedList(std::vector<std::pair<const char*, App::Property*>>& List) const override;
+    void getPropertyNamedList(std::vector<std::pair<const char*, App::Property*>>& List) const override;
+
+    /// See PropertyContainer::visitProperties for semantics
+    void visitProperties(const std::function<void(App::Property*)>& visitor) const override;
 
     short mustExecute() const override;
 
@@ -198,6 +233,8 @@ public:
     App::CellAddress getCellAddress(const char* name, bool silent = false) const;
 
     App::Range getRange(const char* name, bool silent = false) const;
+
+    std::tuple<App::CellAddress, App::CellAddress> getUsedRange() const;
 
     std::map<int, int> getColumnWidths() const;
 
@@ -213,20 +250,19 @@ public:
 
     // Signals
 
-    boost::signals2::signal<void(App::CellAddress)> cellUpdated;
+    fastsignals::signal<void(App::CellAddress)> cellUpdated;
 
-    boost::signals2::signal<void(App::Range)> rangeUpdated;
+    fastsignals::signal<void(App::Range)> rangeUpdated;
 
-    boost::signals2::signal<void(App::CellAddress)> cellSpanChanged;
+    fastsignals::signal<void(App::CellAddress)> cellSpanChanged;
 
-    boost::signals2::signal<void(int, int)> columnWidthChanged;
+    fastsignals::signal<void(int, int)> columnWidthChanged;
 
-    boost::signals2::signal<void(int, int)> rowHeightChanged;
-
-    void observeDocument(App::Document* document);
+    fastsignals::signal<void(int, int)> rowHeightChanged;
 
     void renameObjectIdentifiers(
-        const std::map<App::ObjectIdentifier, App::ObjectIdentifier>& paths) override;
+        const std::map<App::ObjectIdentifier, App::ObjectIdentifier>& paths
+    ) override;
 
     void setCopyOrCutRanges(const std::vector<App::Range>& ranges, bool copy = true);
     const std::vector<App::Range>& getCopyOrCutRange(bool copy = true) const;
@@ -283,10 +319,6 @@ protected:
     /* Row heights */
     PropertyRowHeights rowHeights;
 
-    /* Document observers to track changes to external properties */
-    using ObserverMap = std::map<std::string, SheetObserver*>;
-    ObserverMap observers;
-
     int currentRow = -1;
     int currentCol = -1;
 
@@ -303,6 +335,3 @@ protected:
 using SheetPython = App::FeaturePythonT<Sheet>;
 
 }  // namespace Spreadsheet
-
-
-#endif  // Spreadsheet_Spreadsheet_H

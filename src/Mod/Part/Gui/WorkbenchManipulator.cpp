@@ -22,7 +22,6 @@
  **************************************************************************/
 
 
-#include "PreCompiled.h"
 #include "WorkbenchManipulator.h"
 #include <Gui/MenuManager.h>
 #include <Gui/ToolBarManager.h>
@@ -30,48 +29,26 @@
 using namespace PartGui;
 
 void WorkbenchManipulator::modifyMenuBar([[maybe_unused]] Gui::MenuItem* menuBar)
-{
-    addSectionCut(menuBar);
-}
-
-void WorkbenchManipulator::modifyContextMenu(const char* recipient, Gui::MenuItem* menuBar)
-{
-    if (strcmp(recipient, "View") == 0) {
-        addSelectionFilter(menuBar);
-    }
-}
+{}
 
 void WorkbenchManipulator::modifyToolBars(Gui::ToolBarItem* toolBar)
 {
     addSelectionFilter(toolBar);
+    addDatums(toolBar);
 }
 
 void WorkbenchManipulator::modifyDockWindows([[maybe_unused]] Gui::DockWindowItems* dockWindow)
-{
-}
-
-void WorkbenchManipulator::addSectionCut(Gui::MenuItem* menuBar)
-{
-    const char* toggleClipPlane = "Std_ToggleClipPlane";
-    auto par = menuBar->findParentOf(toggleClipPlane);
-    if (par) {
-        auto item = par->findItem(toggleClipPlane);
-        item = par->afterItem(item);
-
-        auto add = new Gui::MenuItem(); // NOLINT
-        add->setCommand("Part_SectionCut");
-        par->insertItem(item, add);
-    }
-}
+{}
 
 void WorkbenchManipulator::addSelectionFilter(Gui::ToolBarItem* toolBar)
 {
     if (auto view = toolBar->findItem("View")) {
-        auto add = new Gui::ToolBarItem(); // NOLINT
+        auto add = new Gui::ToolBarItem();  // NOLINT
         add->setCommand("Part_SelectFilter");
-        auto item = view->findItem("Std_TreeViewActions");
-        if (item) {
-            view->insertItem(item, add);
+        auto items = view->getItems();
+        auto drawStyleIdx = items.indexOf(view->findItem("Std_DrawStyle"));
+        if (drawStyleIdx >= 0 && drawStyleIdx + 1 < items.size()) {
+            view->insertItem(items.at(drawStyleIdx + 1), add);
         }
         else {
             view->appendItem(add);
@@ -79,11 +56,17 @@ void WorkbenchManipulator::addSelectionFilter(Gui::ToolBarItem* toolBar)
     }
 }
 
-void WorkbenchManipulator::addSelectionFilter(Gui::MenuItem* menuBar)
+void WorkbenchManipulator::addDatums(Gui::ToolBarItem* toolBar)
 {
-    if (auto measure = menuBar->findItem("Measure")) {
-        auto add = new Gui::MenuItem(); // NOLINT
-        add->setCommand("Part_SelectFilter");
-        menuBar->insertItem(measure, add);
+    if (auto view = toolBar->findItem("Structure")) {
+        auto add = new Gui::ToolBarItem();  // NOLINT
+        add->setCommand("Part_Datums");
+        auto item = view->findItem("Std_Group");
+        if (item) {
+            view->insertItem(item, add);
+        }
+        else {
+            view->appendItem(add);
+        }
     }
 }

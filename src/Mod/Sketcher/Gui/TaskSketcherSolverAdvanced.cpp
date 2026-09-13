@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 Abdullah Tahiri <abdullah.tahiri.yo@gmail.com>     *
  *                                                                         *
@@ -20,10 +22,8 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <QString>
-#endif
+
 
 #include <Gui/Application.h>
 #include <Gui/BitmapFactory.h>
@@ -54,10 +54,7 @@ using namespace SketcherGui;
 using namespace Gui::TaskView;
 
 TaskSketcherSolverAdvanced::TaskSketcherSolverAdvanced(ViewProviderSketch* sketchView)
-    : TaskBox(Gui::BitmapFactory().pixmap("document-new"),
-              tr("Advanced solver control"),
-              true,
-              nullptr)
+    : TaskBox(Gui::BitmapFactory().pixmap("document-new"), tr("Advanced Solver Controls"), true, nullptr)
     , sketchView(sketchView)
     , ui(new Ui_TaskSketcherSolverAdvanced)
 {
@@ -74,12 +71,20 @@ TaskSketcherSolverAdvanced::TaskSketcherSolverAdvanced(ViewProviderSketch* sketc
     ui->checkBoxSketchSizeMultiplier->onRestore();
     ui->lineEditConvergence->onRestore();
     ui->comboBoxQRMethod->onRestore();
+    ui->spinBoxAutoQRThreshold->onRestore();
+    ui->checkBoxAutoChooseAlgo->onRestore();
     ui->lineEditQRPivotThreshold->onRestore();
     ui->comboBoxRedundantDefaultSolver->onRestore();
     ui->spinBoxRedundantSolverMaxIterations->onRestore();
     ui->checkBoxRedundantSketchSizeMultiplier->onRestore();
     ui->lineEditRedundantConvergence->onRestore();
     ui->comboBoxDebugMode->onRestore();
+
+    bool autoAlgo = ui->checkBoxAutoChooseAlgo->isChecked();
+    ui->labelAutoQRThreshold->setVisible(autoAlgo);
+    ui->spinBoxAutoQRThreshold->setVisible(autoAlgo);
+    ui->labelQRAlgorithm->setVisible(!autoAlgo);
+    ui->comboBoxQRMethod->setVisible(!autoAlgo);
 
     updateSketchObject();
 }
@@ -89,92 +94,172 @@ TaskSketcherSolverAdvanced::~TaskSketcherSolverAdvanced()
 
 void TaskSketcherSolverAdvanced::setupConnections()
 {
-    connect(ui->comboBoxDefaultSolver,
-            qOverload<int>(&QComboBox::currentIndexChanged),
-            this,
-            &TaskSketcherSolverAdvanced::onComboBoxDefaultSolverCurrentIndexChanged);
-    connect(ui->comboBoxDogLegGaussStep,
-            qOverload<int>(&QComboBox::currentIndexChanged),
-            this,
-            &TaskSketcherSolverAdvanced::onComboBoxDogLegGaussStepCurrentIndexChanged);
-    connect(ui->spinBoxMaxIter,
-            qOverload<int>(&QSpinBox::valueChanged),
-            this,
-            &TaskSketcherSolverAdvanced::onSpinBoxMaxIterValueChanged);
-    connect(ui->checkBoxSketchSizeMultiplier,
-            &QCheckBox::stateChanged,
-            this,
-            &TaskSketcherSolverAdvanced::onCheckBoxSketchSizeMultiplierStateChanged);
-    connect(ui->lineEditConvergence,
-            &QLineEdit::editingFinished,
-            this,
-            &TaskSketcherSolverAdvanced::onLineEditConvergenceEditingFinished);
-    connect(ui->comboBoxQRMethod,
-            qOverload<int>(&QComboBox::currentIndexChanged),
-            this,
-            &TaskSketcherSolverAdvanced::onComboBoxQRMethodCurrentIndexChanged);
-    connect(ui->lineEditQRPivotThreshold,
-            &QLineEdit::editingFinished,
-            this,
-            &TaskSketcherSolverAdvanced::onLineEditQRPivotThresholdEditingFinished);
-    connect(ui->comboBoxRedundantDefaultSolver,
-            qOverload<int>(&QComboBox::currentIndexChanged),
-            this,
-            &TaskSketcherSolverAdvanced::onComboBoxRedundantDefaultSolverCurrentIndexChanged);
-    connect(ui->lineEditRedundantConvergence,
-            &QLineEdit::editingFinished,
-            this,
-            &TaskSketcherSolverAdvanced::onLineEditRedundantConvergenceEditingFinished);
-    connect(ui->spinBoxRedundantSolverMaxIterations,
-            qOverload<int>(&QSpinBox::valueChanged),
-            this,
-            &TaskSketcherSolverAdvanced::onSpinBoxRedundantSolverMaxIterationsValueChanged);
-    connect(ui->checkBoxRedundantSketchSizeMultiplier,
-            &QCheckBox::stateChanged,
-            this,
-            &TaskSketcherSolverAdvanced::onCheckBoxRedundantSketchSizeMultiplierStateChanged);
-    connect(ui->comboBoxDebugMode,
-            qOverload<int>(&QComboBox::currentIndexChanged),
-            this,
-            &TaskSketcherSolverAdvanced::onComboBoxDebugModeCurrentIndexChanged);
-    connect(ui->lineEditSolverParam1,
-            &QLineEdit::editingFinished,
-            this,
-            &TaskSketcherSolverAdvanced::onLineEditSolverParam1EditingFinished);
-    connect(ui->lineEditRedundantSolverParam1,
-            &QLineEdit::editingFinished,
-            this,
-            &TaskSketcherSolverAdvanced::onLineEditRedundantSolverParam1EditingFinished);
-    connect(ui->lineEditSolverParam2,
-            &QLineEdit::editingFinished,
-            this,
-            &TaskSketcherSolverAdvanced::onLineEditSolverParam2EditingFinished);
-    connect(ui->lineEditRedundantSolverParam2,
-            &Gui::PrefLineEdit::editingFinished,
-            this,
-            &TaskSketcherSolverAdvanced::onLineEditRedundantSolverParam2EditingFinished);
-    connect(ui->lineEditSolverParam3,
-            &QLineEdit::editingFinished,
-            this,
-            &TaskSketcherSolverAdvanced::onLineEditSolverParam3EditingFinished);
-    connect(ui->lineEditRedundantSolverParam3,
-            &Gui::PrefLineEdit::editingFinished,
-            this,
-            &TaskSketcherSolverAdvanced::onLineEditRedundantSolverParam3EditingFinished);
-    connect(ui->pushButtonDefaults,
-            &QPushButton::clicked,
-            this,
-            &TaskSketcherSolverAdvanced::onPushButtonDefaultsClicked);
-    connect(ui->pushButtonSolve,
-            &QPushButton::clicked,
-            this,
-            &TaskSketcherSolverAdvanced::onPushButtonSolveClicked);
+    connect(
+        ui->comboBoxDefaultSolver,
+        qOverload<int>(&QComboBox::currentIndexChanged),
+        this,
+        &TaskSketcherSolverAdvanced::onComboBoxDefaultSolverCurrentIndexChanged
+    );
+    connect(
+        ui->comboBoxDogLegGaussStep,
+        qOverload<int>(&QComboBox::currentIndexChanged),
+        this,
+        &TaskSketcherSolverAdvanced::onComboBoxDogLegGaussStepCurrentIndexChanged
+    );
+    connect(
+        ui->spinBoxMaxIter,
+        qOverload<int>(&QSpinBox::valueChanged),
+        this,
+        &TaskSketcherSolverAdvanced::onSpinBoxMaxIterValueChanged
+    );
+    connect(
+        ui->spinBoxAutoQRThreshold,
+        qOverload<int>(&QSpinBox::valueChanged),
+        this,
+        &TaskSketcherSolverAdvanced::onSpinBoxAutoQRAlgoChanged
+    );
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+    connect(
+        ui->checkBoxAutoChooseAlgo,
+        &QCheckBox::checkStateChanged,
+        this,
+        &TaskSketcherSolverAdvanced::onCheckBoxAutoQRAlgoStateChanged
+    );
+#else
+    connect(
+        ui->checkBoxAutoChooseAlgo,
+        &QCheckBox::stateChanged,
+        this,
+        &TaskSketcherSolverAdvanced::onCheckBoxAutoQRAlgoStateChanged
+    );
+#endif
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+    connect(
+        ui->checkBoxSketchSizeMultiplier,
+        &QCheckBox::checkStateChanged,
+        this,
+        &TaskSketcherSolverAdvanced::onCheckBoxSketchSizeMultiplierStateChanged
+    );
+#else
+    connect(
+        ui->checkBoxSketchSizeMultiplier,
+        &QCheckBox::stateChanged,
+        this,
+        &TaskSketcherSolverAdvanced::onCheckBoxSketchSizeMultiplierStateChanged
+    );
+#endif
+    connect(
+        ui->lineEditConvergence,
+        &QLineEdit::editingFinished,
+        this,
+        &TaskSketcherSolverAdvanced::onLineEditConvergenceEditingFinished
+    );
+    connect(
+        ui->comboBoxQRMethod,
+        qOverload<int>(&QComboBox::currentIndexChanged),
+        this,
+        &TaskSketcherSolverAdvanced::onComboBoxQRMethodCurrentIndexChanged
+    );
+    connect(
+        ui->lineEditQRPivotThreshold,
+        &QLineEdit::editingFinished,
+        this,
+        &TaskSketcherSolverAdvanced::onLineEditQRPivotThresholdEditingFinished
+    );
+    connect(
+        ui->comboBoxRedundantDefaultSolver,
+        qOverload<int>(&QComboBox::currentIndexChanged),
+        this,
+        &TaskSketcherSolverAdvanced::onComboBoxRedundantDefaultSolverCurrentIndexChanged
+    );
+    connect(
+        ui->lineEditRedundantConvergence,
+        &QLineEdit::editingFinished,
+        this,
+        &TaskSketcherSolverAdvanced::onLineEditRedundantConvergenceEditingFinished
+    );
+    connect(
+        ui->spinBoxRedundantSolverMaxIterations,
+        qOverload<int>(&QSpinBox::valueChanged),
+        this,
+        &TaskSketcherSolverAdvanced::onSpinBoxRedundantSolverMaxIterationsValueChanged
+    );
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+    connect(
+        ui->checkBoxRedundantSketchSizeMultiplier,
+        &QCheckBox::checkStateChanged,
+        this,
+        &TaskSketcherSolverAdvanced::onCheckBoxRedundantSketchSizeMultiplierStateChanged
+    );
+#else
+    connect(
+        ui->checkBoxRedundantSketchSizeMultiplier,
+        &QCheckBox::stateChanged,
+        this,
+        &TaskSketcherSolverAdvanced::onCheckBoxRedundantSketchSizeMultiplierStateChanged
+    );
+#endif
+    connect(
+        ui->comboBoxDebugMode,
+        qOverload<int>(&QComboBox::currentIndexChanged),
+        this,
+        &TaskSketcherSolverAdvanced::onComboBoxDebugModeCurrentIndexChanged
+    );
+    connect(
+        ui->lineEditSolverParam1,
+        &QLineEdit::editingFinished,
+        this,
+        &TaskSketcherSolverAdvanced::onLineEditSolverParam1EditingFinished
+    );
+    connect(
+        ui->lineEditRedundantSolverParam1,
+        &QLineEdit::editingFinished,
+        this,
+        &TaskSketcherSolverAdvanced::onLineEditRedundantSolverParam1EditingFinished
+    );
+    connect(
+        ui->lineEditSolverParam2,
+        &QLineEdit::editingFinished,
+        this,
+        &TaskSketcherSolverAdvanced::onLineEditSolverParam2EditingFinished
+    );
+    connect(
+        ui->lineEditRedundantSolverParam2,
+        &Gui::PrefLineEdit::editingFinished,
+        this,
+        &TaskSketcherSolverAdvanced::onLineEditRedundantSolverParam2EditingFinished
+    );
+    connect(
+        ui->lineEditSolverParam3,
+        &QLineEdit::editingFinished,
+        this,
+        &TaskSketcherSolverAdvanced::onLineEditSolverParam3EditingFinished
+    );
+    connect(
+        ui->lineEditRedundantSolverParam3,
+        &Gui::PrefLineEdit::editingFinished,
+        this,
+        &TaskSketcherSolverAdvanced::onLineEditRedundantSolverParam3EditingFinished
+    );
+    connect(
+        ui->pushButtonDefaults,
+        &QPushButton::clicked,
+        this,
+        &TaskSketcherSolverAdvanced::onPushButtonDefaultsClicked
+    );
+    connect(
+        ui->pushButtonSolve,
+        &QPushButton::clicked,
+        this,
+        &TaskSketcherSolverAdvanced::onPushButtonSolveClicked
+    );
 }
 
 void TaskSketcherSolverAdvanced::updateDefaultMethodParameters()
 {
     ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
-        "User parameter:BaseApp/Preferences/Mod/Sketcher/SolverAdvanced");
+        "User parameter:BaseApp/Preferences/Mod/Sketcher/SolverAdvanced"
+    );
 
     int currentindex = ui->comboBoxDefaultSolver->currentIndex();
     int redundantcurrentindex = ui->comboBoxRedundantDefaultSolver->currentIndex();
@@ -188,9 +273,9 @@ void TaskSketcherSolverAdvanced::updateDefaultMethodParameters()
 
     switch (currentindex) {
         case 0:  // BFGS
-            ui->labelSolverParam1->setText(QString::fromLatin1(""));
-            ui->labelSolverParam2->setText(QString::fromLatin1(""));
-            ui->labelSolverParam3->setText(QString::fromLatin1(""));
+            ui->labelSolverParam1->setText(QStringLiteral(""));
+            ui->labelSolverParam2->setText(QStringLiteral(""));
+            ui->labelSolverParam3->setText(QStringLiteral(""));
             ui->lineEditSolverParam1->clear();
             ui->lineEditSolverParam2->clear();
             ui->lineEditSolverParam3->clear();
@@ -200,28 +285,30 @@ void TaskSketcherSolverAdvanced::updateDefaultMethodParameters()
             break;
         case 1:  // LM
         {
-            ui->labelSolverParam1->setText(QString::fromLatin1("Eps"));
-            ui->labelSolverParam2->setText(QString::fromLatin1("Eps1"));
-            ui->labelSolverParam3->setText(QString::fromLatin1("Tau"));
+            ui->labelSolverParam1->setText(QStringLiteral("Eps"));
+            ui->labelSolverParam2->setText(QStringLiteral("Eps1"));
+            ui->labelSolverParam3->setText(QStringLiteral("Tau"));
             ui->lineEditSolverParam1->setEnabled(true);
             ui->lineEditSolverParam2->setEnabled(true);
             ui->lineEditSolverParam3->setEnabled(true);
             double eps = ::atof(hGrp->GetASCII("LM_eps", QString::number(LM_EPS).toUtf8()).c_str());
-            double eps1 =
-                ::atof(hGrp->GetASCII("LM_eps1", QString::number(LM_EPS1).toUtf8()).c_str());
+            double eps1 = ::atof(hGrp->GetASCII("LM_eps1", QString::number(LM_EPS1).toUtf8()).c_str());
             double tau = ::atof(hGrp->GetASCII("LM_tau", QString::number(LM_TAU).toUtf8()).c_str());
-            ui->lineEditSolverParam1->setText(QString::number(eps).remove(
-                QString::fromLatin1("+")
-                    .replace(QString::fromLatin1("e0"), QString::fromLatin1("E"))
-                    .toUpper()));
-            ui->lineEditSolverParam2->setText(QString::number(eps1).remove(
-                QString::fromLatin1("+")
-                    .replace(QString::fromLatin1("e0"), QString::fromLatin1("E"))
-                    .toUpper()));
-            ui->lineEditSolverParam3->setText(QString::number(tau).remove(
-                QString::fromLatin1("+")
-                    .replace(QString::fromLatin1("e0"), QString::fromLatin1("E"))
-                    .toUpper()));
+            ui->lineEditSolverParam1->setText(
+                QString::number(eps).remove(
+                    QStringLiteral("+").replace(QStringLiteral("e0"), QStringLiteral("E")).toUpper()
+                )
+            );
+            ui->lineEditSolverParam2->setText(
+                QString::number(eps1).remove(
+                    QStringLiteral("+").replace(QStringLiteral("e0"), QStringLiteral("E")).toUpper()
+                )
+            );
+            ui->lineEditSolverParam3->setText(
+                QString::number(tau).remove(
+                    QStringLiteral("+").replace(QStringLiteral("e0"), QStringLiteral("E")).toUpper()
+                )
+            );
             // SketchObject has encapsulated write-access. The current use of const_cast just for
             // configuration is deemed acceptable. Eventually this dialog should be rewritten to
             // include only useful information and the configuration centralised in an individual
@@ -237,30 +324,30 @@ void TaskSketcherSolverAdvanced::updateDefaultMethodParameters()
         }
         case 2:  // DogLeg
         {
-            ui->labelSolverParam1->setText(QString::fromLatin1("Tolg"));
-            ui->labelSolverParam2->setText(QString::fromLatin1("Tolx"));
-            ui->labelSolverParam3->setText(QString::fromLatin1("Tolf"));
+            ui->labelSolverParam1->setText(QStringLiteral("Tolg"));
+            ui->labelSolverParam2->setText(QStringLiteral("Tolx"));
+            ui->labelSolverParam3->setText(QStringLiteral("Tolf"));
             ui->lineEditSolverParam1->setEnabled(true);
             ui->lineEditSolverParam2->setEnabled(true);
             ui->lineEditSolverParam3->setEnabled(true);
-            double tolg =
-                ::atof(hGrp->GetASCII("DL_tolg", QString::number(DL_TOLG).toUtf8()).c_str());
-            double tolx =
-                ::atof(hGrp->GetASCII("DL_tolx", QString::number(DL_TOLX).toUtf8()).c_str());
-            double tolf =
-                ::atof(hGrp->GetASCII("DL_tolf", QString::number(DL_TOLF).toUtf8()).c_str());
-            ui->lineEditSolverParam1->setText(QString::number(tolg).remove(
-                QString::fromLatin1("+")
-                    .replace(QString::fromLatin1("e0"), QString::fromLatin1("E"))
-                    .toUpper()));
-            ui->lineEditSolverParam2->setText(QString::number(tolx).remove(
-                QString::fromLatin1("+")
-                    .replace(QString::fromLatin1("e0"), QString::fromLatin1("E"))
-                    .toUpper()));
-            ui->lineEditSolverParam3->setText(QString::number(tolf).remove(
-                QString::fromLatin1("+")
-                    .replace(QString::fromLatin1("e0"), QString::fromLatin1("E"))
-                    .toUpper()));
+            double tolg = ::atof(hGrp->GetASCII("DL_tolg", QString::number(DL_TOLG).toUtf8()).c_str());
+            double tolx = ::atof(hGrp->GetASCII("DL_tolx", QString::number(DL_TOLX).toUtf8()).c_str());
+            double tolf = ::atof(hGrp->GetASCII("DL_tolf", QString::number(DL_TOLF).toUtf8()).c_str());
+            ui->lineEditSolverParam1->setText(
+                QString::number(tolg).remove(
+                    QStringLiteral("+").replace(QStringLiteral("e0"), QStringLiteral("E")).toUpper()
+                )
+            );
+            ui->lineEditSolverParam2->setText(
+                QString::number(tolx).remove(
+                    QStringLiteral("+").replace(QStringLiteral("e0"), QStringLiteral("E")).toUpper()
+                )
+            );
+            ui->lineEditSolverParam3->setText(
+                QString::number(tolf).remove(
+                    QStringLiteral("+").replace(QStringLiteral("e0"), QStringLiteral("E")).toUpper()
+                )
+            );
             const_cast<Sketcher::Sketch&>(sketchView->getSketchObject()->getSolvedSketch())
                 .setDL_tolg(tolg);
             const_cast<Sketcher::Sketch&>(sketchView->getSketchObject()->getSolvedSketch())
@@ -275,7 +362,8 @@ void TaskSketcherSolverAdvanced::updateDefaultMethodParameters()
 void TaskSketcherSolverAdvanced::updateRedundantMethodParameters()
 {
     ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
-        "User parameter:BaseApp/Preferences/Mod/Sketcher/SolverAdvanced");
+        "User parameter:BaseApp/Preferences/Mod/Sketcher/SolverAdvanced"
+    );
 
     int currentindex = ui->comboBoxDefaultSolver->currentIndex();
     int redundantcurrentindex = ui->comboBoxRedundantDefaultSolver->currentIndex();
@@ -289,9 +377,9 @@ void TaskSketcherSolverAdvanced::updateRedundantMethodParameters()
 
     switch (redundantcurrentindex) {
         case 0:  // BFGS
-            ui->labelRedundantSolverParam1->setText(QString::fromLatin1(""));
-            ui->labelRedundantSolverParam2->setText(QString::fromLatin1(""));
-            ui->labelRedundantSolverParam3->setText(QString::fromLatin1(""));
+            ui->labelRedundantSolverParam1->setText(QStringLiteral(""));
+            ui->labelRedundantSolverParam2->setText(QStringLiteral(""));
+            ui->labelRedundantSolverParam3->setText(QStringLiteral(""));
             ui->lineEditRedundantSolverParam1->clear();
             ui->lineEditRedundantSolverParam2->clear();
             ui->lineEditRedundantSolverParam3->clear();
@@ -301,30 +389,36 @@ void TaskSketcherSolverAdvanced::updateRedundantMethodParameters()
             break;
         case 1:  // LM
         {
-            ui->labelRedundantSolverParam1->setText(QString::fromLatin1("R.Eps"));
-            ui->labelRedundantSolverParam2->setText(QString::fromLatin1("R.Eps1"));
-            ui->labelRedundantSolverParam3->setText(QString::fromLatin1("R.Tau"));
+            ui->labelRedundantSolverParam1->setText(QStringLiteral("R.Eps"));
+            ui->labelRedundantSolverParam2->setText(QStringLiteral("R.Eps1"));
+            ui->labelRedundantSolverParam3->setText(QStringLiteral("R.Tau"));
             ui->lineEditRedundantSolverParam1->setEnabled(true);
             ui->lineEditRedundantSolverParam2->setEnabled(true);
             ui->lineEditRedundantSolverParam3->setEnabled(true);
             double eps = ::atof(
-                hGrp->GetASCII("Redundant_LM_eps", QString::number(LM_EPS).toUtf8()).c_str());
+                hGrp->GetASCII("Redundant_LM_eps", QString::number(LM_EPS).toUtf8()).c_str()
+            );
             double eps1 = ::atof(
-                hGrp->GetASCII("Redundant_LM_eps1", QString::number(LM_EPS1).toUtf8()).c_str());
+                hGrp->GetASCII("Redundant_LM_eps1", QString::number(LM_EPS1).toUtf8()).c_str()
+            );
             double tau = ::atof(
-                hGrp->GetASCII("Redundant_LM_tau", QString::number(LM_TAU).toUtf8()).c_str());
-            ui->lineEditRedundantSolverParam1->setText(QString::number(eps).remove(
-                QString::fromLatin1("+")
-                    .replace(QString::fromLatin1("e0"), QString::fromLatin1("E"))
-                    .toUpper()));
-            ui->lineEditRedundantSolverParam2->setText(QString::number(eps1).remove(
-                QString::fromLatin1("+")
-                    .replace(QString::fromLatin1("e0"), QString::fromLatin1("E"))
-                    .toUpper()));
-            ui->lineEditRedundantSolverParam3->setText(QString::number(tau).remove(
-                QString::fromLatin1("+")
-                    .replace(QString::fromLatin1("e0"), QString::fromLatin1("E"))
-                    .toUpper()));
+                hGrp->GetASCII("Redundant_LM_tau", QString::number(LM_TAU).toUtf8()).c_str()
+            );
+            ui->lineEditRedundantSolverParam1->setText(
+                QString::number(eps).remove(
+                    QStringLiteral("+").replace(QStringLiteral("e0"), QStringLiteral("E")).toUpper()
+                )
+            );
+            ui->lineEditRedundantSolverParam2->setText(
+                QString::number(eps1).remove(
+                    QStringLiteral("+").replace(QStringLiteral("e0"), QStringLiteral("E")).toUpper()
+                )
+            );
+            ui->lineEditRedundantSolverParam3->setText(
+                QString::number(tau).remove(
+                    QStringLiteral("+").replace(QStringLiteral("e0"), QStringLiteral("E")).toUpper()
+                )
+            );
             const_cast<Sketcher::Sketch&>(sketchView->getSketchObject()->getSolvedSketch())
                 .setLM_epsRedundant(eps);
             const_cast<Sketcher::Sketch&>(sketchView->getSketchObject()->getSolvedSketch())
@@ -335,30 +429,36 @@ void TaskSketcherSolverAdvanced::updateRedundantMethodParameters()
         }
         case 2:  // DogLeg
         {
-            ui->labelRedundantSolverParam1->setText(QString::fromLatin1("R.Tolg"));
-            ui->labelRedundantSolverParam2->setText(QString::fromLatin1("R.Tolx"));
-            ui->labelRedundantSolverParam3->setText(QString::fromLatin1("R.Tolf"));
+            ui->labelRedundantSolverParam1->setText(QStringLiteral("R.Tolg"));
+            ui->labelRedundantSolverParam2->setText(QStringLiteral("R.Tolx"));
+            ui->labelRedundantSolverParam3->setText(QStringLiteral("R.Tolf"));
             ui->lineEditRedundantSolverParam1->setEnabled(true);
             ui->lineEditRedundantSolverParam2->setEnabled(true);
             ui->lineEditRedundantSolverParam3->setEnabled(true);
             double tolg = ::atof(
-                hGrp->GetASCII("Redundant_DL_tolg", QString::number(DL_TOLG).toUtf8()).c_str());
+                hGrp->GetASCII("Redundant_DL_tolg", QString::number(DL_TOLG).toUtf8()).c_str()
+            );
             double tolx = ::atof(
-                hGrp->GetASCII("Redundant_DL_tolx", QString::number(DL_TOLX).toUtf8()).c_str());
+                hGrp->GetASCII("Redundant_DL_tolx", QString::number(DL_TOLX).toUtf8()).c_str()
+            );
             double tolf = ::atof(
-                hGrp->GetASCII("Redundant_DL_tolf", QString::number(DL_TOLF).toUtf8()).c_str());
-            ui->lineEditRedundantSolverParam1->setText(QString::number(tolg).remove(
-                QString::fromLatin1("+")
-                    .replace(QString::fromLatin1("e0"), QString::fromLatin1("E"))
-                    .toUpper()));
-            ui->lineEditRedundantSolverParam2->setText(QString::number(tolx).remove(
-                QString::fromLatin1("+")
-                    .replace(QString::fromLatin1("e0"), QString::fromLatin1("E"))
-                    .toUpper()));
-            ui->lineEditRedundantSolverParam3->setText(QString::number(tolf).remove(
-                QString::fromLatin1("+")
-                    .replace(QString::fromLatin1("e0"), QString::fromLatin1("E"))
-                    .toUpper()));
+                hGrp->GetASCII("Redundant_DL_tolf", QString::number(DL_TOLF).toUtf8()).c_str()
+            );
+            ui->lineEditRedundantSolverParam1->setText(
+                QString::number(tolg).remove(
+                    QStringLiteral("+").replace(QStringLiteral("e0"), QStringLiteral("E")).toUpper()
+                )
+            );
+            ui->lineEditRedundantSolverParam2->setText(
+                QString::number(tolx).remove(
+                    QStringLiteral("+").replace(QStringLiteral("e0"), QStringLiteral("E")).toUpper()
+                )
+            );
+            ui->lineEditRedundantSolverParam3->setText(
+                QString::number(tolf).remove(
+                    QStringLiteral("+").replace(QStringLiteral("e0"), QStringLiteral("E")).toUpper()
+                )
+            );
             const_cast<Sketcher::Sketch&>(sketchView->getSketchObject()->getSolvedSketch())
                 .setDL_tolgRedundant(tolg);
             const_cast<Sketcher::Sketch&>(sketchView->getSketchObject()->getSolvedSketch())
@@ -375,8 +475,8 @@ void TaskSketcherSolverAdvanced::onLineEditSolverParam1EditingFinished()
     QString text = ui->lineEditSolverParam1->text();
     double val = text.toDouble();
     QString sci = QString::number(val);
-    sci.remove(QString::fromLatin1("+"));
-    sci.replace(QString::fromLatin1("e0"), QString::fromLatin1("E"));
+    sci.remove(QStringLiteral("+"));
+    sci.replace(QStringLiteral("e0"), QStringLiteral("E"));
     ui->lineEditSolverParam1->setText(sci.toUpper());
 
     switch (ui->comboBoxDefaultSolver->currentIndex()) {
@@ -404,8 +504,8 @@ void TaskSketcherSolverAdvanced::onLineEditRedundantSolverParam1EditingFinished(
     QString text = ui->lineEditRedundantSolverParam1->text();
     double val = text.toDouble();
     QString sci = QString::number(val);
-    sci.remove(QString::fromLatin1("+"));
-    sci.replace(QString::fromLatin1("e0"), QString::fromLatin1("E"));
+    sci.remove(QStringLiteral("+"));
+    sci.replace(QStringLiteral("e0"), QStringLiteral("E"));
     ui->lineEditRedundantSolverParam1->setText(sci.toUpper());
 
     switch (ui->comboBoxDefaultSolver->currentIndex()) {
@@ -433,8 +533,8 @@ void TaskSketcherSolverAdvanced::onLineEditSolverParam2EditingFinished()
     QString text = ui->lineEditSolverParam2->text();
     double val = text.toDouble();
     QString sci = QString::number(val);
-    sci.remove(QString::fromLatin1("+"));
-    sci.replace(QString::fromLatin1("e0"), QString::fromLatin1("E"));
+    sci.remove(QStringLiteral("+"));
+    sci.replace(QStringLiteral("e0"), QStringLiteral("E"));
     ui->lineEditSolverParam2->setText(sci.toUpper());
 
     switch (ui->comboBoxDefaultSolver->currentIndex()) {
@@ -462,8 +562,8 @@ void TaskSketcherSolverAdvanced::onLineEditRedundantSolverParam2EditingFinished(
     QString text = ui->lineEditRedundantSolverParam2->text();
     double val = text.toDouble();
     QString sci = QString::number(val);
-    sci.remove(QString::fromLatin1("+"));
-    sci.replace(QString::fromLatin1("e0"), QString::fromLatin1("E"));
+    sci.remove(QStringLiteral("+"));
+    sci.replace(QStringLiteral("e0"), QStringLiteral("E"));
     ui->lineEditRedundantSolverParam2->setText(sci.toUpper());
 
     switch (ui->comboBoxDefaultSolver->currentIndex()) {
@@ -491,8 +591,8 @@ void TaskSketcherSolverAdvanced::onLineEditSolverParam3EditingFinished()
     QString text = ui->lineEditSolverParam3->text();
     double val = text.toDouble();
     QString sci = QString::number(val);
-    sci.remove(QString::fromLatin1("+"));
-    sci.replace(QString::fromLatin1("e0"), QString::fromLatin1("E"));
+    sci.remove(QStringLiteral("+"));
+    sci.replace(QStringLiteral("e0"), QStringLiteral("E"));
     ui->lineEditSolverParam3->setText(sci.toUpper());
 
     switch (ui->comboBoxDefaultSolver->currentIndex()) {
@@ -520,8 +620,8 @@ void TaskSketcherSolverAdvanced::onLineEditRedundantSolverParam3EditingFinished(
     QString text = ui->lineEditRedundantSolverParam3->text();
     double val = text.toDouble();
     QString sci = QString::number(val);
-    sci.remove(QString::fromLatin1("+"));
-    sci.replace(QString::fromLatin1("e0"), QString::fromLatin1("E"));
+    sci.remove(QStringLiteral("+"));
+    sci.replace(QStringLiteral("e0"), QStringLiteral("E"));
     ui->lineEditRedundantSolverParam3->setText(sci.toUpper());
 
     switch (ui->comboBoxDefaultSolver->currentIndex()) {
@@ -547,8 +647,8 @@ void TaskSketcherSolverAdvanced::onLineEditRedundantSolverParam3EditingFinished(
 void TaskSketcherSolverAdvanced::onComboBoxDefaultSolverCurrentIndexChanged(int index)
 {
     ui->comboBoxDefaultSolver->onSave();
-    const_cast<Sketcher::Sketch&>(sketchView->getSketchObject()->getSolvedSketch()).defaultSolver =
-        static_cast<GCS::Algorithm>(index);
+    const_cast<Sketcher::Sketch&>(sketchView->getSketchObject()->getSolvedSketch()).defaultSolver
+        = static_cast<GCS::Algorithm>(index);
     updateDefaultMethodParameters();
 }
 
@@ -564,6 +664,35 @@ void TaskSketcherSolverAdvanced::onSpinBoxMaxIterValueChanged(int i)
 {
     ui->spinBoxMaxIter->onSave();
     const_cast<Sketcher::Sketch&>(sketchView->getSketchObject()->getSolvedSketch()).setMaxIter(i);
+}
+
+void TaskSketcherSolverAdvanced::onSpinBoxAutoQRAlgoChanged(int i)
+{
+    ui->spinBoxAutoQRThreshold->onSave();
+    const_cast<Sketcher::Sketch&>(sketchView->getSketchObject()->getSolvedSketch())
+        .setAutoQRThreshold(i);
+}
+
+void TaskSketcherSolverAdvanced::onCheckBoxAutoQRAlgoStateChanged(int state)
+{
+    if (state == Qt::Checked) {
+        ui->spinBoxAutoQRThreshold->show();
+        ui->comboBoxQRMethod->hide();
+        ui->labelAutoQRThreshold->show();
+        ui->labelQRAlgorithm->hide();
+        ui->checkBoxAutoChooseAlgo->onSave();
+        const_cast<Sketcher::Sketch&>(sketchView->getSketchObject()->getSolvedSketch())
+            .setSketchAutoAlgo(true);
+    }
+    else if (state == Qt::Unchecked) {
+        ui->spinBoxAutoQRThreshold->hide();
+        ui->comboBoxQRMethod->show();
+        ui->labelAutoQRThreshold->hide();
+        ui->labelQRAlgorithm->show();
+        ui->checkBoxAutoChooseAlgo->onSave();
+        const_cast<Sketcher::Sketch&>(sketchView->getSketchObject()->getSolvedSketch())
+            .setSketchAutoAlgo(false);
+    }
 }
 
 void TaskSketcherSolverAdvanced::onCheckBoxSketchSizeMultiplierStateChanged(int state)
@@ -585,8 +714,8 @@ void TaskSketcherSolverAdvanced::onLineEditQRPivotThresholdEditingFinished()
     QString text = ui->lineEditQRPivotThreshold->text();
     double val = text.toDouble();
     QString sci = QString::number(val);
-    sci.remove(QString::fromLatin1("+"));
-    sci.replace(QString::fromLatin1("e0"), QString::fromLatin1("E"));
+    sci.remove(QStringLiteral("+"));
+    sci.replace(QStringLiteral("e0"), QStringLiteral("E"));
     ui->lineEditQRPivotThreshold->setText(sci.toUpper());
 
     ui->lineEditQRPivotThreshold->onSave();
@@ -600,14 +729,13 @@ void TaskSketcherSolverAdvanced::onLineEditConvergenceEditingFinished()
     QString text = ui->lineEditConvergence->text();
     double val = text.toDouble();
     QString sci = QString::number(val);
-    sci.remove(QString::fromLatin1("+"));
-    sci.replace(QString::fromLatin1("e0"), QString::fromLatin1("E"));
+    sci.remove(QStringLiteral("+"));
+    sci.replace(QStringLiteral("e0"), QStringLiteral("E"));
     ui->lineEditConvergence->setText(sci.toUpper());
 
     ui->lineEditConvergence->onSave();
 
-    const_cast<Sketcher::Sketch&>(sketchView->getSketchObject()->getSolvedSketch())
-        .setConvergence(val);
+    const_cast<Sketcher::Sketch&>(sketchView->getSketchObject()->getSolvedSketch()).setConvergence(val);
 }
 
 void TaskSketcherSolverAdvanced::onLineEditRedundantConvergenceEditingFinished()
@@ -615,8 +743,8 @@ void TaskSketcherSolverAdvanced::onLineEditRedundantConvergenceEditingFinished()
     QString text = ui->lineEditRedundantConvergence->text();
     double val = text.toDouble();
     QString sci = QString::number(val);
-    sci.remove(QString::fromLatin1("+"));
-    sci.replace(QString::fromLatin1("e0"), QString::fromLatin1("E"));
+    sci.remove(QStringLiteral("+"));
+    sci.replace(QStringLiteral("e0"), QStringLiteral("E"));
     ui->lineEditRedundantConvergence->setText(sci.toUpper());
 
     ui->lineEditRedundantConvergence->onSave();
@@ -635,8 +763,8 @@ void TaskSketcherSolverAdvanced::onComboBoxQRMethodCurrentIndexChanged(int index
 void TaskSketcherSolverAdvanced::onComboBoxRedundantDefaultSolverCurrentIndexChanged(int index)
 {
     ui->comboBoxRedundantDefaultSolver->onSave();
-    const_cast<Sketcher::Sketch&>(sketchView->getSketchObject()->getSolvedSketch())
-        .defaultSolverRedundant = static_cast<GCS::Algorithm>(index);
+    const_cast<Sketcher::Sketch&>(sketchView->getSketchObject()->getSolvedSketch()).defaultSolverRedundant
+        = static_cast<GCS::Algorithm>(index);
     updateRedundantMethodParameters();
 }
 
@@ -679,7 +807,8 @@ void TaskSketcherSolverAdvanced::onPushButtonDefaultsClicked(bool checked /* = f
     Q_UNUSED(checked);
     // Algorithm params for default solvers
     ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
-        "User parameter:BaseApp/Preferences/Mod/Sketcher/SolverAdvanced");
+        "User parameter:BaseApp/Preferences/Mod/Sketcher/SolverAdvanced"
+    );
     hGrp->SetASCII("LM_eps", QString::number(LM_EPS).toUtf8());
     hGrp->SetASCII("LM_eps1", QString::number(LM_EPS1).toUtf8());
     hGrp->SetASCII("LM_tau", QString::number(LM_TAU).toUtf8());
@@ -713,6 +842,8 @@ void TaskSketcherSolverAdvanced::onPushButtonDefaultsClicked(bool checked /* = f
     ui->checkBoxSketchSizeMultiplier->onRestore();
     ui->lineEditConvergence->onRestore();
     ui->comboBoxQRMethod->onRestore();
+    ui->spinBoxAutoQRThreshold->onRestore();
+    ui->checkBoxAutoChooseAlgo->onRestore();
     ui->lineEditQRPivotThreshold->onRestore();
     ui->comboBoxRedundantDefaultSolver->onRestore();
     ui->spinBoxRedundantSolverMaxIterations->onRestore();
@@ -725,31 +856,24 @@ void TaskSketcherSolverAdvanced::onPushButtonDefaultsClicked(bool checked /* = f
 
 void TaskSketcherSolverAdvanced::updateSketchObject()
 {
-    const_cast<Sketcher::Sketch&>(sketchView->getSketchObject()->getSolvedSketch())
-        .setDebugMode((GCS::DebugMode)ui->comboBoxDebugMode->currentIndex());
-    const_cast<Sketcher::Sketch&>(sketchView->getSketchObject()->getSolvedSketch())
-        .setSketchSizeMultiplierRedundant(ui->checkBoxRedundantSketchSizeMultiplier->isChecked());
-    const_cast<Sketcher::Sketch&>(sketchView->getSketchObject()->getSolvedSketch())
-        .setMaxIterRedundant(ui->spinBoxRedundantSolverMaxIterations->value());
-    const_cast<Sketcher::Sketch&>(sketchView->getSketchObject()->getSolvedSketch())
-        .defaultSolverRedundant =
-        static_cast<GCS::Algorithm>(ui->comboBoxRedundantDefaultSolver->currentIndex());
-    const_cast<Sketcher::Sketch&>(sketchView->getSketchObject()->getSolvedSketch())
-        .setQRAlgorithm((GCS::QRAlgorithm)ui->comboBoxQRMethod->currentIndex());
-    const_cast<Sketcher::Sketch&>(sketchView->getSketchObject()->getSolvedSketch())
-        .setQRPivotThreshold(ui->lineEditQRPivotThreshold->text().toDouble());
-    const_cast<Sketcher::Sketch&>(sketchView->getSketchObject()->getSolvedSketch())
-        .setConvergenceRedundant(ui->lineEditRedundantConvergence->text().toDouble());
-    const_cast<Sketcher::Sketch&>(sketchView->getSketchObject()->getSolvedSketch())
-        .setConvergence(ui->lineEditConvergence->text().toDouble());
-    const_cast<Sketcher::Sketch&>(sketchView->getSketchObject()->getSolvedSketch())
-        .setSketchSizeMultiplier(ui->checkBoxSketchSizeMultiplier->isChecked());
-    const_cast<Sketcher::Sketch&>(sketchView->getSketchObject()->getSolvedSketch())
-        .setMaxIter(ui->spinBoxMaxIter->value());
-    const_cast<Sketcher::Sketch&>(sketchView->getSketchObject()->getSolvedSketch()).defaultSolver =
-        static_cast<GCS::Algorithm>(ui->comboBoxDefaultSolver->currentIndex());
-    const_cast<Sketcher::Sketch&>(sketchView->getSketchObject()->getSolvedSketch())
-        .setDogLegGaussStep((GCS::DogLegGaussStep)ui->comboBoxDogLegGaussStep->currentIndex());
+    auto& sketch = const_cast<Sketcher::Sketch&>(sketchView->getSketchObject()->getSolvedSketch());
+
+    sketch.setDebugMode((GCS::DebugMode)ui->comboBoxDebugMode->currentIndex());
+    sketch.setSketchSizeMultiplierRedundant(ui->checkBoxRedundantSketchSizeMultiplier->isChecked());
+    sketch.setMaxIterRedundant(ui->spinBoxRedundantSolverMaxIterations->value());
+    sketch.defaultSolverRedundant = static_cast<GCS::Algorithm>(
+        ui->comboBoxRedundantDefaultSolver->currentIndex()
+    );
+    sketch.setQRAlgorithm((GCS::QRAlgorithm)ui->comboBoxQRMethod->currentIndex());
+    sketch.setAutoQRThreshold(ui->spinBoxAutoQRThreshold->value());
+    sketch.setSketchAutoAlgo(ui->checkBoxAutoChooseAlgo->isChecked());
+    sketch.setQRPivotThreshold(ui->lineEditQRPivotThreshold->text().toDouble());
+    sketch.setConvergenceRedundant(ui->lineEditRedundantConvergence->text().toDouble());
+    sketch.setConvergence(ui->lineEditConvergence->text().toDouble());
+    sketch.setSketchSizeMultiplier(ui->checkBoxSketchSizeMultiplier->isChecked());
+    sketch.setMaxIter(ui->spinBoxMaxIter->value());
+    sketch.defaultSolver = static_cast<GCS::Algorithm>(ui->comboBoxDefaultSolver->currentIndex());
+    sketch.setDogLegGaussStep((GCS::DogLegGaussStep)ui->comboBoxDogLegGaussStep->currentIndex());
 
     updateDefaultMethodParameters();
     updateRedundantMethodParameters();

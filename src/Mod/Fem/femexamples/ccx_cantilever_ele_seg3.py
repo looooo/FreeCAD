@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # ***************************************************************************
 # *   Copyright (c) 2021 Bernd Hahnebach <bernd@bimstatik.org>              *
 # *                                                                         *
@@ -32,14 +34,16 @@ def get_information():
         "meshtype": "edge",
         "meshelement": "Seg3",
         "constraints": ["fixed", "force"],
-        "solvers": ["calculix", "ccxtools"],
+        "solvers": ["ccxtools"],
         "material": "solid",
-        "equations": ["mechanical"]
+        "equations": ["mechanical"],
     }
 
 
 def get_explanation(header=""):
-    return header + """
+    return (
+        header
+        + """
 
 To run the example from Python console use:
 from femexamples.ccx_cantilever_ele_seg3 import setup
@@ -52,6 +56,7 @@ https://forum.freecad.org/viewtopic.php?f=18&t=16044
 CalculiX cantilever modeled with seg3 beam elements
 
 """
+    )
 
 
 def setup(doc=None, solvertype="ccxtools"):

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2008 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <App/FeaturePythonPyImp.h>
 #include <App/GeoFeaturePy.h>
@@ -41,6 +42,8 @@ FemMeshObject::FemMeshObject()
     ADD_PROPERTY_TYPE(FemMesh, (), "FEM Mesh", Prop_NoRecompute, "FEM Mesh object");
     // in the regard of recomputes see:
     // https://forum.freecad.org/viewtopic.php?f=18&t=33329#p279203
+
+    suppressibleExt.initExtension(this);
 }
 
 FemMeshObject::~FemMeshObject() = default;

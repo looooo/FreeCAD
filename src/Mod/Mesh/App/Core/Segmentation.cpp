@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2012 Imetric 3D GmbH                                    *
  *                                                                         *
@@ -20,10 +22,9 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <algorithm>
-#endif
+#include <cmath>
+#include <limits>
 
 #include "Algorithm.h"
 #include "Approximation.h"
@@ -52,7 +53,7 @@ void MeshSurfaceSegment::AddSegment(const std::vector<FacetIndex>& segm)
 MeshSegment MeshSurfaceSegment::FindSegment(FacetIndex index) const
 {
     for (const auto& segment : segments) {
-        if (std::find(segment.begin(), segment.end(), index) != segment.end()) {
+        if (std::ranges::find(segment, index) != segment.end()) {
             return segment;
         }
     }
@@ -62,9 +63,11 @@ MeshSegment MeshSurfaceSegment::FindSegment(FacetIndex index) const
 
 // --------------------------------------------------------
 
-MeshDistancePlanarSegment::MeshDistancePlanarSegment(const MeshKernel& mesh,
-                                                     unsigned long minFacets,
-                                                     float tol)
+MeshDistancePlanarSegment::MeshDistancePlanarSegment(
+    const MeshKernel& mesh,
+    unsigned long minFacets,
+    float tol
+)
     : MeshDistanceSurfaceSegment(mesh, minFacets, tol)
     , fitter(new PlaneFit)
 {}
@@ -93,7 +96,7 @@ bool MeshDistancePlanarSegment::TestFacet(const MeshFacet& face) const
     }
     MeshGeomFacet triangle = kernel.GetFacet(face);
     for (auto pnt : triangle._aclPoints) {
-        if (fabs(fitter->GetDistanceToPlane(pnt)) > tolerance) {
+        if (std::fabs(fitter->GetDistanceToPlane(pnt)) > tolerance) {
             return false;
         }
     }
@@ -156,9 +159,8 @@ bool PlaneSurfaceFit::Done() const
     if (!fitter) {
         return true;
     }
-    else {
-        return fitter->Done();
-    }
+
+    return fitter->Done();
 }
 
 float PlaneSurfaceFit::Fit()
@@ -166,9 +168,8 @@ float PlaneSurfaceFit::Fit()
     if (!fitter) {
         return 0;
     }
-    else {
-        return fitter->Fit();
-    }
+
+    return fitter->Fit();
 }
 
 float PlaneSurfaceFit::GetDistanceToSurface(const Base::Vector3f& pnt) const
@@ -176,9 +177,8 @@ float PlaneSurfaceFit::GetDistanceToSurface(const Base::Vector3f& pnt) const
     if (!fitter) {
         return pnt.DistanceToPlane(basepoint, normal);
     }
-    else {
-        return fitter->GetDistanceToPlane(pnt);
-    }
+
+    return fitter->GetDistanceToPlane(pnt);
 }
 
 std::vector<float> PlaneSurfaceFit::Parameters() const
@@ -203,7 +203,7 @@ std::vector<float> PlaneSurfaceFit::Parameters() const
 // --------------------------------------------------------
 
 CylinderSurfaceFit::CylinderSurfaceFit()
-    : radius(FLOAT_MAX)
+    : radius(std::numeric_limits<float>::max())
     , fitter(new CylinderFit)
 {
     axis.Set(0, 0, 0);
@@ -249,7 +249,7 @@ bool CylinderSurfaceFit::TestTriangle(const MeshGeomFacet& tria) const
     // This is to filter out triangles whose points lie on the cylinder and
     // that whose normals are more or less parallel to the cylinder axis
     float dot = axis.Dot(tria.GetNormal());
-    return fabs(dot) < 0.5f;
+    return std::fabs(dot) < 0.5F;
 }
 
 bool CylinderSurfaceFit::Done() const
@@ -268,7 +268,7 @@ float CylinderSurfaceFit::Fit()
     }
 
     float fit = fitter->Fit();
-    if (fit < FLOAT_MAX) {
+    if (fit < std::numeric_limits<float>::max()) {
         basepoint = fitter->GetBase();
         axis = fitter->GetAxis();
         radius = fitter->GetRadius();
@@ -311,7 +311,7 @@ std::vector<float> CylinderSurfaceFit::Parameters() const
 // --------------------------------------------------------
 
 SphereSurfaceFit::SphereSurfaceFit()
-    : radius(FLOAT_MAX)
+    : radius(std::numeric_limits<float>::max())
     , fitter(new SphereFit)
 {
     center.Set(0, 0, 0);
@@ -369,7 +369,7 @@ float SphereSurfaceFit::Fit()
     }
 
     float fit = fitter->Fit();
-    if (fit < FLOAT_MAX) {
+    if (fit < std::numeric_limits<float>::max()) {
         center = fitter->GetCenter();
         radius = fitter->GetRadius();
     }
@@ -401,10 +401,12 @@ std::vector<float> SphereSurfaceFit::Parameters() const
 
 // --------------------------------------------------------
 
-MeshDistanceGenericSurfaceFitSegment::MeshDistanceGenericSurfaceFitSegment(AbstractSurfaceFit* fit,
-                                                                           const MeshKernel& mesh,
-                                                                           unsigned long minFacets,
-                                                                           float tol)
+MeshDistanceGenericSurfaceFitSegment::MeshDistanceGenericSurfaceFitSegment(
+    AbstractSurfaceFit* fit,
+    const MeshKernel& mesh,
+    unsigned long minFacets,
+    float tol
+)
     : MeshDistanceSurfaceSegment(mesh, minFacets, tol)
     , fitter(fit)
 {}
@@ -424,7 +426,7 @@ bool MeshDistanceGenericSurfaceFitSegment::TestInitialFacet(FacetIndex index) co
 {
     MeshGeomFacet triangle = kernel.GetFacet(index);
     for (auto pnt : triangle._aclPoints) {
-        if (fabs(fitter->GetDistanceToSurface(pnt)) > tolerance) {
+        if (std::fabs(fitter->GetDistanceToSurface(pnt)) > tolerance) {
             return false;
         }
     }
@@ -438,7 +440,7 @@ bool MeshDistanceGenericSurfaceFitSegment::TestFacet(const MeshFacet& face) cons
     }
     MeshGeomFacet triangle = kernel.GetFacet(face);
     for (auto ptIndex : triangle._aclPoints) {
-        if (fabs(fitter->GetDistanceToSurface(ptIndex)) > tolerance) {
+        if (std::fabs(fitter->GetDistanceToSurface(ptIndex)) > tolerance) {
             return false;
         }
     }
@@ -463,10 +465,10 @@ bool MeshCurvaturePlanarSegment::TestFacet(const MeshFacet& rclFacet) const
 {
     for (PointIndex ptIndex : rclFacet._aulPoints) {
         const CurvatureInfo& ci = GetInfo(ptIndex);
-        if (fabs(ci.fMinCurvature) > tolerance) {
+        if (std::fabs(ci.fMinCurvature) > tolerance) {
             return false;
         }
-        if (fabs(ci.fMaxCurvature) > tolerance) {
+        if (std::fabs(ci.fMaxCurvature) > tolerance) {
             return false;
         }
     }
@@ -478,12 +480,12 @@ bool MeshCurvatureCylindricalSegment::TestFacet(const MeshFacet& rclFacet) const
 {
     for (PointIndex ptIndex : rclFacet._aulPoints) {
         const CurvatureInfo& ci = GetInfo(ptIndex);
-        float fMax = std::max<float>(fabs(ci.fMaxCurvature), fabs(ci.fMinCurvature));
-        float fMin = std::min<float>(fabs(ci.fMaxCurvature), fabs(ci.fMinCurvature));
+        float fMax = std::max<float>(std::fabs(ci.fMaxCurvature), std::fabs(ci.fMinCurvature));
+        float fMin = std::min<float>(std::fabs(ci.fMaxCurvature), std::fabs(ci.fMinCurvature));
         if (fMin > toleranceMin) {
             return false;
         }
-        if (fabs(fMax - curvature) > toleranceMax) {
+        if (std::fabs(fMax - curvature) > toleranceMax) {
             return false;
         }
     }
@@ -499,12 +501,12 @@ bool MeshCurvatureSphericalSegment::TestFacet(const MeshFacet& rclFacet) const
             return false;
         }
         float diff {};
-        diff = fabs(ci.fMinCurvature) - curvature;
-        if (fabs(diff) > tolerance) {
+        diff = std::fabs(ci.fMinCurvature) - curvature;
+        if (std::fabs(diff) > tolerance) {
             return false;
         }
-        diff = fabs(ci.fMaxCurvature) - curvature;
-        if (fabs(diff) > tolerance) {
+        diff = std::fabs(ci.fMaxCurvature) - curvature;
+        if (std::fabs(diff) > tolerance) {
             return false;
         }
     }
@@ -516,10 +518,10 @@ bool MeshCurvatureFreeformSegment::TestFacet(const MeshFacet& rclFacet) const
 {
     for (PointIndex ptIndex : rclFacet._aulPoints) {
         const CurvatureInfo& ci = GetInfo(ptIndex);
-        if (fabs(ci.fMinCurvature - c2) > toleranceMin) {
+        if (std::fabs(ci.fMinCurvature - c2) > toleranceMin) {
             return false;
         }
-        if (fabs(ci.fMaxCurvature - c1) > toleranceMax) {
+        if (std::fabs(ci.fMaxCurvature - c1) > toleranceMax) {
             return false;
         }
     }
@@ -534,19 +536,18 @@ MeshSurfaceVisitor::MeshSurfaceVisitor(MeshSurfaceSegment& segm, std::vector<Fac
     , segm(segm)
 {}
 
-bool MeshSurfaceVisitor::AllowVisit(const MeshFacet& face,
-                                    const MeshFacet&,
-                                    FacetIndex,
-                                    unsigned long,
-                                    unsigned short)
+bool MeshSurfaceVisitor::AllowVisit(
+    const MeshFacet& face,
+    const MeshFacet&,
+    FacetIndex,
+    unsigned long,
+    unsigned short
+)
 {
     return segm.TestFacet(face);
 }
 
-bool MeshSurfaceVisitor::Visit(const MeshFacet& face,
-                               const MeshFacet&,
-                               FacetIndex ulFInd,
-                               unsigned long)
+bool MeshSurfaceVisitor::Visit(const MeshFacet& face, const MeshFacet&, FacetIndex ulFInd, unsigned long)
 {
     indices.push_back(ulFInd);
     segm.AddFacet(face);

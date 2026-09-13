@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 FreeCAD Developers                                 *
  *   Authors: Michael Hindley <hindlemp@eskom.co.za>                       *
@@ -24,8 +26,7 @@
  ***************************************************************************/
 
 
-#ifndef FEM_CONSTRAINTHEATFLUX_H
-#define FEM_CONSTRAINTHEATFLUX_H
+#pragma once
 
 #include "FemConstraint.h"
 
@@ -39,14 +40,18 @@ class FemExport ConstraintHeatflux: public Fem::Constraint
 public:
     ConstraintHeatflux();
 
-    App::PropertyFloat AmbientTemp;
-    /*App::PropertyFloat FaceTemp;*/
-    App::PropertyFloat FilmCoef;
-    App::PropertyFloat DFlux;
-    App::PropertyEnumeration ConstraintType;
+    App::PropertyBool EnableAmplitude;
+    App::PropertyStringList AmplitudeValues;
 
-    App::PropertyVectorList Points;
-    App::PropertyVectorList Normals;
+    App::PropertyTemperature AmbientTemp;
+    /*App::PropertyFloat FaceTemp;*/
+    App::PropertyThermalTransferCoefficient FilmCoef;
+    App::PropertyFloat Emissivity;
+    App::PropertyHeatFlux DistributedHeatFlux;
+    App::PropertyEnumeration ConstraintType;
+    App::PropertyBool CavityRadiation;
+    App::PropertyString CavityName;
+    App::PropertyBool ClosedCavity;
 
     /// recalculate the object
     App::DocumentObjectExecReturn* execute() override;
@@ -55,9 +60,17 @@ public:
     const char* getViewProviderName() const override;
 
 protected:
+    void handleChangedPropertyType(
+        Base::XMLReader& reader,
+        const char* typeName,
+        App::Property* prop
+    ) override;
+    void handleChangedPropertyName(
+        Base::XMLReader& reader,
+        const char* typeName,
+        const char* propName
+    ) override;
     void onChanged(const App::Property* prop) override;
 };
 
 }  // namespace Fem
-
-#endif  // FEM_CONSTRAINTHEATFLUX_H

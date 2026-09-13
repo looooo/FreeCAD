@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2022 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -21,20 +23,29 @@
  ***************************************************************************/
 
 
-#ifndef MESH_IO_READER_3MF_H
-#define MESH_IO_READER_3MF_H
+#pragma once
 
 #include <Mod/Mesh/App/Core/MeshKernel.h>
 #include <Mod/Mesh/MeshGlobal.h>
 #include <iosfwd>
 #include <memory>
-#include <unordered_map>
+#include <optional>
 #include <xercesc/util/XercesDefs.hpp>
 
-XERCES_CPP_NAMESPACE_BEGIN
+namespace XERCES_CPP_NAMESPACE
+{
 class DOMDocument;
+class DOMElement;
+class DOMNode;
 class DOMNodeList;
-XERCES_CPP_NAMESPACE_END
+class DOMNamedNodeMap;
+class XercesDOMParser;
+}  // namespace XERCES_CPP_NAMESPACE
+
+namespace zipios
+{
+class FileCollection;
+}
 
 namespace MeshCore
 {
@@ -66,31 +77,64 @@ public:
     std::vector<int> GetMeshIds() const;
     const MeshKernel& GetMesh(int id) const
     {
-        return meshes.at(id).first;
+        return meshes.at(id).kernel;
     }
     const Base::Matrix4D& GetTransform(int id) const
     {
-        return meshes.at(id).second;
+        return meshes.at(id).transform;
+    }
+    const std::string& GetName(int id) const
+    {
+        return meshes.at(id).name;
     }
 
 private:
+    struct Component
+    {
+        int id = -1;
+        int objectId = -1;
+        std::string path;
+        std::string name;
+        Base::Matrix4D transform;
+    };
+    static std::unique_ptr<XERCES_CPP_NAMESPACE::XercesDOMParser> makeDomParser();
+    bool TryLoad();
     bool LoadModel(std::istream&);
-    bool LoadModel(XERCES_CPP_NAMESPACE_QUALIFIER DOMDocument&);
-    bool LoadResources(XERCES_CPP_NAMESPACE_QUALIFIER DOMNodeList*);
-    bool LoadBuild(XERCES_CPP_NAMESPACE_QUALIFIER DOMNodeList*);
-    bool LoadItems(XERCES_CPP_NAMESPACE_QUALIFIER DOMNodeList*);
-    bool LoadObjects(XERCES_CPP_NAMESPACE_QUALIFIER DOMNodeList*);
-    void LoadMesh(XERCES_CPP_NAMESPACE_QUALIFIER DOMNodeList*, int id);
-    void LoadVertices(XERCES_CPP_NAMESPACE_QUALIFIER DOMNodeList*, MeshPointArray&);
-    void LoadTriangles(XERCES_CPP_NAMESPACE_QUALIFIER DOMNodeList*, MeshFacetArray&);
+    bool LoadModel(std::istream&, const Component&);
+    bool TryLoadModel(std::istream&, const Component&);
+    bool LoadModel(XERCES_CPP_NAMESPACE::DOMDocument&, const Component&);
+    bool LoadResourcesAndBuild(XERCES_CPP_NAMESPACE::DOMElement*, const Component&);
+    bool LoadResources(XERCES_CPP_NAMESPACE::DOMNodeList*, const Component&);
+    bool LoadBuild(XERCES_CPP_NAMESPACE::DOMNodeList*);
+    bool LoadBuildObject(XERCES_CPP_NAMESPACE::DOMNodeList*);
+    bool LoadItems(XERCES_CPP_NAMESPACE::DOMNodeList*);
+    void LoadItem(XERCES_CPP_NAMESPACE::DOMNamedNodeMap*);
+    bool LoadBuildItems(XERCES_CPP_NAMESPACE::DOMNodeList*);
+    void LoadBuildItem(XERCES_CPP_NAMESPACE::DOMNamedNodeMap*);
+    bool LoadObject(XERCES_CPP_NAMESPACE::DOMNodeList*, const Component&);
+    void LoadComponents(XERCES_CPP_NAMESPACE::DOMNodeList*, int id);
+    void LoadComponent(XERCES_CPP_NAMESPACE::DOMNodeList*, int id);
+    void LoadComponent(XERCES_CPP_NAMESPACE::DOMNamedNodeMap*, int id);
+    void LoadMesh(XERCES_CPP_NAMESPACE::DOMNodeList*, int id, const Component&, const std::string& name);
+    void LoadVertices(XERCES_CPP_NAMESPACE::DOMNodeList*, MeshPointArray&);
+    void ReadVertices(XERCES_CPP_NAMESPACE::DOMNodeList*, MeshPointArray&);
+    void LoadTriangles(XERCES_CPP_NAMESPACE::DOMNodeList*, MeshFacetArray&);
+    void ReadTriangles(XERCES_CPP_NAMESPACE::DOMNodeList*, MeshFacetArray&);
+    bool LoadMeshFromComponents();
+    std::optional<Base::Matrix4D> ReadTransform(XERCES_CPP_NAMESPACE::DOMNode*);
 
 private:
-    using MeshKernelAndTransform = std::pair<MeshKernel, Base::Matrix4D>;
-    std::unordered_map<int, MeshKernelAndTransform> meshes;
+    std::vector<Component> components;
+    struct MeshKernelAndTransform
+    {
+        MeshKernel kernel;
+        Base::Matrix4D transform;
+        std::string name;
+        int objectId = -1;
+    };
+    std::vector<MeshKernelAndTransform> meshes;
+    std::unique_ptr<zipios::FileCollection> file;
     std::unique_ptr<std::istream> zip;
 };
 
 }  // namespace MeshCore
-
-
-#endif  // MESH_IO_READER_3MF_H

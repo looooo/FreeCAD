@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2004 Jürgen Riegel <juergen.riegel@web.de>              *
  *   Copyright (c) 2019 Wanderer Fan <wandererfan@gmail.com>               *
@@ -21,21 +23,22 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <App/DocumentObject.h>
 #include <Gui/Control.h>
-#include <Gui/Selection.h>
+#include <Gui/Selection/Selection.h>
 
 #include <Mod/TechDraw/App/DrawRichAnno.h>
-#include <Mod/TechDraw/App/LineGroup.h>
+#include <Mod/TechDraw/App/DrawLeaderLine.h>
+#include <Mod/TechDraw/App/DrawViewBalloon.h>
+#include <Mod/TechDraw/App/DrawViewDimension.h>
+    #include <Mod/TechDraw/App/LineGroup.h>
 
 #include "PreferencesGui.h"
 #include "ZVALUE.h"
 #include "QGIView.h"
 #include "TaskRichAnno.h"
 #include "QGSPage.h"
-#include "ViewProviderPage.h"
 #include "ViewProviderRichAnno.h"
 
 using namespace TechDrawGui;
@@ -56,7 +59,7 @@ const char* ViewProviderRichAnno::LineStyleEnums[] = { "NoLine",
 
 ViewProviderRichAnno::ViewProviderRichAnno()
 {
-    sPixmap = "actions/TechDraw_RichTextAnnotation";
+    sPixmap = "actions/TechDraw_Annotation";
 
     static const char *group = "Frame Format";
 
@@ -68,18 +71,30 @@ ViewProviderRichAnno::ViewProviderRichAnno()
     StackOrder.setValue(ZVALUE::DIMENSION);
 }
 
-ViewProviderRichAnno::~ViewProviderRichAnno()
+
+bool ViewProviderRichAnno::setEdit(int ModNum)
 {
+    if (ModNum != Gui::ViewProvider::Default) {
+        return Gui::ViewProviderDocumentObject::setEdit(ModNum);
+    }
+    if (Gui::Control().activeDialog()) {
+        return false;  // TaskPanel already open!
+    }
+
+    // clear the selection (convenience)
+    Gui::Selection().clearSelection();
+    Gui::Control().showDialog(new TaskDlgRichAnno(this));
+    return true;
 }
 
 bool ViewProviderRichAnno::doubleClicked()
 {
-//    Base::Console().Message("VPRA::doubleClicked()\n");
+//    Base::Console().message("VPRA::doubleClicked()\n");
     setEdit(ViewProvider::Default);
     return true;
 }
 
-void ViewProviderRichAnno::updateData(const App::Property* p)
+void ViewProviderRichAnno::updateData(const App::Property* prop)
 {
     // only if there is a frame we can enable the frame line parameters
     if (getViewObject()) {
@@ -95,29 +110,21 @@ void ViewProviderRichAnno::updateData(const App::Property* p)
         }
     }
 
-    if (p == &(getViewObject()->AnnoParent)) {
-//        Base::Console().Message("VPRA::updateData(AnnoParent) - vpp: %X\n", getViewProviderPage());
-        if (getViewProviderPage() &&
-            getViewProviderPage()->getQGSPage()) {
-            getViewProviderPage()->getQGSPage()->setRichAnnoGroups();
-        }
-    }
-
-    ViewProviderDrawingView::updateData(p);
+    ViewProviderDrawingView::updateData(prop);
 }
 
-void ViewProviderRichAnno::onChanged(const App::Property* p)
+void ViewProviderRichAnno::onChanged(const App::Property* prop)
 {
-    if ((p == &LineColor) ||
-        (p == &LineWidth) ||
-        (p == &LineStyle)) {
-        QGIView* qgiv = getQView();
+    if ((prop == &LineColor) ||
+        (prop == &LineWidth) ||
+        (prop == &LineStyle)) {
+        auto* qgiv = getQView();
         if (qgiv) {
             qgiv->updateView(true);
         }
     }
 
-    ViewProviderDrawingView::onChanged(p);
+    ViewProviderDrawingView::onChanged(prop);
 }
 
 TechDraw::DrawRichAnno* ViewProviderRichAnno::getViewObject() const
@@ -130,7 +137,7 @@ TechDraw::DrawRichAnno* ViewProviderRichAnno::getFeature() const
     return dynamic_cast<TechDraw::DrawRichAnno*>(pcObject);
 }
 
-App::Color ViewProviderRichAnno::getDefLineColor()
+Base::Color ViewProviderRichAnno::getDefLineColor()
 {
     return PreferencesGui::leaderColor();
 }
@@ -190,4 +197,41 @@ bool ViewProviderRichAnno::canDelete(App::DocumentObject *obj) const
     // view will get the page as new parent if the view is deleted
     Q_UNUSED(obj)
     return true;
+}
+
+
+std::vector<App::DocumentObject*> ViewProviderRichAnno::claimChildren() const
+{
+    // What can reasonably have a RichAnno as a parent? A leader? a bit unconventional, but not forbidden.
+    // Another RichAnno? Maybe? Balloons? Dimensions? This is a bit of a corner case. Typically, a
+    // RichAnno would belong to something rather than owning something.
+
+    std::vector<App::DocumentObject*> temp;
+    const std::vector<App::DocumentObject*>& candidates = getViewObject()->getInList();
+    for (auto& obj : candidates) {
+        if (obj->isDerivedFrom<TechDraw::DrawViewBalloon>() ||
+            obj->isDerivedFrom<TechDraw::DrawLeaderLine>()  ||
+            obj->isDerivedFrom<TechDraw::DrawRichAnno>() ||
+            obj->isDerivedFrom<TechDraw::DrawViewDimension>() ) {
+            temp.push_back(obj);
+       }
+   }
+   return temp;
+}
+
+bool ViewProviderRichAnno::onDelete(const std::vector<std::string>& subs)
+{
+    Q_UNUSED(subs);
+
+    // Check if there is an active dialog
+    if (Gui::TaskView::TaskDialog* dlg = Gui::Control().activeDialog()) {
+        // Check if the active dialog is our RichAnno dialog
+        if (auto* richAnnoDlg = dynamic_cast<TaskDlgRichAnno*>(dlg)) {
+            // Check if the dialog is for THIS specific view provider
+            if (richAnnoDlg->isFor(this)) {
+                Gui::Control().closeDialog();  // Close the dialog gracefully
+            }
+        }
+    }
+    return true;  // Allow deletion to proceed
 }

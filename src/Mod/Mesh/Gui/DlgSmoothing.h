@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2010 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -21,15 +23,13 @@
  ***************************************************************************/
 
 
-#ifndef MESHGUI_DLGSMOOTHING_H
-#define MESHGUI_DLGSMOOTHING_H
+#pragma once
 
 #include <QDialog>
 #include <Gui/TaskView/TaskDialog.h>
 #include <Gui/TaskView/TaskView.h>
-#ifndef MESH_GLOBAL_H
+
 #include <Mod/Mesh/MeshGlobal.h>
-#endif
 
 class QButtonGroup;
 
@@ -69,6 +69,8 @@ Q_SIGNALS:
 private:
     Ui_DlgSmoothing* ui;
     QButtonGroup* bg;
+
+    Q_DISABLE_COPY_MOVE(DlgSmoothing)
 };
 
 /**
@@ -105,6 +107,8 @@ public:
 
 private:
     DlgSmoothing* widget;
+
+    Q_DISABLE_COPY_MOVE(SmoothingDialog)
 };
 
 /**
@@ -135,5 +139,3 @@ private:
 };
 
 }  // namespace MeshGui
-
-#endif  // MESHGUI_DLGSMOOTHING_H

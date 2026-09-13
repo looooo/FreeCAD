@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2019 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TECHDRAWGUI_TASKCENTERLINE_H
-#define TECHDRAWGUI_TASKCENTERLINE_H
+#pragma once
 
 #include <Gui/TaskView/TaskDialog.h>
 #include <Gui/TaskView/TaskView.h>
@@ -87,9 +88,9 @@ protected:
     QColor getCenterColor();
     double getExtendBy();
 
-    int checkPathologicalEdges(int inMode);
-    int checkPathologicalVertices(int inMode);
-    void setUiOrientation(int orientation);
+    TechDraw::CenterLine::Mode checkPathologicalEdges(TechDraw::CenterLine::Mode inMode);
+    TechDraw::CenterLine::Mode checkPathologicalVertices(TechDraw::CenterLine::Mode inMode);
+    void setUiOrientation(TechDraw::CenterLine::Mode orientation);
 
 private:
     std::unique_ptr<Ui_TaskCenterLine> ui;
@@ -106,8 +107,8 @@ private:
     int m_geomIndex;
     TechDraw::CenterLine* m_cl;
     TechDraw::CenterLine orig_cl;
-    int m_type;
-    int m_mode;
+    TechDraw::CenterLine::Type m_type;
+    TechDraw::CenterLine::Mode m_mode;
     bool m_editMode;
 
 private Q_SLOTS:
@@ -163,5 +164,3 @@ private:
 };
 
 } //namespace TechDrawGui
-
-#endif // #ifndef TECHDRAWGUI_TASKCENTERLINE_H

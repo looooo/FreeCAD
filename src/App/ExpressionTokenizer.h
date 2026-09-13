@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 Eivind Kvedalen <eivind@kvedalen.name>             *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef EXPRESSIONTOKENIZER_H
-#define EXPRESSIONTOKENIZER_H
+#pragma once
 
 #include <QString>
 #include <FCGlobal.h>
@@ -34,12 +35,14 @@ class AppExport ExpressionTokenizer
 public:
     QString perform(const QString& text, int pos);
 
-    void getPrefixRange(int &start, int &end) const {
+    void getPrefixRange(int& start, int& end) const
+    {
         start = prefixStart;
         end = prefixEnd;
     }
 
-    void updatePrefixEnd(int end) {
+    void updatePrefixEnd(int end)
+    {
         prefixEnd = end;
     }
 
@@ -48,6 +51,4 @@ private:
     int prefixEnd = 0;
 };
 
-}
-
-#endif //EXPRESSIONTOKENIZER_H
+}  // namespace App

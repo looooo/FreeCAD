@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,12 +22,12 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_QGICAPTION_H
-#define DRAWINGGUI_QGICAPTION_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
 #include "QGCustomText.h"
+#include "QGIUserTypes.h"
 
 namespace TechDrawGui
 {
@@ -36,11 +38,9 @@ public:
     explicit QGICaption();
     ~QGICaption() override {}
 
-    enum {Type = QGraphicsItem::UserType + 180};
+    enum {Type = UserType::QGICaption};
     int type() const override { return Type;}
 
 };
 
 }
-
-#endif // DRAWINGGUI_QGICAPTION_H

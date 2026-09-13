@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2012 Yorik van Havre <yorik@uncreated.net>              *
  *   Copyright (c) 2015 WandererFan <wandererfan@gmail.com>                *
@@ -21,8 +23,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DrawViewClip_h_
-#define DrawViewClip_h_
+#pragma once
 
 #include <App/DocumentObject.h>
 #include <App/FeaturePython.h>
@@ -31,6 +32,7 @@
 
 #include "DrawView.h"
 
+// ?? this (and DrawViewCollection) could use App::GroupExtension instead??
 
 namespace TechDraw
 {
@@ -49,9 +51,11 @@ public:
     App::PropertyBool ShowFrame;
     App::PropertyLinkList Views;
 
-    void addView(DrawView *view);
-    void removeView(DrawView *view);
+    void addView(App::DocumentObject* docObj);
+    void removeView(App::DocumentObject* docObj);
     short mustExecute() const override;
+
+    std::vector<App::DocumentObject*> getViews() const;
 
     /** @name methods override Feature */
     //@{
@@ -78,6 +82,3 @@ protected:
 using DrawViewClipPython = App::FeaturePythonT<DrawViewClip>;
 
 } //namespace TechDraw
-
-
-#endif

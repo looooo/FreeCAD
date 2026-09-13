@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
 
 add_subdirectory(App)
 if(BUILD_GUI)
@@ -8,6 +9,7 @@ set(Spreadsheet_Scripts
     Init.py
     TestSpreadsheet.py
     importXLSX.py
+    test_importXLSX.py
 )
 
 if(BUILD_GUI)

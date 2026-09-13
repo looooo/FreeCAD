@@ -22,8 +22,7 @@
  **************************************************************************/
 
 
-#ifndef GUI_WORKBENCHMANIPULATOR_H
-#define GUI_WORKBENCHMANIPULATOR_H
+#pragma once
 
 #include <memory>
 #include <set>
@@ -31,14 +30,15 @@
 #include <string>
 #include <FCGlobal.h>
 
-namespace Gui {
+namespace Gui
+{
 
 class DockWindowItems;
 class MenuItem;
 class ToolBarItem;
 
 /**
- * The WorkbenchManipulator is a class that allows to modify the workbench
+ * The WorkbenchManipulator is a class that allows one to modify the workbench
  * by adding or removing commands.
  * WorkbenchManipulator provides methods to manipulate the MenuItem, ToolBarItem or
  * DockWindowItems structure before setting up the workbench.
@@ -99,8 +99,10 @@ protected:
      * Method to manipulate the contextmenu structure of a workbench.
      * The default implementation doesn't change anything.
      */
-    virtual void modifyContextMenu([[maybe_unused]] const char* recipient,
-                                   [[maybe_unused]] MenuItem* menuBar);
+    virtual void modifyContextMenu(
+        [[maybe_unused]] const char* recipient,
+        [[maybe_unused]] MenuItem* menuBar
+    );
     /*!
      * \brief modifyToolBars
      * Method to manipulate the toolbar structure of a workbench
@@ -117,17 +119,14 @@ protected:
 public:
     WorkbenchManipulator(const WorkbenchManipulator&) = delete;
     WorkbenchManipulator(WorkbenchManipulator&&) = delete;
-    WorkbenchManipulator& operator = (const WorkbenchManipulator&) = delete;
-    WorkbenchManipulator& operator = (WorkbenchManipulator&&) = delete;
+    WorkbenchManipulator& operator=(const WorkbenchManipulator&) = delete;
+    WorkbenchManipulator& operator=(WorkbenchManipulator&&) = delete;
 
 protected:
     static std::set<WorkbenchManipulator::Ptr> getManipulators();
 
 private:
-    static std::set<WorkbenchManipulator::Ptr> manipulators; // NOLINT
+    static std::set<WorkbenchManipulator::Ptr> manipulators;  // NOLINT
 };
 
-} // namespace Gui
-
-
-#endif // GUI_WORKBENCHMANIPULATOR_H
+}  // namespace Gui

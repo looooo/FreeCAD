@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2006 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,8 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <Inventor/nodes/SoBaseColor.h>
 #include <Inventor/nodes/SoCoordinate3.h>
 #include <Inventor/nodes/SoDrawStyle.h>
@@ -30,7 +30,7 @@
 #include <Inventor/nodes/SoMarkerSet.h>
 #include <Inventor/nodes/SoSeparator.h>
 #include <Inventor/nodes/SoShapeHints.h>
-#endif
+
 
 #include <App/Application.h>
 #include <Base/Parameter.h>
@@ -45,7 +45,7 @@
 using namespace Mesh;
 using namespace MeshGui;
 
-
+// NOLINTBEGIN
 PROPERTY_SOURCE_ABSTRACT(MeshGui::ViewProviderMeshDefects, Gui::ViewProviderDocumentObject)
 PROPERTY_SOURCE(MeshGui::ViewProviderMeshOrientation, MeshGui::ViewProviderMeshDefects)
 PROPERTY_SOURCE(MeshGui::ViewProviderMeshNonManifolds, MeshGui::ViewProviderMeshDefects)
@@ -56,17 +56,19 @@ PROPERTY_SOURCE(MeshGui::ViewProviderMeshDegenerations, MeshGui::ViewProviderMes
 PROPERTY_SOURCE(MeshGui::ViewProviderMeshIndices, MeshGui::ViewProviderMeshDefects)
 PROPERTY_SOURCE(MeshGui::ViewProviderMeshSelfIntersections, MeshGui::ViewProviderMeshDefects)
 PROPERTY_SOURCE(MeshGui::ViewProviderMeshFolds, MeshGui::ViewProviderMeshDefects)
+// NOLINTEND
 
+// NOLINTBEGIN(readability-magic-numbers,cppcoreguidelines-pro-bounds*)
 ViewProviderMeshDefects::ViewProviderMeshDefects()
 {
-    ADD_PROPERTY(LineWidth, (2.0f));
+    ADD_PROPERTY(LineWidth, (2.0F));
 
     pcCoords = new SoCoordinate3();
     pcCoords->ref();
     pcDrawStyle = new SoDrawStyle();
     pcDrawStyle->ref();
     pcDrawStyle->style = SoDrawStyle::LINES;
-    pcDrawStyle->lineWidth = LineWidth.getValue();
+    pcDrawStyle->lineWidth = float(LineWidth.getValue());
 }
 
 ViewProviderMeshDefects::~ViewProviderMeshDefects()
@@ -78,7 +80,7 @@ ViewProviderMeshDefects::~ViewProviderMeshDefects()
 void ViewProviderMeshDefects::onChanged(const App::Property* prop)
 {
     if (prop == &LineWidth) {
-        pcDrawStyle->lineWidth = LineWidth.getValue();
+        pcDrawStyle->lineWidth = float(LineWidth.getValue());
     }
     // Visibility changes must be handled here because in the base class it changes the attribute of
     // the feature and thus affects the visibility of the mesh view provider which is undesired
@@ -89,6 +91,25 @@ void ViewProviderMeshDefects::onChanged(const App::Property* prop)
     else {
         ViewProviderDocumentObject::onChanged(prop);
     }
+}
+
+SoMarkerSet* ViewProviderMeshDefects::makeMarkerSet() const
+{
+    auto marker = new SoMarkerSet;
+    marker->markerIndex = Gui::Inventor::MarkerBitmaps::getMarkerIndex(
+        "PLUS",
+        int(App::GetApplication()
+                .GetParameterGroupByPath("User parameter:BaseApp/Preferences/View")
+                ->GetInt("MarkerSize", 7))
+    );
+    return marker;
+}
+
+const MeshCore::MeshKernel& ViewProviderMeshDefects::getMeshKernel() const
+{
+    auto mf = dynamic_cast<Mesh::Feature*>(pcObject);
+    const Mesh::MeshObject& mesh = mf->Mesh.getValue();
+    return mesh.getKernel();
 }
 
 // ----------------------------------------------------------------------
@@ -106,38 +127,33 @@ ViewProviderMeshOrientation::~ViewProviderMeshOrientation()
     pcFaces->unref();
 }
 
-void ViewProviderMeshOrientation::attach(App::DocumentObject* pcFeat)
+void ViewProviderMeshOrientation::attach(App::DocumentObject* obj)
 {
-    ViewProviderDocumentObject::attach(pcFeat);
+    ViewProviderDocumentObject::attach(obj);  // NOLINT
 
-    SoGroup* pcFaceRoot = new SoGroup();
+    auto pcFaceRoot = new SoGroup();
 
-    SoDrawStyle* pcFlatStyle = new SoDrawStyle();
+    auto pcFlatStyle = new SoDrawStyle();
     pcFlatStyle->style = SoDrawStyle::FILLED;
     pcFaceRoot->addChild(pcFlatStyle);
 
-    SoShapeHints* flathints = new SoShapeHints;
+    auto flathints = new SoShapeHints;
     flathints->vertexOrdering = SoShapeHints::COUNTERCLOCKWISE;
     flathints->shapeType = SoShapeHints::UNKNOWN_SHAPE_TYPE;
     pcFaceRoot->addChild(flathints);
 
     // Draw faces
-    SoSeparator* linesep = new SoSeparator;
-    SoBaseColor* basecol = new SoBaseColor;
-    basecol->rgb.setValue(1.0f, 0.5f, 0.0f);
+    auto linesep = new SoSeparator;
+    auto basecol = new SoBaseColor;
+    basecol->rgb.setValue(1.0F, 0.5F, 0.0F);
     linesep->addChild(basecol);
     linesep->addChild(pcCoords);
     linesep->addChild(pcFaces);
 
     // Draw markers
-    SoBaseColor* markcol = new SoBaseColor;
-    markcol->rgb.setValue(1.0f, 1.0f, 0.0f);
-    SoMarkerSet* marker = new SoMarkerSet;
-    marker->markerIndex = Gui::Inventor::MarkerBitmaps::getMarkerIndex(
-        "PLUS",
-        App::GetApplication()
-            .GetParameterGroupByPath("User parameter:BaseApp/Preferences/View")
-            ->GetInt("MarkerSize", 7));
+    auto markcol = new SoBaseColor;
+    markcol->rgb.setValue(1.0F, 1.0F, 0.0F);
+    SoMarkerSet* marker = makeMarkerSet();
     linesep->addChild(markcol);
     linesep->addChild(marker);
 
@@ -148,11 +164,10 @@ void ViewProviderMeshOrientation::attach(App::DocumentObject* pcFeat)
 
 void ViewProviderMeshOrientation::showDefects(const std::vector<Mesh::ElementIndex>& inds)
 {
-    Mesh::Feature* f = static_cast<Mesh::Feature*>(pcObject);
-    const MeshCore::MeshKernel& rMesh = f->Mesh.getValue().getKernel();
+    const MeshCore::MeshKernel& rMesh = getMeshKernel();
 
     pcCoords->point.deleteValues(0);
-    pcCoords->point.setNum(3 * inds.size());
+    pcCoords->point.setNum(int(3 * inds.size()));
     MeshCore::MeshFacetIterator cF(rMesh);
     int i = 0;
     int j = 0;
@@ -160,7 +175,7 @@ void ViewProviderMeshOrientation::showDefects(const std::vector<Mesh::ElementInd
         cF.Set(ind);
         for (auto cP : cF->_aclPoints) {
             // move a bit in opposite normal direction to overlay the original faces
-            cP -= 0.001f * cF->GetNormal();
+            cP -= 0.001F * cF->GetNormal();
             pcCoords->point.set1Value(i++, cP.x, cP.y, cP.z);
         }
         pcFaces->numVertices.set1Value(j++, 3);
@@ -184,32 +199,27 @@ ViewProviderMeshNonManifolds::~ViewProviderMeshNonManifolds()
     pcLines->unref();
 }
 
-void ViewProviderMeshNonManifolds::attach(App::DocumentObject* pcFeat)
+void ViewProviderMeshNonManifolds::attach(App::DocumentObject* obj)
 {
-    ViewProviderDocumentObject::attach(pcFeat);
+    ViewProviderDocumentObject::attach(obj);  // NOLINT
 
-    SoGroup* pcLineRoot = new SoGroup();
+    auto pcLineRoot = new SoGroup();
     pcDrawStyle->lineWidth = 3;
     pcLineRoot->addChild(pcDrawStyle);
 
     // Draw lines
-    SoSeparator* linesep = new SoSeparator;
-    SoBaseColor* basecol = new SoBaseColor;
-    basecol->rgb.setValue(1.0f, 0.0f, 0.0f);
+    auto linesep = new SoSeparator;
+    auto basecol = new SoBaseColor;
+    basecol->rgb.setValue(1.0F, 0.0F, 0.0F);
     linesep->addChild(basecol);
     linesep->addChild(pcCoords);
     linesep->addChild(pcLines);
     pcLineRoot->addChild(linesep);
 
     // Draw markers
-    SoBaseColor* markcol = new SoBaseColor;
-    markcol->rgb.setValue(1.0f, 1.0f, 0.0f);
-    SoMarkerSet* marker = new SoMarkerSet;
-    marker->markerIndex = Gui::Inventor::MarkerBitmaps::getMarkerIndex(
-        "PLUS",
-        App::GetApplication()
-            .GetParameterGroupByPath("User parameter:BaseApp/Preferences/View")
-            ->GetInt("MarkerSize", 7));
+    auto markcol = new SoBaseColor;
+    markcol->rgb.setValue(1.0F, 1.0F, 0.0F);
+    SoMarkerSet* marker = makeMarkerSet();
     linesep->addChild(markcol);
     linesep->addChild(marker);
 
@@ -221,16 +231,14 @@ void ViewProviderMeshNonManifolds::showDefects(const std::vector<Mesh::ElementIn
     if ((inds.size() % 2) != 0) {
         return;
     }
-    Mesh::Feature* f = static_cast<Mesh::Feature*>(pcObject);
-    const MeshCore::MeshKernel& rMesh = f->Mesh.getValue().getKernel();
+    const MeshCore::MeshKernel& rMesh = getMeshKernel();
 
     pcCoords->point.deleteValues(0);
-    pcCoords->point.setNum(inds.size());
+    pcCoords->point.setNum(int(inds.size()));
     MeshCore::MeshPointIterator cP(rMesh);
     int i = 0;
     int j = 0;
-    for (std::vector<Mesh::ElementIndex>::const_iterator it = inds.begin(); it != inds.end();
-         ++it) {
+    for (auto it = inds.begin(); it != inds.end(); ++it) {
         cP.Set(*it);
         pcCoords->point.set1Value(i++, cP->x, cP->y, cP->z);
         ++it;  // go to end point
@@ -257,32 +265,27 @@ ViewProviderMeshNonManifoldPoints::~ViewProviderMeshNonManifoldPoints()
     pcPoints->unref();
 }
 
-void ViewProviderMeshNonManifoldPoints::attach(App::DocumentObject* pcFeat)
+void ViewProviderMeshNonManifoldPoints::attach(App::DocumentObject* obj)
 {
-    ViewProviderDocumentObject::attach(pcFeat);
+    ViewProviderDocumentObject::attach(obj);  // NOLINT
 
-    SoGroup* pcPointRoot = new SoGroup();
+    auto pcPointRoot = new SoGroup();
     pcDrawStyle->pointSize = 3;
     pcPointRoot->addChild(pcDrawStyle);
 
     // Draw points
-    SoSeparator* pointsep = new SoSeparator;
-    SoBaseColor* basecol = new SoBaseColor;
-    basecol->rgb.setValue(1.0f, 0.5f, 0.0f);
+    auto pointsep = new SoSeparator;
+    auto basecol = new SoBaseColor;
+    basecol->rgb.setValue(1.0F, 0.5F, 0.0F);
     pointsep->addChild(basecol);
     pointsep->addChild(pcCoords);
     pointsep->addChild(pcPoints);
     pcPointRoot->addChild(pointsep);
 
     // Draw markers
-    SoBaseColor* markcol = new SoBaseColor;
-    markcol->rgb.setValue(1.0f, 1.0f, 0.0f);
-    SoMarkerSet* marker = new SoMarkerSet;
-    marker->markerIndex = Gui::Inventor::MarkerBitmaps::getMarkerIndex(
-        "PLUS",
-        App::GetApplication()
-            .GetParameterGroupByPath("User parameter:BaseApp/Preferences/View")
-            ->GetInt("MarkerSize", 7));
+    auto markcol = new SoBaseColor;
+    markcol->rgb.setValue(1.0F, 1.0F, 0.0F);
+    SoMarkerSet* marker = makeMarkerSet();
     pointsep->addChild(markcol);
     pointsep->addChild(marker);
 
@@ -291,10 +294,9 @@ void ViewProviderMeshNonManifoldPoints::attach(App::DocumentObject* pcFeat)
 
 void ViewProviderMeshNonManifoldPoints::showDefects(const std::vector<Mesh::ElementIndex>& inds)
 {
-    Mesh::Feature* f = static_cast<Mesh::Feature*>(pcObject);
-    const MeshCore::MeshKernel& rMesh = f->Mesh.getValue().getKernel();
+    const MeshCore::MeshKernel& rMesh = getMeshKernel();
     pcCoords->point.deleteValues(0);
-    pcCoords->point.setNum(inds.size());
+    pcCoords->point.setNum(int(inds.size()));
     MeshCore::MeshPointIterator cP(rMesh);
     int i = 0;
     for (Mesh::ElementIndex ind : inds) {
@@ -320,39 +322,34 @@ ViewProviderMeshDuplicatedFaces::~ViewProviderMeshDuplicatedFaces()
     pcFaces->unref();
 }
 
-void ViewProviderMeshDuplicatedFaces::attach(App::DocumentObject* pcFeat)
+void ViewProviderMeshDuplicatedFaces::attach(App::DocumentObject* obj)
 {
-    ViewProviderDocumentObject::attach(pcFeat);
+    ViewProviderDocumentObject::attach(obj);  // NOLINT
 
-    SoGroup* pcFaceRoot = new SoGroup();
+    auto pcFaceRoot = new SoGroup();
 
-    SoDrawStyle* pcFlatStyle = new SoDrawStyle();
+    auto pcFlatStyle = new SoDrawStyle();
     pcFlatStyle->style = SoDrawStyle::FILLED;
     pcFaceRoot->addChild(pcFlatStyle);
 
-    SoShapeHints* flathints = new SoShapeHints;
+    auto flathints = new SoShapeHints;
     flathints->vertexOrdering = SoShapeHints::COUNTERCLOCKWISE;
     flathints->shapeType = SoShapeHints::UNKNOWN_SHAPE_TYPE;
     pcFaceRoot->addChild(flathints);
 
     // Draw lines
-    SoSeparator* linesep = new SoSeparator;
-    SoBaseColor* basecol = new SoBaseColor;
-    basecol->rgb.setValue(1.0f, 0.0f, 0.0f);
+    auto linesep = new SoSeparator;
+    auto basecol = new SoBaseColor;
+    basecol->rgb.setValue(1.0F, 0.0F, 0.0F);
     linesep->addChild(basecol);
     linesep->addChild(pcCoords);
     linesep->addChild(pcFaces);
     pcFaceRoot->addChild(linesep);
 
     // Draw markers
-    SoBaseColor* markcol = new SoBaseColor;
-    markcol->rgb.setValue(1.0f, 1.0f, 0.0f);
-    SoMarkerSet* marker = new SoMarkerSet;
-    marker->markerIndex = Gui::Inventor::MarkerBitmaps::getMarkerIndex(
-        "PLUS",
-        App::GetApplication()
-            .GetParameterGroupByPath("User parameter:BaseApp/Preferences/View")
-            ->GetInt("MarkerSize", 7));
+    auto markcol = new SoBaseColor;
+    markcol->rgb.setValue(1.0F, 1.0F, 0.0F);
+    SoMarkerSet* marker = makeMarkerSet();
     linesep->addChild(markcol);
     linesep->addChild(marker);
 
@@ -361,11 +358,10 @@ void ViewProviderMeshDuplicatedFaces::attach(App::DocumentObject* pcFeat)
 
 void ViewProviderMeshDuplicatedFaces::showDefects(const std::vector<Mesh::ElementIndex>& inds)
 {
-    Mesh::Feature* f = static_cast<Mesh::Feature*>(pcObject);
-    const MeshCore::MeshKernel& rMesh = f->Mesh.getValue().getKernel();
+    const MeshCore::MeshKernel& rMesh = getMeshKernel();
 
     pcCoords->point.deleteValues(0);
-    pcCoords->point.setNum(3 * inds.size());
+    pcCoords->point.setNum(int(3 * inds.size()));
     MeshCore::MeshFacetIterator cF(rMesh);
     int i = 0;
     int j = 0;
@@ -373,7 +369,7 @@ void ViewProviderMeshDuplicatedFaces::showDefects(const std::vector<Mesh::Elemen
         cF.Set(ind);
         for (auto cP : cF->_aclPoints) {
             // move a bit in normal direction to overlay the original faces
-            cP += 0.001f * cF->GetNormal();
+            cP += 0.001F * cF->GetNormal();
             pcCoords->point.set1Value(i++, cP.x, cP.y, cP.z);
         }
         pcFaces->numVertices.set1Value(j++, 3);
@@ -397,32 +393,27 @@ ViewProviderMeshDuplicatedPoints::~ViewProviderMeshDuplicatedPoints()
     pcPoints->unref();
 }
 
-void ViewProviderMeshDuplicatedPoints::attach(App::DocumentObject* pcFeat)
+void ViewProviderMeshDuplicatedPoints::attach(App::DocumentObject* obj)
 {
-    ViewProviderDocumentObject::attach(pcFeat);
+    ViewProviderDocumentObject::attach(obj);  // NOLINT
 
-    SoGroup* pcPointRoot = new SoGroup();
+    auto pcPointRoot = new SoGroup();
     pcDrawStyle->pointSize = 3;
     pcPointRoot->addChild(pcDrawStyle);
 
     // Draw points
-    SoSeparator* pointsep = new SoSeparator;
-    SoBaseColor* basecol = new SoBaseColor;
-    basecol->rgb.setValue(1.0f, 0.5f, 0.0f);
+    auto pointsep = new SoSeparator;
+    auto basecol = new SoBaseColor;
+    basecol->rgb.setValue(1.0F, 0.5F, 0.0F);
     pointsep->addChild(basecol);
     pointsep->addChild(pcCoords);
     pointsep->addChild(pcPoints);
     pcPointRoot->addChild(pointsep);
 
     // Draw markers
-    SoBaseColor* markcol = new SoBaseColor;
-    markcol->rgb.setValue(1.0f, 1.0f, 0.0f);
-    SoMarkerSet* marker = new SoMarkerSet;
-    marker->markerIndex = Gui::Inventor::MarkerBitmaps::getMarkerIndex(
-        "PLUS",
-        App::GetApplication()
-            .GetParameterGroupByPath("User parameter:BaseApp/Preferences/View")
-            ->GetInt("MarkerSize", 7));
+    auto markcol = new SoBaseColor;
+    markcol->rgb.setValue(1.0F, 1.0F, 0.0F);
+    SoMarkerSet* marker = makeMarkerSet();
     pointsep->addChild(markcol);
     pointsep->addChild(marker);
 
@@ -431,10 +422,9 @@ void ViewProviderMeshDuplicatedPoints::attach(App::DocumentObject* pcFeat)
 
 void ViewProviderMeshDuplicatedPoints::showDefects(const std::vector<Mesh::ElementIndex>& inds)
 {
-    Mesh::Feature* f = static_cast<Mesh::Feature*>(pcObject);
-    const MeshCore::MeshKernel& rMesh = f->Mesh.getValue().getKernel();
+    const MeshCore::MeshKernel& rMesh = getMeshKernel();
     pcCoords->point.deleteValues(0);
-    pcCoords->point.setNum(inds.size());
+    pcCoords->point.setNum(int(inds.size()));
     MeshCore::MeshPointIterator cP(rMesh);
     int i = 0;
     for (Mesh::ElementIndex ind : inds) {
@@ -460,32 +450,27 @@ ViewProviderMeshDegenerations::~ViewProviderMeshDegenerations()
     pcLines->unref();
 }
 
-void ViewProviderMeshDegenerations::attach(App::DocumentObject* pcFeat)
+void ViewProviderMeshDegenerations::attach(App::DocumentObject* obj)
 {
-    ViewProviderDocumentObject::attach(pcFeat);
+    ViewProviderDocumentObject::attach(obj);  // NOLINT
 
-    SoGroup* pcLineRoot = new SoGroup();
+    auto pcLineRoot = new SoGroup();
     pcDrawStyle->lineWidth = 3;
     pcLineRoot->addChild(pcDrawStyle);
 
     // Draw lines
-    SoSeparator* linesep = new SoSeparator;
-    SoBaseColor* basecol = new SoBaseColor;
-    basecol->rgb.setValue(1.0f, 0.5f, 0.0f);
+    auto linesep = new SoSeparator;
+    auto basecol = new SoBaseColor;
+    basecol->rgb.setValue(1.0F, 0.5F, 0.0F);
     linesep->addChild(basecol);
     linesep->addChild(pcCoords);
     linesep->addChild(pcLines);
     pcLineRoot->addChild(linesep);
 
     // Draw markers
-    SoBaseColor* markcol = new SoBaseColor;
-    markcol->rgb.setValue(1.0f, 1.0f, 0.0f);
-    SoMarkerSet* marker = new SoMarkerSet;
-    marker->markerIndex = Gui::Inventor::MarkerBitmaps::getMarkerIndex(
-        "PLUS",
-        App::GetApplication()
-            .GetParameterGroupByPath("User parameter:BaseApp/Preferences/View")
-            ->GetInt("MarkerSize", 7));
+    auto markcol = new SoBaseColor;
+    markcol->rgb.setValue(1.0F, 1.0F, 0.0F);
+    SoMarkerSet* marker = makeMarkerSet();
     linesep->addChild(markcol);
     linesep->addChild(marker);
 
@@ -494,11 +479,10 @@ void ViewProviderMeshDegenerations::attach(App::DocumentObject* pcFeat)
 
 void ViewProviderMeshDegenerations::showDefects(const std::vector<Mesh::ElementIndex>& inds)
 {
-    Mesh::Feature* f = static_cast<Mesh::Feature*>(pcObject);
-    const MeshCore::MeshKernel& rMesh = f->Mesh.getValue().getKernel();
+    const MeshCore::MeshKernel& rMesh = getMeshKernel();
 
     pcCoords->point.deleteValues(0);
-    pcCoords->point.setNum(2 * inds.size());
+    pcCoords->point.setNum(int(2 * inds.size()));
     MeshCore::MeshFacetIterator cF(rMesh);
     int i = 0;
     int j = 0;
@@ -511,8 +495,9 @@ void ViewProviderMeshDegenerations::showDefects(const std::vector<Mesh::ElementI
         // check if the points are coincident
         if (rE0 == rE1 && rE0 == rE2) {
             // set a small tolerance to get a non-degenerated line
-            float eps = 0.005f;
-            Base::Vector3f cP1, cP2;
+            float eps = 0.005F;
+            Base::Vector3f cP1;
+            Base::Vector3f cP2;
             cP1.Set(rE1.x + eps, rE1.y + eps, rE1.z + eps);
             cP2.Set(rE2.x - eps, rE2.y - eps, rE2.z - eps);
             pcCoords->point.set1Value(i++, cP1.x, cP1.y, cP1.z);
@@ -536,15 +521,19 @@ void ViewProviderMeshDegenerations::showDefects(const std::vector<Mesh::ElementI
                 Base::Vector3f cVec2 = cF->_aclPoints[(j + 2) % 3] - cF->_aclPoints[j];
 
                 // adjust the neighbourhoods and point indices
-                if (cVec1 * cVec2 < 0.0f) {
-                    pcCoords->point.set1Value(i++,
-                                              cF->_aclPoints[(j + 1) % 3].x,
-                                              cF->_aclPoints[(j + 1) % 3].y,
-                                              cF->_aclPoints[(j + 1) % 3].z);
-                    pcCoords->point.set1Value(i++,
-                                              cF->_aclPoints[(j + 2) % 3].x,
-                                              cF->_aclPoints[(j + 2) % 3].y,
-                                              cF->_aclPoints[(j + 2) % 3].z);
+                if (cVec1 * cVec2 < 0.0F) {
+                    pcCoords->point.set1Value(
+                        i++,
+                        cF->_aclPoints[(j + 1) % 3].x,
+                        cF->_aclPoints[(j + 1) % 3].y,
+                        cF->_aclPoints[(j + 1) % 3].z
+                    );
+                    pcCoords->point.set1Value(
+                        i++,
+                        cF->_aclPoints[(j + 2) % 3].x,
+                        cF->_aclPoints[(j + 2) % 3].y,
+                        cF->_aclPoints[(j + 2) % 3].z
+                    );
                     break;
                 }
             }
@@ -571,39 +560,34 @@ ViewProviderMeshIndices::~ViewProviderMeshIndices()
     pcFaces->unref();
 }
 
-void ViewProviderMeshIndices::attach(App::DocumentObject* pcFeat)
+void ViewProviderMeshIndices::attach(App::DocumentObject* obj)
 {
-    ViewProviderDocumentObject::attach(pcFeat);
+    ViewProviderDocumentObject::attach(obj);  // NOLINT
 
-    SoGroup* pcFaceRoot = new SoGroup();
+    auto pcFaceRoot = new SoGroup();
 
-    SoDrawStyle* pcFlatStyle = new SoDrawStyle();
+    auto pcFlatStyle = new SoDrawStyle();
     pcFlatStyle->style = SoDrawStyle::FILLED;
     pcFaceRoot->addChild(pcFlatStyle);
 
-    SoShapeHints* flathints = new SoShapeHints;
+    auto flathints = new SoShapeHints;
     flathints->vertexOrdering = SoShapeHints::COUNTERCLOCKWISE;
     flathints->shapeType = SoShapeHints::UNKNOWN_SHAPE_TYPE;
     pcFaceRoot->addChild(flathints);
 
     // Draw lines
-    SoSeparator* linesep = new SoSeparator;
-    SoBaseColor* basecol = new SoBaseColor;
-    basecol->rgb.setValue(1.0f, 0.5f, 0.0f);
+    auto linesep = new SoSeparator;
+    auto basecol = new SoBaseColor;
+    basecol->rgb.setValue(1.0F, 0.5F, 0.0F);
     linesep->addChild(basecol);
     linesep->addChild(pcCoords);
     linesep->addChild(pcFaces);
     pcFaceRoot->addChild(linesep);
 
     // Draw markers
-    SoBaseColor* markcol = new SoBaseColor;
-    markcol->rgb.setValue(1.0f, 1.0f, 0.0f);
-    SoMarkerSet* marker = new SoMarkerSet;
-    marker->markerIndex = Gui::Inventor::MarkerBitmaps::getMarkerIndex(
-        "PLUS",
-        App::GetApplication()
-            .GetParameterGroupByPath("User parameter:BaseApp/Preferences/View")
-            ->GetInt("MarkerSize", 7));
+    auto markcol = new SoBaseColor;
+    markcol->rgb.setValue(1.0F, 1.0F, 0.0F);
+    SoMarkerSet* marker = makeMarkerSet();
     linesep->addChild(markcol);
     linesep->addChild(marker);
 
@@ -612,12 +596,11 @@ void ViewProviderMeshIndices::attach(App::DocumentObject* pcFeat)
 
 void ViewProviderMeshIndices::showDefects(const std::vector<Mesh::ElementIndex>& inds)
 {
-    Mesh::Feature* f = static_cast<Mesh::Feature*>(pcObject);
-    const MeshCore::MeshKernel& rMesh = f->Mesh.getValue().getKernel();
+    const MeshCore::MeshKernel& rMesh = getMeshKernel();
 
     if (!inds.empty()) {
         pcCoords->point.deleteValues(0);
-        pcCoords->point.setNum(3 * inds.size());
+        pcCoords->point.setNum(int(3 * inds.size()));
         MeshCore::MeshFacetIterator cF(rMesh);
         int i = 0;
         int j = 0;
@@ -625,7 +608,7 @@ void ViewProviderMeshIndices::showDefects(const std::vector<Mesh::ElementIndex>&
             cF.Set(ind);
             for (auto cP : cF->_aclPoints) {
                 // move a bit in opposite normal direction to overlay the original faces
-                cP -= 0.001f * cF->GetNormal();
+                cP -= 0.001F * cF->GetNormal();
                 pcCoords->point.set1Value(i++, cP.x, cP.y, cP.z);
             }
             pcFaces->numVertices.set1Value(j++, 3);
@@ -650,50 +633,44 @@ ViewProviderMeshSelfIntersections::~ViewProviderMeshSelfIntersections()
     pcLines->unref();
 }
 
-void ViewProviderMeshSelfIntersections::attach(App::DocumentObject* pcFeat)
+void ViewProviderMeshSelfIntersections::attach(App::DocumentObject* obj)
 {
-    ViewProviderDocumentObject::attach(pcFeat);
+    ViewProviderDocumentObject::attach(obj);  // NOLINT
 
-    SoGroup* pcLineRoot = new SoGroup();
+    auto pcLineRoot = new SoGroup();
     pcDrawStyle->lineWidth = 3;
     pcLineRoot->addChild(pcDrawStyle);
 
     // Draw lines
-    SoSeparator* linesep = new SoSeparator;
-    SoBaseColor* basecol = new SoBaseColor;
-    basecol->rgb.setValue(1.0f, 0.5f, 0.0f);
+    auto linesep = new SoSeparator;
+    auto basecol = new SoBaseColor;
+    basecol->rgb.setValue(1.0F, 0.5F, 0.0F);
     linesep->addChild(basecol);
     linesep->addChild(pcCoords);
     linesep->addChild(pcLines);
     pcLineRoot->addChild(linesep);
 
     // Draw markers
-    SoBaseColor* markcol = new SoBaseColor;
-    markcol->rgb.setValue(1.0f, 1.0f, 0.0f);
-    SoMarkerSet* marker = new SoMarkerSet;
-    marker->markerIndex = Gui::Inventor::MarkerBitmaps::getMarkerIndex(
-        "PLUS",
-        App::GetApplication()
-            .GetParameterGroupByPath("User parameter:BaseApp/Preferences/View")
-            ->GetInt("MarkerSize", 7));
+    auto markcol = new SoBaseColor;
+    markcol->rgb.setValue(1.0F, 1.0F, 0.0F);
+    SoMarkerSet* marker = makeMarkerSet();
     linesep->addChild(markcol);
     linesep->addChild(marker);
 
     addDisplayMaskMode(pcLineRoot, "Line");
 }
 
-void ViewProviderMeshSelfIntersections::showDefects(const std::vector<Mesh::ElementIndex>& indices)
+void ViewProviderMeshSelfIntersections::showDefects(const std::vector<Mesh::ElementIndex>& inds)
 {
-    if (indices.size() % 2 != 0) {
+    if (inds.size() % 2 != 0) {
         return;
     }
-    Mesh::Feature* f = static_cast<Mesh::Feature*>(pcObject);
-    const MeshCore::MeshKernel& rMesh = f->Mesh.getValue().getKernel();
+
+    const MeshCore::MeshKernel& rMesh = getMeshKernel();
     MeshCore::MeshEvalSelfIntersection eval(rMesh);
 
     std::vector<std::pair<Mesh::ElementIndex, Mesh::ElementIndex>> intersection;
-    std::vector<Mesh::ElementIndex>::const_iterator it;
-    for (it = indices.begin(); it != indices.end();) {
+    for (auto it = inds.begin(); it != inds.end();) {
         Mesh::ElementIndex id1 = *it;
         ++it;
         Mesh::ElementIndex id2 = *it;
@@ -705,7 +682,7 @@ void ViewProviderMeshSelfIntersections::showDefects(const std::vector<Mesh::Elem
     eval.GetIntersections(intersection, lines);
 
     pcCoords->point.deleteValues(0);
-    pcCoords->point.setNum(2 * lines.size());
+    pcCoords->point.setNum(int(2 * lines.size()));
     int i = 0;
     int j = 0;
     for (const auto& line : lines) {
@@ -732,39 +709,34 @@ ViewProviderMeshFolds::~ViewProviderMeshFolds()
     pcFaces->unref();
 }
 
-void ViewProviderMeshFolds::attach(App::DocumentObject* pcFeat)
+void ViewProviderMeshFolds::attach(App::DocumentObject* obj)
 {
-    ViewProviderDocumentObject::attach(pcFeat);
+    ViewProviderDocumentObject::attach(obj);  // NOLINT
 
-    SoGroup* pcFaceRoot = new SoGroup();
+    auto pcFaceRoot = new SoGroup();
 
-    SoDrawStyle* pcFlatStyle = new SoDrawStyle();
+    auto pcFlatStyle = new SoDrawStyle();
     pcFlatStyle->style = SoDrawStyle::FILLED;
     pcFaceRoot->addChild(pcFlatStyle);
 
-    SoShapeHints* flathints = new SoShapeHints;
+    auto flathints = new SoShapeHints;
     flathints->vertexOrdering = SoShapeHints::COUNTERCLOCKWISE;
     flathints->shapeType = SoShapeHints::UNKNOWN_SHAPE_TYPE;
     pcFaceRoot->addChild(flathints);
 
     // Draw lines
-    SoSeparator* linesep = new SoSeparator;
-    SoBaseColor* basecol = new SoBaseColor;
-    basecol->rgb.setValue(1.0f, 0.0f, 0.0f);
+    auto linesep = new SoSeparator;
+    auto basecol = new SoBaseColor;
+    basecol->rgb.setValue(1.0F, 0.0F, 0.0F);
     linesep->addChild(basecol);
     linesep->addChild(pcCoords);
     linesep->addChild(pcFaces);
     pcFaceRoot->addChild(linesep);
 
     // Draw markers
-    SoBaseColor* markcol = new SoBaseColor;
-    markcol->rgb.setValue(1.0f, 1.0f, 0.0f);
-    SoMarkerSet* marker = new SoMarkerSet;
-    marker->markerIndex = Gui::Inventor::MarkerBitmaps::getMarkerIndex(
-        "PLUS",
-        App::GetApplication()
-            .GetParameterGroupByPath("User parameter:BaseApp/Preferences/View")
-            ->GetInt("MarkerSize", 7));
+    auto markcol = new SoBaseColor;
+    markcol->rgb.setValue(1.0F, 1.0F, 0.0F);
+    SoMarkerSet* marker = makeMarkerSet();
     linesep->addChild(markcol);
     linesep->addChild(marker);
 
@@ -773,11 +745,10 @@ void ViewProviderMeshFolds::attach(App::DocumentObject* pcFeat)
 
 void ViewProviderMeshFolds::showDefects(const std::vector<Mesh::ElementIndex>& inds)
 {
-    Mesh::Feature* f = static_cast<Mesh::Feature*>(pcObject);
-    const MeshCore::MeshKernel& rMesh = f->Mesh.getValue().getKernel();
+    const MeshCore::MeshKernel& rMesh = getMeshKernel();
 
     pcCoords->point.deleteValues(0);
-    pcCoords->point.setNum(3 * inds.size());
+    pcCoords->point.setNum(int(3 * inds.size()));
     MeshCore::MeshFacetIterator cF(rMesh);
     int i = 0;
     int j = 0;
@@ -785,7 +756,7 @@ void ViewProviderMeshFolds::showDefects(const std::vector<Mesh::ElementIndex>& i
         cF.Set(ind);
         for (auto cP : cF->_aclPoints) {
             // move a bit in normal direction to overlay the original faces
-            cP += 0.001f * cF->GetNormal();
+            cP += 0.001F * cF->GetNormal();
             pcCoords->point.set1Value(i++, cP.x, cP.y, cP.z);
         }
         pcFaces->numVertices.set1Value(j++, 3);
@@ -793,3 +764,4 @@ void ViewProviderMeshFolds::showDefects(const std::vector<Mesh::ElementIndex>& i
 
     setDisplayMaskMode("Face");
 }
+// NOLINTEND(readability-magic-numbers,cppcoreguidelines-pro-bounds*)

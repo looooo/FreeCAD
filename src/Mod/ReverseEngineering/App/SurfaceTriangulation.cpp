@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2012 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <Base/Exception.h>
 #include <Mod/Mesh/App/Core/Algorithm.h>
@@ -34,26 +35,26 @@
 
 // http://svn.pointclouds.org/pcl/tags/pcl-1.5.1/test/
 #if defined(HAVE_PCL_SURFACE)
-#include <boost/math/special_functions/fpclassify.hpp>
-#include <boost/random.hpp>
-#include <pcl/common/common.h>
-#include <pcl/common/io.h>
-#include <pcl/features/normal_3d.h>
-#include <pcl/pcl_config.h>
-#include <pcl/point_traits.h>
-#include <pcl/point_types.h>
-#include <pcl/surface/ear_clipping.h>
-#include <pcl/surface/gp3.h>
-#include <pcl/surface/grid_projection.h>
-#include <pcl/surface/marching_cubes_hoppe.h>
-#include <pcl/surface/marching_cubes_rbf.h>
-#include <pcl/surface/mls.h>
-#include <pcl/surface/organized_fast_mesh.h>
-#include <pcl/surface/poisson.h>
+# include <boost/math/special_functions/fpclassify.hpp>
+# include <boost/random.hpp>
+# include <pcl/common/common.h>
+# include <pcl/common/io.h>
+# include <pcl/features/normal_3d.h>
+# include <pcl/pcl_config.h>
+# include <pcl/type_traits.h>
+# include <pcl/point_types.h>
+# include <pcl/surface/ear_clipping.h>
+# include <pcl/surface/gp3.h>
+# include <pcl/surface/grid_projection.h>
+# include <pcl/surface/marching_cubes_hoppe.h>
+# include <pcl/surface/marching_cubes_rbf.h>
+# include <pcl/surface/mls.h>
+# include <pcl/surface/organized_fast_mesh.h>
+# include <pcl/surface/poisson.h>
 
-#ifndef PCL_REVISION_VERSION
-#define PCL_REVISION_VERSION 0
-#endif
+# ifndef PCL_REVISION_VERSION
+#  define PCL_REVISION_VERSION 0
+# endif
 
 using namespace pcl;
 using namespace pcl::io;
@@ -79,8 +80,7 @@ void SurfaceTriangulation::perform(int ksearch)
 
     cloud->reserve(myPoints.size());
     for (Points::PointKernel::const_iterator it = myPoints.begin(); it != myPoints.end(); ++it) {
-        if (!boost::math::isnan(it->x) && !boost::math::isnan(it->y)
-            && !boost::math::isnan(it->z)) {
+        if (!boost::math::isnan(it->x) && !boost::math::isnan(it->y) && !boost::math::isnan(it->z)) {
             cloud->push_back(PointXYZ(it->x, it->y, it->z));
         }
     }
@@ -114,9 +114,9 @@ void SurfaceTriangulation::perform(int ksearch)
     gp3.setSearchRadius(searchRadius);
     gp3.setMu(mu);
     gp3.setMaximumNearestNeighbors(100);
-    gp3.setMaximumSurfaceAngle(M_PI / 4);  // 45 degrees
-    gp3.setMinimumAngle(M_PI / 18);        // 10 degrees
-    gp3.setMaximumAngle(2 * M_PI / 3);     // 120 degrees
+    gp3.setMaximumSurfaceAngle(std::numbers::pi / 4);  // 45 degrees
+    gp3.setMinimumAngle(std::numbers::pi / 18);        // 10 degrees
+    gp3.setMaximumAngle(2 * std::numbers::pi / 3);     // 120 degrees
     gp3.setNormalConsistency(false);
     gp3.setConsistentVertexOrdering(true);
 
@@ -171,9 +171,9 @@ void SurfaceTriangulation::perform(const std::vector<Base::Vector3f>& normals)
     gp3.setSearchRadius(searchRadius);
     gp3.setMu(mu);
     gp3.setMaximumNearestNeighbors(100);
-    gp3.setMaximumSurfaceAngle(M_PI / 4);  // 45 degrees
-    gp3.setMinimumAngle(M_PI / 18);        // 10 degrees
-    gp3.setMaximumAngle(2 * M_PI / 3);     // 120 degrees
+    gp3.setMaximumSurfaceAngle(std::numbers::pi / 4);  // 45 degrees
+    gp3.setMinimumAngle(std::numbers::pi / 18);        // 10 degrees
+    gp3.setMaximumAngle(2 * std::numbers::pi / 3);     // 120 degrees
     gp3.setNormalConsistency(true);
     gp3.setConsistentVertexOrdering(true);
 
@@ -182,10 +182,6 @@ void SurfaceTriangulation::perform(const std::vector<Base::Vector3f>& normals)
     gp3.reconstruct(mesh);
 
     MeshConversion::convert(mesh, myMesh);
-
-    // Additional vertex information
-    // std::vector<int> parts = gp3.getPartIDs();
-    // std::vector<int> states = gp3.getPointStates();
 }
 
 // ----------------------------------------------------------------------------
@@ -209,8 +205,7 @@ void PoissonReconstruction::perform(int ksearch)
 
     cloud->reserve(myPoints.size());
     for (Points::PointKernel::const_iterator it = myPoints.begin(); it != myPoints.end(); ++it) {
-        if (!boost::math::isnan(it->x) && !boost::math::isnan(it->y)
-            && !boost::math::isnan(it->z)) {
+        if (!boost::math::isnan(it->x) && !boost::math::isnan(it->y) && !boost::math::isnan(it->z)) {
             cloud->push_back(PointXYZ(it->x, it->y, it->z));
         }
     }
@@ -328,8 +323,7 @@ void GridReconstruction::perform(int ksearch)
 
     cloud->reserve(myPoints.size());
     for (Points::PointKernel::const_iterator it = myPoints.begin(); it != myPoints.end(); ++it) {
-        if (!boost::math::isnan(it->x) && !boost::math::isnan(it->y)
-            && !boost::math::isnan(it->z)) {
+        if (!boost::math::isnan(it->x) && !boost::math::isnan(it->y) && !boost::math::isnan(it->z)) {
             cloud->push_back(PointXYZ(it->x, it->y, it->z));
         }
     }
@@ -423,10 +417,12 @@ void GridReconstruction::perform(const std::vector<Base::Vector3f>& normals)
 
 // ----------------------------------------------------------------------------
 
-ImageTriangulation::ImageTriangulation(int width,
-                                       int height,
-                                       const Points::PointKernel& pts,
-                                       Mesh::MeshObject& mesh)
+ImageTriangulation::ImageTriangulation(
+    int width,
+    int height,
+    const Points::PointKernel& pts,
+    Mesh::MeshObject& mesh
+)
     : width(width)
     , height(height)
     , myPoints(pts)
@@ -519,8 +515,7 @@ void Reen::MarchingCubesRBF::perform(int ksearch)
 
     cloud->reserve(myPoints.size());
     for (Points::PointKernel::const_iterator it = myPoints.begin(); it != myPoints.end(); ++it) {
-        if (!boost::math::isnan(it->x) && !boost::math::isnan(it->y)
-            && !boost::math::isnan(it->z)) {
+        if (!boost::math::isnan(it->x) && !boost::math::isnan(it->y) && !boost::math::isnan(it->z)) {
             cloud->push_back(PointXYZ(it->x, it->y, it->z));
         }
     }
@@ -631,8 +626,7 @@ void Reen::MarchingCubesHoppe::perform(int ksearch)
 
     cloud->reserve(myPoints.size());
     for (Points::PointKernel::const_iterator it = myPoints.begin(); it != myPoints.end(); ++it) {
-        if (!boost::math::isnan(it->x) && !boost::math::isnan(it->y)
-            && !boost::math::isnan(it->z)) {
+        if (!boost::math::isnan(it->x) && !boost::math::isnan(it->y) && !boost::math::isnan(it->z)) {
             cloud->push_back(PointXYZ(it->x, it->y, it->z));
         }
     }
@@ -645,7 +639,6 @@ void Reen::MarchingCubesHoppe::perform(int ksearch)
     NormalEstimation<PointXYZ, Normal> n;
     PointCloud<Normal>::Ptr normals(new PointCloud<Normal>());
     n.setInputCloud(cloud);
-    // n.setIndices (indices[B);
     n.setSearchMethod(tree);
     n.setKSearch(ksearch);
     n.compute(*normals);
@@ -747,21 +740,16 @@ void MeshConversion::convert(const pcl::PolygonMesh& pclMesh, Mesh::MeshObject& 
         for (size_t d = 0; d < pclMesh.cloud.fields.size(); ++d) {
             int c = 0;
             // adding vertex
-            if ((pclMesh.cloud.fields[d].datatype ==
-#if PCL_VERSION_COMPARE(>, 1, 6, 0)
-                 pcl::PCLPointField::FLOAT32)
-                &&
-#else
-                 sensor_msgs::PointField::FLOAT32)
-                &&
-#endif
-                (pclMesh.cloud.fields[d].name == "x" || pclMesh.cloud.fields[d].name == "y"
-                 || pclMesh.cloud.fields[d].name == "z")) {
+            if ((pclMesh.cloud.fields[d].datatype == pcl::PCLPointField::FLOAT32)
+                && (pclMesh.cloud.fields[d].name == "x" || pclMesh.cloud.fields[d].name == "y"
+                    || pclMesh.cloud.fields[d].name == "z")) {
                 float value;
-                memcpy(&value,
-                       &pclMesh.cloud.data[i * point_size + pclMesh.cloud.fields[d].offset
-                                           + c * sizeof(float)],
-                       sizeof(float));
+                memcpy(
+                    &value,
+                    &pclMesh.cloud
+                         .data[i * point_size + pclMesh.cloud.fields[d].offset + c * sizeof(float)],
+                    sizeof(float)
+                );
                 vertex[xyz] = value;
                 if (++xyz == 3) {
                     points.push_back(vertex);

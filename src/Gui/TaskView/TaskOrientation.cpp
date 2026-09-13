@@ -21,11 +21,8 @@
  *                                                                         *
  **************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
-# include <QDialog>
-# include <map>
-#endif
+#include <QDialog>
+#include <map>
 
 #include <Base/Tools.h>
 #include <App/Document.h>
@@ -40,18 +37,24 @@
 using namespace Gui;
 
 TaskOrientation::TaskOrientation(App::GeoFeature* obj, QWidget* parent)
-  : QWidget(parent)
-  , ui(new Ui_TaskOrientation)
-  , feature(obj)
+    : QWidget(parent)
+    , ui(new Ui_TaskOrientation)
+    , feature(obj)
 {
     ui->setupUi(this);
 
-    connect(ui->Reverse_checkBox, &QCheckBox::clicked,    this, &TaskOrientation::onPreview);
-    connect(ui->XY_radioButton  , &QRadioButton::clicked, this, &TaskOrientation::onPreview);
-    connect(ui->XZ_radioButton  , &QRadioButton::clicked, this, &TaskOrientation::onPreview);
-    connect(ui->YZ_radioButton  , &QRadioButton::clicked, this, &TaskOrientation::onPreview);
+    // clang-format off
+    connect(ui->Reverse_checkBox, &QCheckBox::clicked,
+            this, &TaskOrientation::onPreview);
+    connect(ui->XY_radioButton  , &QRadioButton::clicked,
+            this, &TaskOrientation::onPreview);
+    connect(ui->XZ_radioButton  , &QRadioButton::clicked,
+            this, &TaskOrientation::onPreview);
+    connect(ui->YZ_radioButton  , &QRadioButton::clicked,
+            this, &TaskOrientation::onPreview);
     connect(ui->Offset_doubleSpinBox, qOverload<double>(&QuantitySpinBox::valueChanged),
             this, &TaskOrientation::onPreview);
+    // clang-format on
 }
 
 TaskOrientation::~TaskOrientation() = default;
@@ -92,9 +95,7 @@ void TaskOrientation::onPreview()
 void TaskOrientation::restore(const Base::Placement& plm)
 {
     auto isReversed = [](Camera::Orientation type) {
-        return (type == Camera::Bottom) ||
-               (type == Camera::Rear) ||
-               (type == Camera::Left);
+        return (type == Camera::Bottom) || (type == Camera::Rear) || (type == Camera::Left);
     };
     std::map<Camera::Orientation, Base::Rotation> rotations {
         {Camera::Top, Camera::convert(Camera::Top)},
@@ -111,18 +112,15 @@ void TaskOrientation::restore(const Base::Placement& plm)
     double prec = 1.0e-5;
     for (const auto& it : rotations) {
         if (rot.isSame(it.second, prec)) {
-            if (it.first == Camera::Top ||
-                it.first == Camera::Bottom) {
+            if (it.first == Camera::Top || it.first == Camera::Bottom) {
                 ui->XY_radioButton->setChecked(true);
                 ui->Offset_doubleSpinBox->setValue(pos.z);
             }
-            else if (it.first == Camera::Front ||
-                     it.first == Camera::Rear) {
+            else if (it.first == Camera::Front || it.first == Camera::Rear) {
                 ui->XZ_radioButton->setChecked(true);
                 ui->Offset_doubleSpinBox->setValue(pos.y);
             }
-            else if (it.first == Camera::Right ||
-                     it.first == Camera::Left) {
+            else if (it.first == Camera::Right || it.first == Camera::Left) {
                 ui->YZ_radioButton->setChecked(true);
                 ui->Offset_doubleSpinBox->setValue(pos.x);
             }
@@ -143,32 +141,26 @@ void TaskOrientation::updatePlacement()
     bool reverse = ui->Reverse_checkBox->isChecked();
     if (ui->XY_radioButton->isChecked()) {
         if (!reverse) {
-            Pos = Base::Placement(Base::Vector3d(0, 0, offset),
-                                  Camera::convert(Camera::Top));
+            Pos = Base::Placement(Base::Vector3d(0, 0, offset), Camera::convert(Camera::Top));
         }
         else {
-            Pos = Base::Placement(Base::Vector3d(0, 0, offset),
-                                  Camera::convert(Camera::Bottom));
+            Pos = Base::Placement(Base::Vector3d(0, 0, offset), Camera::convert(Camera::Bottom));
         }
     }
     else if (ui->XZ_radioButton->isChecked()) {
         if (!reverse) {
-            Pos = Base::Placement(Base::Vector3d(0, offset, 0),
-                                  Camera::convert(Camera::Front));
+            Pos = Base::Placement(Base::Vector3d(0, offset, 0), Camera::convert(Camera::Front));
         }
         else {
-            Pos = Base::Placement(Base::Vector3d(0, offset, 0),
-                                  Camera::convert(Camera::Rear));
+            Pos = Base::Placement(Base::Vector3d(0, offset, 0), Camera::convert(Camera::Rear));
         }
     }
     else if (ui->YZ_radioButton->isChecked()) {
         if (!reverse) {
-            Pos = Base::Placement(Base::Vector3d(offset, 0, 0),
-                                  Camera::convert(Camera::Right));
+            Pos = Base::Placement(Base::Vector3d(offset, 0, 0), Camera::convert(Camera::Right));
         }
         else {
-            Pos = Base::Placement(Base::Vector3d(offset, 0, 0),
-                                  Camera::convert(Camera::Left));
+            Pos = Base::Placement(Base::Vector3d(offset, 0, 0), Camera::convert(Camera::Left));
         }
     }
 
@@ -192,8 +184,8 @@ void TaskOrientation::updateIcon()
     }
 
     ui->previewLabel->setPixmap(
-        Gui::BitmapFactory().pixmapFromSvg(icon.c_str(),
-        ui->previewLabel->size()));
+        Gui::BitmapFactory().pixmapFromSvg(icon.c_str(), ui->previewLabel->size())
+    );
 }
 
 // ----------------------------------------------------------------------------
@@ -201,10 +193,7 @@ void TaskOrientation::updateIcon()
 TaskOrientationDialog::TaskOrientationDialog(App::GeoFeature* obj)
 {
     widget = new TaskOrientation(obj);
-    Gui::TaskView::TaskBox* taskbox = new Gui::TaskView::TaskBox(
-        QPixmap(), widget->windowTitle(), true, nullptr);
-    taskbox->groupLayout()->addWidget(widget);
-    Content.push_back(taskbox);
+    addTaskBox(widget);
 }
 
 void TaskOrientationDialog::open()

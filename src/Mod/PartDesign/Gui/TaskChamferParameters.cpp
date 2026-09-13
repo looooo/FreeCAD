@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2011 Juergen Riegel <FreeCAD@juergen-riegel.net>        *
  *                                                                         *
@@ -20,23 +22,30 @@
  *                                                                         *
  ***************************************************************************/
 
-
-#include "PreCompiled.h"
-
-#ifndef _PreComp_
-# include <QAction>
-# include <QFontMetrics>
-# include <QListWidget>
-# include <QMessageBox>
-#endif
+#include <QAction>
+#include <QFontMetrics>
+#include <QListWidget>
+#include <QMessageBox>
 
 #include <Base/Interpreter.h>
 #include <App/Document.h>
 #include <App/DocumentObject.h>
-#include <Gui/Selection.h>
+#include <Gui/Selection/Selection.h>
 #include <Gui/Tools.h>
 #include <Gui/ViewProvider.h>
+#include <Gui/Inventor/Draggers/SoLinearDragger.h>
+#include <Gui/Inventor/Draggers/SoRotationDragger.h>
+#include <Gui/Utilities.h>
 #include <Mod/PartDesign/App/FeatureChamfer.h>
+#include <Mod/Part/App/Geometry.h>
+#include <Mod/Part/App/GizmoHelper.h>
+
+#include <TopoDS.hxx>
+#include <BRep_Tool.hxx>
+#include <BRepGProp.hxx>
+#include <GProp_GProps.hxx>
+#include <GeomAPI_ProjectPointOnSurf.hxx>
+#include <Base/Converter.h>
 
 #include "ui_TaskChamferParameters.h"
 #include "TaskChamferParameters.h"
@@ -47,7 +56,7 @@ using namespace Gui;
 
 /* TRANSLATOR PartDesignGui::TaskChamferParameters */
 
-TaskChamferParameters::TaskChamferParameters(ViewProviderDressUp *DressUpView, QWidget *parent)
+TaskChamferParameters::TaskChamferParameters(ViewProviderDressUp* DressUpView, QWidget* parent)
     : TaskDressUpParameters(DressUpView, true, true, parent)
     , ui(new Ui_TaskChamferParameters)
 {
@@ -56,7 +65,7 @@ TaskChamferParameters::TaskChamferParameters(ViewProviderDressUp *DressUpView, Q
     ui->setupUi(proxy);
     this->groupLayout()->addWidget(proxy);
 
-    PartDesign::Chamfer* pcChamfer = static_cast<PartDesign::Chamfer*>(DressUpView->getObject());
+    PartDesign::Chamfer* pcChamfer = DressUpView->getObject<PartDesign::Chamfer>();
 
     setUpUI(pcChamfer);
 
@@ -67,45 +76,53 @@ TaskChamferParameters::TaskChamferParameters(ViewProviderDressUp *DressUpView, Q
     QMetaObject::invokeMethod(ui->chamferSize, "setFocus", Qt::QueuedConnection);
 
     std::vector<std::string> strings = pcChamfer->Base.getSubValues();
-    for (const auto & string : strings) {
+    for (const auto& string : strings) {
         ui->listWidgetReferences->addItem(QString::fromStdString(string));
     }
 
     QMetaObject::connectSlotsByName(this);
 
+    // clang-format off
     connect(ui->chamferType, qOverload<int>(&QComboBox::currentIndexChanged),
-        this, &TaskChamferParameters::onTypeChanged);
+            this, &TaskChamferParameters::onTypeChanged);
     connect(ui->chamferSize, qOverload<double>(&Gui::QuantitySpinBox::valueChanged),
-        this, &TaskChamferParameters::onSizeChanged);
+            this, &TaskChamferParameters::onSizeChanged);
     connect(ui->chamferSize2, qOverload<double>(&Gui::QuantitySpinBox::valueChanged),
-        this, &TaskChamferParameters::onSize2Changed);
+            this, &TaskChamferParameters::onSize2Changed);
     connect(ui->chamferAngle, qOverload<double>(&Gui::QuantitySpinBox::valueChanged),
-        this, &TaskChamferParameters::onAngleChanged);
+            this, &TaskChamferParameters::onAngleChanged);
     connect(ui->flipDirection, &QCheckBox::toggled,
-        this, &TaskChamferParameters::onFlipDirection);
+            this, &TaskChamferParameters::onFlipDirection);
     connect(ui->buttonRefSel, &QToolButton::toggled,
-        this, &TaskChamferParameters::onButtonRefSel);
+            this, &TaskChamferParameters::onButtonRefSel);
     connect(ui->checkBoxUseAllEdges, &QCheckBox::toggled,
             this, &TaskChamferParameters::onCheckBoxUseAllEdgesToggled);
 
     // Create context menu
     createDeleteAction(ui->listWidgetReferences);
-    connect(deleteAction, &QAction::triggered, this, &TaskChamferParameters::onRefDeleted);
+    connect(deleteAction, &QAction::triggered,
+            this, &TaskChamferParameters::onRefDeleted);
 
     createAddAllEdgesAction(ui->listWidgetReferences);
-    connect(addAllEdgesAction, &QAction::triggered, this, &TaskChamferParameters::onAddAllEdges);
+    connect(addAllEdgesAction, &QAction::triggered,
+            this, &TaskChamferParameters::onAddAllEdges);
 
     connect(ui->listWidgetReferences, &QListWidget::currentItemChanged,
-        this, &TaskChamferParameters::setSelection);
+            this, &TaskChamferParameters::setSelection);
     connect(ui->listWidgetReferences, &QListWidget::itemClicked,
-        this, &TaskChamferParameters::setSelection);
+            this, &TaskChamferParameters::setSelection);
     connect(ui->listWidgetReferences, &QListWidget::itemDoubleClicked,
-        this, &TaskChamferParameters::doubleClicked);
+            this, &TaskChamferParameters::doubleClicked);
+    // clang-format on
 
-    if (strings.size() == 0)
+    setupGizmos(DressUpView);
+
+    if (strings.size() == 0) {
         setSelectionMode(refSel);
-    else
+    }
+    else {
         hideOnError();
+    }
 }
 
 void TaskChamferParameters::setUpUI(PartDesign::Chamfer* pcChamfer)
@@ -113,7 +130,7 @@ void TaskChamferParameters::setUpUI(PartDesign::Chamfer* pcChamfer)
     const int index = pcChamfer->ChamferType.getValue();
     ui->chamferType->setCurrentIndex(index);
 
-    ui->flipDirection->setEnabled(index != 0); // Enable if type is not "Equal distance"
+    ui->flipDirection->setEnabled(index != 0);  // Enable if type is not "Equal distance"
     ui->flipDirection->setChecked(pcChamfer->FlipDirection.getValue());
 
     ui->chamferSize->setUnit(Base::Unit::Length);
@@ -140,12 +157,11 @@ void TaskChamferParameters::setUpUI(PartDesign::Chamfer* pcChamfer)
     minWidth = std::max<int>(minWidth, Gui::QtTools::horizontalAdvance(fm, ui->sizeLabel->text()));
     minWidth = std::max<int>(minWidth, Gui::QtTools::horizontalAdvance(fm, ui->size2Label->text()));
     minWidth = std::max<int>(minWidth, Gui::QtTools::horizontalAdvance(fm, ui->angleLabel->text()));
-    minWidth = minWidth + 5; //spacing
+    minWidth = minWidth + 5;  // spacing
     ui->typeLabel->setMinimumWidth(minWidth);
     ui->sizeLabel->setMinimumWidth(minWidth);
     ui->size2Label->setMinimumWidth(minWidth);
     ui->angleLabel->setMinimumWidth(minWidth);
-
 }
 
 void TaskChamferParameters::onSelectionChanged(const Gui::SelectionChanges& msg)
@@ -158,28 +174,37 @@ void TaskChamferParameters::onSelectionChanged(const Gui::SelectionChanges& msg)
             referenceSelected(msg, ui->listWidgetReferences);
         }
     }
+    else if (msg.Type == Gui::SelectionChanges::ClrSelection) {
+        // TODO: the gizmo position should be only recalculated when the feature associated
+        // with the gizmo is removed from the list
+        setGizmoPositions();
+    }
 }
 
 void TaskChamferParameters::onCheckBoxUseAllEdgesToggled(bool checked)
 {
-    if(checked)
-        setSelectionMode(none);
-    PartDesign::Chamfer* pcChamfer = static_cast<PartDesign::Chamfer*>(DressUpView->getObject());
-    ui->buttonRefSel->setEnabled(!checked);
-    ui->listWidgetReferences->setEnabled(!checked);
-    pcChamfer->UseAllEdges.setValue(checked);
-    pcChamfer->getDocument()->recomputeFeature(pcChamfer);
+    if (auto chamfer = getObject<PartDesign::Chamfer>()) {
+        if (checked) {
+            setSelectionMode(none);
+        }
+
+        ui->buttonRefSel->setEnabled(!checked);
+        ui->listWidgetReferences->setEnabled(!checked);
+        chamfer->UseAllEdges.setValue(checked);
+        chamfer->recomputeFeature();
+    }
 }
 
 void TaskChamferParameters::setButtons(const selectionModes mode)
 {
     ui->buttonRefSel->setChecked(mode == refSel);
-    ui->buttonRefSel->setText(mode == refSel ? btnPreviewStr() : btnSelectStr());
+    ui->buttonRefSel->setText(mode == refSel ? stopSelectionLabel() : startSelectionLabel());
 }
 
 void TaskChamferParameters::onRefDeleted()
 {
     TaskDressUpParameters::deleteRef(ui->listWidgetReferences);
+    setGizmoPositions();
 }
 
 void TaskChamferParameters::onAddAllEdges()
@@ -189,58 +214,65 @@ void TaskChamferParameters::onAddAllEdges()
 
 void TaskChamferParameters::onTypeChanged(int index)
 {
-    setSelectionMode(none);
-    PartDesign::Chamfer* pcChamfer = static_cast<PartDesign::Chamfer*>(DressUpView->getObject());
-    pcChamfer->ChamferType.setValue(index);
-    ui->stackedWidget->setCurrentIndex(index);
-    ui->flipDirection->setEnabled(index != 0); // Enable if type is not "Equal distance"
-    pcChamfer->getDocument()->recomputeFeature(pcChamfer);
-    // hide the chamfer if there was a computation error
-    hideOnError();
+    if (auto chamfer = getObject<PartDesign::Chamfer>()) {
+        setSelectionMode(none);
+        chamfer->ChamferType.setValue(index);
+        ui->stackedWidget->setCurrentIndex(index);
+        ui->flipDirection->setEnabled(index != 0);  // Enable if type is not "Equal distance"
+        chamfer->recomputeFeature();
+        // hide the chamfer if there was a computation error
+        hideOnError();
+    }
 }
 
 void TaskChamferParameters::onSizeChanged(double len)
 {
-    setSelectionMode(none);
-    PartDesign::Chamfer* pcChamfer = static_cast<PartDesign::Chamfer*>(DressUpView->getObject());
-    setupTransaction();
-    pcChamfer->Size.setValue(len);
-    pcChamfer->getDocument()->recomputeFeature(pcChamfer);
-    // hide the chamfer if there was a computation error
-    hideOnError();
+    if (auto chamfer = getObject<PartDesign::Chamfer>()) {
+        setSelectionMode(none);
+        setupTransaction();
+        chamfer->Size.setValue(len);
+        chamfer->recomputeFeature();
+        // hide the chamfer if there was a computation error
+        hideOnError();
+    }
 }
 
 void TaskChamferParameters::onSize2Changed(double len)
 {
-    setSelectionMode(none);
-    PartDesign::Chamfer* pcChamfer = static_cast<PartDesign::Chamfer*>(DressUpView->getObject());
-    setupTransaction();
-    pcChamfer->Size2.setValue(len);
-    pcChamfer->getDocument()->recomputeFeature(pcChamfer);
-    // hide the chamfer if there was a computation error
-    hideOnError();
+    if (auto chamfer = getObject<PartDesign::Chamfer>()) {
+        setSelectionMode(none);
+        setupTransaction();
+        chamfer->Size2.setValue(len);
+        chamfer->recomputeFeature();
+        // hide the chamfer if there was a computation error
+        hideOnError();
+    }
 }
 
 void TaskChamferParameters::onAngleChanged(double angle)
 {
-    setSelectionMode(none);
-    PartDesign::Chamfer* pcChamfer = static_cast<PartDesign::Chamfer*>(DressUpView->getObject());
-    setupTransaction();
-    pcChamfer->Angle.setValue(angle);
-    pcChamfer->getDocument()->recomputeFeature(pcChamfer);
-    // hide the chamfer if there was a computation error
-    hideOnError();
+    if (auto chamfer = getObject<PartDesign::Chamfer>()) {
+        setSelectionMode(none);
+        setupTransaction();
+        chamfer->Angle.setValue(angle);
+        chamfer->recomputeFeature();
+        // hide the chamfer if there was a computation error
+        hideOnError();
+    }
 }
 
 void TaskChamferParameters::onFlipDirection(bool flip)
 {
-    setSelectionMode(none);
-    PartDesign::Chamfer* pcChamfer = static_cast<PartDesign::Chamfer*>(DressUpView->getObject());
-    setupTransaction();
-    pcChamfer->FlipDirection.setValue(flip);
-    pcChamfer->getDocument()->recomputeFeature(pcChamfer);
-    // hide the chamfer if there was a computation error
-    hideOnError();
+    if (auto chamfer = getObject<PartDesign::Chamfer>()) {
+        setSelectionMode(none);
+        setupTransaction();
+        chamfer->FlipDirection.setValue(flip);
+        chamfer->recomputeFeature();
+        // hide the chamfer if there was a computation error
+        hideOnError();
+
+        setGizmoPositions();
+    }
 }
 
 int TaskChamferParameters::getType() const
@@ -275,17 +307,12 @@ TaskChamferParameters::~TaskChamferParameters()
         Gui::Selection().rmvSelectionGate();
     }
     catch (const Py::Exception&) {
-        Base::PyException e; // extract the Python error text
-        e.ReportException();
+        Base::PyException e;  // extract the Python error text
+        e.reportException();
     }
 }
 
-bool TaskChamferParameters::event(QEvent *e)
-{
-    return TaskDressUpParameters::KeyEvent(e);
-}
-
-void TaskChamferParameters::changeEvent(QEvent *e)
+void TaskChamferParameters::changeEvent(QEvent* e)
 {
     TaskBox::changeEvent(e);
     if (e->type() == QEvent::LanguageChange) {
@@ -295,32 +322,112 @@ void TaskChamferParameters::changeEvent(QEvent *e)
 
 void TaskChamferParameters::apply()
 {
-    std::string name = DressUpView->getObject()->getNameInDocument();
+    auto chamfer = getObject<PartDesign::Chamfer>();
 
-    //Gui::Command::openCommand(QT_TRANSLATE_NOOP("Command", "Chamfer changed"));
+    const int chamfertype = chamfer->ChamferType.getValue();
 
-    PartDesign::Chamfer* pcChamfer = static_cast<PartDesign::Chamfer*>(DressUpView->getObject());
+    switch (chamfertype) {
 
-    const int chamfertype = pcChamfer->ChamferType.getValue();
-
-    switch(chamfertype) {
-
-        case 0: // "Equal distance"
+        case 0:  // "Equal distance"
             ui->chamferSize->apply();
             break;
-        case 1: // "Two distances"
+        case 1:  // "Two distances"
             ui->chamferSize->apply();
             ui->chamferSize2->apply();
             break;
-        case 2: // "Distance and Angle"
+        case 2:  // "Distance and Angle"
             ui->chamferSize->apply();
             ui->chamferAngle->apply();
             break;
     }
 
-    //Alert user if he created an empty feature
-    if (ui->listWidgetReferences->count() == 0)
-        Base::Console().Warning(tr("Empty chamfer created !\n").toStdString().c_str());
+    // Alert user if he created an empty feature
+    if (ui->listWidgetReferences->count() == 0) {
+        Base::Console().warning(tr("Empty chamfer created!\n").toStdString().c_str());
+    }
+}
+
+void TaskChamferParameters::setupGizmos(ViewProviderDressUp* vp)
+{
+    if (!GizmoContainer::isEnabled()) {
+        return;
+    }
+
+    distanceGizmo = new Gui::LinearGizmo(ui->chamferSize);
+    secondDistanceGizmo = new Gui::LinearGizmo(ui->chamferSize);
+    angleGizmo = new Gui::RotationGizmo(ui->chamferAngle);
+
+    connect(ui->chamferType, qOverload<int>(&QComboBox::currentIndexChanged), [this](int index) {
+        auto type = static_cast<Part::ChamferType>(index);
+
+        switch (type) {
+            case Part::ChamferType::equalDistance:
+                secondDistanceGizmo->setVisibility(true);
+                angleGizmo->setVisibility(false);
+
+                secondDistanceGizmo->setProperty(ui->chamferSize);
+
+                break;
+            case Part::ChamferType::twoDistances:
+                secondDistanceGizmo->setVisibility(true);
+                angleGizmo->setVisibility(false);
+
+                secondDistanceGizmo->setProperty(ui->chamferSize2);
+
+                break;
+            case Part::ChamferType::distanceAngle:
+                secondDistanceGizmo->setVisibility(false);
+                angleGizmo->setVisibility(true);
+        }
+    });
+
+    gizmoContainer = GizmoContainer::create({distanceGizmo, secondDistanceGizmo, angleGizmo}, vp);
+
+    setGizmoPositions();
+
+    ui->chamferType->currentIndexChanged(ui->chamferType->currentIndex());
+    showDraggerHints();
+}
+
+void TaskChamferParameters::setGizmoPositions()
+{
+    if (!gizmoContainer) {
+        return;
+    }
+
+    auto chamfer = getObject<PartDesign::Chamfer>();
+    if (!chamfer || chamfer->isError()) {
+        gizmoContainer->visible = false;
+        return;
+    }
+
+    PartDesign::TopoShape baseShape = chamfer->getBaseTopoShape(true);
+    auto shapes = chamfer->getContinuousEdges(baseShape);
+
+    if (shapes.size() == 0) {
+        gizmoContainer->visible = false;
+        return;
+    }
+    gizmoContainer->visible = true;
+
+    Part::TopoShape edge = shapes[0];
+    auto [face1, face2] = getAdjacentFacesFromEdge(edge, baseShape);
+
+    DraggerPlacementProps props = getDraggerPlacementFromEdgeAndFace(edge, face1);
+    DraggerPlacementProps props2 = getDraggerPlacementFromEdgeAndFace(edge, face2);
+    if (ui->flipDirection->isChecked()) {
+        std::swap(props, props2);
+    }
+
+    distanceGizmo->Gizmo::setDraggerPlacement(props.position, props.dir);
+    secondDistanceGizmo->Gizmo::setDraggerPlacement(props2.position, props2.dir);
+
+    angleGizmo->placeBelowLinearGizmo(distanceGizmo);
+    angleGizmo->getDraggerContainer()->setArcNormalDirection(
+        Base::convertTo<SbVec3f>(-props.dir.Cross(props2.dir))
+    );
+    // Only show the gizmo if the chamfer type is set to distance and angle
+    angleGizmo->setVisibility(getType() == 2);
 }
 
 //**************************************************************************
@@ -328,32 +435,25 @@ void TaskChamferParameters::apply()
 // TaskDialog
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-TaskDlgChamferParameters::TaskDlgChamferParameters(ViewProviderChamfer *DressUpView)
+TaskDlgChamferParameters::TaskDlgChamferParameters(ViewProviderChamfer* DressUpView)
     : TaskDlgDressUpParameters(DressUpView)
 {
-    parameter  = new TaskChamferParameters(DressUpView);
+    parameter = new TaskChamferParameters(DressUpView);
 
     Content.push_back(parameter);
+    Content.push_back(preview);
 }
 
 TaskDlgChamferParameters::~TaskDlgChamferParameters() = default;
 
 //==== calls from the TaskView ===============================================================
 
-
-//void TaskDlgChamferParameters::open()
-//{
-//    // a transaction is already open at creation time of the chamfer
-//    if (!Gui::Command::hasPendingCommand()) {
-//        QString msg = tr("Edit chamfer");
-//        Gui::Command::openCommand((const char*)msg.toUtf8());
-//    }
-//}
 bool TaskDlgChamferParameters::accept()
 {
-    auto obj = vp->getObject();
-    if (!obj->isError())
-        parameter->showObject();
+    auto obj = getObject();
+    if (!obj->isError()) {
+        getViewObject()->showPreviousFeature(false);
+    }
 
     parameter->apply();
 

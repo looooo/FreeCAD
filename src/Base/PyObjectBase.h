@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2002 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,43 +22,15 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef BASE_PYOBJECTBASE_H
-#define BASE_PYOBJECTBASE_H
+#pragma once
 
 // clang-format off
 // NOLINTBEGIN(cppcoreguidelines-macro-usage)
-// Std. configurations
-
-// (re-)defined in pyconfig.h
-#if defined (_POSIX_C_SOURCE)
-#   undef    _POSIX_C_SOURCE
-#endif
-#if defined (_XOPEN_SOURCE)
-#   undef    _XOPEN_SOURCE
-#endif
-
-// needed header
-#undef slots
-#include <Python.h>
-#ifdef FC_OS_MACOSX
-#undef toupper
-#undef tolower
-#undef isupper
-#undef islower
-#undef isspace
-#undef isalpha
-#undef isalnum
-#endif
-#define slots
 #include <bitset>
 #include <cstring>
-
-#include "Exception.h"
-#ifndef PYCXX_PYTHON_2TO3
-#define PYCXX_PYTHON_2TO3
-#endif
 #include <CXX/Objects.hxx>
 
+#include "Exception.h"
 
 /** Python static class macro for definition
  * sets up a static function entry in a class inheriting
@@ -128,6 +102,16 @@ inline bool asBoolean(PyObject *obj) {
     return PyObject_IsTrue(obj) != 0;
 }
 
+/**
+ * @brief Make a Py::String out of a std::string_view.
+ */
+// If upstream PyCXX ever gets an std::string_view constructor for Py::String,
+// this can be trivially swapped out for that constructor.
+inline Py::String toPyString(std::string_view utf8)
+{
+    return { utf8.data(), Py_ssize_t(utf8.size()) };
+}
+
 }
 
 /*------------------------------
@@ -155,7 +139,7 @@ inline bool asBoolean(PyObject *obj) {
 public:                                                     \
     static PyTypeObject   Type;                             \
     static PyMethodDef    Methods[];                        \
-    virtual PyTypeObject *GetType(void) {return &Type;}
+    virtual PyTypeObject *GetType(void) const {return &Type;}
 
 /*------------------------------
  * PyObjectBase
@@ -165,18 +149,18 @@ namespace Base
 {
 
 
-/** The PyObjectBase class, exports the class as a python type
+/** The PyObjectBase class, exports the class as a Python type
  *  PyObjectBase is the base class for all C++ classes which
- *  need to get exported into the python namespace. This class is
+ *  need to get exported into the Python namespace. This class is
  *  very important because nearly all important classes in FreeCAD
- *  are visible in python for macro recording and automation purpose.
- *  The class App::Document is a good expample for an exported class.
+ *  are visible in Python for macro recording and automation purpose.
+ *  The class App::Document is a good example for an exported class.
  *  There are some convenience macros to make it easier to inherit
- *  from this class and defining new methods exported to python.
+ *  from this class and defining new methods exported to Python.
  *  PYFUNCDEF_D defines a new exported method.
  *  PYFUNCIMP_D defines the implementation of the new exported method.
  *  In the implementation you can use Py_Return, Py_Error, Py_Try and Py_Assert.
- *  PYMETHODEDEF makes the entry in the python method table.
+ *  PYMETHODEDEF makes the entry in the Python method table.
  *  @see Document
  *  @see PYFUNCDEF_D
  *  @see PYFUNCIMP_D
@@ -306,7 +290,7 @@ public:
         StatusBits.set(Immutable);
     }
 
-    bool isConst() {
+    bool isConst() const {
         return StatusBits.test(Immutable);
     }
 
@@ -430,6 +414,8 @@ BaseExport extern PyObject* PyExc_FC_BadGraphError;
 BaseExport extern PyObject* PyExc_FC_ExpressionError;
 BaseExport extern PyObject* PyExc_FC_ParserError;
 BaseExport extern PyObject* PyExc_FC_CADKernelError;
+BaseExport extern PyObject* PyExc_FC_PropertyError;
+BaseExport extern PyObject* PyExc_FC_AbortIOException;
 
 /** Exception handling for python callback functions
  * Is a convenience macro to manage the exception handling of python callback
@@ -471,12 +457,10 @@ BaseExport extern PyObject* PyExc_FC_CADKernelError;
 #define PY_TRY	try
 
 #define __PY_CATCH(R)                                               \
-    catch(Base::Exception &e)                                       \
+    catch(const Base::Exception &e)                                 \
     {                                                               \
-        auto pye = e.getPyExceptionType();                          \
-        if(!pye)                                                    \
-            pye = Base::PyExc_FC_GeneralError;                      \
-        _Py_ErrorObj(R,pye,e.getPyObject());                        \
+        e.setPyException();                                         \
+        R;                                                          \
     }                                                               \
     catch(const std::exception &e)                                  \
     {                                                               \
@@ -554,10 +538,46 @@ inline void PyTypeCheck(PyObject** ptr, int (*method)(PyObject*), const char* ms
     }
 }
 
+/**
+ * @brief Registers a C++ enum as a Python IntEnum in the specified module.
+ *
+ * This function dynamically creates a Python `IntEnum` class using the provided
+ * C++ enum entries and registers it under the given name within the specified
+ * Python module. It allows seamless integration of C++ enums into Python, making
+ * them accessible and usable in Python scripts.
+ *
+ * @tparam T The type of the enum values.
+ * @param module The Python module where the enum will be registered.
+ * @param name The name to be given to the Python IntEnum.
+ * @param entries A map of string keys to enum values, representing the enum definition.
+ */
+template <typename T>
+void PyRegisterEnum(PyObject* module, const char* name, const std::map<const char*, T>& entries)
+{
+    PyObject* pyEnumModule = PyImport_ImportModule("enum");
+    if (!pyEnumModule) {
+        return;
+    }
+
+    PyObject* pyConstantsDict = PyDict_New();
+
+    // Populate dictionary
+    for (const auto& [key, value] : entries) {
+        PyDict_SetItemString(pyConstantsDict, key, PyLong_FromLong(static_cast<int>(value)));
+    }
+
+    PyObject* pyEnumClass = PyObject_CallMethod(pyEnumModule, "IntEnum", "sO", name, pyConstantsDict);
+
+    Py_CLEAR(pyConstantsDict);
+    Py_CLEAR(pyEnumModule);
+
+    if (pyEnumClass && PyModule_AddObject(module, name, pyEnumClass) < 0) {
+        Py_CLEAR(pyEnumClass);
+    }
+}
+
 
 } // namespace Base
 
 // NOLINTEND(cppcoreguidelines-macro-usage)
 // clang-format on
-
-#endif  // BASE_PYOBJECTBASE_H

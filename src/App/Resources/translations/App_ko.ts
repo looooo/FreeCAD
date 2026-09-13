@@ -2,62 +2,95 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="ko" sourcelanguage="en">
   <context>
-    <name>LinkParams</name>
-    <message>
-      <location filename="../../Link.cpp" line="118"/>
-      <source>Stores the last user choice of whether to apply CopyOnChange setup to all links
-that reference the same configurable object</source>
-      <translation type="unfinished">Stores the last user choice of whether to apply CopyOnChange setup to all links
-that reference the same configurable object</translation>
-    </message>
-  </context>
-  <context>
     <name>QObject</name>
     <message>
-      <location filename="../../Application.cpp" line="445"/>
+      <location filename="../../Application.cpp" line="609"/>
       <source>Unnamed</source>
-      <translation>이름없음</translation>
-    </message>
-  </context>
-  <context>
-    <name>App::Origin</name>
-    <message>
-      <location filename="../../Origin.cpp" line="140"/>
-      <source>X-axis</source>
-      <translation type="unfinished">X-axis</translation>
+      <translation>이름 없음</translation>
     </message>
     <message>
-      <location filename="../../Origin.cpp" line="141"/>
-      <source>Y-axis</source>
-      <translation type="unfinished">Y-axis</translation>
+      <location filename="../../Expression.cpp" line="569"/>
+      <source>True</source>
+      <translation>참</translation>
     </message>
     <message>
-      <location filename="../../Origin.cpp" line="142"/>
-      <source>Z-axis</source>
-      <translation type="unfinished">Z-axis</translation>
+      <location filename="../../Expression.cpp" line="569"/>
+      <source>False</source>
+      <translation>거짓</translation>
     </message>
     <message>
-      <location filename="../../Origin.cpp" line="143"/>
-      <source>XY-plane</source>
-      <translation type="unfinished">XY-plane</translation>
-    </message>
-    <message>
-      <location filename="../../Origin.cpp" line="144"/>
-      <source>XZ-plane</source>
-      <translation type="unfinished">XZ-plane</translation>
-    </message>
-    <message>
-      <location filename="../../Origin.cpp" line="145"/>
-      <source>YZ-plane</source>
-      <translation type="unfinished">YZ-plane</translation>
+      <location filename="../../Expression.cpp" line="587"/>
+      <source>Null</source>
+      <translation type="unfinished">Null</translation>
     </message>
   </context>
   <context>
     <name>App::OriginGroupExtension</name>
     <message>
-      <location filename="../../OriginGroupExtension.cpp" line="134"/>
+      <location filename="../../OriginGroupExtension.cpp" line="163"/>
       <source>Origin</source>
       <translation>원점</translation>
+    </message>
+  </context>
+  <context>
+    <name>Notifications</name>
+    <message>
+      <location filename="../../Document.cpp" line="1248"/>
+      <source>
+It is recommended that the user right-click the root of the document and select Mark to recompute.
+The user should then click the Refresh button in the main toolbar.
+</source>
+      <translation>
+문서의 루트를 마우스 오른쪽 버튼으로 클릭하고 다시 계산 표시를 선택하는 것이 권장됩니다.
+그런 다음 기본 도구 모음에서 새로 고침 버튼을 클릭해야 합니다.
+</translation>
+    </message>
+  </context>
+  <context>
+    <name>App::LocalCoordinateSystem</name>
+    <message>
+      <location filename="../../Datums.cpp" line="267"/>
+      <source>X-axis</source>
+      <translation>X 축</translation>
+    </message>
+    <message>
+      <location filename="../../Datums.cpp" line="268"/>
+      <source>Y-axis</source>
+      <translation>Y 축</translation>
+    </message>
+    <message>
+      <location filename="../../Datums.cpp" line="269"/>
+      <source>Z-axis</source>
+      <translation>Z축</translation>
+    </message>
+    <message>
+      <location filename="../../Datums.cpp" line="270"/>
+      <source>XY-plane</source>
+      <translation>XY 평면</translation>
+    </message>
+    <message>
+      <location filename="../../Datums.cpp" line="271"/>
+      <source>XZ-plane</source>
+      <translation>XZ 평면</translation>
+    </message>
+    <message>
+      <location filename="../../Datums.cpp" line="272"/>
+      <source>YZ-plane</source>
+      <translation>YZ 평면</translation>
+    </message>
+    <message>
+      <location filename="../../Datums.cpp" line="273"/>
+      <source>Origin-Point</source>
+      <translation>원점</translation>
+    </message>
+  </context>
+  <context>
+    <name>LinkParams</name>
+    <message>
+      <location filename="../../Link.cpp" line="119"/>
+      <source>Stores the last user choice of whether to apply CopyOnChange setup to all link
+that links to the same configurable object</source>
+      <translation>동일한 구성 가능한 객체를 참조하는 모든 연결에 CopyOnChange 설정을 적용할지 사용자의 최종 선택값을 저장</translation>
     </message>
   </context>
 </TS>

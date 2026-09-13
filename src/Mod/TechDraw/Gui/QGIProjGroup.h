@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2012-2013 Luke Parry <l.parry@warwick.ac.uk>            *
  *                                                                         *
@@ -20,12 +22,12 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_QGIProjGroup_H
-#define DRAWINGGUI_QGIProjGroup_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
 #include "QGIViewCollection.h"
+#include "QGIUserTypes.h"
 
 
 QT_BEGIN_NAMESPACE
@@ -40,6 +42,7 @@ namespace TechDraw {
 
 namespace TechDrawGui
 {
+class QGIViewPart;
 
 class TechDrawGuiExport QGIProjGroup : public QGIViewCollection
 {
@@ -49,7 +52,7 @@ public:
     // TODO: if the QGIVO is deleted, should we clean up any remaining QGIVParts??
     ~QGIProjGroup() override = default;
 
-    enum {Type = QGraphicsItem::UserType + 113};
+    enum {Type = UserType::QGIProjGroup};
     int type() const override { return Type;}
 
     void alignTo(QGIProjGroup *, const QString &alignment);
@@ -58,6 +61,11 @@ public:
 
     void drawBorder() override;
 
+    bool isMember(App::DocumentObject* dvpObj) const;
+    QGIView* getAnchorQItem() const;
+    TechDraw::DrawProjGroup* getPGroupFeature() const;
+    QList<QGIViewPart*> secondaryQViews() const;
+
 protected:
     bool sceneEventFilter(QGraphicsItem* watched, QEvent *event) override;
     QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
@@ -65,16 +73,15 @@ protected:
     void mouseMoveEvent(QGraphicsSceneMouseEvent * event ) override;
     void mousePressEvent(QGraphicsSceneMouseEvent * event) override;
     void mouseReleaseEvent(QGraphicsSceneMouseEvent * event) override;
-    QGIView * getAnchorQItem() const;
+
+    void mouseReleaseEvent(QGIView* originator, QGraphicsSceneMouseEvent* event);
 
 private:
     /// Convenience function
-    TechDraw::DrawProjGroup* getDrawView() const;
+    bool autoDistributeEnabled() const;
 
     QGraphicsItem* m_origin;
     QPoint mousePos;
 };
 
 } // namespace MDIViewPageGui
-
-#endif // DRAWINGGUI_QGIProjGroup_H

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2004 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,16 +22,14 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <Inventor/manips/SoTransformerManip.h>
 #include <Inventor/nodes/SoDrawStyle.h>
 #include <Inventor/nodes/SoMaterial.h>
 #include <Inventor/nodes/SoNormalBinding.h>
 #include <Inventor/nodes/SoSeparator.h>
-#endif
 
-#include <Gui/SoFCSelection.h>
+
+#include <Gui/Selection/SoFCSelection.h>
 #include <Mod/Mesh/App/MeshFeature.h>
 
 #include "ViewProviderTransform.h"
@@ -53,17 +53,17 @@ ViewProviderMeshTransform::~ViewProviderMeshTransform()
     pcTransformerDragger->unref();
 }
 
-void ViewProviderMeshTransform::attach(App::DocumentObject* pcFeat)
+void ViewProviderMeshTransform::attach(App::DocumentObject* obj)
 {
     // creates the standard viewing modes
-    ViewProviderMesh::attach(pcFeat);
+    ViewProviderMesh::attach(obj);
 
-    SoSeparator* pcEditRoot = new SoSeparator();
+    auto pcEditRoot = new SoSeparator();
 
     // flat shaded (Normal) ------------------------------------------
-    SoDrawStyle* pcFlatStyle = new SoDrawStyle();
+    auto pcFlatStyle = new SoDrawStyle();
     pcFlatStyle->style = SoDrawStyle::FILLED;
-    SoNormalBinding* pcBinding = new SoNormalBinding();
+    auto pcBinding = new SoNormalBinding();
     pcBinding->value = SoNormalBinding::PER_FACE;
 
     pcEditRoot->addChild(pcTransformerDragger);

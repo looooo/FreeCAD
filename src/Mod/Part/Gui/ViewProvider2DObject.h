@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2004 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -21,12 +23,13 @@
  ***************************************************************************/
 
 
-#ifndef PARTGUI_VIEWPROVIDER2DOBJECT_H
-#define PARTGUI_VIEWPROVIDER2DOBJECT_H
+#pragma once
 
 #include "ViewProvider.h"
 #include <App/PropertyUnits.h>
-#include <Gui/ViewProviderPythonFeature.h>
+#include <Gui/ViewProviderFeaturePython.h>
+
+#include <Mod/Part/PartGlobal.h>
 
 class TopoDS_Shape;
 class TopoDS_Face;
@@ -34,23 +37,39 @@ class SoSeparator;
 class SbVec3f;
 class SoTransform;
 
-namespace PartGui {
+namespace PartGui
+{
 
 
-class PartGuiExport ViewProvider2DObject : public PartGui::ViewProviderPart
+class PartGuiExport ViewProvider2DObject: public PartGui::ViewProviderPart
 {
     PROPERTY_HEADER_WITH_OVERRIDE(PartGui::ViewProvider2DObject);
+
+    static constexpr float horizontalPlanePadding = 8;
+    static constexpr float verticalPlanePadding = 6;
 
 public:
     /// constructor
     ViewProvider2DObject();
     /// destructor
     ~ViewProvider2DObject() override;
+
+    App::PropertyBool ShowPlane;
+
+    void attach(App::DocumentObject*) override;
+    void updateData(const App::Property*) override;
+    void onChanged(const App::Property*) override;
+
     std::vector<std::string> getDisplayModes() const override;
     const char* getDefaultDisplayMode() const override;
+
+protected:
+    void updatePlane();
+
+    Gui::CoinPtr<SoSwitch> plane;
 };
 
-class PartGuiExport ViewProvider2DObjectGrid : public ViewProvider2DObject
+class PartGuiExport ViewProvider2DObjectGrid: public ViewProvider2DObject
 {
     PROPERTY_HEADER_WITH_OVERRIDE(PartGui::ViewProvider2DObjectGrid);
 
@@ -70,7 +89,7 @@ public:
     App::PropertyBool GridAutoSize;
     App::PropertyInteger maxNumberOfLines;
 
-    void attach(App::DocumentObject *) override;
+    void attach(App::DocumentObject*) override;
     void updateData(const App::Property*) override;
 
     /// creates the grid
@@ -81,10 +100,14 @@ protected:
     void unsetEdit(int ModNum) override;
     /// get called by the container whenever a property has been changed
     void onChanged(const App::Property* prop) override;
-    void Restore(Base::XMLReader &reader) override;
-    void handleChangedPropertyType(Base::XMLReader &reader, const char * TypeName, App::Property * prop) override;
+    void Restore(Base::XMLReader& reader) override;
+    void handleChangedPropertyType(
+        Base::XMLReader& reader,
+        const char* TypeName,
+        App::Property* prop
+    ) override;
 
-    SoSeparator  *GridRoot;
+    SoSeparator* GridRoot;
 
     void updateGridExtent(float minx, float maxx, float miny, float maxy);
 
@@ -98,10 +121,6 @@ private:
     float MaxY;
 };
 
-using ViewProvider2DObjectPython = Gui::ViewProviderPythonFeatureT<ViewProvider2DObject>;
+using ViewProvider2DObjectPython = Gui::ViewProviderFeaturePythonT<ViewProvider2DObject>;
 
-} // namespace PartGui
-
-
-#endif // PARTGUI_VIEWPROVIDER2DOBJECT_H
-
+}  // namespace PartGui

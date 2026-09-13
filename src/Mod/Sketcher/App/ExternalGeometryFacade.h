@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2020 Abdullah Tahiri <abdullah.tahiri.yo@gmail.com>     *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef SKETCHER_GEOMETRYEXTERNALFACADE_H
-#define SKETCHER_GEOMETRYEXTERNALFACADE_H
+#pragma once
 
 #include <boost/uuid/uuid_io.hpp>
 
@@ -68,6 +69,7 @@ public:  // Factory methods
 public:  // Utility methods
     static void ensureSketchGeometryExtensions(Part::Geometry* geometry);
     static void copyId(const Part::Geometry* src, Part::Geometry* dst);
+    static void copyFlags(const Part::Geometry* src, Part::Geometry* dst);
 
 public:
     void setGeometry(Part::Geometry* geometry);
@@ -77,15 +79,27 @@ public:
     {
         return getExternalGeoExt()->testFlag(flag);
     }
+
     void setFlag(int flag, bool v = true) override
     {
         getExternalGeoExt()->setFlag(flag, v);
+    }
+
+    unsigned long getFlags() const override
+    {
+        return getExternalGeoExt()->getFlags();
+    }
+
+    void setFlags(unsigned long flags) override
+    {
+        getExternalGeoExt()->setFlags(flags);
     }
 
     bool isClear() const override
     {
         return getExternalGeoExt()->isClear();
     }
+
     size_t flagSize() const override
     {
         return getExternalGeoExt()->flagSize();
@@ -95,9 +109,17 @@ public:
     {
         return getExternalGeoExt()->getRef();
     }
-    void setRef(const std::string& ref) override
+
+    void setRef(const std::string& ref) override;
+
+    int getRefIndex() const override
     {
-        getExternalGeoExt()->setRef(ref);
+        return getExternalGeoExt()->getRefIndex();
+    }
+
+    void setRefIndex(int index) override
+    {
+        getExternalGeoExt()->setRefIndex(index);
     }
 
     /** GeometryExtension Interface **/
@@ -173,7 +195,7 @@ public:
             std::is_base_of<Part::Geometry, typename std::decay<GeometryT>::type>::value>::type>
     GeometryT* getGeometry()
     {
-        return dynamic_cast<GeometryT*>(const_cast<GeometryT*>(Geo));
+        return freecad_cast<GeometryT*>(const_cast<GeometryT*>(Geo));
     }
 
     // Geometry Element
@@ -183,7 +205,7 @@ public:
             std::is_base_of<Part::Geometry, typename std::decay<GeometryT>::type>::value>::type>
     GeometryT* getGeometry() const
     {
-        return dynamic_cast<GeometryT*>(Geo);
+        return freecad_cast<GeometryT*>(Geo);
     }
 
     PyObject* getPyObject() override;
@@ -307,6 +329,3 @@ private:
 
 
 }  // namespace Sketcher
-
-
-#endif  // SKETCHER_GEOMETRYEXTERNALFACADE_H

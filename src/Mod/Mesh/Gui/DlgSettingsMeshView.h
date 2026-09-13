@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2009 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,12 +22,9 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef MESHGUI_DLGSETTINGSMESHVIEW_H
-#define MESHGUI_DLGSETTINGSMESHVIEW_H
+#pragma once
 
-#ifndef MESH_GLOBAL_H
 #include <Mod/Mesh/MeshGlobal.h>
-#endif
 #include <memory>
 
 #include <Gui/PropertyPage.h>
@@ -54,8 +53,8 @@ protected:
 
 private:
     std::unique_ptr<Ui_DlgSettingsMeshView> ui;
+
+    Q_DISABLE_COPY_MOVE(DlgSettingsMeshView)
 };
 
 }  // namespace MeshGui
-
-#endif  // MESHGUI_DLGSETTINGSMESHVIEW_H

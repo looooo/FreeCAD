@@ -21,10 +21,8 @@
  ***************************************************************************/
 
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
-# include <list>
-#endif
+#include <list>
+
 
 #include <Base/TypePy.h>
 
@@ -50,25 +48,41 @@ void MainWindowPy::init_type()
     behaviors().supportSetattr();
     behaviors().set_tp_new(extension_object_new);
 
-    add_varargs_method("getWindows",&MainWindowPy::getWindows,"getWindows()");
-    add_varargs_method("getWindowsOfType",&MainWindowPy::getWindowsOfType,"getWindowsOfType(typeid)");
+    add_varargs_method("getWindows", &MainWindowPy::getWindows, "getWindows()");
+    add_varargs_method("getWindowsOfType", &MainWindowPy::getWindowsOfType, "getWindowsOfType(typeid)");
     add_varargs_method("setActiveWindow", &MainWindowPy::setActiveWindow, "setActiveWindow(MDIView)");
     add_varargs_method("getActiveWindow", &MainWindowPy::getActiveWindow, "getActiveWindow()");
     add_varargs_method("addWindow", &MainWindowPy::addWindow, "addWindow(MDIView)");
     add_varargs_method("removeWindow", &MainWindowPy::removeWindow, "removeWindow(MDIView)");
+    add_varargs_method("showHint", &MainWindowPy::showHint, "showHint(hint)");
+    add_varargs_method("hideHint", &MainWindowPy::hideHint, "hideHint()");
+    add_keyword_method(
+        "addStatusBarItem",
+        &MainWindowPy::addStatusBarItem,
+        "addStatusBarItem(widget, id, title='', slot='Right', order=0, "
+        "persistentVisibility=True, stretch=0)\n"
+        "Registers a widget in the status bar. MainWindow owns its "
+        "placement, ordering, visibility persistence and context-menu entry."
+    );
+    add_varargs_method(
+        "removeStatusBarItem",
+        &MainWindowPy::removeStatusBarItem,
+        "removeStatusBarItem(id)"
+    );
+    behaviors().readyType();
 }
 
-PyObject *MainWindowPy::extension_object_new(struct _typeobject * /*type*/, PyObject * /*args*/, PyObject * /*kwds*/)
+PyObject* MainWindowPy::extension_object_new(struct _typeobject* /*type*/, PyObject* /*args*/, PyObject* /*kwds*/)
 {
     return new MainWindowPy(nullptr);
 }
 
 Py::Object MainWindowPy::type()
 {
-    return Py::Object( reinterpret_cast<PyObject *>( behaviors().type_object() ) );
+    return Py::Object(reinterpret_cast<PyObject*>(behaviors().type_object()));
 }
 
-Py::ExtensionObject<MainWindowPy> MainWindowPy::create(MainWindow *mw)
+Py::ExtensionObject<MainWindowPy> MainWindowPy::create(MainWindow* mw)
 {
     Py::Callable class_type(type());
     Py::Tuple arg;
@@ -77,17 +91,26 @@ Py::ExtensionObject<MainWindowPy> MainWindowPy::create(MainWindow *mw)
     return inst;
 }
 
-Py::Object MainWindowPy::createWrapper(MainWindow *mw)
+Py::Object MainWindowPy::createWrapper(MainWindow* mw)
 {
     PythonWrapper wrap;
-    if (!wrap.loadCoreModule() ||
-        !wrap.loadGuiModule() ||
-        !wrap.loadWidgetsModule()) {
+    if (!wrap.loadCoreModule() || !wrap.loadGuiModule() || !wrap.loadWidgetsModule()) {
         throw Py::RuntimeError("Failed to load Python wrapper for Qt");
     }
 
     // copy attributes
-    std::list<std::string> attr = {"getWindows", "getWindowsOfType", "setActiveWindow", "getActiveWindow", "addWindow", "removeWindow"};
+    static constexpr std::initializer_list<const char*> attr = {
+        "getWindows",
+        "getWindowsOfType",
+        "setActiveWindow",
+        "getActiveWindow",
+        "addWindow",
+        "removeWindow",
+        "showHint",
+        "hideHint",
+        "addStatusBarItem",
+        "removeStatusBarItem",
+    };
 
     Py::Object py = wrap.fromQWidget(mw, "QMainWindow");
     Py::ExtensionObject<MainWindowPy> inst(create(mw));
@@ -97,10 +120,9 @@ Py::Object MainWindowPy::createWrapper(MainWindow *mw)
     return py;
 }
 
-MainWindowPy::MainWindowPy(MainWindow *mw)
-  : _mw(mw)
-{
-}
+MainWindowPy::MainWindowPy(MainWindow* mw)
+    : _mw(mw)
+{}
 
 MainWindowPy::~MainWindowPy()
 {
@@ -110,24 +132,24 @@ MainWindowPy::~MainWindowPy()
 
 Py::Object MainWindowPy::repr()
 {
-    std::string s;
-    std::ostringstream s_out;
-    if (!_mw)
+    if (!_mw) {
         throw Py::RuntimeError("Cannot print representation of deleted object");
-    s_out << "MainWindow";
-    return Py::String(s_out.str());
+    }
+
+    return Py::String("MainWindow");
 }
 
 Py::Object MainWindowPy::getWindows(const Py::Tuple& args)
 {
-    if (!PyArg_ParseTuple(args.ptr(), ""))
+    if (!PyArg_ParseTuple(args.ptr(), "")) {
         throw Py::Exception();
+    }
 
     Py::List mdis;
     if (_mw) {
         QList<QWidget*> windows = _mw->windows();
         for (auto it : windows) {
-            auto view = qobject_cast<MDIView*>(it);
+            auto view = dynamic_cast<MDIView*>(it);
             if (view) {
                 mdis.append(Py::asObject(view->getPyObject()));
             }
@@ -140,8 +162,9 @@ Py::Object MainWindowPy::getWindows(const Py::Tuple& args)
 Py::Object MainWindowPy::getWindowsOfType(const Py::Tuple& args)
 {
     PyObject* t;
-    if (!PyArg_ParseTuple(args.ptr(), "O!", &Base::TypePy::Type, &t))
+    if (!PyArg_ParseTuple(args.ptr(), "O!", &Base::TypePy::Type, &t)) {
         throw Py::Exception();
+    }
 
     Base::Type typeId = *static_cast<Base::TypePy*>(t)->getBaseTypePtr();
 
@@ -149,7 +172,7 @@ Py::Object MainWindowPy::getWindowsOfType(const Py::Tuple& args)
     if (_mw) {
         QList<QWidget*> windows = _mw->windows();
         for (auto it : windows) {
-            auto view = qobject_cast<MDIView*>(it);
+            auto view = dynamic_cast<MDIView*>(it);
             if (view && view->isDerivedFrom(typeId)) {
                 mdis.append(Py::asObject(view->getPyObject()));
             }
@@ -171,8 +194,9 @@ Py::Object MainWindowPy::setActiveWindow(const Py::Tuple& args)
 
 Py::Object MainWindowPy::getActiveWindow(const Py::Tuple& args)
 {
-    if (!PyArg_ParseTuple(args.ptr(), ""))
+    if (!PyArg_ParseTuple(args.ptr(), "")) {
         throw Py::Exception();
+    }
 
     if (_mw) {
         MDIView* mdi = _mw->activeWindow();
@@ -186,12 +210,13 @@ Py::Object MainWindowPy::getActiveWindow(const Py::Tuple& args)
 Py::Object MainWindowPy::addWindow(const Py::Tuple& args)
 {
     PyObject* obj;
-    if (!PyArg_ParseTuple(args.ptr(), "O", &obj))
+    if (!PyArg_ParseTuple(args.ptr(), "O", &obj)) {
         throw Py::Exception();
+    }
 
     if (_mw) {
         Py::Object py(obj);
-        Gui::Document* document{nullptr};
+        Gui::Document* document {nullptr};
         // Check if the py object has a reference to a Gui document
         if (py.hasAttr("document")) {
             Py::Object attr(py.getAttr("document"));
@@ -209,13 +234,133 @@ Py::Object MainWindowPy::addWindow(const Py::Tuple& args)
 
 Py::Object MainWindowPy::removeWindow(const Py::Tuple& args)
 {
-    PyObject* obj;
-    if (!PyArg_ParseTuple(args.ptr(), "O!", MDIViewPy::type_object(), &obj))
+    Py::ExtensionObject<MDIViewPy> mdi(args[0].callMemberFunction("cast_to_base"));
+    if (_mw) {
+        _mw->removeWindow(mdi.extensionObject()->getMDIViewPtr());
+    }
+    return Py::None();
+}
+
+Py::Object MainWindowPy::showHint(const Py::Tuple& args)
+{
+    static auto userInputFromPyObject = [](const Py::Object& object) -> InputHint::UserInput {
+        Py::Long value(object.getAttr("value"));
+
+        return static_cast<InputHint::UserInput>(value.as_long());
+    };
+
+    static auto inputSequenceFromPyObject = [](const Py::Object& sequence) -> InputHint::InputSequence {
+        if (sequence.isTuple()) {
+            Py::Tuple pyInputs(sequence);
+
+            std::list<InputHint::UserInput> inputs;
+            for (auto pyInput : pyInputs) {
+                inputs.push_back(userInputFromPyObject(pyInput));
+            }
+
+            return InputHint::InputSequence(inputs);
+        }
+
+        return userInputFromPyObject(sequence);
+    };
+
+    static auto hintFromPyObject = [](const Py::Object& object) -> InputHint {
+        Py::List pySequences = object.getAttr("sequences");
+
+        std::list<InputHint::InputSequence> sequences;
+        for (auto pySequence : pySequences) {
+            sequences.push_back(inputSequenceFromPyObject(pySequence));
+        }
+
+        return InputHint {
+            .message = QString::fromStdString(object.getAttr("message").as_string()),
+            .sequences = sequences
+        };
+    };
+
+    std::list<InputHint> hints;
+    for (auto arg : args) {
+        hints.push_back(hintFromPyObject(arg));
+    }
+
+    _mw->showHints(hints);
+
+    return Py::None();
+}
+
+Py::Object MainWindowPy::hideHint(const Py::Tuple&)
+{
+    _mw->hideHints();
+
+    return Py::None();
+}
+
+Py::Object MainWindowPy::addStatusBarItem(const Py::Tuple& args, const Py::Dict& kwds)
+{
+    PyObject* pyWidget {};
+    const char* id {};
+    const char* title = "";
+    const char* slot = "Right";
+    int order = 0;
+    int persistent = 1;
+    int stretch = 0;
+
+    // Parse positional + keyword arguments.
+    static char* argNames[] = {
+        const_cast<char*>("widget"),
+        const_cast<char*>("id"),
+        const_cast<char*>("title"),
+        const_cast<char*>("slot"),
+        const_cast<char*>("order"),
+        const_cast<char*>("persistentVisibility"),
+        const_cast<char*>("stretch"),
+        nullptr
+    };
+    if (!PyArg_ParseTupleAndKeywords(
+            args.ptr(),
+            kwds.ptr(),
+            "Os|ssipi",
+            argNames,
+            &pyWidget,
+            &id,
+            &title,
+            &slot,
+            &order,
+            &persistent,
+            &stretch
+        )) {
         throw Py::Exception();
+    }
+
+    PythonWrapper wrap;
+    wrap.loadWidgetsModule();
+    QWidget* widget = qobject_cast<QWidget*>(wrap.toQObject(Py::Object(pyWidget)));
+    if (!widget) {
+        throw Py::TypeError("addStatusBarItem: first argument must be a QWidget");
+    }
+
+    StatusBarItemSpec spec;
+    spec.id = QByteArray(id);
+    spec.title = QString::fromUtf8(title);
+    spec.slot = (QByteArray(slot).toLower() == "left") ? StatusBarSlot::Left : StatusBarSlot::Right;
+    spec.order = order;
+    spec.persistentVisibility = persistent != 0;
+    spec.stretch = stretch;
 
     if (_mw) {
-        MDIViewPy* mdi = static_cast<MDIViewPy*>(obj);
-        _mw->removeWindow(mdi->getMDIViewPtr());
+        _mw->addStatusBarItem(widget, spec);
+    }
+    return Py::None();
+}
+
+Py::Object MainWindowPy::removeStatusBarItem(const Py::Tuple& args)
+{
+    const char* id {};
+    if (!PyArg_ParseTuple(args.ptr(), "s", &id)) {
+        throw Py::Exception();
+    }
+    if (_mw) {
+        _mw->removeStatusBarItem(QByteArray(id));
     }
     return Py::None();
 }

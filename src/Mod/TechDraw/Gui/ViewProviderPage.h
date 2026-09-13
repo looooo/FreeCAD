@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2004 Jürgen Riegel <juergen.riegel@web.de>              *
  *   Copyright (c) 2012 Luke Parry <l.parry@warwick.ac.uk>                 *
@@ -21,13 +23,12 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_VIEWPROVIDERPAGE_H
-#define DRAWINGGUI_VIEWPROVIDERPAGE_H
+#pragma once
 
 #include <QObject>
 #include <QPointer>
 
-#include <boost_signals2.hpp>
+#include <fastsignals/signal.h>
 
 #include <App/PropertyUnits.h>
 #include <Gui/ViewProviderDocumentObject.h>
@@ -45,11 +46,17 @@ class DrawTemplate;
 namespace TechDrawGui
 {
 
+// ?? is changing the base type worthwhile here?  lint thinks so.
+enum PageEditMode : std::int16_t {
+    ShowDrawing = 10,
+    ToggleUpdate = 11 };
+
 class MDIViewPage;
 class QGVPage;
 class QGSPage;
 class QGITemplate;
 
+// NOLINTNEXTLINE
 class TechDrawGuiExport ViewProviderPage: public Gui::ViewProviderDocumentObject,
                                           public ViewProviderPageExtension
 {
@@ -61,11 +68,13 @@ public:
     /// destructor
     ~ViewProviderPage() override;
 
+// NOLINTBEGIN
     App::PropertyBool ShowFrames;
     App::PropertyBool ShowGrid;
     App::PropertyDistance GridSpacing;
+// NOLINTEND
 
-    void attach(App::DocumentObject*) override;
+    void attach(App::DocumentObject* pcFeat) override;
 
     bool canDragObjects() const override;
     bool canDragObject(App::DocumentObject* docObj) const override;
@@ -89,38 +98,43 @@ public:
 
     /// Is called by the tree if the user double click on the object
     bool doubleClicked() override;
-    void setupContextMenu(QMenu*, QObject*, const char*) override;
-    bool onDelete(const std::vector<std::string>&) override;
+    void setupContextMenu(QMenu* menu, QObject* receiver, const char* member) override;
+    bool onDelete(const std::vector<std::string>& parms) override;
     void onChanged(const App::Property* prop) override;
     void updateData(const App::Property* prop) override;
 
     TechDraw::DrawPage* getDrawPage() const;
     TechDraw::DrawTemplate* getTemplate() const;
-    QGITemplate* getQTemplate(void) const;
+    QGITemplate* getQTemplate() const;
 
     //slots & connections
     void onGuiRepaint(const TechDraw::DrawPage* dp);
-    using Connection = boost::signals2::scoped_connection;
+
+// NOLINTBEGIN
+    using Connection = fastsignals::scoped_connection;
     Connection connectGuiRepaint;
+// NOLINTEND
 
     void unsetEdit(int ModNum) override;
     MDIViewPage* getMDIViewPage() const;
     bool showMDIViewPage();
     void removeMDIView();
+    void switchToMdiViewPage();
 
     Gui::MDIView* getMDIView() const override;
 
-    bool getFrameState();
+    bool getFrameState() const;
     void setFrameState(bool state);
     void toggleFrameState();
-    void setTemplateMarkers(bool state);
+
+    void setTemplateMarkers(bool state) const;
 
     bool canDelete(App::DocumentObject* obj) const override;
 
     void setGrid();
 
-    QGSPage* getQGSPage(void) { return m_graphicsScene; }
-    QGVPage* getQGVPage(void) { return m_graphicsView; }
+    QGSPage* getQGSPage() const;
+    QGVPage* getQGVPage() const;
 
     ViewProviderPageExtension* getVPPExtension() const;
 
@@ -128,6 +142,11 @@ public:
 
     void fixSceneDependencies();
 
+    void redrawPage() const;
+
+    // Called by MDIViewPage::closeEvent() instead of hide() to avoid re-entrantly
+    // calling removeWindow() on a QMdiSubWindow that is mid-closeEvent.
+    void onMDIViewClosed();
 
 protected:
     bool setEdit(int ModNum) override;
@@ -136,11 +155,10 @@ protected:
 private:
     QPointer<MDIViewPage> m_mdiView;
     std::string m_pageName;
-    QGVPage* m_graphicsView;
+    QPointer<QGVPage> m_graphicsView;
     QGSPage* m_graphicsScene;
+
+    bool m_frameToggle{false};      // replacement for ShowFrame property to avoid marking document changed
 };
 
 }// namespace TechDrawGui
-
-
-#endif// DRAWINGGUI_VIEWPROVIDERPAGE_H

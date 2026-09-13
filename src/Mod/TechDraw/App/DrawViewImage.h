@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DrawViewImage_h_
-#define DrawViewImage_h_
+#pragma once
 
 #include <App/DocumentObject.h>
 #include <App/FeaturePython.h>
@@ -47,6 +48,7 @@ public:
     App::PropertyFileIncluded ImageIncluded;
     App::PropertyFloat        Width;
     App::PropertyFloat        Height;
+    App::PropertyLink         Owner;
 
     /** @name methods override Feature */
     //@{
@@ -58,6 +60,9 @@ public:
     const char* getViewProviderName() const override {
         return "TechDrawGui::ViewProviderImage";
     }
+
+    App::PropertyLink *getOwnerProperty() override { return &Owner; }
+
     QRectF getRect() const override;
     void setupObject() override;
 
@@ -72,6 +77,3 @@ using DrawViewImagePython = App::FeaturePythonT<DrawViewImage>;
 
 
 } //namespace TechDraw
-
-
-#endif

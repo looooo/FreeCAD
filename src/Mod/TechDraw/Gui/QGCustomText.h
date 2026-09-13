@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,14 +22,14 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_QGCUSTOMTEXT_H
-#define DRAWINGGUI_QGCUSTOMTEXT_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
 #include <QGraphicsItem>
 #include <QGraphicsTextItem>
 #include <QPointF>
+#include <QTextCursor>
 
 QT_BEGIN_NAMESPACE
 class QPainter;
@@ -37,21 +39,26 @@ QT_END_NAMESPACE
 #include <Base/Parameter.h>
 #include <Base/Vector3D.h>
 
+#include "QGIUserTypes.h"
+
 namespace TechDrawGui
 {
 
 class TechDrawGuiExport QGCustomText : public QGraphicsTextItem
 {
+    Q_OBJECT
 public:
     explicit QGCustomText(QGraphicsItem* parent = nullptr);
     ~QGCustomText() override {}
 
-    enum {Type = QGraphicsItem::UserType + 130};
+    enum {Type = UserType::QGCustomText};
     int type() const override { return Type;}
     void paint(QPainter * painter, const QStyleOptionGraphicsItem * option, QWidget * widget = nullptr ) override;
-    QRectF boundingRect() const override;
+
     QRectF tightBoundingRect() const;
+    QRectF alignmentRect() const;
     QPointF tightBoundingAdjust() const;
+
 
     void setHighlighted(bool state);
     virtual void setPrettyNormal();
@@ -78,22 +85,27 @@ public:
     void makeMark(double x, double y);
     void makeMark(Base::Vector3d v);
 
+Q_SIGNALS:
+    void selectionChanged();
+
 protected:
+    void keyPressEvent(QKeyEvent* event) override;
+    void mousePressEvent(QGraphicsSceneMouseEvent* event) override;
+    void mouseReleaseEvent(QGraphicsSceneMouseEvent* event) override;
+    void focusInEvent(QFocusEvent* event) override;
     void hoverEnterEvent(QGraphicsSceneHoverEvent *event) override;
     void hoverLeaveEvent(QGraphicsSceneHoverEvent *event) override;
     QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
 
     Base::Reference<ParameterGrp> getParmGroup();
 
-    bool isHighlighted;
     bool tightBounding;  // Option to use tighter boundingRect(), works only for plaintext QGCustomText
-    QColor m_colCurrent;
     QColor m_colNormal;
 
 private:
+    void checkCursorChange();
+    QTextCursor m_lastCursor;
 
 };
 
 }
-
-#endif // DRAWINGGUI_QGCUSTOMTEXT_H

@@ -1,19 +1,11 @@
-include_directories(
-    ${CMAKE_BINARY_DIR}
-    ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_BINARY_DIR}
-    ${Boost_INCLUDE_DIRS}
-    ${OCC_INCLUDE_DIR}
-    ${COIN3D_INCLUDE_DIRS}
-    ${ZLIB_INCLUDE_DIR}
-    ${PYTHON_INCLUDE_DIRS}
-    ${XercesC_INCLUDE_DIRS}
-    ${EIGEN3_INCLUDE_DIR}
-    ${CMAKE_SOURCE_DIR}/src/3rdParty/json/single_include/nlohmann/
-)
-link_directories(${OCC_LIBRARY_DIR})
+# SPDX-License-Identifier: LGPL-2.1-or-later
 
-generate_from_xml(ViewProviderPy)
+include_directories(
+    SYSTEM
+    ${nlohmann_json_INCLUDE_DIRS}
+)
+
+generate_from_py(ViewProvider)
 
 
 set(PartDesignGui_LIBS
@@ -28,25 +20,31 @@ set (PartDesign_TR_QRC ${CMAKE_CURRENT_BINARY_DIR}/Resources/PartDesign_translat
 qt_find_and_add_translation(QM_SRCS "Resources/translations/*_*.ts"
     ${CMAKE_CURRENT_BINARY_DIR}/Resources/translations)
 qt_create_resource_file(${PartDesign_TR_QRC} ${QM_SRCS})
-qt_add_resources(PartDesignGui_SRCS Resources/PartDesign.qrc ${PartDesign_TR_QRC})
+qt_add_resources(PartDesignGui_SRCS
+    Resources/PartDesign.qrc
+    ${PartDesign_TR_QRC}
+    OPTIONS ${FREECAD_RCC_OPTIONS}
+)
 
 set(PartDesignGui_UIC_SRCS
     TaskFeaturePick.ui
     TaskPadPocketParameters.ui
     TaskChamferParameters.ui
     TaskFilletParameters.ui
+    TaskDefeaturingParameters.ui
     TaskDraftParameters.ui
     TaskThicknessParameters.ui
     TaskBooleanParameters.ui
     TaskHoleParameters.ui
     TaskRevolutionParameters.ui
     TaskTransformedMessages.ui
+    TaskTransformedParameters.ui
     TaskMirroredParameters.ui
-    TaskLinearPatternParameters.ui
-    TaskPolarPatternParameters.ui
+    TaskPatternParameters.ui
     TaskScaledParameters.ui
     TaskMultiTransformParameters.ui
     TaskShapeBinder.ui
+    TaskPreviewParameters.ui
     TaskPrimitiveParameters.ui
     TaskPipeParameters.ui
     TaskPipeOrientation.ui
@@ -64,6 +62,8 @@ SET(PartDesignGuiViewProvider_SRCS
     ViewProviderBody.h
     ViewProviderSketchBased.cpp
     ViewProviderSketchBased.h
+    ViewProviderExtrude.cpp
+    ViewProviderExtrude.h
     ViewProviderPad.cpp
     ViewProviderPad.h
     ViewProviderHole.cpp
@@ -74,6 +74,8 @@ SET(PartDesignGuiViewProvider_SRCS
     ViewProviderChamfer.h
     ViewProviderFillet.cpp
     ViewProviderFillet.h
+    ViewProviderDefeaturing.cpp
+    ViewProviderDefeaturing.h
     ViewProviderDraft.cpp
     ViewProviderDraft.h
     ViewProviderThickness.cpp
@@ -110,8 +112,6 @@ SET(PartDesignGuiViewProvider_SRCS
     ViewProviderShapeBinder.cpp
     ViewProviderBoolean.cpp
     ViewProviderBoolean.h
-    ViewProviderAddSub.cpp
-    ViewProviderAddSub.h
     ViewProviderPrimitive.h
     ViewProviderPrimitive.cpp
     ViewProviderPipe.h
@@ -133,6 +133,8 @@ SET(PartDesignGuiTaskDlgs_SRCS
     ReferenceSelection.h
     TaskFeatureParameters.cpp
     TaskFeatureParameters.h
+    TaskFeatureAddSubParameters.cpp
+    TaskFeatureAddSubParameters.h
     TaskSketchBasedParameters.cpp
     TaskSketchBasedParameters.h
     TaskExtrudeParameters.cpp
@@ -148,6 +150,9 @@ SET(PartDesignGuiTaskDlgs_SRCS
     TaskFilletParameters.ui
     TaskFilletParameters.cpp
     TaskFilletParameters.h
+    TaskDefeaturingParameters.ui
+    TaskDefeaturingParameters.cpp
+    TaskDefeaturingParameters.h
     TaskDraftParameters.ui
     TaskDraftParameters.cpp
     TaskDraftParameters.h
@@ -167,12 +172,9 @@ SET(PartDesignGuiTaskDlgs_SRCS
     TaskMirroredParameters.ui
     TaskMirroredParameters.cpp
     TaskMirroredParameters.h
-    TaskLinearPatternParameters.ui
-    TaskLinearPatternParameters.cpp
-    TaskLinearPatternParameters.h
-    TaskPolarPatternParameters.ui
-    TaskPolarPatternParameters.cpp
-    TaskPolarPatternParameters.h
+    TaskPatternParameters.ui
+    TaskPatternParameters.cpp
+    TaskPatternParameters.h
     TaskScaledParameters.ui
     TaskScaledParameters.cpp
     TaskScaledParameters.h
@@ -215,10 +217,10 @@ SET(PartDesignGuiModule_SRCS
     CommandBody.cpp
     EnumFlags.h
     Resources/PartDesign.qrc
-    PreCompiled.cpp
     PreCompiled.h
     SketchWorkflow.cpp
     SketchWorkflow.h
+    StyleParameters.h
     Utils.cpp
     Utils.h
     Workbench.cpp
@@ -230,7 +232,7 @@ SOURCE_GROUP("Module" FILES ${PartDesignGuiModule_SRCS})
 
 
 SET(Python_SRCS
-    ViewProviderPy.xml
+    ViewProvider.pyi
     ViewProviderPyImp.cpp
 )
 SOURCE_GROUP("Python" FILES ${Python_SRCS})
@@ -245,21 +247,29 @@ SET(PartDesignGui_SRCS
     ${Python_SRCS}
 )
 
-if(FREECAD_USE_PCH)
-    add_definitions(-D_PreComp_)
-    GET_MSVC_PRECOMPILED_SOURCE("PreCompiled.cpp" PCH_SRCS ${PartDesignGui_SRCS})
-    ADD_MSVC_PRECOMPILED_HEADER(PartDesignGui PreCompiled.h PreCompiled.cpp PCH_SRCS)
-endif(FREECAD_USE_PCH)
-
-
 SET(PartDesignGuiIcon_SVG
     Resources/icons/PartDesignWorkbench.svg
 )
 
 add_library(PartDesignGui SHARED ${PartDesignGui_SRCS} ${PartDesignGuiIcon_SVG})
-target_link_libraries(PartDesignGui ${PartDesignGui_LIBS})
 
-SET_BIN_DIR(PartDesignGui PartDesignGui /Mod/PartDesign)
+if(FREECAD_USE_PCH)
+    target_precompile_headers(PartDesignGui PRIVATE
+            $<$<COMPILE_LANGUAGE:CXX>:"${CMAKE_CURRENT_LIST_DIR}/PreCompiled.h">
+    )
+endif(FREECAD_USE_PCH)
+
+target_include_directories(
+    PartDesignGui
+    PRIVATE
+    ${CMAKE_BINARY_DIR}
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_BINARY_DIR}
+)
+target_link_libraries(PartDesignGui ${PartDesignGui_LIBS})
+target_compile_warn_error(PartDesignGui)
+
+SET_BIN_DIR(PartDesignGui)
 SET_PYTHON_PREFIX_SUFFIX(PartDesignGui)
 
 fc_copy_sources(PartDesignGui "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_DATADIR}/Mod/PartDesign" ${PartDesignGuiIcon_SVG})

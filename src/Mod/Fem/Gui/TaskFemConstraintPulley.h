@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Jan Rheinländer                                    *
  *                                   <jrheinlaender@users.sourceforge.net> *
@@ -21,8 +23,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef GUI_TASKVIEW_TaskFemConstraintPulley_H
-#define GUI_TASKVIEW_TaskFemConstraintPulley_H
+#pragma once
 
 #include "TaskFemConstraintGear.h"
 #include "ViewProviderFemConstraintPulley.h"
@@ -35,8 +36,10 @@ class TaskFemConstraintPulley: public TaskFemConstraintGear
     Q_OBJECT
 
 public:
-    explicit TaskFemConstraintPulley(ViewProviderFemConstraintPulley* ConstraintView,
-                                     QWidget* parent = nullptr);
+    explicit TaskFemConstraintPulley(
+        ViewProviderFemConstraintPulley* ConstraintView,
+        QWidget* parent = nullptr
+    );
 
     double getOtherDiameter() const;
     double getCenterDistance() const;
@@ -64,9 +67,6 @@ public:
 
     /// is called by the framework if the dialog is accepted (Ok)
     bool accept() override;
-    void open() override;
 };
 
 }  // namespace FemGui
-
-#endif  // GUI_TASKVIEW_TaskFemConstraintPulley_H

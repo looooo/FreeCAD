@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2022 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,21 +22,19 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <QMessageBox>
 #include <gp_Pnt.hxx>
-#endif// #ifndef _PreComp_
 
 #include <App/Document.h>
 #include <App/Link.h>
 #include <Base/Console.h>
+#include <Base/Converter.h>
 #include <Base/Tools.h>
 #include <Gui/BitmapFactory.h>
 #include <Gui/Command.h>
 #include <Gui/Control.h>
 #include <Gui/MainWindow.h>
-#include <Gui/Selection.h>
+#include <Gui/Selection/Selection.h>
 #include <Gui/WaitCursor.h>
 
 #include "Widgets/CompassWidget.h"
@@ -102,6 +102,8 @@ TaskComplexSection::TaskComplexSection(TechDraw::DrawComplexSection* complexSect
     m_section(complexSection),
     m_profileObject(nullptr),
     m_dirName("Aligned"),
+    m_sectionName(m_section->getNameInDocument()),
+    m_savePageName(m_section->findParentPage()->getNameInDocument()),
     m_createMode(false),
     m_applyDeferred(0),
     m_angle(0.0),
@@ -109,10 +111,8 @@ TaskComplexSection::TaskComplexSection(TechDraw::DrawComplexSection* complexSect
     m_modelIsDirty(false),
     m_scaleEdited(false)
 {
-    m_sectionName = m_section->getNameInDocument();
     m_doc = m_section->getDocument();
     m_page = m_section->findParentPage();
-    m_savePageName = m_page->getNameInDocument();
 
     m_baseView = dynamic_cast<TechDraw::DrawViewPart*>(m_section->BaseView.getValue());
     if (m_baseView) {
@@ -138,7 +138,7 @@ void TaskComplexSection::setUiPrimary()
     setWindowTitle(QObject::tr("New Complex Section"));
     if (m_baseView) {
         ui->sbScale->setValue(m_baseView->getScale());
-        ui->cmbScaleType->setCurrentIndex(m_baseView->ScaleType.getValue());
+        ui->cmbScaleType->setCurrentIndex(m_baseView->getScaleType());
     }
     else {
         ui->sbScale->setValue(Preferences::scale());
@@ -149,13 +149,13 @@ void TaskComplexSection::setUiPrimary()
     setUiCommon();
 
     if (m_baseView) {
-        ui->leBaseView->setText(Base::Tools::fromStdString(m_baseView->getNameInDocument()));
+        ui->leBaseView->setText(QString::fromStdString(m_baseView->getNameInDocument()));
         //if there is a baseView, we don't know the sectionNormal yet and have to wait until
         //one is picked in the dialog
         Base::Vector3d defaultNormal(-1.0, 0.0, 0.0);
         m_saveNormal = defaultNormal;
         m_saveXDir = Base::Vector3d(0.0, 1.0, 0.0);
-        ui->leBaseView->setText(Base::Tools::fromStdString(m_baseView->getNameInDocument()));
+        ui->leBaseView->setText(QString::fromStdString(m_baseView->getNameInDocument()));
         m_compass->setDialAngle(0.0);
         m_viewDirectionWidget->setValueNoNotify(Base::Vector3d(1.0, 0.0, 0.0));
     }
@@ -165,7 +165,7 @@ void TaskComplexSection::setUiPrimary()
         std::pair<Base::Vector3d, Base::Vector3d> dirs = DrawGuiUtil::get3DDirAndRot();
         m_saveNormal = dirs.first;
         m_saveXDir = dirs.second;
-        m_viewDirectionWidget->setValue(m_saveNormal * -1.0);//this will propagate to m_compass
+        m_viewDirectionWidget->setValue(m_saveNormal * -1);//this will propagate to m_compass
     }
 
     //don't allow updates until a direction is picked
@@ -179,22 +179,22 @@ void TaskComplexSection::setUiEdit()
     setWindowTitle(QObject::tr("Edit Complex Section"));
 
     if (m_baseView) {
-        ui->leBaseView->setText(Base::Tools::fromStdString(m_baseView->getNameInDocument()));
+        ui->leBaseView->setText(QString::fromStdString(m_baseView->getNameInDocument()));
     }
     ui->cmbStrategy->setCurrentIndex(m_section->ProjectionStrategy.getValue());
-    ui->leSymbol->setText(Base::Tools::fromStdString(m_section->SectionSymbol.getValue()));
+    ui->leSymbol->setText(QString::fromStdString(m_section->SectionSymbol.getValue()));
     ui->sbScale->setValue(m_section->Scale.getValue());
-    ui->cmbScaleType->setCurrentIndex(m_section->ScaleType.getValue());
+    ui->cmbScaleType->setCurrentIndex(m_section->getScaleType());
 
     setUiCommon();
 
     Base::Vector3d sectionNormalVec = m_section->SectionNormal.getValue();
     if (m_baseView) {
-        ui->leBaseView->setText(Base::Tools::fromStdString(m_baseView->getNameInDocument()));
+        ui->leBaseView->setText(QString::fromStdString(m_baseView->getNameInDocument()));
         Base::Vector3d projectedViewDirection = m_baseView->projectPoint(sectionNormalVec, false);
         double viewAngle = atan2(-projectedViewDirection.y, -projectedViewDirection.x);
-        m_compass->setDialAngle(viewAngle * 180.0 / M_PI);
-        m_viewDirectionWidget->setValueNoNotify(projectedViewDirection * -1.0);
+        m_compass->setDialAngle(Base::toDegrees(viewAngle));
+        m_viewDirectionWidget->setValueNoNotify(projectedViewDirection * -1);
     }
     else {
         //no local angle makes sense if there is no baseView?
@@ -205,9 +205,9 @@ void TaskComplexSection::setUiEdit()
 void TaskComplexSection::setUiCommon()
 {
     ui->leSectionObjects->setText(sourcesToString());
-    ui->leProfileObject->setText(Base::Tools::fromStdString(m_profileObject->getNameInDocument())
-                                 + QString::fromUtf8(" / ")
-                                 + Base::Tools::fromStdString(m_profileObject->Label.getValue()));
+    ui->leProfileObject->setText(QString::fromStdString(m_profileObject->getNameInDocument())
+                                 + QStringLiteral(" / ")
+                                 + QString::fromStdString(m_profileObject->Label.getValue()));
 
     m_compass = new CompassWidget(this);
     auto layout = ui->compassLayout;
@@ -242,11 +242,10 @@ void TaskComplexSection::setUiCommon()
 //save the start conditions
 void TaskComplexSection::saveSectionState()
 {
-    //    Base::Console().Message("TCS::saveSectionState()\n");
     if (m_section) {
         m_saveSymbol = m_section->SectionSymbol.getValue();
         m_saveScale = m_section->getScale();
-        m_saveScaleType = m_section->ScaleType.getValue();
+        m_saveScaleType = m_section->getScaleType();
         m_saveNormal = m_section->SectionNormal.getValue();
         m_saveDirection = m_section->Direction.getValue();
         m_saveXDir = m_section->XDirection.getValue();
@@ -263,9 +262,9 @@ void TaskComplexSection::saveSectionState()
 //restore the start conditions
 void TaskComplexSection::restoreSectionState()
 {
-    //    Base::Console().Message("TCS::restoreSectionState()\n");
-    if (!m_section)
+    if (!m_section){
         return;
+    }
 
     m_section->SectionSymbol.setValue(m_saveSymbol);
     m_section->Scale.setValue(m_saveScale);
@@ -283,9 +282,9 @@ void TaskComplexSection::onSectionObjectsUseSelectionClicked()
     std::vector<App::DocumentObject*> newSelection;
     std::vector<App::DocumentObject*> newXSelection;
     for (auto& sel : selection) {
-        if (sel.getObject()->isDerivedFrom(App::LinkElement::getClassTypeId())
-            || sel.getObject()->isDerivedFrom(App::LinkGroup::getClassTypeId())
-            || sel.getObject()->isDerivedFrom(App::Link::getClassTypeId())) {
+        if (sel.getObject()->isDerivedFrom<App::LinkElement>()
+            || sel.getObject()->isDerivedFrom<App::LinkGroup>()
+            || sel.getObject()->isDerivedFrom<App::Link>()) {
             newXSelection.push_back(sel.getObject());
         }
         else {
@@ -300,15 +299,13 @@ void TaskComplexSection::onSectionObjectsUseSelectionClicked()
 //the VectorEditWidget reports a change in direction
 void TaskComplexSection::slotViewDirectionChanged(Base::Vector3d newDirection)
 {
-    //    Base::Console().Message("TCS::slotViewDirectionChanged(%s)\n",
-    //                            DrawUtil::formatVector(newDirection).c_str());
     Base::Vector3d projectedViewDirection = newDirection;
     if (m_baseView) {
         projectedViewDirection = m_baseView->projectPoint(newDirection, false);
     }
     projectedViewDirection.Normalize();
     double viewAngle = atan2(projectedViewDirection.y, projectedViewDirection.x);
-    m_compass->setDialAngle(viewAngle * 180.0 / M_PI);
+    m_compass->setDialAngle(Base::toDegrees(viewAngle));
     checkAll(false);
     applyAligned();
 }
@@ -317,8 +314,7 @@ void TaskComplexSection::slotViewDirectionChanged(Base::Vector3d newDirection)
 //SectionNormal
 void TaskComplexSection::slotChangeAngle(double newAngle)
 {
-    //    Base::Console().Message("TCS::slotAngleChanged(%.3f)\n", newAngle);
-    double angleRadians = newAngle * M_PI / 180.0;
+    double angleRadians = Base::toRadians(newAngle);
     double unitX = cos(angleRadians);
     double unitY = sin(angleRadians);
     Base::Vector3d localUnit(unitX, unitY, 0.0);
@@ -329,7 +325,6 @@ void TaskComplexSection::slotChangeAngle(double newAngle)
 
 void TaskComplexSection::onUpClicked()
 {
-    //    Base::Console().Message("TCS::onUpClicked()\n");
     checkAll(false);
     m_compass->setToNorth();
     m_viewDirectionWidget->setValueNoNotify(Base::Vector3d(0.0, 1.0, 0.0));
@@ -338,7 +333,6 @@ void TaskComplexSection::onUpClicked()
 
 void TaskComplexSection::onDownClicked()
 {
-    //    Base::Console().Message("TCS::onDownClicked()\n");
     checkAll(false);
     m_compass->setToSouth();
     m_viewDirectionWidget->setValueNoNotify(Base::Vector3d(0.0, -1.0, 0.0));
@@ -347,7 +341,6 @@ void TaskComplexSection::onDownClicked()
 
 void TaskComplexSection::onLeftClicked()
 {
-    //    Base::Console().Message("TCS::onLeftClicked()\n");
     checkAll(false);
     m_compass->setToWest();
     m_viewDirectionWidget->setValueNoNotify(Base::Vector3d(-1.0, 0.0, 0.0));
@@ -356,7 +349,6 @@ void TaskComplexSection::onLeftClicked()
 
 void TaskComplexSection::onRightClicked()
 {
-    //    Base::Console().Message("TCS::onRightClicked()\n");
     checkAll(false);
     m_compass->setToEast();
     m_viewDirectionWidget->setValueNoNotify(Base::Vector3d(1.0, 0.0, 0.0));
@@ -383,9 +375,9 @@ void TaskComplexSection::onProfileObjectsUseSelectionClicked()
     if (!selection.empty()) {
         m_profileObject = selection.front().getObject();
         ui->leProfileObject->setText(
-            Base::Tools::fromStdString(m_profileObject->getNameInDocument())
-            + QString::fromUtf8(" / ")
-            + Base::Tools::fromStdString(m_profileObject->Label.getValue()));
+            QString::fromStdString(m_profileObject->getNameInDocument())
+            + QStringLiteral(" / ")
+            + QString::fromStdString(m_profileObject->Label.getValue()));
     }
 }
 void TaskComplexSection::scaleTypeChanged(int index)
@@ -433,7 +425,7 @@ void TaskComplexSection::enableAll(bool enable)
     ui->cmbScaleType->setEnabled(enable);
     QString qScaleType = ui->cmbScaleType->currentText();
     //Allow or prevent scale changing initially
-    if (qScaleType == QString::fromUtf8("Custom")) {
+    if (qScaleType == QStringLiteral("Custom")) {
         ui->sbScale->setEnabled(true);
     }
     else {
@@ -448,29 +440,29 @@ void TaskComplexSection::updateNowClicked() { apply(true); }
 QString TaskComplexSection::sourcesToString()
 {
     QString result;
-    QString separator(QString::fromUtf8(", "));
+    QString separator(QStringLiteral(", "));
     QString currentSeparator;
     if (m_baseView) {
         for (auto& obj : m_baseView->Source.getValues()) {
-            result += currentSeparator + Base::Tools::fromStdString(obj->getNameInDocument())
-                + QString::fromUtf8(" / ") + Base::Tools::fromStdString(obj->Label.getValue());
+            result += currentSeparator + QString::fromStdString(obj->getNameInDocument())
+                + QStringLiteral(" / ") + QString::fromStdString(obj->Label.getValue());
             currentSeparator = separator;
         }
         currentSeparator = QString();
         for (auto& obj : m_baseView->XSource.getValues()) {
-            result += currentSeparator + Base::Tools::fromStdString(obj->getNameInDocument())
-                + QString::fromUtf8(" / ") + Base::Tools::fromStdString(obj->Label.getValue());
+            result += currentSeparator + QString::fromStdString(obj->getNameInDocument())
+                + QStringLiteral(" / ") + QString::fromStdString(obj->Label.getValue());
         }
     }
     else {
         for (auto& obj : m_shapes) {
-            result += currentSeparator + Base::Tools::fromStdString(obj->getNameInDocument())
-                + QString::fromUtf8(" / ") + Base::Tools::fromStdString(obj->Label.getValue());
+            result += currentSeparator + QString::fromStdString(obj->getNameInDocument())
+                + QStringLiteral(" / ") + QString::fromStdString(obj->Label.getValue());
         }
         currentSeparator = QString();
         for (auto& obj : m_xShapes) {
-            result += currentSeparator + Base::Tools::fromStdString(obj->getNameInDocument())
-                + QString::fromUtf8(" / ") + Base::Tools::fromStdString(obj->Label.getValue());
+            result += currentSeparator + QString::fromStdString(obj->getNameInDocument())
+                + QStringLiteral(" / ") + QString::fromStdString(obj->Label.getValue());
         }
     }
     return result;
@@ -479,13 +471,11 @@ QString TaskComplexSection::sourcesToString()
 //******************************************************************************
 bool TaskComplexSection::apply(bool forceUpdate)
 {
-    //    Base::Console().Message("TCS::apply() - liveUpdate: %d force: %d\n",
-    //                            ui->cbLiveUpdate->isChecked(), forceUpdate);
     if (!ui->cbLiveUpdate->isChecked() && !forceUpdate) {
         //nothing to do
         m_applyDeferred++;
         QString msgLiteral =
-            QString::fromUtf8(QT_TRANSLATE_NOOP("TaskPojGroup", " updates pending"));
+            QString::fromUtf8(QT_TRANSLATE_NOOP("TaskComplexSection", " updates pending"));
         QString msgNumber = QString::number(m_applyDeferred);
         ui->lPendingUpdates->setText(msgNumber + msgLiteral);
         return false;
@@ -495,18 +485,18 @@ bool TaskComplexSection::apply(bool forceUpdate)
     if (m_baseView) {
         if (!DrawComplexSection::canBuild(m_baseView->localVectorToCS(localUnit),
                                           m_profileObject)) {
-            Base::Console().Error(
-                "Can not build Complex Section with this profile and direction (1)\n");
+            Base::Console().error(
+                "Cannot build complex section with this profile and direction (1)\n");
             return false;
         }
     }
     else {
         gp_Pnt stdOrigin(0.0, 0.0, 0.0);
-        gp_Ax2 sectionCS(stdOrigin, DrawUtil::togp_Dir(m_saveNormal),
-                         DrawUtil::togp_Dir(m_saveXDir));
+        gp_Ax2 sectionCS(stdOrigin, Base::convertTo<gp_Dir>(m_saveNormal),
+                         Base::convertTo<gp_Dir>(m_saveXDir));
         if (!DrawComplexSection::canBuild(sectionCS, m_profileObject)) {
-            Base::Console().Error(
-                "Can not build Complex Section with this profile and direction (2)\n");
+            Base::Console().error(
+                "Cannot build complex section with this profile and direction (2)\n");
             return false;
         }
     }
@@ -516,6 +506,9 @@ bool TaskComplexSection::apply(bool forceUpdate)
 
     if (!m_section) {
         createComplexSection();
+        if (!isSectionValid()) {
+            return false;
+        }
     }
 
     if (isSectionValid()) {
@@ -529,6 +522,11 @@ bool TaskComplexSection::apply(bool forceUpdate)
     if (isBaseValid()) {
         m_baseView->requestPaint();
     }
+    if (!m_section->checkSectionCS()) {
+            QMessageBox::warning(Gui::getMainWindow(), QObject::tr("Possible coordinate system error"),
+                                               QObject::tr("Check SectionNormal, Direction and/or XDirection."));
+    }
+
 
     enableAll(true);
     checkAll(false);
@@ -541,7 +539,6 @@ bool TaskComplexSection::apply(bool forceUpdate)
 
 void TaskComplexSection::applyAligned()
 {
-    //    Base::Console().Message("TCS::applyAligned()\n");
     m_dirName = "Aligned";
     enableAll(true);
     m_directionIsSet = true;
@@ -555,9 +552,7 @@ void TaskComplexSection::applyAligned()
 //pointer to created view is not returned, but stored in m_section
 void TaskComplexSection::createComplexSection()
 {
-    //    Base::Console().Message("TCS::createComplexSection()\n");
-
-    Gui::Command::openCommand(QT_TRANSLATE_NOOP("Command", "Create ComplexSection"));
+    int tid = Gui::Command::openActiveDocumentCommand(QT_TRANSLATE_NOOP("Command", "Create Complex Section"));
     if (!m_section) {
         const std::string objectName{QT_TR_NOOP("ComplexSection")};
         m_sectionName = m_page->getDocument()->getUniqueObjectName(objectName.c_str());
@@ -568,31 +563,23 @@ void TaskComplexSection::createComplexSection()
         // we pluck the generated suffix from the object name and append it to "Section" to generate
         // unique Labels
         QString qTemp = ui->leSymbol->text();
-        std::string temp = Base::Tools::toStdString(qTemp);
+        std::string temp = Base::Tools::escapeEncodeString(qTemp.toStdString());
+        std::string sectionLabel = Base::Tools::escapeEncodeString(makeSectionLabel(qTemp));
+        //NOLINTBEGIN
         Command::doCommand(Command::Doc, "App.ActiveDocument.%s.SectionSymbol = '%s'",
                            m_sectionName.c_str(), temp.c_str());
 
         Command::doCommand(Command::Doc, "App.ActiveDocument.%s.Label = '%s'",
                            m_sectionName.c_str(),
-                           makeSectionLabel(qTemp).c_str());
+                           sectionLabel.c_str());
         Command::doCommand(Command::Doc, "App.ActiveDocument.%s.addView(App.ActiveDocument.%s)",
                            m_page->getNameInDocument(), m_sectionName.c_str());
 
         Command::doCommand(Command::Doc, "App.ActiveDocument.%s.Scale = %0.6f",
                            m_sectionName.c_str(), ui->sbScale->value());
 
-        std::string baseName = m_baseView->getNameInDocument();
-        if (m_scaleEdited) {
-            // user has changed the scale
-            Command::doCommand(Command::Doc, "App.ActiveDocument.%s.Scale = %0.7f",
+        Command::doCommand(Command::Doc, "App.ActiveDocument.%s.Scale = %0.7f",
                            m_sectionName.c_str(), ui->sbScale->value());
-        } else {
-            // scale is untouched, use value from base view
-            Command::doCommand(Command::Doc,
-            "App.ActiveDocument.%s.Scale = App.ActiveDocument.%s.Scale",
-                           m_sectionName.c_str(),
-                           baseName.c_str());
-        }
 
         int scaleType = ui->cmbScaleType->currentIndex();
         Command::doCommand(Command::Doc, "App.ActiveDocument.%s.ScaleType = %d",
@@ -606,6 +593,7 @@ void TaskComplexSection::createComplexSection()
                            m_sectionName.c_str());
         Command::doCommand(Command::Doc, "App.activeDocument().%s.SectionDirection = 'Aligned'",
                            m_sectionName.c_str());
+        //NOLINTEND
 
         App::DocumentObject* newObj = m_page->getDocument()->getObject(m_sectionName.c_str());
         m_section = dynamic_cast<TechDraw::DrawComplexSection*>(newObj);
@@ -614,6 +602,7 @@ void TaskComplexSection::createComplexSection()
         }
         Base::Vector3d localUnit = m_viewDirectionWidget->value();
         if (m_baseView) {
+            //NOLINTNEXTLINE
             Command::doCommand(Command::Doc,
                                "App.ActiveDocument.%s.BaseView = App.ActiveDocument.%s",
                                m_sectionName.c_str(), m_baseView->getNameInDocument());
@@ -630,6 +619,7 @@ void TaskComplexSection::createComplexSection()
                 //if we have not changed the direction, we should use the 3d directions saved in the
                 //constructor
                 m_section->SectionNormal.setValue(m_saveNormal);
+                m_section->Direction.setValue(m_saveNormal);
                 m_section->XDirection.setValue(m_saveXDir);
             }
             m_section->Source.setValues(m_shapes);
@@ -643,47 +633,38 @@ void TaskComplexSection::createComplexSection()
         //auto orientation of view relative to base view
         double viewDirectionAngle = m_compass->positiveValue();
         double rotation = requiredRotation(viewDirectionAngle);
+        //NOLINTNEXTLINE
         Command::doCommand(Command::Doc, "App.ActiveDocument.%s.Rotation = %.6f",
                            m_sectionName.c_str(), rotation);
 
     }
-    Gui::Command::commitCommand();
+    Gui::Command::commitCommand(tid);
 }
 
 void TaskComplexSection::updateComplexSection()
 {
-    //    Base::Console().Message("TCS:;updateComplexSection()\n");
     if (!isSectionValid()) {
         failNoObject();
         return;
     }
 
-    Gui::Command::openCommand(QT_TRANSLATE_NOOP("Command", "Edit SectionView"));
+    int tid = Gui::Command::openActiveDocumentCommand(QT_TRANSLATE_NOOP("Command", "Edit Section View"));
     if (m_section) {
         QString qTemp = ui->leSymbol->text();
-        std::string temp = Base::Tools::toStdString(qTemp);
+        std::string temp = Base::Tools::escapeEncodeString(qTemp.toStdString());
+        std::string sectionLabel = Base::Tools::escapeEncodeString(makeSectionLabel(qTemp));
+        //NOLINTBEGIN
         Command::doCommand(Command::Doc, "App.ActiveDocument.%s.SectionSymbol = '%s'",
                            m_sectionName.c_str(), temp.c_str());
 
         Command::doCommand(Command::Doc, "App.ActiveDocument.%s.Label = '%s'",
                            m_sectionName.c_str(),
-                           makeSectionLabel(qTemp).c_str());
+                           sectionLabel.c_str());
         Command::doCommand(Command::Doc, "App.activeDocument().%s.translateLabel('DrawViewSection', 'Section', '%s')",
-              m_sectionName.c_str(), makeSectionLabel(qTemp).c_str());
+              m_sectionName.c_str(), sectionLabel.c_str());
 
-        std::string baseName = m_baseView->getNameInDocument();
-        if (m_scaleEdited) {
-            // user has changed the scale
-            Command::doCommand(Command::Doc, "App.ActiveDocument.%s.Scale = %0.7f",
+        Command::doCommand(Command::Doc, "App.ActiveDocument.%s.Scale = %0.7f",
                            m_sectionName.c_str(), ui->sbScale->value());
-        } else {
-            // scale is untouched, use value from base view
-            Command::doCommand(Command::Doc,
-            "App.ActiveDocument.%s.Scale = App.ActiveDocument.%s.Scale",
-                           m_sectionName.c_str(),
-                           baseName.c_str());
-        }
-
 
         int scaleType = ui->cmbScaleType->currentIndex();
         Command::doCommand(Command::Doc, "App.ActiveDocument.%s.ScaleType = %d",
@@ -693,6 +674,8 @@ void TaskComplexSection::updateComplexSection()
                            m_sectionName.c_str(), projectionStrategy);
         Command::doCommand(Command::Doc, "App.activeDocument().%s.SectionDirection = 'Aligned'",
                            m_sectionName.c_str());
+        //NOLINTEND
+
         m_section->CuttingToolWireObject.setValue(m_profileObject);
         m_section->SectionDirection.setValue("Aligned");
         Base::Vector3d localUnit = m_viewDirectionWidget->value();
@@ -710,25 +693,27 @@ void TaskComplexSection::updateComplexSection()
         //auto orientation of view relative to base view
         double viewDirectionAngle = m_compass->positiveValue();
         double rotation = requiredRotation(viewDirectionAngle);
+
+        //NOLINTNEXTLINE
         Command::doCommand(Command::Doc, "App.ActiveDocument.%s.Rotation = %.6f",
                            m_sectionName.c_str(), rotation);
     }
-    Gui::Command::commitCommand();
+    Gui::Command::commitCommand(tid);
 }
 
-std::string TaskComplexSection::makeSectionLabel(QString symbol)
+std::string TaskComplexSection::makeSectionLabel(const QString& symbol)
 {
     const std::string objectName{QT_TR_NOOP("ComplexSection")};
     std::string uniqueSuffix{m_sectionName.substr(objectName.length(), std::string::npos)};
     std::string uniqueLabel = "Section" + uniqueSuffix;
-    std::string temp = Base::Tools::toStdString(symbol);
+    std::string temp = symbol.toStdString();
     return ( uniqueLabel + " " + temp + " - " + temp );
 }
 
-void TaskComplexSection::failNoObject(void)
+void TaskComplexSection::failNoObject()
 {
-    QString qsectionName = Base::Tools::fromStdString(m_sectionName);
-    QString qbaseName = Base::Tools::fromStdString(m_saveBaseName);
+    QString qsectionName = QString::fromStdString(m_sectionName);
+    QString qbaseName = QString::fromStdString(m_saveBaseName);
     QString msg = tr("Can not continue. Object * %1 or %2 not found.").arg(qsectionName, qbaseName);
     QMessageBox::critical(Gui::getMainWindow(), QObject::tr("Operation Failed"), msg);
     Gui::Control().closeDialog();
@@ -736,34 +721,32 @@ void TaskComplexSection::failNoObject(void)
 
 bool TaskComplexSection::isBaseValid()
 {
-    if (!m_baseView)
+    if (!m_baseView) {
         return false;
+    }
 
     App::DocumentObject* baseObj = m_doc->getObject(m_saveBaseName.c_str());
-    if (!baseObj)
-        return false;
-
-    return true;
+    return baseObj != nullptr;
 }
 
 bool TaskComplexSection::isSectionValid()
 {
-    if (!m_section)
+    if (!m_section) {
         return false;
+    }
 
     App::DocumentObject* sectionObj = m_doc->getObject(m_sectionName.c_str());
-    if (!sectionObj)
-        return false;
-
-    return true;
+    return sectionObj != nullptr;
 }
 
 //get required rotation from input angle in [0, 360]
 //NOTE: shared code with simple section - reuse opportunity
-double TaskComplexSection::requiredRotation(double inputAngle)
+double TaskComplexSection::requiredRotation(double inputAngleDeg)
 {
-    double rotation = inputAngle - 90.0;
-    if (rotation == 180.0) {
+    constexpr double PiOver4Degrees{90};
+    constexpr double PiOver2Degrees{180};
+    double rotation = inputAngleDeg - PiOver4Degrees;
+    if (rotation == PiOver2Degrees) {
         //if the view direction is 90/270, then the section is drawn properly and no
         //rotation is needed.  90.0 becomes 0.0, but 270.0 needs special handling.
         rotation = 0.0;
@@ -774,16 +757,15 @@ double TaskComplexSection::requiredRotation(double inputAngle)
 //******************************************************************************
 bool TaskComplexSection::accept()
 {
-    //    Base::Console().Message("TCS::accept()\n");
     apply(true);
-    Gui::Command::doCommand(Gui::Command::Gui, "Gui.ActiveDocument.resetEdit()");
+    Gui::Command::doCommand(Gui::Command::Gui, "Gui.ActiveDocument.resetEdit()");   //NOLINT
     return true;
 }
 
 bool TaskComplexSection::reject()
 {
     if (!m_section) {//no section created, nothing to undo
-        Gui::Command::doCommand(Gui::Command::Gui, "Gui.ActiveDocument.resetEdit()");
+        Gui::Command::doCommand(Gui::Command::Gui, "Gui.ActiveDocument.resetEdit()");   //NOLINT
         return false;
     }
 
@@ -791,17 +773,19 @@ bool TaskComplexSection::reject()
         if (isBaseValid()) {
             m_baseView->requestPaint();
         }
-        Gui::Command::doCommand(Gui::Command::Gui, "Gui.ActiveDocument.resetEdit()");
+        Gui::Command::doCommand(Gui::Command::Gui, "Gui.ActiveDocument.resetEdit()");   //NOLINT
         return false;
     }
 
     if (m_createMode) {
         std::string SectionName = m_section->getNameInDocument();
+        //NOLINTBEGIN
         Gui::Command::doCommand(Gui::Command::Gui,
                                 "App.ActiveDocument.%s.removeView(App.ActiveDocument.%s)",
                                 m_savePageName.c_str(), SectionName.c_str());
         Gui::Command::doCommand(Gui::Command::Gui, "App.ActiveDocument.removeObject('%s')",
                                 SectionName.c_str());
+        //NOLINTEND
     } else {
         if (m_modelIsDirty) {
             restoreSectionState();
@@ -814,7 +798,7 @@ bool TaskComplexSection::reject()
         m_baseView->requestPaint();
     }
     Gui::Command::updateActive();
-    Gui::Command::doCommand(Gui::Command::Gui, "Gui.ActiveDocument.resetEdit()");
+    Gui::Command::doCommand(Gui::Command::Gui, "Gui.ActiveDocument.resetEdit()");   //NOLINT
 
     return false;
 }
@@ -833,7 +817,6 @@ TaskDlgComplexSection::TaskDlgComplexSection(TechDraw::DrawPage* page,
                                              std::vector<App::DocumentObject*> xShapes,
                                              App::DocumentObject* profileObject,
                                              std::vector<std::string> profileSubs)
-    : TaskDialog()
 {
     widget = new TaskComplexSection(page, baseView, shapes, xShapes, profileObject, profileSubs);
     taskbox =
@@ -844,17 +827,14 @@ TaskDlgComplexSection::TaskDlgComplexSection(TechDraw::DrawPage* page,
 }
 
 TaskDlgComplexSection::TaskDlgComplexSection(TechDraw::DrawComplexSection* complexSection)
-    : TaskDialog()
+    : widget(new TaskComplexSection(complexSection))
 {
-    widget = new TaskComplexSection(complexSection);
     taskbox =
         new Gui::TaskView::TaskBox(Gui::BitmapFactory().pixmap("actions/TechDraw_ComplexSection"),
                                    widget->windowTitle(), true, nullptr);
     taskbox->groupLayout()->addWidget(widget);
     Content.push_back(taskbox);
 }
-
-TaskDlgComplexSection::~TaskDlgComplexSection() {}
 
 void TaskDlgComplexSection::update()
 {
@@ -876,4 +856,5 @@ bool TaskDlgComplexSection::reject()
     return true;
 }
 
+//NOLINTNEXTLINE
 #include <Mod/TechDraw/Gui/moc_TaskComplexSection.cpp>

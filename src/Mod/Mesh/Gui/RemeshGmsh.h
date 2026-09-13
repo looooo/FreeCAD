@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2020 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,8 +22,9 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef MESHGUI_REMESHGMSH_H
-#define MESHGUI_REMESHGMSH_H
+#pragma once
+
+#include <Mod/Mesh/MeshGlobal.h>
 
 #include <memory>
 #include <QDialog>
@@ -82,6 +85,8 @@ private:
 private:
     class Private;
     std::unique_ptr<Private> d;
+
+    Q_DISABLE_COPY_MOVE(GmshWidget)
 };
 
 /**
@@ -93,9 +98,11 @@ class MeshGuiExport RemeshGmsh: public GmshWidget
     Q_OBJECT
 
 public:
-    explicit RemeshGmsh(Mesh::Feature* mesh,
-                        QWidget* parent = nullptr,
-                        Qt::WindowFlags fl = Qt::WindowFlags());
+    explicit RemeshGmsh(
+        Mesh::Feature* mesh,
+        QWidget* parent = nullptr,
+        Qt::WindowFlags fl = Qt::WindowFlags()
+    );
     ~RemeshGmsh() override;
 
 protected:
@@ -105,6 +112,8 @@ protected:
 private:
     class Private;
     std::unique_ptr<Private> d;
+
+    Q_DISABLE_COPY_MOVE(RemeshGmsh)
 };
 
 /**
@@ -131,9 +140,6 @@ public:
 
 private:
     RemeshGmsh* widget;
-    Gui::TaskView::TaskBox* taskbox;
 };
 
 }  // namespace MeshGui
-
-#endif  // MESHGUI_REMESHGMSH_H

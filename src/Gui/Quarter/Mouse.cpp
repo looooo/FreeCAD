@@ -37,8 +37,6 @@
   QuarterWidget.
 */
 
-#include "PreCompiled.h"
-
 #ifdef _MSC_VER
 #pragma warning(disable : 4267)
 #endif
@@ -47,8 +45,8 @@
 #include <QMouseEvent>
 #include <QWheelEvent>
 
-#include <Gui/SoMouseWheelEvent.h>
 #include <Inventor/SbVec2s.h>
+#include <Inventor/SoMouseWheelEvent.h>
 #include <Inventor/errors/SoDebugError.h>
 #include <Inventor/events/SoEvents.h>
 
@@ -60,7 +58,7 @@ namespace SIM { namespace Coin3D { namespace Quarter {
 
 class MouseP {
 public:
-  MouseP(Mouse * publ) {
+  explicit MouseP(Mouse * publ) {
     this->publ = publ;
     this->location2 = new SoLocation2Event;
     this->mousebutton = new SoMouseButtonEvent;
@@ -93,15 +91,32 @@ using namespace SIM::Coin3D::Quarter;
 #define PRIVATE(obj) obj->pimpl
 #define PUBLIC(obj) obj->publ
 
-Mouse::Mouse()
+namespace {
+
+QPointF getLocalPosition(const QMouseEvent* event)
 {
-  PRIVATE(this) = new MouseP(this);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+  return event->position();
+#else
+  return event->localPos();
+#endif
 }
 
-Mouse::Mouse(QuarterWidget *quarter) :
-    InputDevice(quarter)
+QPointF getLocalPosition(const QWheelEvent* event)
 {
-    PRIVATE(this) = new MouseP(this);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+  return event->position();
+#else
+  return event->posF();
+#endif
+}
+
+}
+
+Mouse::Mouse(QuarterWidget* quarter) :
+  InputDevice(quarter)
+{
+  PRIVATE(this) = new MouseP(this);
 }
 
 Mouse::~Mouse()
@@ -148,9 +163,10 @@ MouseP::mouseMoveEvent(QMouseEvent * event)
   PUBLIC(this)->setModifiers(this->location2, event);
 
   assert(this->windowsize[1] != -1);
-  SbVec2s pos(event->pos().x(), this->windowsize[1] - event->pos().y() - 1);
-  // the following corrects for high-dpi displays (e.g. mac retina)
-  pos *= publ->quarter->devicePixelRatio();
+  SbVec2s pos = InputDevice::toDevicePixelPosition(
+      getLocalPosition(event),
+      this->windowsize,
+      publ->quarter->devicePixelRatio());
   this->location2->setPosition(pos);
   this->mousebutton->setPosition(pos);
   return this->location2;
@@ -160,14 +176,10 @@ const SoEvent *
 MouseP::mouseWheelEvent(QWheelEvent * event)
 {
   PUBLIC(this)->setModifiers(this->wheel, event);
-#if QT_VERSION >= QT_VERSION_CHECK(5,15,0)
-  QPoint pnt = event->position().toPoint();
-  SbVec2s pos(pnt.x(), PUBLIC(this)->windowsize[1] - pnt.y() - 1);
-#else
-  SbVec2s pos(event->pos().x(), PUBLIC(this)->windowsize[1] - event->pos().y() - 1);
-#endif
-  // the following corrects for high-dpi displays (e.g. mac retina)
-  pos *= publ->quarter->devicePixelRatio();
+  SbVec2s pos = InputDevice::toDevicePixelPosition(
+      getLocalPosition(event),
+      PUBLIC(this)->windowsize,
+      publ->quarter->devicePixelRatio());
   this->location2->setPosition(pos); //I don't know why location2 is assigned here, I assumed it important  --DeepSOIC
   this->wheel->setPosition(pos);
 
@@ -186,9 +198,10 @@ const SoEvent *
 MouseP::mouseButtonEvent(QMouseEvent * event)
 {
   PUBLIC(this)->setModifiers(this->mousebutton, event);
-  SbVec2s pos(event->pos().x(), PUBLIC(this)->windowsize[1] - event->pos().y() - 1);
-  // the following corrects for high-dpi displays (e.g. mac retina)
-  pos *= publ->quarter->devicePixelRatio();
+  SbVec2s pos = InputDevice::toDevicePixelPosition(
+      getLocalPosition(event),
+      PUBLIC(this)->windowsize,
+      publ->quarter->devicePixelRatio());
   this->location2->setPosition(pos);
   this->mousebutton->setPosition(pos);
 

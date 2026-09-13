@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2002 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -21,12 +23,25 @@
  ***************************************************************************/
 
 
-#ifndef APP_GEOFEATURE_H
-#define APP_GEOFEATURE_H
+#pragma once
 
 #include "DocumentObject.h"
 #include "PropertyGeo.h"
+#include "Material.h"
+#include <Base/Bitmask.h>
 
+namespace Data
+{
+enum class SearchOption : int;
+typedef Base::Flags<SearchOption> SearchOptions;
+}  // namespace Data
+
+namespace Data
+{
+class IndexedName;
+struct MappedElement;
+class MappedName;
+}  // namespace Data
 
 namespace App
 {
@@ -34,12 +49,13 @@ namespace App
 
 /** Base class of all geometric document objects.
  */
-class AppExport GeoFeature : public App::DocumentObject
+class AppExport GeoFeature: public App::DocumentObject
 {
     PROPERTY_HEADER_WITH_OVERRIDE(App::GeoFeature);
 
 public:
     PropertyPlacement Placement;
+    PropertyString _ElementMapVersion;
 
     /// Constructor
     GeoFeature();
@@ -52,7 +68,7 @@ public:
      * was only called by alignment task (Edit->Alignment)
      * @param transform (input).
      */
-    virtual void transformPlacement(const Base::Placement &transform);
+    virtual void transformPlacement(const Base::Placement& transform);
     /**
      * This method returns the main property of a geometric object that holds
      * the actual geometry. For a part object this is the Shape property, for
@@ -60,69 +76,158 @@ public:
      * The default implementation returns null.
      */
     virtual const PropertyComplexGeoData* getPropertyOfGeometry() const;
+    /// Returns the geometry property of a GeoFeature object, or null for other object types.
+    static const PropertyComplexGeoData* getPropertyOfGeometry(const DocumentObject* object);
     /**
      * @brief getPyObject returns the Python binding object
      * @return the Python binding object
      */
     PyObject* getPyObject() override;
 
-    /// Specify the type of element name to return when calling getElementName() 
-    enum ElementNameType {
+    /// Specify the type of element name to return when calling getElementName()
+    enum ElementNameType
+    {
         /// Normal usage
-        Normal=0,
+        Normal = 0,
         /// For importing
-        Import=1,
+        Import = 1,
         /// For exporting
-        Export=2,
+        Export = 2,
     };
+
     /** Return the new and old style sub-element name
      *
      * @param name: input name
      * @param type: desired element name type to return
      *
-     * @return a pair(newName,oldName). New element name may be empty.
-     *
-     * This function currently is does nothing. The new style element name
-     * generation will be added in the next batch of patches.
+     * @return a struct with the newName and oldName. New element name may be empty.
      */
-    virtual std::pair<std::string,std::string> getElementName(
-            const char *name, ElementNameType type=Normal) const;
-
-    /** Resolve both the new and old style element name
-     *
-     * @param obj: top parent object
-     * @param subname: subname reference 
-     * @param elementName: output of a pair(newElementName,oldElementName)
-     * @param append: Whether to include subname prefix into the returned
-     *                element name
-     * @param type: the type of element name to request
-     * @param filter: If none zero, then only perform lookup when the element
-     *                owner object is the same as this filter
-     * @param element: return the start of element name in subname
-     *
-     * @return Return the owner object of the element
-     */
-    static DocumentObject *resolveElement(App::DocumentObject *obj, 
-            const char *subname, std::pair<std::string,std::string> &elementName, 
-            bool append=false, ElementNameType type=Normal,
-            const DocumentObject *filter=nullptr,const char **element=nullptr, GeoFeature **geo=nullptr);
+    virtual ElementNamePair getElementName(  // NOLINT(google-default-arguments)
+        const char* name,
+        ElementNameType type = Normal) const;
 
     /**
-     * @brief Calculates the placement in the global reference coordinate system
-     * 
+     * @brief Resolve both the new and old style element name.
+     *
+     * @param[in] obj The top parent object
+     * @param[in] subname The subname reference.
+     * @param[out] elementName Output of a pair(newElementName,oldElementName)
+     * @param[in] append: Whether to include the subname prefix into the
+     * returned element name.
+     * @param[in] type The type of element name to request.
+     * @param[in] filter If not `nullptr`, then only perform lookup when the
+     * element owner object is the same as this filter.
+     * @param[out] element If not `nullptr`, provide start of element name in
+     * subname.
+     * @param[out] geoFeature If not `nullptr`, provide the GeoFeature that
+     * contains the element.
+     *
+     * @return Return the owner object of the element.
+     */
+    static DocumentObject* resolveElement(const App::DocumentObject* obj,
+                                          const char* subname,
+                                          ElementNamePair& elementName,
+                                          bool append = false,
+                                          ElementNameType type = Normal,
+                                          const DocumentObject* filter = nullptr,
+                                          const char** element = nullptr,
+                                          GeoFeature** geoFeature = nullptr);
+
+    /**
+     * @brief Deprecated. Calculates the placement in the global reference coordinate system
+     *
+     * Deprecated: This does not handle App::Links correctly. Use getGlobalPlacement() instead.
      * In FreeCAD the GeoFeature placement describes the local placement of the object in its parent
      * coordinate system. This is however not always the same as the global reference system. If the
      * object is in a GeoFeatureGroup, hence in another local coordinate system, the Placement
-     * property does only give the local transformation. This function can be used to calculate the 
-     * placement of the object in the global reference coordinate system taking all stacked local 
+     * property does only give the local transformation. This function can be used to calculate the
+     * placement of the object in the global reference coordinate system taking all stacked local
      * systems into account.
-     * 
+     *
      * @return Base::Placement The transformation from the global reference coordinate system
      */
     Base::Placement globalPlacement() const;
+    /**
+     * @brief Virtual function to get an App::Material object describing the appearance
+     *
+     * The appearance properties are described by the underlying features material. This can not
+     * be accessed directly from within the Gui module. This virtual function will return a
+     * App::Material object describing the appearance properties of the material.
+     *
+     * @return App::Material the appearance properties of the object material
+     */
+    virtual App::Material getMaterialAppearance() const;
+
+    /**
+     * @brief Virtual function to set the appearance with an App::Material object
+     *
+     * The appearance properties are described by the underlying features material. This cannot
+     * be accessed directly from within the Gui module. This virtual function will set the
+     * appearance from an App::Material object.
+     */
+    virtual void setMaterialAppearance(const App::Material& material);
+
+    /**
+     * @brief Virtual function to get the camera alignment direction
+     *
+     * Finds a directionZ to align the camera with.
+     * May also find an optional directionX which could be used for horizontal or vertical alignment.
+     *
+     * @return bool whether or not a directionZ is found.
+     */
+    virtual bool getCameraAlignmentDirection(Base::Vector3d& directionZ,
+                                             Base::Vector3d& directionX,
+                                             const char* subname = nullptr) const;
+    virtual bool getCameraAlignmentDirection(Base::Vector3d& directionZ,
+                                             const std::vector<std::string>& subnames) const;
+    /** Search sub element using internal cached geometry
+     *
+     * @param element: element name
+     * @param options: search options
+     * @param tol: coordinate tolerance
+     * @param atol: angle tolerance
+     *
+     * @return Returns a list of found element reference to the new geometry.
+     * The returned value will be invalidated when the geometry is changed.
+     *
+     * Before changing the property of geometry, GeoFeature will internally
+     * make a snapshot of all referenced element geometry. After change, user
+     * code may call this function to search for the new element name that
+     * reference to the same geometry of the old element.
+     */
+    virtual const std::vector<std::string>&
+    searchElementCache(const std::string& element,
+                       Data::SearchOptions options,
+                       double tol = 1e-7,
+                       double atol = 1e-10) const;
+
+    static bool hasMissingElement(const char* subname);
+
+    /// Return the object that owns the shape that contains the give element name
+    virtual DocumentObject* getElementOwner(const Data::MappedName& /*name*/) const
+    {
+        return nullptr;
+    }
+
+    virtual std::vector<const char*> getElementTypes(bool all = true) const;
+
+    /// Return the higher level element names of the given element
+    virtual std::vector<Data::IndexedName> getHigherElements(const char* name,
+                                                             bool silent = false) const;
+
+    static Base::Placement getPlacementFromProp(DocumentObject* obj, const char* propName);
+    static Base::Placement
+    getGlobalPlacement(DocumentObject* targetObj, DocumentObject* rootObj, const std::string& sub);
+    static Base::Placement getGlobalPlacement(DocumentObject* targetObj, PropertyXLinkSub* prop);
+    static Base::Placement getGlobalPlacement(const DocumentObject* obj);
+
+protected:
+    void onChanged(const Property* prop) override;
+    void onDocumentRestored() override;
+    void updateElementReference();
+
+protected:
+    ElementNamePair _getElementName(const char* name, const Data::MappedElement& mapped) const;
 };
 
-} //namespace App
-
-
-#endif // APP_GEOFEATURE_H
+}  // namespace App

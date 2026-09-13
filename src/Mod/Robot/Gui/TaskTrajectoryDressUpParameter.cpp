@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2009 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,14 +22,12 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <QString>
-#endif
+
 
 #include <Gui/BitmapFactory.h>
 #include <Gui/Placement.h>
-#include <Gui/Selection.h>
+#include <Gui/Selection/Selection.h>
 
 #include "TaskTrajectoryDressUpParameter.h"
 #include "ui_TaskTrajectoryDressUpParameter.h"
@@ -36,12 +36,11 @@
 using namespace RobotGui;
 using namespace Gui;
 
-TaskTrajectoryDressUpParameter::TaskTrajectoryDressUpParameter(Robot::TrajectoryDressUpObject* obj,
-                                                               QWidget* parent)
-    : TaskBox(Gui::BitmapFactory().pixmap("Robot_TrajectoryDressUp"),
-              tr("Dress Up Parameter"),
-              true,
-              parent)
+TaskTrajectoryDressUpParameter::TaskTrajectoryDressUpParameter(
+    Robot::TrajectoryDressUpObject* obj,
+    QWidget* parent
+)
+    : TaskBox(Gui::BitmapFactory().pixmap("Robot_TrajectoryDressUp"), tr("Dress Up Parameter"), true, parent)
     , pcObject(obj)
 {
     // we need a separate container widget to add all controls to
@@ -63,10 +62,12 @@ TaskTrajectoryDressUpParameter::TaskTrajectoryDressUpParameter(Robot::Trajectory
     PosAdd = pcObject->PosAdd.getValue();
     viewPlacement();
 
-    QObject::connect(ui->toolButtonChoosePlacement,
-                     &QToolButton::clicked,
-                     this,
-                     &TaskTrajectoryDressUpParameter::createPlacementDlg);
+    QObject::connect(
+        ui->toolButtonChoosePlacement,
+        &QToolButton::clicked,
+        this,
+        &TaskTrajectoryDressUpParameter::createPlacementDlg
+    );
 }
 
 
@@ -103,7 +104,7 @@ void TaskTrajectoryDressUpParameter::viewPlacement()
     double A, B, C;
     Base::Vector3d pos = PosAdd.getPosition();
     PosAdd.getRotation().getYawPitchRoll(A, B, C);
-    QString val = QString::fromLatin1("(%1,%2,%3),(%4,%5,%6)\n")
+    QString val = QStringLiteral("(%1,%2,%3),(%4,%5,%6)\n")
                       .arg(pos.x, 0, 'g', 6)
                       .arg(pos.y, 0, 'g', 6)
                       .arg(pos.z, 0, 'g', 6)

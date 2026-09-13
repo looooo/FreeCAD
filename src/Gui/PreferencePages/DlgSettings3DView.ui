@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>499</width>
-    <height>520</height>
+    <height>708</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -24,8 +24,8 @@
      </property>
      <layout class="QVBoxLayout" name="verticalLayout">
       <item>
-       <layout class="QHBoxLayout" name="horizontalLayoutCoord">
-      <item>
+       <layout class="QGridLayout" name="gridLayoutCoord">
+        <item row="0" column="0">
          <widget class="Gui::PrefCheckBox" name="CheckBox_CornerCoordSystem">
           <property name="toolTip">
            <string>Main coordinate system will always be shown in
@@ -45,33 +45,37 @@ lower right corner within opened files</string>
           </property>
          </widget>
         </item>
-        <item>
+        <item row="0" column="1">
          <spacer name="horizontalSpacerCoord">
           <property name="orientation">
-           <enum>Qt::Horizontal</enum>
+           <enum>Qt::Orientation::Horizontal</enum>
           </property>
           <property name="sizeHint" stdset="0">
            <size>
             <width>40</width>
+            <height>0</height>
            </size>
           </property>
          </spacer>
         </item>
-        <item>
+        <item row="0" column="2">
          <widget class="QLabel" name="labelCoordSize">
           <property name="text">
-           <string>Relative size :   </string>
+           <string>Relative size</string>
           </property>
           <property name="alignment">
-           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+           <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
           </property>
          </widget>
         </item>
-        <item>
+        <item row="0" column="3">
          <widget class="Gui::PrefSpinBox" name="SpinBox_CornerCoordSystemSize">
           <property name="toolTip">
            <string>Size of main coordinate system representation
-in the corner -- in % of height/width of viewport</string>
+in the corner in % of height/width of the viewport</string>
+          </property>
+          <property name="suffix">
+           <string notr="true">%</string>
           </property>
           <property name="minimum">
            <number>2</number>
@@ -82,11 +86,146 @@ in the corner -- in % of height/width of viewport</string>
           <property name="value">
            <number>10</number>
           </property>
-          <property name="suffix">
-           <string notr="true">%</string>
-          </property>
           <property name="prefEntry" stdset="0">
            <cstring>CornerCoordSystemSize</cstring>
+          </property>
+          <property name="prefPath" stdset="0">
+           <cstring>View</cstring>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="2">
+         <widget class="QLabel" name="axisLetterColorLabel">
+          <property name="text">
+           <string>Letter color</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="3">
+         <widget class="Gui::PrefColorButton" name="axisLetterColor">
+          <property name="toolTip">
+           <string>Axis letter and FPS counter color</string>
+          </property>
+          <property name="color">
+           <color>
+            <red>0</red>
+            <green>0</green>
+            <blue>0</blue>
+           </color>
+          </property>
+          <property name="prefEntry" stdset="0">
+           <cstring>AxisLetterColor</cstring>
+          </property>
+          <property name="prefPath" stdset="0">
+           <cstring>View</cstring>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_2">
+        <item>
+         <widget class="QLabel" name="xAxisLabel">
+          <property name="text">
+           <string>X-axis color</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="Gui::PrefColorButton" name="xAxisColor">
+          <property name="text">
+           <string/>
+          </property>
+          <property name="color">
+           <color>
+            <red>204</red>
+            <green>51</green>
+            <blue>51</blue>
+           </color>
+          </property>
+          <property name="prefEntry" stdset="0">
+           <cstring>AxisXColor</cstring>
+          </property>
+          <property name="prefPath" stdset="0">
+           <cstring>View</cstring>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="horizontalSpacer_2">
+          <property name="orientation">
+           <enum>Qt::Orientation::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item>
+         <widget class="QLabel" name="yAxisLabel">
+          <property name="text">
+           <string>Y-axis color</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="Gui::PrefColorButton" name="yAxisColor">
+          <property name="text">
+           <string/>
+          </property>
+          <property name="color">
+           <color>
+            <red>51</red>
+            <green>204</green>
+            <blue>51</blue>
+           </color>
+          </property>
+          <property name="prefEntry" stdset="0">
+           <cstring>AxisYColor</cstring>
+          </property>
+          <property name="prefPath" stdset="0">
+           <cstring>View</cstring>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="horizontalSpacer_3">
+          <property name="orientation">
+           <enum>Qt::Orientation::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item>
+         <widget class="QLabel" name="zAxisLabel">
+          <property name="text">
+           <string>Z-axis color</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="Gui::PrefColorButton" name="zAxisColor">
+          <property name="text">
+           <string/>
+          </property>
+          <property name="color">
+           <color>
+            <red>51</red>
+            <green>51</green>
+            <blue>204</blue>
+           </color>
+          </property>
+          <property name="prefEntry" stdset="0">
+           <cstring>AxisZColor</cstring>
           </property>
           <property name="prefPath" stdset="0">
            <cstring>View</cstring>
@@ -145,7 +284,6 @@ will be shown at the lower left corner in opened files</string>
        <widget class="Gui::PrefCheckBox" name="CheckBox_use_SW_OpenGL">
         <property name="toolTip">
          <string>This option is useful for troubleshooting graphics card and driver problems.
-
 Changing this option requires a restart of the application.</string>
         </property>
         <property name="text">
@@ -162,19 +300,18 @@ Changing this option requires a restart of the application.</string>
       <item>
        <widget class="Gui::PrefCheckBox" name="CheckBox_useVBO">
         <property name="toolTip">
-         <string>If selected, Vertex Buffer Objects (VBO) will be used.
-A VBO is an OpenGL feature that provides methods for uploading
-vertex data (position, normal vector, color, etc.) to the graphics card.
-VBOs offer substantial performance gains because the data resides
-in the graphics memory rather than the system memory and so it
-can be rendered directly by GPU.
+         <string>A VBO is an OpenGL feature that enables uploading geometry data
+to the graphics card, and is how efficient 3D rendering is done
+on modern hardware.
+This feature might not be used by default if you are running old
+hardware or drivers. By selecting this option its usage will be
+forcibly enabled.
 
-Note: Sometimes this feature may lead to a host of different
-issues ranging from graphical anomalies to GPU crash bugs. Remember to
-report this setting as enabled when seeking support on the FreeCAD forums</string>
+Note: Turning this on is typically not required. If you do,
+remember to report this setting as enabled when seeking support.</string>
         </property>
         <property name="text">
-         <string>Use OpenGL VBO (Vertex Buffer Object)</string>
+         <string>Force use of OpenGL VBO (Vertex Buffer Object)</string>
         </property>
         <property name="prefEntry" stdset="0">
          <cstring>UseVBO</cstring>
@@ -193,7 +330,14 @@ report this setting as enabled when seeking support on the FreeCAD forums</strin
           </property>
          </widget>
         </item>
-        <item row="0" column="4">
+        <item row="5" column="0">
+         <widget class="QLabel" name="textLabel1">
+          <property name="text">
+           <string>Eye to eye distance for stereo modes</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
          <widget class="QComboBox" name="renderCache">
           <property name="minimumSize">
            <size>
@@ -202,7 +346,7 @@ report this setting as enabled when seeking support on the FreeCAD forums</strin
            </size>
           </property>
           <property name="toolTip">
-           <string>'Render Caching' is another way to say 'Rendering Acceleration'.
+           <string>'Render caching' is another way to say 'Rendering acceleration'.
 There are 3 options available to achieve this:
 1) 'Auto' (default), let Coin3D decide where to cache.
 2) 'Distributed', manually turn on cache for all view provider root node.
@@ -230,127 +374,27 @@ but slower response to any scene changes.</string>
           </item>
          </widget>
         </item>
+        <item row="1" column="1">
+         <widget class="QComboBox" name="comboAliasing">
+          <property name="minimumSize">
+           <size>
+            <width>120</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="toolTip">
+           <string>Method of multisample anti-aliasing</string>
+          </property>
+         </widget>
+        </item>
         <item row="1" column="0">
          <widget class="QLabel" name="aliasingLAbel">
           <property name="text">
-           <string>Anti-Aliasing</string>
+           <string>Anti-aliasing</string>
           </property>
          </widget>
         </item>
-        <item row="1" column="4">
-         <widget class="Gui::PrefComboBox" name="comboAliasing">
-          <property name="minimumSize">
-           <size>
-            <width>120</width>
-            <height>0</height>
-           </size>
-          </property>
-          <property name="toolTip">
-           <string>What kind of multisample anti-aliasing is used</string>
-          </property>
-          <property name="prefEntry" stdset="0">
-           <cstring>AntiAliasing</cstring>
-          </property>
-          <property name="prefPath" stdset="0">
-           <cstring>View</cstring>
-          </property>
-          <item>
-           <property name="text">
-            <string>None</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>Line Smoothing</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>MSAA 2x</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>MSAA 4x</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>MSAA 8x</string>
-           </property>
-          </item>
-         </widget>
-        </item>
-        <item row="2" column="0">
-         <widget class="QLabel" name="transparentRenderLabel">
-          <property name="toolTip">
-           <string/>
-          </property>
-          <property name="text">
-           <string>Transparent objects:</string>
-          </property>
-         </widget>
-        </item>
-        <item row="2" column="4">
-         <widget class="Gui::PrefComboBox" name="comboTransparentRender">
-          <property name="minimumSize">
-           <size>
-            <width>120</width>
-            <height>0</height>
-           </size>
-          </property>
-          <property name="toolTip">
-           <string>Render types of transparent objects</string>
-          </property>
-          <property name="prefEntry" stdset="0">
-           <cstring>TransparentObjectRenderType</cstring>
-          </property>
-          <property name="prefPath" stdset="0">
-           <cstring>View</cstring>
-          </property>
-          <item>
-           <property name="text">
-            <string>One pass</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>Backface pass</string>
-           </property>
-          </item>
-         </widget>
-        </item>
-        <item row="3" column="0">
-         <widget class="QLabel" name="markerSizeLabel">
-          <property name="toolTip">
-           <string/>
-          </property>
-          <property name="text">
-           <string>Marker size:</string>
-          </property>
-         </widget>
-        </item>
-        <item row="3" column="4">
-         <widget class="QComboBox" name="boxMarkerSize">
-          <property name="minimumSize">
-           <size>
-            <width>120</width>
-            <height>0</height>
-           </size>
-          </property>
-          <property name="toolTip">
-           <string>Size of vertices in the Sketcher, TechDraw and other workbenches</string>
-          </property>
-         </widget>
-        </item>
-        <item row="4" column="0">
-         <widget class="QLabel" name="textLabel1">
-          <property name="text">
-           <string>Eye to eye distance for stereo modes</string>
-          </property>
-         </widget>
-        </item>
-        <item row="4" column="4">
+        <item row="5" column="1">
          <widget class="Gui::PrefDoubleSpinBox" name="FloatSpinBox_EyeDistance">
           <property name="minimumSize">
            <size>
@@ -386,85 +430,8 @@ bounding box size of the 3D object that is currently displayed.</string>
           </property>
          </widget>
         </item>
-        <item row="5" column="0">
-         <widget class="Gui::PrefCheckBox" name="checkBoxBacklight">
-          <property name="toolTip">
-           <string>Backlight is enabled with the defined color</string>
-          </property>
-          <property name="text">
-           <string>Backlight color</string>
-          </property>
-          <property name="prefEntry" stdset="0">
-           <cstring>EnableBacklight</cstring>
-          </property>
-          <property name="prefPath" stdset="0">
-           <cstring>View</cstring>
-          </property>
-         </widget>
-        </item>
-        <item row="5" column="1">
-         <widget class="Gui::PrefColorButton" name="backlightColor">
-          <property name="enabled">
-           <bool>false</bool>
-          </property>
-          <property name="toolTip">
-           <string>Backlight color</string>
-          </property>
-          <property name="color" stdset="0">
-           <color>
-            <red>255</red>
-            <green>255</green>
-            <blue>255</blue>
-           </color>
-          </property>
-          <property name="prefEntry" stdset="0">
-           <cstring>BacklightColor</cstring>
-          </property>
-          <property name="prefPath" stdset="0">
-           <cstring>View</cstring>
-          </property>
-         </widget>
-        </item>
-        <item row="5" column="2">
-         <spacer name="horizontalSpacer">
-          <property name="orientation">
-           <enum>Qt::Horizontal</enum>
-          </property>
-          <property name="sizeHint" stdset="0">
-           <size>
-            <width>40</width>
-            <height>20</height>
-           </size>
-          </property>
-         </spacer>
-        </item>
-        <item row="5" column="3">
-         <widget class="QLabel" name="backlightLabel">
-          <property name="enabled">
-           <bool>false</bool>
-          </property>
-          <property name="toolTip">
-           <string/>
-          </property>
-          <property name="text">
-           <string>Intensity</string>
-          </property>
-          <property name="alignment">
-           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-          </property>
-         </widget>
-        </item>
-        <item row="5" column="4">
-         <widget class="Gui::PrefSlider" name="sliderIntensity">
-          <property name="enabled">
-           <bool>false</bool>
-          </property>
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
+        <item row="2" column="1">
+         <widget class="Gui::PrefComboBox" name="comboTransparentRender">
           <property name="minimumSize">
            <size>
             <width>120</width>
@@ -472,28 +439,144 @@ bounding box size of the 3D object that is currently displayed.</string>
            </size>
           </property>
           <property name="toolTip">
-           <string>Intensity of the backlight</string>
-          </property>
-          <property name="maximum">
-           <number>100</number>
-          </property>
-          <property name="singleStep">
-           <number>1</number>
-          </property>
-          <property name="value">
-           <number>100</number>
-          </property>
-          <property name="orientation">
-           <enum>Qt::Horizontal</enum>
-          </property>
-          <property name="tickPosition">
-           <enum>QSlider::TicksBelow</enum>
-          </property>
-          <property name="tickInterval">
-           <number>10</number>
+           <string>Render types of transparent objects</string>
           </property>
           <property name="prefEntry" stdset="0">
-           <cstring>BacklightIntensity</cstring>
+           <cstring>TransparentObjectRenderType</cstring>
+          </property>
+          <property name="prefPath" stdset="0">
+           <cstring>View</cstring>
+          </property>
+          <item>
+           <property name="text">
+            <string>One pass</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Backface pass</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="transparentRenderLabel">
+          <property name="toolTip">
+           <string/>
+          </property>
+          <property name="text">
+           <string>Transparent objects</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="0">
+         <widget class="QLabel" name="markerSizeLabel">
+          <property name="toolTip">
+           <string/>
+          </property>
+          <property name="text">
+           <string>Marker size</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="1">
+         <widget class="QComboBox" name="boxMarkerSize">
+          <property name="minimumSize">
+           <size>
+            <width>120</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="toolTip">
+           <string>Size of vertices in the Sketcher, TechDraw and other workbenches</string>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="0">
+         <widget class="QLabel" name="markerSizeLabel_2">
+          <property name="toolTip">
+           <string/>
+          </property>
+          <property name="text">
+           <string>Datum size</string>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="1">
+         <widget class="Gui::PrefDoubleSpinBox" name="FloatSpinBox_DatumScale">
+          <property name="minimumSize">
+           <size>
+            <width>120</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="toolTip">
+           <string>Size of core datum objects</string>
+          </property>
+          <property name="suffix">
+           <string>%</string>
+          </property>
+          <property name="decimals">
+           <number>0</number>
+          </property>
+          <property name="minimum">
+           <double>0.000000000000000</double>
+          </property>
+          <property name="maximum">
+           <double>400.000000000000000</double>
+          </property>
+          <property name="singleStep">
+           <double>5.000000000000000</double>
+          </property>
+          <property name="value">
+           <double>100.000000000000000</double>
+          </property>
+          <property name="prefEntry" stdset="0">
+           <cstring>DatumScale</cstring>
+          </property>
+          <property name="prefPath" stdset="0">
+           <cstring>View</cstring>
+          </property>
+         </widget>
+        </item>
+        <item row="6" column="0">
+         <widget class="QLabel" name="maxFrameRateLabel">
+          <property name="text">
+           <string>Maximum frame rate</string>
+          </property>
+         </widget>
+        </item>
+        <item row="6" column="1">
+         <widget class="Gui::PrefSpinBox" name="SpinBox_MaxFrameRate">
+          <property name="minimumSize">
+           <size>
+            <width>120</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="toolTip">
+           <string>Upper limit on how often the 3D view is redrawn.
+'Automatic' follows the refresh rate of the display, since drawing
+faster than the display can show only wastes graphics card work.
+Set to 0 to redraw as fast as the graphics driver allows.</string>
+          </property>
+          <property name="specialValueText">
+           <string>Automatic</string>
+          </property>
+          <property name="suffix">
+           <string> FPS</string>
+          </property>
+          <property name="minimum">
+           <number>-1</number>
+          </property>
+          <property name="maximum">
+           <number>1000</number>
+          </property>
+          <property name="value">
+           <number>-1</number>
+          </property>
+          <property name="prefEntry" stdset="0">
+           <cstring>MaxFrameRate</cstring>
           </property>
           <property name="prefPath" stdset="0">
            <cstring>View</cstring>
@@ -508,7 +591,7 @@ bounding box size of the 3D object that is currently displayed.</string>
    <item>
     <widget class="QGroupBox" name="groupBoxCamera">
      <property name="title">
-      <string>Camera type</string>
+      <string>Camera Type</string>
      </property>
      <layout class="QGridLayout" name="gridLayout1">
       <property name="leftMargin">
@@ -542,10 +625,10 @@ bounding box size of the 3D object that is currently displayed.</string>
         </property>
        </widget>
       </item>
-     <item row="0" column="1">
+      <item row="0" column="1">
        <widget class="Gui::PrefRadioButton" name="radioOrthographic">
         <property name="toolTip">
-         <string>Objects will be projected in orthographic projection</string>
+         <string>Objects will be in orthographic projection</string>
         </property>
         <property name="text">
          <string>Or&amp;thographic rendering</string>
@@ -561,13 +644,13 @@ bounding box size of the 3D object that is currently displayed.</string>
         </property>
        </widget>
       </item>
-      </layout>
+     </layout>
     </widget>
    </item>
    <item>
     <spacer>
      <property name="orientation">
-      <enum>Qt::Vertical</enum>
+      <enum>Qt::Orientation::Vertical</enum>
      </property>
      <property name="sizeHint" stdset="0">
       <size>
@@ -587,18 +670,8 @@ bounding box size of the 3D object that is currently displayed.</string>
    <header>Gui/Widgets.h</header>
   </customwidget>
   <customwidget>
-   <class>Gui::PrefCheckBox</class>
-   <extends>QCheckBox</extends>
-   <header>Gui/PrefWidgets.h</header>
-  </customwidget>
-  <customwidget>
-   <class>Gui::PrefRadioButton</class>
-   <extends>QRadioButton</extends>
-   <header>Gui/PrefWidgets.h</header>
-  </customwidget>
-  <customwidget>
-   <class>Gui::PrefComboBox</class>
-   <extends>QComboBox</extends>
+   <class>Gui::PrefSpinBox</class>
+   <extends>QSpinBox</extends>
    <header>Gui/PrefWidgets.h</header>
   </customwidget>
   <customwidget>
@@ -607,8 +680,18 @@ bounding box size of the 3D object that is currently displayed.</string>
    <header>Gui/PrefWidgets.h</header>
   </customwidget>
   <customwidget>
-   <class>Gui::PrefSlider</class>
-   <extends>QSlider</extends>
+   <class>Gui::PrefRadioButton</class>
+   <extends>QRadioButton</extends>
+   <header>Gui/PrefWidgets.h</header>
+  </customwidget>
+  <customwidget>
+   <class>Gui::PrefCheckBox</class>
+   <extends>QCheckBox</extends>
+   <header>Gui/PrefWidgets.h</header>
+  </customwidget>
+  <customwidget>
+   <class>Gui::PrefComboBox</class>
+   <extends>QComboBox</extends>
    <header>Gui/PrefWidgets.h</header>
   </customwidget>
   <customwidget>
@@ -616,67 +699,40 @@ bounding box size of the 3D object that is currently displayed.</string>
    <extends>QDoubleSpinBox</extends>
    <header>Gui/PrefWidgets.h</header>
   </customwidget>
-  <customwidget>
-   <class>Gui::PrefSpinBox</class>
-   <extends>QSpinBox</extends>
-   <header>Gui/PrefWidgets.h</header>
-  </customwidget>
  </customwidgets>
  <resources/>
  <connections>
   <connection>
-   <sender>checkBoxBacklight</sender>
+   <sender>CheckBox_CornerCoordSystem</sender>
    <signal>toggled(bool)</signal>
-   <receiver>backlightColor</receiver>
+   <receiver>SpinBox_CornerCoordSystemSize</receiver>
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>161</x>
-     <y>227</y>
+     <x>20</x>
+     <y>20</y>
     </hint>
     <hint type="destinationlabel">
-     <x>290</x>
-     <y>224</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>checkBoxBacklight</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>sliderIntensity</receiver>
-   <slot>setEnabled(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>92</x>
-     <y>235</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>293</x>
-     <y>256</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>checkBoxBacklight</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>backlightLabel</receiver>
-   <slot>setEnabled(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>82</x>
-     <y>507</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>316</x>
-     <y>507</y>
+     <x>20</x>
+     <y>20</y>
     </hint>
    </hints>
   </connection>
   <connection>
    <sender>CheckBox_CornerCoordSystem</sender>
    <signal>toggled(bool)</signal>
-   <receiver>SpinBox_CornerCoordSystemSize</receiver>
+   <receiver>axisLetterColor</receiver>
    <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>20</x>
+     <y>20</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>20</x>
+     <y>20</y>
+    </hint>
+   </hints>
   </connection>
  </connections>
 </ui>

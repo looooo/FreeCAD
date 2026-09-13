@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2022 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,18 +22,19 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 # include <gp_Ax3.hxx>
 # include <gp_Trsf.hxx>
 # include <gp_Vec.hxx>
-#endif
+
 
 #include <Base/Console.h>
+#include <Base/Converter.h>
+#include <Base/Tools.h>
 
 #include "DimensionGeometry.h"
 #include "DrawUtil.h"
 #include "DrawViewPart.h"
+#include "DrawViewDetail.h"
 
 
 using namespace TechDraw;
@@ -60,9 +63,26 @@ void pointPair::move(const Base::Vector3d& offset)
     m_overrideSecond = m_overrideSecond - offset;
 }
 
+//move the points by factor
+void pointPair::scale(double factor)
+{
+    m_first = m_first * factor;
+    m_second = m_second * factor;
+    m_overrideFirst = m_overrideFirst * factor;
+    m_overrideSecond = m_overrideSecond * factor;
+}
+
 // project the points onto the dvp's paper plane.
 void pointPair::project(const DrawViewPart* dvp)
 {
+    auto detailView = dynamic_cast<const DrawViewDetail*>(dvp);
+    if (detailView) {
+        m_first = detailView->mapPoint3dToDetail(m_first) * detailView->getScale();
+        m_second = detailView->mapPoint3dToDetail(m_second) * detailView->getScale();
+        m_overrideFirst = detailView->mapPoint3dToDetail(m_overrideFirst) * detailView->getScale();
+        m_overrideSecond = detailView->mapPoint3dToDetail(m_overrideSecond) * detailView->getScale();
+        return;
+    }
     m_first = dvp->projectPoint(m_first) * dvp->getScale();
     m_second = dvp->projectPoint(m_second) * dvp->getScale();
     m_overrideFirst = dvp->projectPoint(m_overrideFirst) * dvp->getScale();
@@ -78,10 +98,10 @@ void pointPair::mapToPage(const DrawViewPart* dvp)
     gp_Ax3 OXYZ;
     xOXYZ.SetTransformation(OXYZ, gp_Ax3(dvp->getRotatedCS()));
 
-    gp_Vec gvFirst = DU::togp_Vec(m_first).Transformed(xOXYZ);
-    m_first = DU::toVector3d(gvFirst);
-    gp_Vec gvSecond = DU::togp_Vec(m_second).Transformed(xOXYZ);
-    m_second = DU::toVector3d(gvSecond);
+    gp_Vec gvFirst = Base::convertTo<gp_Vec>(m_first).Transformed(xOXYZ);
+    m_first = Base::convertTo<Base::Vector3d>(gvFirst);
+    gp_Vec gvSecond = Base::convertTo<gp_Vec>(m_second).Transformed(xOXYZ);
+    m_second = Base::convertTo<Base::Vector3d>(gvSecond);
 }
 
 // this routine is no longer needed since we now use the dvp's projectPoint
@@ -94,10 +114,47 @@ void pointPair::invertY()
 
 void pointPair::dump(const std::string& text) const
 {
-    Base::Console().Message("pointPair - %s\n", text.c_str());
-    Base::Console().Message("pointPair - first: %s  second: %s\n",
+    Base::Console().message("pointPair - %s\n", text.c_str());
+    Base::Console().message("pointPair - first: %s  second: %s\n",
                             DU::formatVector(first()).c_str(), DU::formatVector(second()).c_str());
 }
+
+//! return unscaled, unrotated version of this pointPair.  caller is responsible for
+//! for ensuring this pointPair is in scaled, rotated form before calling this method.
+pointPair pointPair::toCanonicalForm(DrawViewPart* dvp) const
+{
+    pointPair result;
+    // invert points?
+    result.m_first = CosmeticVertex::makeCanonicalPoint(dvp, m_first);
+    result.m_second = CosmeticVertex::makeCanonicalPoint(dvp, m_second);
+    result.m_overrideFirst = CosmeticVertex::makeCanonicalPoint(dvp, m_overrideFirst);
+    result.m_overrideSecond = CosmeticVertex::makeCanonicalPoint(dvp, m_overrideSecond);
+    return result;
+}
+
+//! return scaled and rotated version of this pointPair.  caller is responsible for
+//! for ensuring this pointPair is in canonical form before calling this method.
+pointPair pointPair::toDisplayForm(DrawViewPart* dvp) const
+{
+    pointPair result;
+
+    // invert points?
+    result.m_first = m_first * dvp->getScale();
+    result.m_second = m_second * dvp->getScale();
+    result.m_overrideFirst = m_overrideFirst * dvp->getScale();
+    result.m_overrideSecond = m_overrideSecond * dvp->getScale();
+    auto rotationDeg = dvp->Rotation.getValue();
+    if (rotationDeg != 0.0) {
+        auto rotationRad = Base::toRadians(rotationDeg);
+        result.m_first.RotateZ(rotationRad);
+        result.m_second.RotateZ(rotationRad);
+        result.m_overrideFirst.RotateZ(rotationRad);
+        result.m_overrideSecond.RotateZ(rotationRad);
+    }
+    return result;
+}
+
+
 
 anglePoints::anglePoints()
 {
@@ -138,8 +195,8 @@ void anglePoints::mapToPage(const DrawViewPart* dvp)
     gp_Trsf xOXYZ;
     gp_Ax3 OXYZ;
     xOXYZ.SetTransformation(OXYZ, gp_Ax3(dvp->getRotatedCS()));
-    gp_Vec gvVertex = DU::togp_Vec(m_vertex).Transformed(xOXYZ);
-    m_vertex = DU::toVector3d(gvVertex);
+    gp_Vec gvVertex = Base::convertTo<gp_Vec>(m_vertex).Transformed(xOXYZ);
+    m_vertex = Base::convertTo<Base::Vector3d>(gvVertex);
 }
 
 // map the points onto the coordinate system used for drawing where -Y direction is "up"
@@ -150,12 +207,36 @@ void anglePoints::invertY()
     m_vertex = DU::invertY(m_vertex);
 }
 
+//! return unscaled, unrotated version of this anglePoints.  caller is responsible for
+//! for ensuring this anglePoints is in scaled, rotated form before calling this method.
+anglePoints anglePoints::toCanonicalForm(DrawViewPart* dvp) const
+{
+    anglePoints result;
+    result.m_ends = m_ends.toCanonicalForm(dvp);
+    result.m_vertex = CosmeticVertex::makeCanonicalPoint(dvp, m_vertex);
+    return result;
+}
+
+//! return scaled and rotated version of this anglePoints.  caller is responsible for
+//! for ensuring this anglePoints is in canonical form before calling this method.
+anglePoints anglePoints::toDisplayForm(DrawViewPart* dvp) const
+{
+    anglePoints result;
+    result.m_ends = m_ends.toDisplayForm(dvp);
+    result.m_vertex = m_vertex * dvp->getScale();
+    auto rotationDeg = dvp->Rotation.getValue();
+    if (rotationDeg != 0.0) {
+        auto rotationRad = Base::toRadians(rotationDeg);
+        result.m_vertex.RotateZ(rotationRad);
+    }
+    return result;
+}
 void anglePoints::dump(const std::string& text) const
 {
-    Base::Console().Message("anglePoints - %s\n", text.c_str());
-    Base::Console().Message("anglePoints - ends - first: %s  second: %s\n",
+    Base::Console().message("anglePoints - %s\n", text.c_str());
+    Base::Console().message("anglePoints - ends - first: %s  second: %s\n",
                             DU::formatVector(first()).c_str(), DU::formatVector(second()).c_str());
-    Base::Console().Message("anglePoints - vertex: %s\n", DU::formatVector(vertex()).c_str());
+    Base::Console().message("anglePoints - vertex: %s\n", DU::formatVector(vertex()).c_str());
 }
 
 arcPoints::arcPoints() :
@@ -211,18 +292,18 @@ void arcPoints::mapToPage(const DrawViewPart* dvp)
     gp_Ax3 OXYZ;
     xOXYZ.SetTransformation(OXYZ, gp_Ax3(dvp->getRotatedCS()));
 
-    gp_Vec gvCenter = DU::togp_Vec(center).Transformed(xOXYZ);
-    center = DU::toVector3d(gvCenter);
-    gp_Vec gvOnCurve1 = DU::togp_Vec(onCurve.first()).Transformed(xOXYZ);
-    onCurve.first(DU::toVector3d(gvOnCurve1));
-    gp_Vec gvOnCurve2 = DU::togp_Vec(onCurve.second()).Transformed(xOXYZ);
-    onCurve.second(DU::toVector3d(gvOnCurve2));
-    gp_Vec gvArcEnds1 = DU::togp_Vec(arcEnds.first()).Transformed(xOXYZ);
-    arcEnds.first(DU::toVector3d(gvArcEnds1));
-    gp_Vec gvArcEnds2 = DU::togp_Vec(arcEnds.second()).Transformed(xOXYZ);
-    arcEnds.second(DU::toVector3d(gvArcEnds2));
-    gp_Vec gvMidArc = DU::togp_Vec(midArc).Transformed(xOXYZ);
-    midArc = DU::toVector3d(gvMidArc);
+    gp_Vec gvCenter = Base::convertTo<gp_Vec>(center).Transformed(xOXYZ);
+    center = Base::convertTo<Base::Vector3d>(gvCenter);
+    gp_Vec gvOnCurve1 = Base::convertTo<gp_Vec>(onCurve.first()).Transformed(xOXYZ);
+    onCurve.first(Base::convertTo<Base::Vector3d>(gvOnCurve1));
+    gp_Vec gvOnCurve2 = Base::convertTo<gp_Vec>(onCurve.second()).Transformed(xOXYZ);
+    onCurve.second(Base::convertTo<Base::Vector3d>(gvOnCurve2));
+    gp_Vec gvArcEnds1 = Base::convertTo<gp_Vec>(arcEnds.first()).Transformed(xOXYZ);
+    arcEnds.first(Base::convertTo<Base::Vector3d>(gvArcEnds1));
+    gp_Vec gvArcEnds2 = Base::convertTo<gp_Vec>(arcEnds.second()).Transformed(xOXYZ);
+    arcEnds.second(Base::convertTo<Base::Vector3d>(gvArcEnds2));
+    gp_Vec gvMidArc = Base::convertTo<gp_Vec>(midArc).Transformed(xOXYZ);
+    midArc = Base::convertTo<Base::Vector3d>(gvMidArc);
 }
 
 // obsolete. see above
@@ -234,17 +315,88 @@ void arcPoints::invertY()
     midArc = DU::invertY(midArc);
 }
 
+//! return scaled and rotated version of this arcPoints.  caller is responsible for
+//! for ensuring this arcPoints is in canonical form before calling this method.
+arcPoints arcPoints::toDisplayForm(DrawViewPart* dvp) const
+{
+    arcPoints result;
+    result.onCurve = onCurve.toDisplayForm(dvp);
+    result.arcEnds = arcEnds.toDisplayForm(dvp);
+    result.center = center * dvp->getScale();
+    result.midArc = midArc * dvp->getScale();
+    result.radius = radius * dvp->getScale();
+    auto rotationDeg = dvp->Rotation.getValue();
+    if (rotationDeg != 0.0) {
+        auto rotationRad = Base::toRadians(rotationDeg);
+        result.center.RotateZ(rotationRad);
+        result.midArc.RotateZ(rotationRad);
+    }
+    return result;
+}
+
+//! return unscaled, unrotated version of this arcPoints.  caller is responsible for
+//! for ensuring this arcPoints is in scaled, rotated form before calling this method.
+arcPoints arcPoints::toCanonicalForm(DrawViewPart* dvp) const
+{
+    arcPoints result;
+    result.onCurve = onCurve.toCanonicalForm(dvp);
+    result.arcEnds = arcEnds.toCanonicalForm(dvp);
+    result.center = CosmeticVertex::makeCanonicalPoint(dvp, center);
+    result.midArc = CosmeticVertex::makeCanonicalPoint(dvp, midArc);
+    result.radius = radius / dvp->getScale();
+    return result;
+}
+
+
 void arcPoints::dump(const std::string& text) const
 {
-    Base::Console().Message("arcPoints - %s\n", text.c_str());
-    Base::Console().Message("arcPoints - radius: %.3f center: %s\n", radius,
+    Base::Console().message("arcPoints - %s\n", text.c_str());
+    Base::Console().message("arcPoints - radius: %.3f center: %s\n", radius,
                             DrawUtil::formatVector(center).c_str());
-    Base::Console().Message("arcPoints - isArc: %d arcCW: %d\n", isArc, arcCW);
-    Base::Console().Message("arcPoints - onCurve: %s  %s\n",
+    Base::Console().message("arcPoints - isArc: %d arcCW: %d\n", isArc, arcCW);
+    Base::Console().message("arcPoints - onCurve: %s  %s\n",
                             DrawUtil::formatVector(onCurve.first()).c_str(),
                             DrawUtil::formatVector(onCurve.second()).c_str());
-    Base::Console().Message("arcPoints - arcEnds: %s  %s\n",
+    Base::Console().message("arcPoints - arcEnds: %s  %s\n",
                             DrawUtil::formatVector(arcEnds.first()).c_str(),
                             DrawUtil::formatVector(arcEnds.second()).c_str());
-    Base::Console().Message("arcPoints - midArc: %s\n", DrawUtil::formatVector(midArc).c_str());
+    Base::Console().message("arcPoints - midArc: %s\n", DrawUtil::formatVector(midArc).c_str());
+}
+
+
+areaPoint::areaPoint() :
+    area(0.0),
+    actualArea(0.0),
+    center(Base::Vector3d())
+{
+}
+
+areaPoint& areaPoint::operator=(const areaPoint& ap)
+{
+    area = ap.area;
+    center = ap.center;
+    actualArea = ap.actualArea;
+    return *this;
+}
+
+void areaPoint::move(const Base::Vector3d& offset)
+{
+    center = center - offset;
+}
+
+void areaPoint::project(const DrawViewPart* dvp)
+{
+    center = dvp->projectPoint(center) * dvp->getScale();
+}
+
+void areaPoint::invertY()
+{
+    center = DU::invertY(center);
+}
+
+void areaPoint::dump(const std::string& text) const
+{
+    Base::Console().message("areaPoint - %s\n", text.c_str());
+    Base::Console().message("areaPoint - area: %.3f center: %s\n", area,
+        DrawUtil::formatVector(center).c_str());
 }

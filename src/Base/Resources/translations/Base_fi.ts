@@ -4,59 +4,92 @@
   <context>
     <name>UnitsApi</name>
     <message>
-      <location filename="../../UnitsApi.cpp" line="69"/>
-      <source>Standard (mm, kg, s, degree)</source>
-      <translation type="unfinished">Standard (mm, kg, s, degree)</translation>
+      <location filename="../../UnitsSchemasData.h" line="93"/>
+      <source>Standard (mm, kg, s, °)</source>
+      <translation>Standardi (mm, kg, s, °)</translation>
     </message>
     <message>
-      <location filename="../../UnitsApi.cpp" line="71"/>
-      <source>MKS (m, kg, s, degree)</source>
-      <translation type="unfinished">MKS (m, kg, s, degree)</translation>
+      <location filename="../../UnitsSchemasData.h" line="351"/>
+      <source>MKS (m, kg, s, °)</source>
+      <translation>MKS (m, kg, s, °)</translation>
     </message>
     <message>
-      <location filename="../../UnitsApi.cpp" line="73"/>
+      <location filename="../../UnitsSchemasData.h" line="624"/>
       <source>US customary (in, lb)</source>
-      <translation type="unfinished">US customary (in, lb)</translation>
+      <translation>USA:n yksikköjärjestelmä (tuumat/ paunat)</translation>
     </message>
     <message>
-      <location filename="../../UnitsApi.cpp" line="75"/>
+      <location filename="../../UnitsSchemasData.h" line="681"/>
+      <source>Imperial for Civil Eng (ft, lb, mph)</source>
+      <translation>Brittiläinen, maa- ja vesirakentaminen (ft, lb, mph)</translation>
+    </message>
+    <message>
+      <location filename="../../UnitsSchemasData.h" line="77"/>
       <source>Imperial decimal (in, lb)</source>
-      <translation type="unfinished">Imperial decimal (in, lb)</translation>
+      <translation>Englantilainen desimaaliluku (tuumat / paunat)</translation>
     </message>
     <message>
-      <location filename="../../UnitsApi.cpp" line="77"/>
+      <location filename="../../UnitsSchemasData.h" line="582"/>
       <source>Building Euro (cm, m², m³)</source>
-      <translation type="unfinished">Building Euro (cm, m², m³)</translation>
+      <translation>Rakentaminen Euro (cm/m²/m³)</translation>
     </message>
     <message>
-      <location filename="../../UnitsApi.cpp" line="79"/>
+      <location filename="../../UnitsSchemasData.h" line="668"/>
       <source>Building US (ft-in, sqft, cft)</source>
-      <translation type="unfinished">Building US (ft-in, sqft, cft)</translation>
+      <translation>Rakentaminen USA (ft-in, sqft, cft)</translation>
     </message>
     <message>
-      <location filename="../../UnitsApi.cpp" line="81"/>
-      <source>Metric small parts &amp; CNC(mm, mm/min)</source>
-      <translation type="unfinished">Metric small parts &amp; CNC(mm, mm/min)</translation>
+      <location filename="../../UnitsSchemasData.h" line="54"/>
+      <source>Metric small parts &amp; CNC (mm, mm/min)</source>
+      <translation>Metrinen, pienet osat &amp; CNC (mm, mm/min)</translation>
     </message>
     <message>
-      <location filename="../../UnitsApi.cpp" line="83"/>
-      <source>Imperial for Civil Eng (ft, ft/sec)</source>
-      <translation type="unfinished">Imperial for Civil Eng (ft, ft/sec)</translation>
-    </message>
-    <message>
-      <location filename="../../UnitsApi.cpp" line="85"/>
+      <location filename="../../UnitsSchemasData.h" line="612"/>
       <source>FEM (mm, N, s)</source>
-      <translation type="unfinished">FEM (mm, N, s)</translation>
+      <translation>FEM (mm, N, s)</translation>
     </message>
     <message>
-      <location filename="../../UnitsApi.cpp" line="87"/>
+      <location filename="../../UnitsSchemasData.h" line="63"/>
       <source>Meter decimal (m, m², m³)</source>
-      <translation type="unfinished">Meter decimal (m, m², m³)</translation>
+      <translation>Metrinen desimaaliluku (m, m2, m3)</translation>
+    </message>
+  </context>
+  <context>
+    <name>Exceptions</name>
+    <message>
+      <location filename="../../Exception.cpp" line="321"/>
+      <source>File not found</source>
+      <translation>Tiedostoa ei löydy</translation>
     </message>
     <message>
-      <location filename="../../UnitsApi.cpp" line="89"/>
-      <source>Unknown schema</source>
-      <translation type="unfinished">Unknown schema</translation>
+      <location filename="../../Exception.cpp" line="323"/>
+      <source>No permission to read the file</source>
+      <translation>Ei oikeuksia tiedoston lukemiseen</translation>
+    </message>
+    <message>
+      <location filename="../../Exception.cpp" line="325"/>
+      <source>No write permission for the file or the file is read-only</source>
+      <translation>Tiedostolle ei ole kirjoitusoikeuksia tai tiedosto on vain luku -tiedosto</translation>
+    </message>
+    <message>
+      <location filename="../../Exception.cpp" line="326"/>
+      <source>File format not supported</source>
+      <translation>Tiedostomuotoa ei tueta</translation>
+    </message>
+    <message>
+      <location filename="../../Exception.cpp" line="327"/>
+      <source>Error reading from file</source>
+      <translation>Virhe luettaessa tiedostoa</translation>
+    </message>
+    <message>
+      <location filename="../../Exception.cpp" line="328"/>
+      <source>Error writing to file</source>
+      <translation>Virhe kirjoitettaessa tiedostoon</translation>
+    </message>
+    <message>
+      <location filename="../../Exception.cpp" line="330"/>
+      <source>Directory does not exist</source>
+      <translation>Hakemistoa ei ole olemassa</translation>
     </message>
   </context>
 </TS>

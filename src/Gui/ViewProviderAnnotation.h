@@ -21,12 +21,12 @@
  ***************************************************************************/
 
 
-#ifndef GUI_VIEWPROVIDERANNOTATION_H
-#define GUI_VIEWPROVIDERANNOTATION_H
+#pragma once
 
 #include "ViewProviderDocumentObject.h"
 #include <App/PropertyUnits.h>
-#include "SoTextLabel.h"
+#include <Base/Vector3D.h>
+#include <optional>
 
 class SoFont;
 class SoText2;
@@ -37,11 +37,16 @@ class SoTransform;
 class SoRotationXYZ;
 class SoImage;
 class SoCoordinate3;
+class SoDragger;
+class SoSensor;
+class SoPickedPoint;
 
 namespace Gui
 {
 
-class GuiExport ViewProviderAnnotation : public ViewProviderDocumentObject
+class TranslateManip;
+
+class GuiExport ViewProviderAnnotation: public ViewProviderDocumentObject
 {
     PROPERTY_HEADER_WITH_OVERRIDE(Gui::ViewProviderAnnotation);
 
@@ -51,15 +56,15 @@ public:
     ~ViewProviderAnnotation() override;
 
     // Display properties
-    App::PropertyColor          TextColor;
-    App::PropertyEnumeration    Justification;
-    App::PropertyFloat          FontSize;
-    App::PropertyFont           FontName;
-    App::PropertyFloat          LineSpacing;
-    App::PropertyAngle          Rotation;
-    App::PropertyEnumeration    RotationAxis;
+    App::PropertyColor TextColor;
+    App::PropertyEnumeration Justification;
+    App::PropertyFloat FontSize;
+    App::PropertyFont FontName;
+    App::PropertyFloat LineSpacing;
+    App::PropertyAngle Rotation;
+    App::PropertyEnumeration RotationAxis;
 
-    void attach(App::DocumentObject *) override;
+    void attach(App::DocumentObject*) override;
     void updateData(const App::Property*) override;
     std::vector<std::string> getDisplayModes() const override;
     void setDisplayMode(const char* ModeName) override;
@@ -68,12 +73,12 @@ protected:
     void onChanged(const App::Property* prop) override;
 
 private:
-    SoFont           * pFont;
-    SoText2          * pLabel;
-    SoAsciiText      * pLabel3d;
-    SoBaseColor      * pColor;
-    SoTranslation    * pTranslation;
-    SoRotationXYZ    * pRotationXYZ;
+    SoFont* pFont;
+    SoText2* pLabel;
+    SoAsciiText* pLabel3d;
+    SoBaseColor* pColor;
+    SoTranslation* pTranslation;
+    SoRotationXYZ* pRotationXYZ;
 
     static const char* JustificationEnums[];
     static const char* RotationAxisEnums[];
@@ -85,7 +90,7 @@ private:
  * This approach gives a bit more flexibility since it can render arbitrary
  * annotations.
  */
-class GuiExport ViewProviderAnnotationLabel : public ViewProviderDocumentObject
+class GuiExport ViewProviderAnnotationLabel: public ViewProviderDocumentObject
 {
     PROPERTY_HEADER_WITH_OVERRIDE(Gui::ViewProviderAnnotationLabel);
 
@@ -95,14 +100,14 @@ public:
     ~ViewProviderAnnotationLabel() override;
 
     // Display properties
-    App::PropertyColor          TextColor;
-    App::PropertyColor          BackgroundColor;
-    App::PropertyEnumeration    Justification;
-    App::PropertyFloat          FontSize;
-    App::PropertyFont           FontName;
-    App::PropertyBool           Frame;
+    App::PropertyColor TextColor;
+    App::PropertyColor BackgroundColor;
+    App::PropertyEnumeration Justification;
+    App::PropertyFloat FontSize;
+    App::PropertyFont FontName;
+    App::PropertyBool Frame;
 
-    void attach(App::DocumentObject *) override;
+    void attach(App::DocumentObject*) override;
     void updateData(const App::Property*) override;
     std::vector<std::string> getDisplayModes() const override;
     void setDisplayMode(const char* ModeName) override;
@@ -112,21 +117,69 @@ protected:
     void drawImage(const std::vector<std::string>&);
 
 private:
-    static void dragStartCallback(void * data, SoDragger * d);
-    static void dragFinishCallback(void * data, SoDragger * d);
-    static void dragMotionCallback(void * data, SoDragger * d);
+    static void dragStartCallback(void* data, SoDragger* d);
+    static void dragFinishCallback(void* data, SoDragger* d);
+    static void dragMotionCallback(void* data, SoDragger* d);
 
 private:
-    SoCoordinate3    * pCoords;
-    SoImage          * pImage;
-    SoBaseColor      * pColor;
-    SoTranslation    * pBaseTranslation;
-    TranslateManip   * pTextTranslation;
+    struct DragState
+    {
+        Base::Vector3d basePosition;
+        Base::Vector3d currentTextPosition;
+        Base::Vector3d pickOffset;
+        Base::Vector3d planePoint;
+        Base::Vector3d planeNormal;
+    };
+
+    void previewTextPosition(DragState& state, const Base::Vector3d& textPosition);
+
+private:
+    SoCoordinate3* pCoords;
+    SoImage* pImage;
+    SoImage* pImageHitProxy;
+    SoBaseColor* pColor;
+    SoTranslation* pBaseTranslation;
+    TranslateManip* pTextTranslation;
+    std::optional<DragState> dragState;
 
     static const char* JustificationEnums[];
 };
 
-} //namespace Gui
+/**
+ * @brief The AnnotationBuilder class
+ * This is a helper class to asynchronously add an annotation to the document.
+ */
+class GuiExport AnnotationBuilder
+{
+public:
+    struct Info
+    {
+        std::string text;
+        std::string group = "Annotation";
+        std::string label = "Info";
+    };
+    static void schedule(
+        Gui::ViewProviderDocumentObject* vp,
+        const SoPickedPoint* point,
+        const Info& text
+    );
 
+private:
+    AnnotationBuilder(
+        Gui::ViewProviderDocumentObject* vp,
+        const Info& s,
+        const SbVec3f& p,
+        const SbVec3f& n
+    );
 
-#endif // GUI_VIEWPROVIDERANNOTATION_H
+    static void run(void* data, SoSensor* sensor);
+    void show();
+
+private:
+    Gui::ViewProviderDocumentObject* vp;
+    SbVec3f p;
+    SbVec3f n;
+    Info info;
+};
+
+}  // namespace Gui

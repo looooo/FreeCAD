@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2003 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -21,40 +23,26 @@
  ***************************************************************************/
 
 
-#ifndef MESH_PRECOMPILED_H
-#define MESH_PRECOMPILED_H
+#pragma once
 
 #include <FCConfig.h>
 
-// point at which warnings of overly long specifiers disabled (needed for VC6)
-#ifdef _MSC_VER
-#pragma warning(disable : 4251)
-#pragma warning(disable : 4503)
-#pragma warning(disable : 4275)
-#pragma warning(disable : 4786)  // specifier longer then 255 chars
-#pragma warning(disable : 4661)  // no suitable definition provided for explicit
-#endif                           // template instantiation request
-
-#ifdef _PreComp_
-
 // standard
 #include <cassert>
-#include <cfloat>
 #include <cmath>
 #include <cstdio>
 #include <fcntl.h>
 #include <fstream>
 #include <ios>
 
-#ifdef FC_USE_GTS
-#include <gts.h>
-#endif
 // STL
 #include <algorithm>
 #include <iomanip>
 #include <iostream>
 #include <list>
+#include <limits>
 #include <map>
+#include <numeric>
 #include <queue>
 #include <set>
 #include <sstream>
@@ -63,6 +51,7 @@
 #include <vector>
 
 // boost
+#include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/core/ignore_unused.hpp>
 #include <boost/lexical_cast.hpp>
@@ -84,7 +73,3 @@
 #include <xercesc/util/XMLUni.hpp>
 #include <xercesc/util/XMLUniDefs.hpp>
 #include <xercesc/util/XercesVersion.hpp>
-
-#endif  //_PreComp_
-
-#endif

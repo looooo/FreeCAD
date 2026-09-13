@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DrawViewDetail_h_
-#define DrawViewDetail_h_
+#pragma once
 
 #include <gp_Ax2.hxx>
 #include <TopoDS_Shape.hxx>
@@ -49,7 +50,7 @@ namespace TechDraw
 
 class TechDrawExport DrawViewDetail : public DrawViewPart
 {
-    PROPERTY_HEADER_WITH_OVERRIDE(Part::DrawViewDetail);
+    PROPERTY_HEADER_WITH_OVERRIDE(TechDraw::DrawViewDetail);
 
 public:
     /// Constructor
@@ -58,7 +59,7 @@ public:
 
     App::PropertyLink   BaseView;
     App::PropertyVector AnchorPoint;
-    App::PropertyFloat  Radius;
+    App::PropertyFloat   Radius;
     App::PropertyString Reference;
 
     App::PropertyBool   ShowMatting;
@@ -71,6 +72,8 @@ public:
         return "TechDrawGui::ViewProviderViewPart";
     }
     void unsetupObject() override;
+    void handleChangedPropertyType(
+        Base::XMLReader &reader, const char * TypeName, App::Property * prop) override;
 
 
     void detailExec(TopoDS_Shape& s,
@@ -91,6 +94,8 @@ public:
 
     std::vector<DrawViewDetail*> getDetailRefs() const override;
     TopoDS_Shape getDetailShape() const { return m_detailShape; }
+
+    Base::Vector3d mapPoint3dToDetail(const Base::Vector3d& inPoint) const;
 
 public Q_SLOTS:
     void onMakeDetailFinished(void);
@@ -117,5 +122,3 @@ protected:
 using DrawViewDetailPython = App::FeaturePythonT<DrawViewDetail>;
 
 } //namespace TechDraw
-
-#endif

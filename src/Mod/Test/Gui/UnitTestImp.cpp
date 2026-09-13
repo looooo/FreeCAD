@@ -20,11 +20,13 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
+#include "FCGlobal.h"
+
 #include <QFontMetrics>
 #include <QMessageBox>
-#endif
+#include <QClipboard>
+#include <QApplication>
+
 
 #include <Base/Interpreter.h>
 #include <Gui/MainWindow.h>
@@ -101,12 +103,15 @@ UnitTestDialog::~UnitTestDialog() = default;
 
 void UnitTestDialog::setupConnections()
 {
-    connect(ui->treeViewFailure,
-            &QTreeWidget::itemDoubleClicked,
-            this,
-            &UnitTestDialog::onTreeViewFailureItemDoubleClicked);
+    connect(
+        ui->treeViewFailure,
+        &QTreeWidget::itemDoubleClicked,
+        this,
+        &UnitTestDialog::onTreeViewFailureItemDoubleClicked
+    );
     connect(ui->helpButton, &QPushButton::clicked, this, &UnitTestDialog::onHelpButtonClicked);
     connect(ui->aboutButton, &QPushButton::clicked, this, &UnitTestDialog::onAboutButtonClicked);
+    connect(ui->copyButton, &QPushButton::clicked, this, &UnitTestDialog::onCopyButtonClicked);
     connect(ui->startButton, &QPushButton::clicked, this, &UnitTestDialog::onStartButtonClicked);
 }
 
@@ -115,14 +120,16 @@ void UnitTestDialog::setupConnections()
  */
 void UnitTestDialog::setProgressColor(const QColor& col)
 {
-    QString qss = QString::fromLatin1("QProgressBar {\n"
-                                      "    border: 2px solid grey;\n"
-                                      "    border-radius: 5px;\n"
-                                      "}\n"
-                                      "\n"
-                                      "QProgressBar::chunk {\n"
-                                      "    background-color: %1;\n"
-                                      "}")
+    QString qss = QStringLiteral(
+                      "QProgressBar {\n"
+                      "    border: 2px solid grey;\n"
+                      "    border-radius: 5px;\n"
+                      "}\n"
+                      "\n"
+                      "QProgressBar::chunk {\n"
+                      "    background-color: %1;\n"
+                      "}"
+    )
                       .arg(col.name());
     ui->progressBar->setStyleSheet(qss);
 }
@@ -166,7 +173,8 @@ void UnitTestDialog::onHelpButtonClicked()
         tr("Enter the name of a callable object which, when called, will return a TestCase.\n"
            "Click 'start', and the test thus produced will be run.\n\n"
            "Double click on an error in the tree view to see more information about it, "
-           "including the stack trace."));
+           "including the stack trace.")
+    );
 }
 
 /**
@@ -179,7 +187,23 @@ void UnitTestDialog::onAboutButtonClicked()
         tr("About FreeCAD UnitTest"),
         tr("Copyright (c) Werner Mayer\n\n"
            "FreeCAD UnitTest is part of FreeCAD and supports writing Unit Tests for "
-           "ones own modules."));
+           "ones own modules.")
+    );
+}
+
+void UnitTestDialog::onCopyButtonClicked()
+{
+    QString text;
+    QTreeWidgetItemIterator it(ui->treeViewFailure);
+    while (*it) {
+        text += (*it)->data(0, Qt::UserRole).toString() + QStringLiteral("\n\n");
+        ++it;
+    }
+    if (text.isEmpty()) {
+        return;
+    }
+    QApplication::clipboard()->setText(text);
+    setStatusText(tr("Errors copied to clipboard"));
 }
 
 /**
@@ -191,11 +215,13 @@ void UnitTestDialog::onStartButtonClicked()
     setProgressColor(QColor(40, 210, 43));  // a darker green
     ui->startButton->setDisabled(true);
     try {
-        Base::Interpreter().runString("import qtunittest, gc\n"
-                                      "__qt_test__=qtunittest.QtTestRunner(0,\"\")\n"
-                                      "__qt_test__.runClicked()\n"
-                                      "del __qt_test__\n"
-                                      "gc.collect()\n");
+        Base::Interpreter().runString(
+            "import qtunittest, gc\n"
+            "__qt_test__=qtunittest.QtTestRunner(0,\"\")\n"
+            "__qt_test__.runClicked()\n"
+            "del __qt_test__\n"
+            "gc.collect()\n"
+        );
     }
     catch (const Base::PyException& e) {
         std::string msg = e.what();
@@ -239,10 +265,10 @@ void UnitTestDialog::reset()
 {
     ui->progressBar->reset();
     ui->treeViewFailure->clear();
-    ui->textLabelRunCt->setText(QString::fromLatin1("<font color=\"#0000ff\">0</font>"));
-    ui->textLabelFailCt->setText(QString::fromLatin1("<font color=\"#0000ff\">0</font>"));
-    ui->textLabelErrCt->setText(QString::fromLatin1("<font color=\"#0000ff\">0</font>"));
-    ui->textLabelRemCt->setText(QString::fromLatin1("<font color=\"#0000ff\">0</font>"));
+    ui->textLabelRunCt->setText(QStringLiteral("<font color=\"#0000ff\">0</font>"));
+    ui->textLabelFailCt->setText(QStringLiteral("<font color=\"#0000ff\">0</font>"));
+    ui->textLabelErrCt->setText(QStringLiteral("<font color=\"#0000ff\">0</font>"));
+    ui->textLabelRemCt->setText(QStringLiteral("<font color=\"#0000ff\">0</font>"));
 }
 
 /**
@@ -357,7 +383,7 @@ void UnitTestDialog::insertError(const QString& failure, const QString& details)
  */
 void UnitTestDialog::setRunCount(int ct)
 {
-    ui->textLabelRunCt->setText(QString::fromLatin1("<font color=\"#0000ff\">%1</font>").arg(ct));
+    ui->textLabelRunCt->setText(QStringLiteral("<font color=\"#0000ff\">%1</font>").arg(ct));
 }
 
 /**
@@ -365,7 +391,7 @@ void UnitTestDialog::setRunCount(int ct)
  */
 void UnitTestDialog::setFailCount(int ct)
 {
-    ui->textLabelFailCt->setText(QString::fromLatin1("<font color=\"#0000ff\">%1</font>").arg(ct));
+    ui->textLabelFailCt->setText(QStringLiteral("<font color=\"#0000ff\">%1</font>").arg(ct));
 }
 
 /**
@@ -373,7 +399,7 @@ void UnitTestDialog::setFailCount(int ct)
  */
 void UnitTestDialog::setErrorCount(int ct)
 {
-    ui->textLabelErrCt->setText(QString::fromLatin1("<font color=\"#0000ff\">%1</font>").arg(ct));
+    ui->textLabelErrCt->setText(QStringLiteral("<font color=\"#0000ff\">%1</font>").arg(ct));
 }
 
 /**
@@ -381,7 +407,7 @@ void UnitTestDialog::setErrorCount(int ct)
  */
 void UnitTestDialog::setRemainCount(int ct)
 {
-    ui->textLabelRemCt->setText(QString::fromLatin1("<font color=\"#0000ff\">%1</font>").arg(ct));
+    ui->textLabelRemCt->setText(QStringLiteral("<font color=\"#0000ff\">%1</font>").arg(ct));
 }
 
 #include "moc_UnitTestImp.cpp"

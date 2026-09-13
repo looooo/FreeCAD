@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2011 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,13 +22,11 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <QtConcurrentMap>
 #include <algorithm>
 #include <cmath>
 #include <iostream>
-#endif
+
 
 #include <Base/Converter.h>
 #include <Base/Matrix.h>
@@ -39,7 +39,7 @@
 #include "Properties.h"
 
 #ifdef _MSC_VER
-#include <ppl.h>
+# include <ppl.h>
 #endif
 
 
@@ -137,7 +137,7 @@ void PropertyGreyValueList::Save(Base::Writer& writer) const
 void PropertyGreyValueList::Restore(Base::XMLReader& reader)
 {
     reader.readElement("FloatList");
-    string file(reader.getAttribute("file"));
+    string file(reader.getAttribute<const char*>("file"));
 
     if (!file.empty()) {
         // initiate a file read
@@ -309,7 +309,7 @@ void PropertyNormalList::Save(Base::Writer& writer) const
 void PropertyNormalList::Restore(Base::XMLReader& reader)
 {
     reader.readElement("VectorList");
-    std::string file(reader.getAttribute("file"));
+    std::string file(reader.getAttribute<const char*>("file"));
 
     if (!file.empty()) {
         // initiate a file read
@@ -384,11 +384,9 @@ void PropertyNormalList::transformGeometry(const Base::Matrix4D& mat)
 
     // Rotate the normal vectors
 #ifdef _MSC_VER
-    Concurrency::parallel_for_each(_lValueList.begin(),
-                                   _lValueList.end(),
-                                   [rot](Base::Vector3f& value) {
-                                       value = rot * value;
-                                   });
+    Concurrency::parallel_for_each(_lValueList.begin(), _lValueList.end(), [rot](Base::Vector3f& value) {
+        value = rot * value;
+    });
 #else
     QtConcurrent::blockingMap(_lValueList, [rot](Base::Vector3f& value) {
         rot.multVec(value, value);
@@ -415,8 +413,7 @@ void PropertyNormalList::removeIndices(const std::vector<unsigned long>& uIndice
     remainValue.reserve(rValueList.size() - uSortedInds.size());
 
     std::vector<unsigned long>::iterator pos = uSortedInds.begin();
-    for (std::vector<Base::Vector3f>::const_iterator it = rValueList.begin();
-         it != rValueList.end();
+    for (std::vector<Base::Vector3f>::const_iterator it = rValueList.begin(); it != rValueList.end();
          ++it) {
         unsigned long index = it - rValueList.begin();
         if (pos == uSortedInds.end()) {
@@ -545,8 +542,7 @@ void PropertyCurvatureList::removeIndices(const std::vector<unsigned long>& uInd
     remainValue.reserve(_lValueList.size() - uSortedInds.size());
 
     std::vector<unsigned long>::iterator pos = uSortedInds.begin();
-    for (std::vector<CurvatureInfo>::const_iterator it = _lValueList.begin();
-         it != _lValueList.end();
+    for (std::vector<CurvatureInfo>::const_iterator it = _lValueList.begin(); it != _lValueList.end();
          ++it) {
         unsigned long index = it - _lValueList.begin();
         if (pos == uSortedInds.end()) {
@@ -584,7 +580,7 @@ void PropertyCurvatureList::Save(Base::Writer& writer) const
 void PropertyCurvatureList::Restore(Base::XMLReader& reader)
 {
     reader.readElement("CurvatureList");
-    std::string file(reader.getAttribute("file"));
+    std::string file(reader.getAttribute<const char*>("file"));
 
     if (!file.empty()) {
         // initiate a file read

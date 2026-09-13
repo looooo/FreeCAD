@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2022 Wanderer Fan <wandererfan@gmail.com>               *
  *                                                                         *
@@ -20,11 +22,9 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 # include <QGuiApplication>
 # include <QMouseEvent>
-#endif
+
 
 #include "QGVNavStyleOpenSCAD.h"
 #include "QGVPage.h"
@@ -138,7 +138,7 @@ void QGVNavStyleOpenSCAD::handleMouseReleaseEvent(QMouseEvent *event)
 
 bool QGVNavStyleOpenSCAD::allowContextMenu(QContextMenuEvent *event)
 {
-//    Base::Console().Message("QGVNSCAD::allowContextMenu()\n");
+//    Base::Console().message("QGVNSCAD::allowContextMenu()\n");
     if (event->reason() == QContextMenuEvent::Mouse) {
         //must check for a button combination involving context menu button
         if (QGuiApplication::keyboardModifiers().testFlag(Qt::ShiftModifier)) {

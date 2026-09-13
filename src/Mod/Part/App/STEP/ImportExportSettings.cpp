@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2022 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,21 +22,23 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
-# include <Interface_Static.hxx>
-#endif
+#include <Interface_Static.hxx>
+
 
 #include "ImportExportSettings.h"
 #include <App/Application.h>
 
 
-namespace Part {
-namespace STEP {
+namespace Part
+{
+namespace STEP
+{
 
 ImportExportSettings::ImportExportSettings()
 {
-    pGroup = App::GetApplication().GetParameterGroupByPath("User parameter:BaseApp/Preferences/Mod/Part/STEP");
+    pGroup = App::GetApplication().GetParameterGroupByPath(
+        "User parameter:BaseApp/Preferences/Mod/Part/STEP"
+    );
 }
 
 void ImportExportSettings::setVisibleExportDialog(bool on)
@@ -47,17 +51,30 @@ bool ImportExportSettings::isVisibleExportDialog() const
     return pGroup->GetBool("VisibleExportDialog", true);
 }
 
+void ImportExportSettings::setVisibleImportDialog(bool on)
+{
+    pGroup->SetBool("VisibleImportDialog", on);
+}
+
+bool ImportExportSettings::isVisibleImportDialog() const
+{
+    return pGroup->GetBool("VisibleImportDialog", true);
+}
 
 void ImportExportSettings::setWriteSurfaceCurveMode(bool on)
 {
-    ParameterGrp::handle grp = App::GetApplication().GetParameterGroupByPath("User parameter:BaseApp/Preferences/Mod/Part/General");
+    ParameterGrp::handle grp = App::GetApplication().GetParameterGroupByPath(
+        "User parameter:BaseApp/Preferences/Mod/Part/General"
+    );
     grp->SetInt("WriteSurfaceCurveMode", on ? 1 : 0);
     Interface_Static::SetIVal("write.surfacecurve.mode", on ? 1 : 0);
 }
 
 bool ImportExportSettings::getWriteSurfaceCurveMode() const
 {
-    ParameterGrp::handle grp = App::GetApplication().GetParameterGroupByPath("User parameter:BaseApp/Preferences/Mod/Part/General");
+    ParameterGrp::handle grp = App::GetApplication().GetParameterGroupByPath(
+        "User parameter:BaseApp/Preferences/Mod/Part/General"
+    );
     int writesurfacecurve = Interface_Static::IVal("write.surfacecurve.mode");
     writesurfacecurve = grp->GetInt("WriteSurfaceCurveMode", writesurfacecurve);
     return (writesurfacecurve == 0 ? false : true);
@@ -115,5 +132,5 @@ void ImportExportSettings::setProductName(const char* name)
     Part::Interface::writeStepHeaderProduct(name);
 }
 
-} // namespace STEP
-} // namespace Part
+}  // namespace STEP
+}  // namespace Part

@@ -1,36 +1,41 @@
-#***************************************************************************
-#*   Copyright (c) 2011 Juergen Riegel <FreeCAD@juergen-riegel.net>        *
-#*                                                                         *
-#*   This program is free software; you can redistribute it and/or modify  *
-#*   it under the terms of the GNU Lesser General Public License (LGPL)    *
-#*   as published by the Free Software Foundation; either version 2 of     *
-#*   the License, or (at your option) any later version.                   *
-#*   for detail see the LICENCE text file.                                 *
-#*                                                                         *
-#*   This program is distributed in the hope that it will be useful,       *
-#*   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
-#*   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
-#*   GNU Library General Public License for more details.                  *
-#*                                                                         *
-#*   You should have received a copy of the GNU Library General Public     *
-#*   License along with this program; if not, write to the Free Software   *
-#*   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  *
-#*   USA                                                                   *
-#*                                                                         *
-#***************************************************************************
+# SPDX-License-Identifier: LGPL-2.1-or-later
 
+# ***************************************************************************
+# *   Copyright (c) 2011 Juergen Riegel <FreeCAD@juergen-riegel.net>        *
+# *                                                                         *
+# *   This program is free software; you can redistribute it and/or modify  *
+# *   it under the terms of the GNU Lesser General Public License (LGPL)    *
+# *   as published by the Free Software Foundation; either version 2 of     *
+# *   the License, or (at your option) any later version.                   *
+# *   for detail see the LICENCE text file.                                 *
+# *                                                                         *
+# *   This program is distributed in the hope that it will be useful,       *
+# *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+# *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+# *   GNU Library General Public License for more details.                  *
+# *                                                                         *
+# *   You should have received a copy of the GNU Library General Public     *
+# *   License along with this program; if not, write to the Free Software   *
+# *   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  *
+# *   USA                                                                   *
+# *                                                                         *
+# ***************************************************************************
+
+import math
 import unittest
 
 import FreeCAD
+import Part
 import TestSketcherApp
+
 
 class TestPocket(unittest.TestCase):
     def setUp(self):
         self.Doc = FreeCAD.newDocument("PartDesignTestPocket")
 
     def testPocketDimensionCase(self):
-        self.Body = self.Doc.addObject('PartDesign::Body','Body')
-        self.PadSketch = self.Doc.addObject('Sketcher::SketchObject', 'PadSketch')
+        self.Body = self.Doc.addObject("PartDesign::Body", "Body")
+        self.PadSketch = self.Doc.addObject("Sketcher::SketchObject", "PadSketch")
         self.Body.addObject(self.PadSketch)
         TestSketcherApp.CreateRectangleSketch(self.PadSketch, (0, 0), (10, 10))
         self.Doc.recompute()
@@ -40,7 +45,7 @@ class TestPocket(unittest.TestCase):
         self.Pad.Length = 1
         self.Pad.Reversed = 1
         self.Doc.recompute()
-        self.PocketSketch = self.Doc.addObject('Sketcher::SketchObject', 'PocketSketch')
+        self.PocketSketch = self.Doc.addObject("Sketcher::SketchObject", "PocketSketch")
         self.Body.addObject(self.PocketSketch)
         TestSketcherApp.CreateRectangleSketch(self.PocketSketch, (2.5, 2.5), (5, 5))
         self.Doc.recompute()
@@ -51,9 +56,75 @@ class TestPocket(unittest.TestCase):
         self.Doc.recompute()
         self.assertAlmostEqual(self.Pocket.Shape.Volume, 75.0)
 
-    def testPocketThroughAllCase(self):
-        self.Body = self.Doc.addObject('PartDesign::Body','Body')
-        self.PadSketch = self.Doc.addObject('Sketcher::SketchObject', 'PadSketch')
+    def testPocketPreservesTaperDirection(self):
+        self.Body = self.Doc.addObject("PartDesign::Body", "Body")
+        self.PadSketch = self.Doc.addObject("Sketcher::SketchObject", "PadSketch")
+        self.Body.addObject(self.PadSketch)
+        TestSketcherApp.CreateRectangleSketch(self.PadSketch, (-10, -10), (20, 20))
+
+        self.Pad = self.Doc.addObject("PartDesign::Pad", "Pad")
+        self.Body.addObject(self.Pad)
+        self.Pad.Profile = self.PadSketch
+        self.Pad.Length = 10
+        self.Doc.recompute()
+
+        self.PocketSketch = self.Doc.addObject("Sketcher::SketchObject", "PocketSketch")
+        self.Body.addObject(self.PocketSketch)
+        self.PocketSketch.Placement = FreeCAD.Placement(
+            FreeCAD.Vector(), FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), 180)
+        )
+        self.PocketSketch.MakeInternals = False
+        radius = 2.0
+        self.PocketSketch.addGeometry(
+            Part.Circle(FreeCAD.Vector(), FreeCAD.Vector(0, 0, 1), radius), False
+        )
+
+        self.Pocket = self.Doc.addObject("PartDesign::Pocket", "Pocket")
+        self.Body.addObject(self.Pocket)
+        self.Pocket.Profile = self.PocketSketch
+        self.Pocket.Length = 5
+        self.Pocket.TaperAngle = 20
+        self.assertFalse(self.Pocket.UseLegacyTaperDirection)
+        self.Doc.recompute()
+
+        oneSidedVolume = self.Pocket.Shape.Volume
+        expectedRadius = radius + self.Pocket.Length.Value * math.tan(math.radians(20))
+        self.assertAlmostEqual(self.Pocket.AddSubShape.BoundBox.XMax, expectedRadius)
+
+        self.Pocket.StartType = "Offset"
+        self.Pocket.StartOffset = 1
+        self.Doc.recompute()
+
+        self.assertAlmostEqual(self.Pocket.AddSubShape.BoundBox.XMax, expectedRadius)
+
+        self.Pocket.StartType = "Profile plane"
+        self.Pocket.SideType = "Two sides"
+        self.Pocket.Length2 = 5
+        self.Doc.recompute()
+
+        self.assertAlmostEqual(self.Pocket.AddSubShape.BoundBox.XMax, expectedRadius)
+        self.assertAlmostEqual(self.Pocket.Shape.Volume, oneSidedVolume)
+
+        self.Pocket.StartType = "Offset"
+        self.Doc.recompute()
+
+        self.assertAlmostEqual(self.Pocket.AddSubShape.BoundBox.XMax, expectedRadius)
+
+        self.Pocket.UseLegacyTaperDirection = True
+        self.Pocket.SideType = "One side"
+        self.Doc.recompute()
+
+        self.assertAlmostEqual(self.Pocket.AddSubShape.BoundBox.XMax, radius)
+
+        self.Pocket.StartType = "Profile plane"
+        self.Pocket.SideType = "Two sides"
+        self.Doc.recompute()
+
+        self.assertAlmostEqual(self.Pocket.AddSubShape.BoundBox.XMax, radius)
+
+    def testStartOffset(self):
+        self.Body = self.Doc.addObject("PartDesign::Body", "Body")
+        self.PadSketch = self.Doc.addObject("Sketcher::SketchObject", "PadSketch")
         self.Body.addObject(self.PadSketch)
         TestSketcherApp.CreateRectangleSketch(self.PadSketch, (0, 0), (10, 10))
         self.Doc.recompute()
@@ -63,7 +134,33 @@ class TestPocket(unittest.TestCase):
         self.Pad.Length = 1
         self.Pad.Reversed = 1
         self.Doc.recompute()
-        self.PocketSketch = self.Doc.addObject('Sketcher::SketchObject', 'PocketSketch')
+
+        self.PocketSketch = self.Doc.addObject("Sketcher::SketchObject", "PocketSketch")
+        self.Body.addObject(self.PocketSketch)
+        TestSketcherApp.CreateRectangleSketch(self.PocketSketch, (2.5, 2.5), (5, 5))
+        self.Doc.recompute()
+        self.Pocket = self.Doc.addObject("PartDesign::Pocket", "Pocket")
+        self.Body.addObject(self.Pocket)
+        self.Pocket.Profile = self.PocketSketch
+        self.Pocket.StartType = "Offset"
+        self.Pocket.StartOffset = 0.5
+        self.Pocket.Length = 0.25
+        self.Doc.recompute()
+        self.assertAlmostEqual(self.Pocket.Shape.Volume, 93.75)
+
+    def testPocketThroughAllCase(self):
+        self.Body = self.Doc.addObject("PartDesign::Body", "Body")
+        self.PadSketch = self.Doc.addObject("Sketcher::SketchObject", "PadSketch")
+        self.Body.addObject(self.PadSketch)
+        TestSketcherApp.CreateRectangleSketch(self.PadSketch, (0, 0), (10, 10))
+        self.Doc.recompute()
+        self.Pad = self.Doc.addObject("PartDesign::Pad", "Pad")
+        self.Body.addObject(self.Pad)
+        self.Pad.Profile = self.PadSketch
+        self.Pad.Length = 1
+        self.Pad.Reversed = 1
+        self.Doc.recompute()
+        self.PocketSketch = self.Doc.addObject("Sketcher::SketchObject", "PocketSketch")
         self.Body.addObject(self.PocketSketch)
         TestSketcherApp.CreateRectangleSketch(self.PocketSketch, (2.5, 2.5), (5, 5))
         self.Doc.recompute()
@@ -72,10 +169,10 @@ class TestPocket(unittest.TestCase):
         self.Pocket.Profile = self.PocketSketch
         self.Pocket.Length = 1
         self.Doc.recompute()
-        self.PocketSketch1 = self.Doc.addObject('Sketcher::SketchObject', 'PocketSketch')
+        self.PocketSketch1 = self.Doc.addObject("Sketcher::SketchObject", "PocketSketch")
         self.Body.addObject(self.PocketSketch1)
-        self.PocketSketch1.MapMode = 'FlatFace'
-        self.PocketSketch1.Support = (self.Doc.XZ_Plane, [''])
+        self.PocketSketch1.MapMode = "FlatFace"
+        self.PocketSketch1.AttachmentSupport = (self.Doc.XZ_Plane, [""])
         self.Doc.recompute()
         TestSketcherApp.CreateRectangleSketch(self.PocketSketch1, (2.5, -0.75), (5, 0.50))
         self.Doc.recompute()
@@ -87,8 +184,8 @@ class TestPocket(unittest.TestCase):
         self.assertAlmostEqual(self.Pocket001.Shape.Volume, 62.5)
 
     def testPocketToFirstCase(self):
-        self.Body = self.Doc.addObject('PartDesign::Body','Body')
-        self.PadSketch = self.Doc.addObject('Sketcher::SketchObject', 'PadSketch')
+        self.Body = self.Doc.addObject("PartDesign::Body", "Body")
+        self.PadSketch = self.Doc.addObject("Sketcher::SketchObject", "PadSketch")
         self.Body.addObject(self.PadSketch)
         TestSketcherApp.CreateRectangleSketch(self.PadSketch, (0, 0), (10, 10))
         self.Doc.recompute()
@@ -98,7 +195,7 @@ class TestPocket(unittest.TestCase):
         self.Pad.Length = 1
         self.Pad.Reversed = 1
         self.Doc.recompute()
-        self.PocketSketch = self.Doc.addObject('Sketcher::SketchObject', 'PocketSketch')
+        self.PocketSketch = self.Doc.addObject("Sketcher::SketchObject", "PocketSketch")
         self.Body.addObject(self.PocketSketch)
         TestSketcherApp.CreateRectangleSketch(self.PocketSketch, (2.5, 2.5), (5, 5))
         self.Doc.recompute()
@@ -107,10 +204,10 @@ class TestPocket(unittest.TestCase):
         self.Pocket.Profile = self.PocketSketch
         self.Pocket.Length = 1
         self.Doc.recompute()
-        self.PocketSketch1 = self.Doc.addObject('Sketcher::SketchObject', 'PocketSketch')
+        self.PocketSketch1 = self.Doc.addObject("Sketcher::SketchObject", "PocketSketch")
         self.Body.addObject(self.PocketSketch1)
-        self.PocketSketch1.MapMode = 'FlatFace'
-        self.PocketSketch1.Support = (self.Doc.XZ_Plane, [''])
+        self.PocketSketch1.MapMode = "FlatFace"
+        self.PocketSketch1.AttachmentSupport = (self.Doc.XZ_Plane, [""])
         self.Doc.recompute()
         TestSketcherApp.CreateRectangleSketch(self.PocketSketch1, (2.5, -1), (5, 1))
         self.Doc.recompute()
@@ -122,8 +219,8 @@ class TestPocket(unittest.TestCase):
         self.assertAlmostEqual(self.Pocket001.Shape.Volume, 62.5)
 
     def testPocketToFaceCase(self):
-        self.Body = self.Doc.addObject('PartDesign::Body','Body')
-        self.PadSketch = self.Doc.addObject('Sketcher::SketchObject', 'PadSketch')
+        self.Body = self.Doc.addObject("PartDesign::Body", "Body")
+        self.PadSketch = self.Doc.addObject("Sketcher::SketchObject", "PadSketch")
         self.Body.addObject(self.PadSketch)
         TestSketcherApp.CreateRectangleSketch(self.PadSketch, (0, 0), (10, 10))
         self.Doc.recompute()
@@ -133,7 +230,7 @@ class TestPocket(unittest.TestCase):
         self.Pad.Length = 1
         self.Pad.Reversed = 1
         self.Doc.recompute()
-        self.PocketSketch = self.Doc.addObject('Sketcher::SketchObject', 'PocketSketch')
+        self.PocketSketch = self.Doc.addObject("Sketcher::SketchObject", "PocketSketch")
         self.Body.addObject(self.PocketSketch)
         TestSketcherApp.CreateRectangleSketch(self.PocketSketch, (2.5, 2.5), (5, 5))
         self.Doc.recompute()
@@ -142,10 +239,10 @@ class TestPocket(unittest.TestCase):
         self.Pocket.Profile = self.PocketSketch
         self.Pocket.Length = 1
         self.Doc.recompute()
-        self.PocketSketch1 = self.Doc.addObject('Sketcher::SketchObject', 'PocketSketch')
+        self.PocketSketch1 = self.Doc.addObject("Sketcher::SketchObject", "PocketSketch")
         self.Body.addObject(self.PocketSketch1)
-        self.PocketSketch1.MapMode = 'FlatFace'
-        self.PocketSketch1.Support = (self.Doc.XZ_Plane, [''])
+        self.PocketSketch1.MapMode = "FlatFace"
+        self.PocketSketch1.AttachmentSupport = (self.Doc.XZ_Plane, [""])
         self.Doc.recompute()
         TestSketcherApp.CreateRectangleSketch(self.PocketSketch1, (0, -1), (10, 1))
         self.Doc.recompute()
@@ -155,15 +252,17 @@ class TestPocket(unittest.TestCase):
         self.Pocket001.Type = 3
         # Handle face-naming inconsistency in OCC < 7
         self.FaceNumber = 7
-        self.Pocket001.UpToFace = (self.Pocket, ["Face"+str(self.FaceNumber)])
+        self.Pocket001.UpToFace = (self.Pocket, ["Face" + str(self.FaceNumber)])
         self.Doc.recompute()
-        while (('Invalid' in self.Pocket001.State or round(self.Pocket001.Shape.Volume, 7) != 50.0) and self.FaceNumber < 11):
+        while (
+            "Invalid" in self.Pocket001.State or round(self.Pocket001.Shape.Volume, 7) != 50.0
+        ) and self.FaceNumber < 11:
             self.FaceNumber += 1
-            self.Pocket001.UpToFace = (self.Pocket, ["Face"+str(self.FaceNumber)])
+            self.Pocket001.UpToFace = (self.Pocket, ["Face" + str(self.FaceNumber)])
             self.Doc.recompute()
         self.assertAlmostEqual(self.Pocket001.Shape.Volume, 50.0)
 
     def tearDown(self):
-        #closing doc
+        # closing doc
         FreeCAD.closeDocument("PartDesignTestPocket")
-        #print ("omit closing document for debugging")
+        # print ("omit closing document for debugging")

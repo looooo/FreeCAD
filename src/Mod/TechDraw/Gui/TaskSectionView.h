@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef GUI_TASKVIEW_TASKSECTIONVIEW_H
-#define GUI_TASKVIEW_TASKSECTIONVIEW_H
+#pragma once
 
 #include <Gui/TaskView/TaskDialog.h>
 #include <Gui/TaskView/TaskView.h>
@@ -95,6 +96,8 @@ protected Q_SLOTS:
 private:
     double requiredRotation(double inputAngle);
     std::string makeSectionLabel(QString symbol);
+    bool directionChanged() const { return m_directionChanged; }
+    void directionChanged(bool newState) { m_directionChanged = newState; }
 
     std::unique_ptr<Ui_TaskSectionView> ui;
     TechDraw::DrawViewPart* m_base;
@@ -130,6 +133,7 @@ private:
     bool m_modelIsDirty;
 
     bool m_scaleEdited;
+    bool m_directionChanged{false};
 };
 
 class TaskDlgSectionView : public Gui::TaskView::TaskDialog
@@ -153,8 +157,6 @@ public:
     QDialogButtonBox::StandardButtons getStandardButtons() const override
     { return QDialogButtonBox::Ok | QDialogButtonBox::Cancel; }
 
-    void update();
-
     bool isAllowedAlterSelection() const override
     { return false; }
     bool isAllowedAlterDocument() const override
@@ -166,5 +168,3 @@ private:
 };
 
 } //namespace TechDrawGui
-
-#endif // #ifndef GUI_TASKVIEW_TASKSECTIONVIEW_H

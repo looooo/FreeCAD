@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -21,8 +23,7 @@
  ***************************************************************************/
 
 
-#ifndef FEMGUI_ABAQUSHIGHLIGHTER_H
-#define FEMGUI_ABAQUSHIGHLIGHTER_H
+#pragma once
 
 #include <Gui/SyntaxHighlighter.h>
 
@@ -44,5 +45,3 @@ protected:
 };
 
 }  // namespace FemGui
-
-#endif  // FEMGUI_ABAQUSHIGHLIGHTER_H

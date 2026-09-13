@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2005 Imetric 3D GmbH                                    *
  *                                                                         *
@@ -20,20 +22,15 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef BASE_TOOLS2D_H
-#define BASE_TOOLS2D_H
+#pragma once
 
 #include <algorithm>
 #include <cmath>
-#include <cfloat>
-#include <cstdio>
+#include <limits>
 #include <list>
 #include <vector>
 
-#include "Vector3D.h"
-#ifndef FC_GLOBAL_H
 #include <FCGlobal.h>
-#endif
 
 
 namespace Base
@@ -113,6 +110,7 @@ public:
     inline BoundBox2d(double fX1, double fY1, double fX2, double fY2);
     ~BoundBox2d() = default;
     inline bool IsValid() const;
+    inline bool IsInfinite() const;
     inline bool IsEqual(const BoundBox2d& bbox, double tolerance) const;
 
     // operators
@@ -455,8 +453,8 @@ inline bool Line2d::Contains(const Vector2d& rclV) const
 
 inline BoundBox2d::BoundBox2d()
 {
-    MinX = MinY = DOUBLE_MAX;
-    MaxX = MaxY = -DOUBLE_MAX;
+    MinX = MinY = std::numeric_limits<double>::max();
+    MaxX = MaxY = -std::numeric_limits<double>::max();
 }
 
 inline BoundBox2d::BoundBox2d(double fX1, double fY1, double fX2, double fY2)
@@ -469,6 +467,12 @@ inline BoundBox2d::BoundBox2d(double fX1, double fY1, double fX2, double fY2)
 inline bool BoundBox2d::IsValid() const
 {
     return (MaxX >= MinX) && (MaxY >= MinY);
+}
+
+inline bool BoundBox2d::IsInfinite() const
+{
+    constexpr double max = std::numeric_limits<double>::max();
+    return MaxX >= max && MaxY >= max && MinX <= -max && MinY <= -max;
 }
 
 inline bool BoundBox2d::IsEqual(const BoundBox2d& bbox, double tolerance) const
@@ -513,8 +517,8 @@ inline Vector2d BoundBox2d::GetCenter() const
 
 inline void BoundBox2d::SetVoid()
 {
-    MinX = MinY = DOUBLE_MAX;
-    MaxX = MaxY = -DOUBLE_MAX;
+    MinX = MinY = std::numeric_limits<double>::max();
+    MaxX = MaxY = -std::numeric_limits<double>::max();
 }
 
 inline void BoundBox2d::Add(const Vector2d& v)
@@ -526,5 +530,3 @@ inline void BoundBox2d::Add(const Vector2d& v)
 }
 
 }  // namespace Base
-
-#endif  // BASE_TOOLS2D_H

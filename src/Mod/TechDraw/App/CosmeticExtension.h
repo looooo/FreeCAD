@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2019 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TECHDRAW_COSMETICEXTENSION_H
-#define TECHDRAW_COSMETICEXTENSION_H
+#pragma once
 
 #include <App/DocumentObjectExtension.h>
 #include <App/ExtensionPython.h>
@@ -56,7 +57,7 @@ public:
     virtual CosmeticVertex* getCosmeticVertex(const std::string& tag) const;
     virtual int             add1CVToGV(const std::string& tag);
     virtual int             getCVIndex(const std::string& tag);
-    virtual std::string     addCosmeticVertex(const Base::Vector3d& pos);
+    virtual std::string     addCosmeticVertex(const Base::Vector3d& pos, bool invert = true);
     virtual void            addCosmeticVertexesToGeom();
     virtual void            clearCosmeticVertexes();
     virtual void            refreshCVGeoms();
@@ -95,14 +96,12 @@ public:
     virtual void            removeGeomFormat(const std::string& tag);
     virtual void            clearGeomFormats();
 
+    void deleteCosmeticElements(std::vector<std::string> removables);
+    void refreshAllCosmetic();
+
     TechDraw::DrawViewPart* getOwner();
 
     PyObject* getExtensionPyObject() override;
-
-protected:
-/*    virtual void extHandleChangedPropertyName(Base::XMLReader &reader, */
-/*                                              const char* TypeName, */
-/*                                              const char* PropName);*/
 
 private:
 
@@ -111,5 +110,3 @@ private:
 using CosmeticExtensionPython = App::ExtensionPythonT<CosmeticExtension>;
 
 } //end namespace TechDraw
-
-#endif //TECHDRAW_COSMETICEXTENSION_H

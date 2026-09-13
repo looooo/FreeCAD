@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2020 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef ARROWENUMS_H_
-#define ARROWENUMS_H_
+#pragma once
 
 #include <string>
 #include <vector>
@@ -34,14 +35,16 @@ namespace TechDraw
 {
 
 //common definitions for line ends / arrows
-enum ArrowType { FILLED_ARROW = 0,
-                 OPEN_ARROW,
-                 TICK,
-                 DOT,
-                 OPEN_CIRCLE,
-                 FORK,
-                 FILLED_TRIANGLE,
-                 NONE};
+enum class ArrowType : int {
+    FILLED_ARROW = 0,
+    OPEN_ARROW,
+    TICK,
+    DOT,
+    OPEN_CIRCLE,
+    FORK,
+    FILLED_TRIANGLE,
+    NONE
+};
 
 class TechDrawExport ArrowPropEnum {
     Q_DECLARE_TR_FUNCTIONS(TechDraw::ArrowPropEnum)
@@ -56,4 +59,3 @@ private:
 };
 
 } //end namespace TechDraw
-#endif

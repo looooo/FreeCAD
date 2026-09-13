@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2002 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,8 +22,15 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <map>
+#include <vector>
+#include <string>
 
-#include "PreCompiled.h"
+#include <boost/multi_index_container.hpp>
+#include <boost/multi_index/hashed_index.hpp>
+#include <boost/multi_index/sequenced_index.hpp>
+#include <boost/multi_index/member.hpp>
+#include <boost/multi_index/mem_fun.hpp>
 
 #include <Base/Console.h>
 #include <Base/Exception.h>
@@ -41,10 +50,6 @@ using namespace std;
 TYPESYSTEM_SOURCE(App::PropertyContainer,Base::Persistence)
 
 
-//**************************************************************************
-// Construction/Destruction
-
-// Here's the implementation! Description should take place in the header file!
 PropertyContainer::PropertyContainer()
 {
     propertyData.parentPropertyData = nullptr;
@@ -63,12 +68,17 @@ unsigned int PropertyContainer::getMemSize () const
     return size;
 }
 
-
 App::Property* PropertyContainer::addDynamicProperty(
-    const char* type, const char* name, const char* group, const char* doc,
-    short attr, bool ro, bool hidden)
+    std::string_view type,
+    const char* name,
+    const char* group,
+    const char* doc,
+    short attr,
+    bool ro,
+    bool hidden
+)
 {
-    return dynamicProps.addDynamicProperty(*this,type,name,group,doc,attr,ro,hidden);
+    return dynamicProps.addDynamicProperty(*this, type, name, group, doc, attr, ro, hidden);
 }
 
 Property *PropertyContainer::getPropertyByName(const char* name) const
@@ -90,6 +100,12 @@ void PropertyContainer::getPropertyList(std::vector<Property*> &List) const
 {
     dynamicProps.getPropertyList(List);
     getPropertyData().getPropertyList(this,List);
+}
+
+void PropertyContainer::visitProperties(const std::function<void(Property *)>& visitor) const
+{
+    dynamicProps.visitProperties(visitor);
+    getPropertyData().visitProperties(this, visitor);
 }
 
 void PropertyContainer::getPropertyNamedList(std::vector<std::pair<const char*, Property*> > &List) const
@@ -180,36 +196,12 @@ const PropertyData * PropertyContainer::getPropertyDataPtr(){return &propertyDat
 const PropertyData & PropertyContainer::getPropertyData() const{return propertyData;}
 
 
-/**
- * @brief PropertyContainer::handleChangedPropertyName is called during restore to possibly
- * fix reading of older versions of this property container. This method is typically called
- * if the property on file has changed its name in more recent versions.
- *
- * The default implementation does nothing.
- *
- * @param reader The XML stream to read from.
- * @param TypeName Name of property type on file.
- * @param PropName Name of property on file that does not exist in the container anymore.
- */
-
 void PropertyContainer::handleChangedPropertyName(Base::XMLReader &reader, const char * TypeName, const char *PropName)
 {
     (void)reader;
     (void)TypeName;
     (void)PropName;
 }
-
-/**
- * @brief PropertyContainer::handleChangedPropertyType is called during restore to possibly
- * fix reading of older versions of the property container. This method is typically called
- * if the property on file has changed its type in more recent versions.
- *
- * The default implementation does nothing.
- *
- * @param reader The XML stream to read from.
- * @param TypeName Name of property type on file.
- * @param prop Pointer to property to restore. Its type differs from TypeName.
- */
 
 void PropertyContainer::handleChangedPropertyType(XMLReader &reader, const char *TypeName, Property *prop)
 {
@@ -308,17 +300,17 @@ void PropertyContainer::Save (Base::Writer &writer) const
             it.second->Save(writer);
         }
         catch (const Base::Exception &e) {
-            Base::Console().Error("%s\n", e.what());
+            Base::Console().error("%s\n", e.what());
         }
         catch (const std::exception &e) {
-            Base::Console().Error("%s\n", e.what());
+            Base::Console().error("%s\n", e.what());
         }
         catch (const char* e) {
-            Base::Console().Error("%s\n", e);
+            Base::Console().error("%s\n", e);
         }
 #ifndef FC_DEBUG
         catch (...) {
-            Base::Console().Error("PropertyContainer::Save: Unknown C++ exception thrown. Try to continue...\n");
+            Base::Console().error("PropertyContainer::Save: Unknown C++ exception thrown. Try to continue...\n");
         }
 #endif
         writer.decInd(); // indentation for the actual property
@@ -333,25 +325,25 @@ void PropertyContainer::Restore(Base::XMLReader &reader)
 {
     reader.clearPartialRestoreProperty();
     reader.readElement("Properties");
-    int Cnt = reader.getAttributeAsInteger("Count");
+    int Cnt = reader.getAttribute<long>("Count");
 
     int transientCount = 0;
     if(reader.hasAttribute("TransientCount"))
-        transientCount = reader.getAttributeAsUnsigned("TransientCount");
+        transientCount = reader.getAttribute<unsigned long>("TransientCount");
 
     for (int i=0;i<transientCount; ++i) {
         reader.readElement("_Property");
-        Property* prop = getPropertyByName(reader.getAttribute("name"));
+        Property* prop = getPropertyByName(reader.getAttribute<const char*>("name"));
         if(prop)
             FC_TRACE("restore transient '" << prop->getName() << "'");
         if(prop && reader.hasAttribute("status"))
-            prop->setStatusValue(reader.getAttributeAsUnsigned("status"));
+            prop->setStatusValue(reader.getAttribute<unsigned long>("status"));
     }
 
     for (int i=0 ;i<Cnt ;i++) {
         reader.readElement("Property");
-        std::string PropName = reader.getAttribute("name");
-        std::string TypeName = reader.getAttribute("type");
+        std::string PropName = reader.getAttribute<const char*>("name");
+        std::string TypeName = reader.getAttribute<const char*>("type");
         // NOTE: We must also check the type of the current property because a
         // subclass of PropertyContainer might change the type of a property but
         // not its name. In this case we would force to read-in a wrong property
@@ -364,12 +356,12 @@ void PropertyContainer::Restore(Base::XMLReader &reader)
 
             decltype(Property::StatusBits) status;
             if(reader.hasAttribute("status")) {
-                status = decltype(status)(reader.getAttributeAsUnsigned("status"));
+                status = decltype(status)(reader.getAttribute<unsigned long>("status"));
                 if(prop)
                     prop->setStatusValue(status.to_ulong());
             }
             // name and type match
-            if (prop && strcmp(prop->getTypeId().getName(), TypeName.c_str()) == 0) {
+            if (prop && prop->getTypeId().getName() == TypeName) {
                 if (!prop->testStatus(Property::Transient)
                         && !status.test(Property::Transient)
                         && !status.test(Property::PropTransient)
@@ -391,7 +383,7 @@ void PropertyContainer::Restore(Base::XMLReader &reader)
             }
 
             if (reader.testStatus(Base::XMLReader::ReaderStatus::PartialRestoreInProperty)) {
-                Base::Console().Error("Property %s of type %s was subject to a partial restore.\n",PropName.c_str(),TypeName.c_str());
+                Base::Console().error("Property %s of type %s was subject to a partial restore.\n",PropName.c_str(),TypeName.c_str());
                 reader.clearPartialRestoreProperty();
             }
         }
@@ -401,20 +393,20 @@ void PropertyContainer::Restore(Base::XMLReader &reader)
         catch (const Base::RestoreError &) {
             reader.setPartialRestore(true);
             reader.clearPartialRestoreProperty();
-            Base::Console().Error("Property %s of type %s was subject to a partial restore.\n",PropName.c_str(),TypeName.c_str());
+            Base::Console().error("Property %s of type %s was subject to a partial restore.\n",PropName.c_str(),TypeName.c_str());
         }
         catch (const Base::Exception &e) {
-            Base::Console().Error("%s\n", e.what());
+            Base::Console().error("%s\n", e.what());
         }
         catch (const std::exception &e) {
-            Base::Console().Error("%s\n", e.what());
+            Base::Console().error("%s\n", e.what());
         }
         catch (const char* e) {
-            Base::Console().Error("%s\n", e);
+            Base::Console().error("%s\n", e);
         }
 #ifndef FC_DEBUG
         catch (...) {
-            Base::Console().Error("PropertyContainer::Restore: Unknown C++ exception thrown\n");
+            Base::Console().error("PropertyContainer::Restore: Unknown C++ exception thrown\n");
         }
 #endif
         reader.readEndElement("Property");
@@ -428,6 +420,39 @@ void PropertyContainer::onPropertyStatusChanged(const Property &prop, unsigned l
     (void)oldStatus;
 }
 
+namespace bmi = boost::multi_index;
+
+struct PropertyData::Impl
+{
+    /**
+     * @brief A multi index container for holding the property spec.
+     *
+     * The multi index has the following index:
+     * - a sequence, to preserve creation order
+     * - hash index on property name
+     * - hash index on property pointer offset
+     */
+    // clang-format off
+    mutable bmi::multi_index_container<
+    PropertySpec,
+    bmi::indexed_by<
+        bmi::sequenced<>,
+        bmi::hashed_unique<
+            bmi::member<PropertySpec, const char*, &PropertySpec::Name>,
+            CStringHasher,
+            CStringHasher
+        >,
+        bmi::hashed_unique<
+            bmi::member<PropertySpec, short, &PropertySpec::Offset>
+        >
+    >
+    > propertyData;
+     // clang-format on
+};
+
+PropertyData::PropertyData(): impl(std::make_unique<Impl>()) {};
+PropertyData::~PropertyData() = default;
+
 void PropertyData::addProperty(OffsetBase offsetBase,const char* PropName, Property *Prop, const char* PropertyGroup , PropertyType Type, const char* PropertyDocu)
 {
 #ifdef FC_DEBUG
@@ -437,7 +462,7 @@ void PropertyData::addProperty(OffsetBase offsetBase,const char* PropName, Prope
         short offset = offsetBase.getOffsetTo(Prop);
         if(offset < 0)
             throw Base::RuntimeError("Invalid static property");
-        auto &index = propertyData.get<1>();
+        auto &index = impl->propertyData.get<1>();
         auto it = index.find(PropName);
         if(it == index.end()) {
             if(parentMerged)
@@ -466,8 +491,8 @@ void PropertyData::merge(PropertyData *other) const {
     }
     if(other)  {
         other->merge();
-        auto &index = propertyData.get<0>();
-        for(const auto &spec : other->propertyData.get<0>())
+        auto &index = impl->propertyData.get<0>();
+        for(const auto &spec : other->impl->propertyData.get<0>())
             index.push_back(spec);
     }
 }
@@ -479,8 +504,8 @@ void PropertyData::split(PropertyData *other) {
         parentMerged = false;
     }
     if(other)  {
-        auto &index = propertyData.get<2>();
-        for(const auto &spec : other->propertyData.get<0>())
+        auto &index = impl->propertyData.get<2>();
+        for(const auto &spec : other->impl->propertyData.get<0>())
             index.erase(spec.Offset);
     }
 }
@@ -489,7 +514,7 @@ const PropertyData::PropertySpec *PropertyData::findProperty(OffsetBase offsetBa
 {
     (void)offsetBase;
     merge();
-    auto &index = propertyData.get<1>();
+    auto &index = impl->propertyData.get<1>();
     auto it = index.find(PropName);
     if(it != index.end())
         return &(*it);
@@ -503,7 +528,7 @@ const PropertyData::PropertySpec *PropertyData::findProperty(OffsetBase offsetBa
     if(diff<0)
         return nullptr;
 
-    auto &index = propertyData.get<2>();
+    auto &index = impl->propertyData.get<2>();
     auto it = index.find(diff);
     if(it!=index.end())
         return &(*it);
@@ -594,7 +619,7 @@ Property *PropertyData::getPropertyByName(OffsetBase offsetBase,const char* name
 void PropertyData::getPropertyMap(OffsetBase offsetBase,std::map<std::string,Property*> &Map) const
 {
     merge();
-    for(auto &spec : propertyData.get<0>())
+    for(auto &spec : impl->propertyData.get<0>())
         Map[spec.Name] = reinterpret_cast<Property *>(spec.Offset + offsetBase.getOffset());
 }
 
@@ -602,8 +627,8 @@ void PropertyData::getPropertyList(OffsetBase offsetBase,std::vector<Property*> 
 {
     merge();
     size_t base = List.size();
-    List.reserve(base+propertyData.size());
-    for (auto &spec : propertyData.get<0>())
+    List.reserve(base+impl->propertyData.size());
+    for (auto &spec : impl->propertyData.get<0>())
         List.push_back(reinterpret_cast<Property *>(spec.Offset + offsetBase.getOffset()));
 }
 
@@ -612,59 +637,20 @@ void PropertyData::getPropertyNamedList(OffsetBase offsetBase,
 {
     merge();
     size_t base = List.size();
-    List.reserve(base+propertyData.size());
-    for (auto &spec : propertyData.get<0>()) {
+    List.reserve(base+impl->propertyData.size());
+    for (auto &spec : impl->propertyData.get<0>()) {
         auto prop = reinterpret_cast<Property *>(spec.Offset + offsetBase.getOffset());
         List.emplace_back(prop->getName(),prop);
     }
 }
 
-
-
-/** \defgroup PropFrame Property framework
-    \ingroup APP
-    \brief System to access object properties
-\section Introduction
-The property framework introduces the ability to access attributes (member variables) of a class by name without
-knowing the class type. It's like the reflection mechanism of Java or C#.
-This ability is introduced by the App::PropertyContainer class and can be used by all derived classes.
-
-This makes it possible in the first place to make an automatic mapping to python (e.g. in App::FeaturePy) and
-abstract editing properties in Gui::PropertyEditor.
-
-\section Examples
-
-Here some little examples how to use it:
-
-\code
-// search in PropertyList
-Property *prop = _pcFeature->getPropertyByName(attr);
-if(prop)
+void PropertyData::visitProperties(OffsetBase offsetBase,
+                                   const std::function<void(Property*)>& visitor) const
 {
-  return prop->getPyObject();
+    merge();
+    char* offset = offsetBase.getOffset();
+    for (const auto& spec : impl->propertyData.get<0>()) {
+        visitor(reinterpret_cast<Property*>(spec.Offset + offset));
+    };
 }
-\endcode
 
-or:
-
-\code
-void PropertyContainer::Restore(Base::Reader &reader)
-{
-  reader.readElement("Properties");
-  int Cnt = reader.getAttributeAsInteger("Count");
-
-  for(int i=0 ;i<Cnt ;i++)
-  {
-    reader.readElement("Property");
-    string PropName = reader.getAttribute("name");
-    Property* prop = getPropertyByName(PropName.c_str());
-    if(prop)
-      prop->Restore(reader);
-
-    reader.readEndElement("Property");
-  }
-  reader.readEndElement("Properties");
-}
-\endcode
-
-*/

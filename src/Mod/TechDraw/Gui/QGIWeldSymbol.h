@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2019 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_QGRAPHICSITEMWELDSYMBOL_H
-#define DRAWINGGUI_QGRAPHICSITEMWELDSYMBOL_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
@@ -32,6 +33,7 @@
 #include <QPointF>
 #include <QStyleOptionGraphicsItem>
 
+#include "QGIUserTypes.h"
 #include "QGIView.h"
 
 
@@ -61,9 +63,9 @@ class TechDrawGuiExport QGIWeldSymbol : public QGIView
     Q_OBJECT
 
 public:
-    enum {Type = QGraphicsItem::UserType + 340};
+    enum {Type = UserType::QGIWeldSymbol};
 
-    explicit QGIWeldSymbol(QGILeaderLine* myParent = nullptr);
+    explicit QGIWeldSymbol();
     ~QGIWeldSymbol() override = default;
 
     int type() const override { return Type;}
@@ -72,23 +74,25 @@ public:
                         QWidget * widget = nullptr ) override;
     QRectF boundingRect() const override;
     QPainterPath shape() const override;
-    double getEdgeFuzz() const;
 
     void drawBorder() override;
     void updateView(bool update = false) override;
 
     virtual TechDraw::DrawWeldSymbol* getFeature();
-    virtual void setFeature(TechDraw::DrawWeldSymbol* feat);
+    virtual TechDraw::DrawLeaderLine *getLeader();
 
     QPointF getTileOrigin();
     QPointF getKinkPoint();
     QPointF getTailPoint();
 
-    virtual void setPrettyNormal();
-    virtual void setPrettySel();
-    virtual void setPrettyPre();
+    void setPrettyNormal();
+    void setPrettySel();
+    void setPrettyPre();
 
     void getTileFeats();
+    void makeLines();
+    double getLastSegAngle();
+    std::pair<Base::Vector3d, Base::Vector3d> getLocalAxes();
 
 protected:
     QVariant itemChange( GraphicsItemChange change,
@@ -106,18 +110,18 @@ protected:
     void removeQGITiles();
     std::vector<QGITile*> getQGITiles() const;
 
-    virtual QColor prefNormalColor();
-    double prefArrowSize();
+    QColor prefNormalColor();
+    double prefArrowSize() const;
     double prefFontSize() const;
 
-    TechDraw::DrawWeldSymbol* m_weldFeat;
-    TechDraw::DrawLeaderLine* m_leadFeat;
+    virtual QRectF customBoundingRect() const;
+
+private:
     TechDraw::DrawTileWeld*   m_arrowFeat;
     TechDraw::DrawTileWeld*   m_otherFeat;
     std::string               m_arrowName;
     std::string               m_otherName;
 
-    QGILeaderLine* m_qgLead;
     QGCustomText* m_tailText;
     QGIPrimPath* m_fieldFlag;
     QGIVertex* m_allAround;
@@ -126,11 +130,7 @@ protected:
 
     bool m_blockDraw;    //prevent redraws while updating.
 
-    std::string m_weldFeatName;
-    virtual QRectF customBoundingRect() const;
 
 };
 
 }
-
-#endif // DRAWINGGUI_QGRAPHICSITEMWELDSYMBOL_H

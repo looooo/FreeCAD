@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
   tag: Erwin Aertbelien  Mon Jan 10 16:38:38 CET 2005  path_roundedcomposite.h
 
@@ -41,8 +43,7 @@
  *		$Name:  $
  ****************************************************************************/
 
-#ifndef KDL_MOTION_ROUNDEDCOMPOSITE_H
-#define KDL_MOTION_ROUNDEDCOMPOSITE_H
+#pragma once
 
 #include "path.hpp"
 #include "path_composite.hpp"
@@ -96,7 +97,7 @@ class Path_RoundedComposite : public Path
 		 * - 3101 if the eq. radius <= 0
 		 * - 3102 if the first segment in a rounding has zero length.
 		 * - 3103 if the second segment in a rounding has zero length.
-		 * - 3104 if the angle between the first and the second segment is close to M_PI.
+		 * - 3104 if the angle between the first and the second segment is close to std::numbers::pi.
 		 *         (meaning that the segments are on top of each other)
 		 * - 3105 if the distance needed for the rounding is larger then the first segment.
 		 * - 3106 if the distance needed for the rounding is larger then the second segment.
@@ -198,6 +199,3 @@ class Path_RoundedComposite : public Path
 
 
 }
-
-
-#endif

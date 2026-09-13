@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2017 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef GUI_TASKVIEW_TASKGEOMHATCH_H
-#define GUI_TASKVIEW_TASKGEOMHATCH_H
+#pragma once
 
 #include <Gui/TaskView/TaskDialog.h>
 #include <Gui/TaskView/TaskView.h>
@@ -76,12 +77,12 @@ private:
     std::string m_name;
     double m_scale;
     double m_weight;
-    App::Color m_color;
+    Base::Color m_color;
     std::string m_origFile;
     std::string m_origName;
     double m_origScale;
     double m_origWeight;
-    App::Color m_origColor;
+    Base::Color m_origColor;
     double m_rotation;
     double m_origRotation;
     Base::Vector3d m_offset;
@@ -129,5 +130,3 @@ private:
 };
 
 } //namespace TechDrawGui
-
-#endif // #ifndef GUI_TASKVIEW_TASKGEOMHATCH_H

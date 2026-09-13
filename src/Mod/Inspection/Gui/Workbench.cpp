@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2011 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include "Workbench.h"
 
@@ -52,8 +53,9 @@ Gui::MenuItem* Workbench::setupMenuBar() const
 Gui::ToolBarItem* Workbench::setupToolBars() const
 {
     Gui::ToolBarItem* root = StdWorkbench::setupToolBars();
-    // Gui::ToolBarItem* insp = new Gui::ToolBarItem(root);
-    // insp->setCommand( "Inspection Tools" );
-    //*insp << "Inspection_VisualInspection";
+    Gui::ToolBarItem* insp = new Gui::ToolBarItem(root);
+    insp->setCommand("Inspection");
+    *insp << "Inspection_VisualInspection"
+          << "Inspection_InspectElement";
     return root;
 }

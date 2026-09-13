@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 FreeCAD Developers                                 *
  *   Authors: Michael Hindley <hindlemp@eskom.co.za>                       *
@@ -23,8 +25,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef GUI_TASKVIEW_TaskFemConstraintContact_H
-#define GUI_TASKVIEW_TaskFemConstraintContact_H
+#pragma once
 
 #include <QObject>
 #include <memory>
@@ -42,12 +43,19 @@ class TaskFemConstraintContact: public TaskFemConstraint
     Q_OBJECT
 
 public:
-    explicit TaskFemConstraintContact(ViewProviderFemConstraintContact* ConstraintView,
-                                      QWidget* parent = nullptr);
+    explicit TaskFemConstraintContact(
+        ViewProviderFemConstraintContact* ConstraintView,
+        QWidget* parent = nullptr
+    );
     ~TaskFemConstraintContact() override;
     const std::string getReferences() const override;
-    double get_Slope() const;
-    double get_Friction() const;
+    const std::string getAdjust() const;
+    const std::string getSlope() const;
+    bool getFriction() const;
+    const std::string getStickSlope() const;
+    double getFrictionCoeff() const;
+    const std::vector<bool> getRevMaster() const;
+    const std::vector<bool> getRevSlave() const;
 
 private Q_SLOTS:
     void onReferenceDeletedSlave();
@@ -56,12 +64,12 @@ private Q_SLOTS:
     void removeFromSelectionSlave();
     void addToSelectionMaster();
     void removeFromSelectionMaster();
+    void onFrictionChanged(bool);
 
 protected:
     void changeEvent(QEvent* e) override;
 
 private:
-    // void onSelectionChanged(const Gui::SelectionChanges& msg);
     void updateUI();
     std::unique_ptr<Ui_TaskFemConstraintContact> ui;
 };
@@ -72,11 +80,7 @@ class TaskDlgFemConstraintContact: public TaskDlgFemConstraint
 
 public:
     explicit TaskDlgFemConstraintContact(ViewProviderFemConstraintContact* ConstraintView);
-    void open() override;
     bool accept() override;
-    bool reject() override;
 };
 
 }  // namespace FemGui
-
-#endif  // GUI_TASKVIEW_TaskFemConstraintContact_H

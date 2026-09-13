@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2005 Imetric 3D GmbH                                    *
  *                                                                         *
@@ -20,14 +22,9 @@
  *                                                                         *
  ***************************************************************************/
 
-
-#include "PreCompiled.h"
-
-#ifndef _PreComp_
 #include <array>
-#include <cstdlib>
+#include <limits>
 #include <set>
-#endif
 
 #include "Tools2D.h"
 #include "Vector3D.h"
@@ -44,7 +41,7 @@ double Vector2d::GetAngle(const Vector2d& vec) const
     if ((fDivid < -1e-10) || (fDivid > 1e-10)) {
         fNum = (*this * vec) / fDivid;
         if (fNum < -1) {
-            return D_PI;
+            return std::numbers::pi;
         }
         if (fNum > 1) {
             return 0.0;
@@ -53,7 +50,7 @@ double Vector2d::GetAngle(const Vector2d& vec) const
         return acos(fNum);
     }
 
-    return -FLOAT_MAX;  // division by zero
+    return -std::numeric_limits<double>::max();  // division by zero
 }
 
 void Vector2d::ProjectToLine(const Vector2d& point, const Vector2d& line)
@@ -174,13 +171,13 @@ bool Line2d::Intersect(const Line2d& rclLine, Vector2d& rclV) const
         m1 = (clV2.y - clV1.y) / (clV2.x - clV1.x);
     }
     else {
-        m1 = DOUBLE_MAX;
+        m1 = std::numeric_limits<double>::max();
     }
     if (fabs(rclLine.clV2.x - rclLine.clV1.x) > 1e-10) {
         m2 = (rclLine.clV2.y - rclLine.clV1.y) / (rclLine.clV2.x - rclLine.clV1.x);
     }
     else {
-        m2 = DOUBLE_MAX;
+        m2 = std::numeric_limits<double>::max();
     }
     if (m1 == m2) { /****** RETURN ERR (parallel lines) *************/
         return false;
@@ -190,11 +187,11 @@ bool Line2d::Intersect(const Line2d& rclLine, Vector2d& rclV) const
     b2 = rclLine.clV1.y - m2 * rclLine.clV1.x;
 
     // calc intersection
-    if (m1 == DOUBLE_MAX) {
+    if (m1 == std::numeric_limits<double>::max()) {
         rclV.x = clV1.x;
         rclV.y = m2 * rclV.x + b2;
     }
-    else if (m2 == DOUBLE_MAX) {
+    else if (m2 == std::numeric_limits<double>::max()) {
         rclV.x = rclLine.clV1.x;
         rclV.y = m1 * rclV.x + b1;
     }
@@ -338,8 +335,7 @@ bool Polygon2d::Contains(const Vector2d& rclV) const
     return sTorsion != 0;
 }
 
-void Polygon2d::Intersect(const Polygon2d& rclPolygon,
-                          std::list<Polygon2d>& rclResultPolygonList) const
+void Polygon2d::Intersect(const Polygon2d& rclPolygon, std::list<Polygon2d>& rclResultPolygonList) const
 {
     // trim the passed polygon with the current one, the result is a list of polygons (subset of the
     // passed polygon) your own (trim) polygon is closed

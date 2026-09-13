@@ -1,3 +1,11 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+include_directories(
+    SYSTEM
+    ${nlohmann_json_INCLUDE_DIRS}
+)
+
+add_library(Sketcher SHARED)
+
 # Uncomment this code if you want to try Eigen's multithread
 #find_package(OpenMP)
 #if (OPENMP_FOUND)
@@ -7,35 +15,37 @@
 
 # set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DEIGEN_NO_DEBUG") # Necessary to avoid SparseQR crash with Eigen 3.2 due to a wrong assertion
 
-include_directories(
+target_include_directories(
+    Sketcher
+    PRIVATE
     ${CMAKE_BINARY_DIR}
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_BINARY_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_CURRENT_BINARY_DIR}/..
-    ${Boost_INCLUDE_DIRS}
-    ${OCC_INCLUDE_DIR}
-    ${ZLIB_INCLUDE_DIR}
-    ${PYTHON_INCLUDE_DIRS}
-    ${XercesC_INCLUDE_DIRS}
+)
+
+target_include_directories(
+    Sketcher
+    SYSTEM
+    PUBLIC
     ${EIGEN3_INCLUDE_DIR}
 )
-link_directories(${OCC_LIBRARY_DIR})
 
 set(Sketcher_LIBS
     Part
     FreeCADApp
 )
 
-generate_from_xml(SketchObjectSFPy)
-generate_from_xml(SketchObjectPy)
-generate_from_xml(SketchGeometryExtensionPy)
-generate_from_xml(ExternalGeometryExtensionPy)
-generate_from_xml(GeometryFacadePy)
-generate_from_xml(ExternalGeometryFacadePy)
-generate_from_xml(ConstraintPy)
-generate_from_xml(SketchPy)
+generate_from_py(SketchObjectSF)
+generate_from_py(SketchObject)
+generate_from_py(SketchGeometryExtension)
+generate_from_py(ExternalGeometryExtension)
+generate_from_py(GeometryFacade)
+generate_from_py(ExternalGeometryFacade)
+generate_from_py(Constraint)
+generate_from_py(Sketch)
 
 
 SET(Properties_SRCS
@@ -48,6 +58,8 @@ SOURCE_GROUP("Properties" FILES ${Properties_SRCS})
 SET(Features_SRCS
     SketchObjectSF.cpp
     SketchObjectSF.h
+    SketchGeometry.cpp
+    SketchGeometry.h
     SketchGeometryExtension.cpp
     SketchGeometryExtension.h
     ExternalGeometryExtension.cpp
@@ -56,6 +68,10 @@ SET(Features_SRCS
     SolverGeometryExtension.h
     SketchObject.cpp
     SketchObject.h
+    SketchObjectGeometry.cpp
+    SketchObjectExternal.cpp
+    SketchObjectConstraints.cpp
+    SketchObjectOperations.cpp
     SketchAnalysis.h
     SketchAnalysis.cpp
     Analyse.h
@@ -81,21 +97,21 @@ SET(Datatypes_SRCS
 SOURCE_GROUP("Datatypes" FILES ${Datatypes_SRCS})
 
 SET(Python_SRCS
-    SketchObjectSFPy.xml
+    SketchObjectSF.pyi
     SketchObjectSFPyImp.cpp
-    SketchObjectPy.xml
+    SketchObject.pyi
     SketchObjectPyImp.cpp
-    SketchGeometryExtensionPy.xml
+    SketchGeometryExtension.pyi
     SketchGeometryExtensionPyImp.cpp
-    ExternalGeometryExtensionPy.xml
+    ExternalGeometryExtension.pyi
     ExternalGeometryExtensionPyImp.cpp
-    GeometryFacadePy.xml
+    GeometryFacade.pyi
     GeometryFacadePyImp.cpp
-    ExternalGeometryFacadePy.xml
+    ExternalGeometryFacade.pyi
     ExternalGeometryFacadePyImp.cpp
     ConstraintPyImp.cpp
-    ConstraintPy.xml
-    SketchPy.xml
+    Constraint.pyi
+    Sketch.pyi
     SketchPyImp.cpp
 )
 SOURCE_GROUP("Python" FILES ${Python_SRCS})
@@ -119,8 +135,9 @@ SOURCE_GROUP("PlaneGCS" FILES ${PlaneGCS_SRCS})
 SET(SketchModule_SRCS
     AppSketcher.cpp
     AppSketcherPy.cpp
-    PreCompiled.cpp
     PreCompiled.h
+    Measure.cpp
+    Measure.h
 )
 SOURCE_GROUP("Module" FILES ${SketchModule_SRCS})
 
@@ -141,13 +158,19 @@ SET(Sketcher_PCH_SRCS
     ${Datatypes_SRCS}
 )
 
-add_library(Sketcher SHARED ${Sketcher_SRCS})
+target_sources(Sketcher PRIVATE ${Sketcher_SRCS})
 target_link_libraries(Sketcher ${Sketcher_LIBS})
 
+if (MSVC)
+    target_compile_options(Sketcher PRIVATE /wd4251)
+endif()
+
+target_compile_warn_error(Sketcher)
+
 if(FREECAD_USE_PCH)
-    add_definitions(-D_PreComp_)
-    GET_MSVC_PRECOMPILED_SOURCE("PreCompiled.cpp" Sketcher_CPP_SRCS ${Sketcher_PCH_SRCS})
-    ADD_MSVC_PRECOMPILED_HEADER(Sketcher PreCompiled.h PreCompiled.cpp Sketcher_CPP_SRCS)
+    target_precompile_headers(Sketcher PRIVATE
+            $<$<COMPILE_LANGUAGE:CXX>:"${CMAKE_CURRENT_LIST_DIR}/PreCompiled.h">
+    )
 endif(FREECAD_USE_PCH)
 
 # Suppress some very long Eigen3 warnings of older versions
@@ -160,7 +183,7 @@ if (EIGEN3_NO_DEPRECATED_COPY)
 endif ()
 
 
-SET_BIN_DIR(Sketcher Sketcher /Mod/Sketcher)
+SET_BIN_DIR(Sketcher)
 SET_PYTHON_PREFIX_SUFFIX(Sketcher)
 
 INSTALL(TARGETS Sketcher DESTINATION ${CMAKE_INSTALL_LIBDIR})

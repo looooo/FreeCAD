@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2004 Jürgen Riegel <juergen.riegel@web.de>              *
  *   Copyright (c) 2012 Luke Parry <l.parry@warwick.ac.uk>                 *
@@ -21,8 +23,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_VIEWPROVIDERCLIP_H
-#define DRAWINGGUI_VIEWPROVIDERCLIP_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
@@ -43,10 +44,14 @@ public:
     /// destructor
     ~ViewProviderViewClip() override;
 
+    App::PropertyBool   ClipChildren;
+
     bool useNewSelectionModel() const override {return false;}
 
     TechDraw::DrawViewClip* getViewObject() const override;
     TechDraw::DrawViewClip* getObject() const;
+
+    void onChanged(const App::Property *prop) override;
 
     /// Hide the object in the view
     void hide() override;
@@ -56,7 +61,7 @@ public:
 
     bool canDelete(App::DocumentObject* obj) const override;
 
+    void dragObject(App::DocumentObject* docObj) override;
+    void dropObject(App::DocumentObject* docObj) override;
 };
 } // namespace TechDrawGui
-
-#endif // DRAWINGGUI_VIEWPROVIDERCLIP_H

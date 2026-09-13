@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,15 +22,12 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 # include <cassert>
 
 # include <QPainter>
 # include <QPainterPath>
 # include <QRectF>
 # include <QStyleOptionGraphicsItem>
-#endif
 
 #include <Mod/TechDraw/App/LineGroup.h>
 #include <Mod/TechDraw/App/Preferences.h>

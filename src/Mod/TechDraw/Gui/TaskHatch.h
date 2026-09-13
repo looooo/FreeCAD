@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2020 FreeCAD Developers                                 *
  *   Author: Uwe Stöhr <uwestoehr@lyx.org>                                 *
@@ -21,8 +23,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef GUI_TASKVIEW_TASKHATCH_H
-#define GUI_TASKVIEW_TASKHATCH_H
+#pragma once
 
 #include <Gui/TaskView/TaskDialog.h>
 #include <Gui/TaskView/TaskView.h>
@@ -84,13 +85,13 @@ private:
     std::vector<std::string> m_subs;
     std::string m_file;
     double m_scale;
-    App::Color m_color;
+    Base::Color m_color;
     double m_rotation;
     Base::Vector3d m_offset;
 
     std::string m_saveFile;
     double m_saveScale;
-    App::Color m_saveColor;
+    Base::Color m_saveColor;
     std::vector<std::string> m_saveSubs;
     double m_saveRotation;
     Base::Vector3d m_saveOffset;
@@ -127,5 +128,3 @@ private:
 };
 
 } //namespace TechDrawGui
-
-#endif // #ifndef GUI_TASKVIEW_TASKHATCH_H

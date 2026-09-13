@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2005 Imetric 3D GmbH                                    *
  *                                                                         *
@@ -20,12 +22,11 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef MESH_ELEMENTS_H
-#define MESH_ELEMENTS_H
+#pragma once
 
-#include <climits>
 #include <cstring>
 #include <functional>
+#include <limits>
 #include <vector>
 
 #include <Base/BoundBox.h>
@@ -197,9 +198,11 @@ public:
      * \a rclDir with the edge. The intersection must be inside the edge. If there is no
      * intersection false is returned.
      */
-    bool IntersectWithLine(const Base::Vector3f& rclPt,
-                           const Base::Vector3f& rclDir,
-                           Base::Vector3f& rclRes) const;
+    bool IntersectWithLine(
+        const Base::Vector3f& rclPt,
+        const Base::Vector3f& rclDir,
+        Base::Vector3f& rclRes
+    ) const;
     /** Calculates the intersection point of an edge with this edge.
      * The intersection must be inside both edges. If there is no intersection false is returned.
      */
@@ -208,9 +211,11 @@ public:
      * direction \a rclDir with the edge. The intersection must be inside the edge. If there is no
      * intersection false is returned.
      */
-    bool IntersectWithPlane(const Base::Vector3f& rclPt,
-                            const Base::Vector3f& rclDir,
-                            Base::Vector3f& rclRes) const;
+    bool IntersectWithPlane(
+        const Base::Vector3f& rclPt,
+        const Base::Vector3f& rclDir,
+        Base::Vector3f& rclRes
+    ) const;
     /**
      * Calculates the projection of a point onto the line defined by the edge. The caller must check
      * if the projection point is inside the edge.
@@ -221,10 +226,12 @@ public:
      * line defined by \a rclPt and \a rclDir. If the two points are identical then both lines
      * intersect each other.
      */
-    void ClosestPointsToLine(const Base::Vector3f& linePt,
-                             const Base::Vector3f& lineDir,
-                             Base::Vector3f& rclPnt1,
-                             Base::Vector3f& rclPnt2) const;
+    void ClosestPointsToLine(
+        const Base::Vector3f& linePt,
+        const Base::Vector3f& lineDir,
+        Base::Vector3f& rclPnt1,
+        Base::Vector3f& rclPnt2
+    ) const;
     /**
      * Checks if the point is part of the edge. A point is regarded as part
      * of an edge if the distance is lower than \a fDistance to the projected point
@@ -289,12 +296,14 @@ public:
     inline MeshFacet();
     inline MeshFacet(const MeshFacet& rclF) = default;
     inline MeshFacet(MeshFacet&& rclF) = default;
-    inline MeshFacet(PointIndex p1,
-                     PointIndex p2,
-                     PointIndex p3,
-                     FacetIndex n1 = FACET_INDEX_MAX,
-                     FacetIndex n2 = FACET_INDEX_MAX,
-                     FacetIndex n3 = FACET_INDEX_MAX);
+    inline MeshFacet(
+        PointIndex p1,
+        PointIndex p2,
+        PointIndex p3,
+        FacetIndex n1 = FACET_INDEX_MAX,
+        FacetIndex n2 = FACET_INDEX_MAX,
+        FacetIndex n3 = FACET_INDEX_MAX
+    );
     ~MeshFacet() = default;
     //@}
 
@@ -365,7 +374,7 @@ public:
      * Returns the edge-number defined by the shared edge of both facets. If the facets don't
      * share a common edge USHRT_MAX is returned.
      */
-    inline unsigned short Side(const MeshFacet& rcFace) const;
+    inline unsigned short Side(const MeshFacet& rFace) const;
     /**
      * Returns true if this facet shares the same three points as \a rcFace.
      * The orientation is not of interest in this case.
@@ -463,7 +472,7 @@ public:
      * must already exactly lie on the plane defined by the facet, which is not
      * checked. This method is very efficient.
      */
-    bool IsPointOf(const Base::Vector3f& rclPoint) const;
+    bool IsPointOf(const Base::Vector3f& P) const;
     /** Checks whether the given point is inside the facet with tolerance \a fDistance.
      * This method does actually the same as IsPointOf() but this implementation
      * is done more effective through comparison of normals.
@@ -566,9 +575,7 @@ public:
      * Return is the number of intersections points: 0: no intersection, 1: one intersection point
      * (rclPt0), 2: two intersections points (rclPt0, rclPt1)
      */
-    int IntersectWithFacet(const MeshGeomFacet& facet,
-                           Base::Vector3f& rclPt0,
-                           Base::Vector3f& rclPt1) const;
+    int IntersectWithFacet(const MeshGeomFacet& facet, Base::Vector3f& rclPt0, Base::Vector3f& rclPt1) const;
     /** Calculates the shortest distance from the line segment defined by \a rcP1 and \a rcP2 to
      * this facet.
      */
@@ -587,39 +594,46 @@ public:
      * \a rclDir with the facet. The intersection must be inside the facet. If there is no
      * intersection false is returned.
      */
-    bool IntersectWithLine(const Base::Vector3f& rclPt,
-                           const Base::Vector3f& rclDir,
-                           Base::Vector3f& rclRes) const;
+    bool IntersectWithLine(
+        const Base::Vector3f& rclPt,
+        const Base::Vector3f& rclDir,
+        Base::Vector3f& rclRes
+    ) const;
     /** Calculates the intersection point of the line defined by the base \a rclPt and the direction
      * \a rclDir with the facet. The intersection must be inside the facet. If there is no
      * intersection false is returned. This does actually the same as IntersectWithLine() with one
      * additionally constraint that the angle between the direction of the line and the normal of
      * the plane must not exceed \a fMaxAngle.
      */
-    bool Foraminate(const Base::Vector3f& rclPt,
-                    const Base::Vector3f& rclDir,
-                    Base::Vector3f& rclRes,
-                    float fMaxAngle = Mathf::PI) const;
+    bool Foraminate(
+        const Base::Vector3f& P,
+        const Base::Vector3f& dir,
+        Base::Vector3f& I,
+        float fMaxAngle = Mathf::PI
+    ) const;
     /** Checks if the facet intersects with the plane defined by the base \a rclBase and the normal
      * \a rclNormal and returns true if two points are found, false otherwise.
      */
-    bool IntersectWithPlane(const Base::Vector3f& rclBase,
-                            const Base::Vector3f& rclNormal,
-                            Base::Vector3f& rclP1,
-                            Base::Vector3f& rclP2) const;
+    bool IntersectWithPlane(
+        const Base::Vector3f& rclBase,
+        const Base::Vector3f& rclNormal,
+        Base::Vector3f& rclP1,
+        Base::Vector3f& rclP2
+    ) const;
     /**
      * Checks if the facet intersects with the plane defined by the base \a rclBase and the normal
      * \a rclNormal.
      */
-    inline bool IntersectWithPlane(const Base::Vector3f& rclBase,
-                                   const Base::Vector3f& rclNormal) const;
+    inline bool IntersectWithPlane(const Base::Vector3f& rclBase, const Base::Vector3f& rclNormal) const;
     /** Checks if the plane defined by the facet \a rclFacet intersects with the line defined by the
      * base \a rclBase and the direction \a rclNormal and returns the intersection point \a rclRes
      * if possible.
      */
-    bool IntersectPlaneWithLine(const Base::Vector3f& rclBase,
-                                const Base::Vector3f& rclNormal,
-                                Base::Vector3f& rclRes) const;
+    bool IntersectPlaneWithLine(
+        const Base::Vector3f& rclPt,
+        const Base::Vector3f& rclDir,
+        Base::Vector3f& rclRes
+    ) const;
     /** Calculates the volume of the prism defined by two facets.
      * \note The two facets must not intersect.
      */
@@ -634,8 +648,7 @@ public:
     unsigned short NearestEdgeToPoint(const Base::Vector3f& rclPt) const;
     /** Returns the edge number \a side of the facet and the distance to the edge that is nearest to
      * the point \a rclPt. */
-    void
-    NearestEdgeToPoint(const Base::Vector3f& rclPt, float& fDistance, unsigned short& side) const;
+    void NearestEdgeToPoint(const Base::Vector3f& rclPt, float& fDistance, unsigned short& side) const;
     /** Returns the edge for \a side. */
     MeshGeomEdge GetEdge(short side) const;
     /** The center and radius of the circum circle define a sphere in 3D. If the point \a rP is part
@@ -796,7 +809,7 @@ public:
 };
 
 /**
- * MeshPointModifier is a helper class that allows to modify the
+ * MeshPointModifier is a helper class that allows one to modify the
  * point array of a mesh kernel but with limited access.
  */
 class MeshExport MeshPointModifier
@@ -823,7 +836,7 @@ private:
 };
 
 /**
- * MeshFacetModifier is a helper class that allows to modify the
+ * MeshFacetModifier is a helper class that allows one to modify the
  * facet array of a mesh kernel but with limited access.
  */
 class MeshExport MeshFacetModifier
@@ -877,13 +890,13 @@ inline bool MeshPoint::operator==(const Base::Vector3f& rclV) const
 
 inline bool MeshPoint::operator<(const MeshPoint& rclPt) const
 {
-    if (fabs(this->x - rclPt.x) >= MeshDefinitions::_fMinPointDistanceD1) {
+    if (std::fabs(this->x - rclPt.x) >= MeshDefinitions::_fMinPointDistanceD1) {
         return this->x < rclPt.x;
     }
-    if (fabs(this->y - rclPt.y) >= MeshDefinitions::_fMinPointDistanceD1) {
+    if (std::fabs(this->y - rclPt.y) >= MeshDefinitions::_fMinPointDistanceD1) {
         return this->y < rclPt.y;
     }
-    if (fabs(this->z - rclPt.z) >= MeshDefinitions::_fMinPointDistanceD1) {
+    if (std::fabs(this->z - rclPt.z) >= MeshDefinitions::_fMinPointDistanceD1) {
         return this->z < rclPt.z;
     }
     return false;  // points are considered to be equal
@@ -912,7 +925,7 @@ inline Base::Vector3f MeshGeomFacet::GetNormal() const
 
 inline void MeshGeomFacet::SetNormal(const Base::Vector3f& rclNormal)
 {
-    if (rclNormal.Sqr() == 0.0f) {
+    if (rclNormal.Sqr() == 0.0F) {
         return;
     }
     _clNormal = rclNormal;
@@ -923,20 +936,20 @@ inline void MeshGeomFacet::SetNormal(const Base::Vector3f& rclNormal)
 inline void MeshGeomFacet::ArrangeNormal(const Base::Vector3f& rclN)
 {
     // force internal normal to be computed if not done yet
-    if ((rclN * GetNormal()) < 0.0f) {
+    if ((rclN * GetNormal()) < 0.0F) {
         _clNormal = -_clNormal;
     }
 }
 
 inline Base::Vector3f MeshGeomFacet::GetGravityPoint() const
 {
-    return (1.0f / 3.0f) * (_aclPoints[0] + _aclPoints[1] + _aclPoints[2]);
+    return (1.0F / 3.0F) * (_aclPoints[0] + _aclPoints[1] + _aclPoints[2]);
 }
 
 inline void MeshGeomFacet::AdjustCirculationDirection()
 {
     Base::Vector3f clN = (_aclPoints[1] - _aclPoints[0]) % (_aclPoints[2] - _aclPoints[0]);
-    if ((clN * _clNormal) < 0.0f) {
+    if ((clN * _clNormal) < 0.0F) {
         std::swap(_aclPoints[1], _aclPoints[2]);
     }
 }
@@ -948,7 +961,7 @@ inline Base::BoundBox3f MeshGeomFacet::GetBoundBox() const
 
 inline float MeshGeomFacet::Perimeter() const
 {
-    float perimeter = 0.0f;
+    float perimeter = 0.0F;
     perimeter += Base::Distance(_aclPoints[0], _aclPoints[1]);
     perimeter += Base::Distance(_aclPoints[1], _aclPoints[2]);
     perimeter += Base::Distance(_aclPoints[2], _aclPoints[0]);
@@ -957,7 +970,7 @@ inline float MeshGeomFacet::Perimeter() const
 
 inline float MeshGeomFacet::Area() const
 {
-    return ((_aclPoints[1] - _aclPoints[0]) % (_aclPoints[2] - _aclPoints[0])).Length() / 2.0f;
+    return ((_aclPoints[1] - _aclPoints[0]) % (_aclPoints[2] - _aclPoints[0])).Length() / 2.0F;
 }
 
 inline bool MeshGeomFacet::ContainedByOrIntersectBoundingBox(const Base::BoundBox3f& rclBB) const
@@ -980,19 +993,19 @@ inline bool MeshGeomFacet::ContainedByOrIntersectBoundingBox(const Base::BoundBo
     }
 
     // "real" test for cutting
-    if (IntersectBoundingBox(rclBB)) {
-        return true;
-    }
-
-    return false;
+    return (IntersectBoundingBox(rclBB));
 }
 
-inline bool MeshGeomFacet::IntersectWithPlane(const Base::Vector3f& rclBase,
-                                              const Base::Vector3f& rclNormal) const
+inline bool MeshGeomFacet::IntersectWithPlane(
+    const Base::Vector3f& rclBase,
+    const Base::Vector3f& rclNormal
+) const
 {
-    bool bD0 = (_aclPoints[0].DistanceToPlane(rclBase, rclNormal) > 0.0f);
-    return !((bD0 == (_aclPoints[1].DistanceToPlane(rclBase, rclNormal) > 0.0f))
-             && (bD0 == (_aclPoints[2].DistanceToPlane(rclBase, rclNormal) > 0.0f)));
+    bool bD0 = (_aclPoints[0].DistanceToPlane(rclBase, rclNormal) > 0.0F);
+    return !(
+        (bD0 == (_aclPoints[1].DistanceToPlane(rclBase, rclNormal) > 0.0F))
+        && (bD0 == (_aclPoints[2].DistanceToPlane(rclBase, rclNormal) > 0.0F))
+    );
 }
 
 inline MeshFacet::MeshFacet()  // NOLINT
@@ -1003,12 +1016,14 @@ inline MeshFacet::MeshFacet()  // NOLINT
     memset(_aulPoints, 0xff, sizeof(PointIndex) * 3);
 }
 
-inline MeshFacet::MeshFacet(PointIndex p1,
-                            PointIndex p2,
-                            PointIndex p3,
-                            FacetIndex n1,
-                            FacetIndex n2,
-                            FacetIndex n3)
+inline MeshFacet::MeshFacet(
+    PointIndex p1,
+    PointIndex p2,
+    PointIndex p3,
+    FacetIndex n1,
+    FacetIndex n2,
+    FacetIndex n3
+)
     : _ucFlag(0)
     , _ulProp(0)
     , _aulPoints {p1, p2, p3}
@@ -1144,15 +1159,14 @@ inline unsigned short MeshFacet::Side(FacetIndex ulNIndex) const
     if (_aulNeighbours[0] == ulNIndex) {
         return 0;
     }
-    else if (_aulNeighbours[1] == ulNIndex) {
+    if (_aulNeighbours[1] == ulNIndex) {
         return 1;
     }
-    else if (_aulNeighbours[2] == ulNIndex) {
+    if (_aulNeighbours[2] == ulNIndex) {
         return 2;
     }
-    else {
-        return USHRT_MAX;
-    }
+
+    return std::numeric_limits<unsigned short>::max();
 }
 
 inline unsigned short MeshFacet::Side(PointIndex ulP0, PointIndex ulP1) const
@@ -1161,7 +1175,7 @@ inline unsigned short MeshFacet::Side(PointIndex ulP0, PointIndex ulP1) const
         if (_aulPoints[1] == ulP1) {
             return 0;  // Edge 0-1 ==> 0
         }
-        else if (_aulPoints[2] == ulP1) {
+        if (_aulPoints[2] == ulP1) {
             return 2;  // Edge 0-2 ==> 2
         }
     }
@@ -1169,7 +1183,7 @@ inline unsigned short MeshFacet::Side(PointIndex ulP0, PointIndex ulP1) const
         if (_aulPoints[0] == ulP1) {
             return 0;  // Edge 1-0 ==> 0
         }
-        else if (_aulPoints[2] == ulP1) {
+        if (_aulPoints[2] == ulP1) {
             return 1;  // Edge 1-2 ==> 1
         }
     }
@@ -1177,12 +1191,12 @@ inline unsigned short MeshFacet::Side(PointIndex ulP0, PointIndex ulP1) const
         if (_aulPoints[0] == ulP1) {
             return 2;  // Edge 2-0 ==> 2
         }
-        else if (_aulPoints[1] == ulP1) {
+        if (_aulPoints[1] == ulP1) {
             return 1;  // Edge 2-1 ==> 1
         }
     }
 
-    return USHRT_MAX;
+    return std::numeric_limits<unsigned short>::max();
 }
 
 inline unsigned short MeshFacet::Side(const MeshFacet& rFace) const
@@ -1190,12 +1204,12 @@ inline unsigned short MeshFacet::Side(const MeshFacet& rFace) const
     unsigned short side {};
     for (int i = 0; i < 3; i++) {
         side = Side(rFace._aulPoints[i], rFace._aulPoints[(i + 1) % 3]);
-        if (side != USHRT_MAX) {
+        if (side != std::numeric_limits<unsigned short>::max()) {
             return side;
         }
     }
 
-    return USHRT_MAX;
+    return std::numeric_limits<unsigned short>::max();
 }
 
 inline bool MeshFacet::IsEqual(const MeshFacet& rcFace) const
@@ -1206,8 +1220,8 @@ inline bool MeshFacet::IsEqual(const MeshFacet& rcFace) const
                 && this->_aulPoints[2] == rcFace._aulPoints[(i + 2) % 3]) {
                 return true;
             }
-            else if (this->_aulPoints[1] == rcFace._aulPoints[(i + 2) % 3]
-                     && this->_aulPoints[2] == rcFace._aulPoints[(i + 1) % 3]) {
+            if (this->_aulPoints[1] == rcFace._aulPoints[(i + 2) % 3]
+                && this->_aulPoints[2] == rcFace._aulPoints[(i + 1) % 3]) {
                 return true;
             }
         }
@@ -1283,5 +1297,3 @@ public:
 };
 
 }  // namespace MeshCore
-
-#endif  // MESH_ELEMENTS_H

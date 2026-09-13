@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2005 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,7 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
+#include <limits>
 
 #include <Base/Converter.h>
 
@@ -71,7 +73,7 @@ App::DocumentObjectExecReturn* SegmentByMesh::execute()
     if (!kernel) {
         return new App::DocumentObjectExecReturn("No mesh specified.\n");
     }
-    else if (mesh->isError()) {
+    if (mesh->isError()) {
         return new App::DocumentObjectExecReturn("No valid mesh.\n");
     }
 
@@ -86,7 +88,7 @@ App::DocumentObjectExecReturn* SegmentByMesh::execute()
     if (!toolmesh) {
         return new App::DocumentObjectExecReturn("No toolmesh specified.\n");
     }
-    else if (tool->isError()) {
+    if (tool->isError()) {
         return new App::DocumentObjectExecReturn("No valid toolmesh.\n");
     }
 
@@ -105,22 +107,21 @@ App::DocumentObjectExecReturn* SegmentByMesh::execute()
     }
 
     std::vector<MeshCore::FacetIndex> faces;
-    std::vector<MeshGeomFacet> aFaces;
 
     MeshAlgorithm cAlg(rMeshKernel);
-    if (cNormal.Length() > 0.1f) {  // not a null vector
+    if (cNormal.Length() > 0.1F) {  // not a null vector
         cAlg.GetFacetsFromToolMesh(rToolMesh, cNormal, faces);
     }
     else {
-        cAlg.GetFacetsFromToolMesh(rToolMesh, Base::Vector3f(0.0, 1.0f, 0.0f), faces);
+        cAlg.GetFacetsFromToolMesh(rToolMesh, Base::Vector3f(0.0, 1.0F, 0.0F), faces);
     }
 
     // if the clipping plane was set then we want only the visible facets
-    if (cNormal.Length() > 0.1f) {  // not a null vector
+    if (cNormal.Length() > 0.1F) {  // not a null vector
         // now we have too many facets since we have (invisible) facets near to the back clipping
         // plane, so we need the nearest facet to the front clipping plane
         //
-        float fDist = FLOAT_MAX;
+        float fDist = std::numeric_limits<float>::max();
         MeshCore::FacetIndex uIdx = MeshCore::FACET_INDEX_MAX;
         MeshFacetIterator cFIt(rMeshKernel);
 
@@ -149,6 +150,8 @@ App::DocumentObjectExecReturn* SegmentByMesh::execute()
         }
     }
 
+    std::vector<MeshGeomFacet> aFaces;
+    aFaces.reserve(faces.size());
     for (MeshCore::FacetIndex it : faces) {
         aFaces.push_back(rMeshKernel.GetFacet(it));
     }

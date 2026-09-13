@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2004 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,9 +22,9 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <App/Application.h>
+#include <App/MeasureManager.h>
 #include <Base/Console.h>
 #include <Base/Interpreter.h>
 
@@ -53,13 +55,14 @@ extern PyObject* initModule();
 PyMOD_INIT_FUNC(Mesh)
 {
     PyObject* meshModule = Mesh::initModule();
-    Base::Console().Log("Loading Mesh module... done\n");
+    Base::Console().log("Loading Mesh module... done\n");
 
     // NOTE: To finish the initialization of our own type objects we must
     // call PyType_Ready, otherwise we run into a segmentation fault, later on.
     // This function is responsible for adding inherited slots from a type's base class.
     ParameterGrp::handle handle = App::GetApplication().GetParameterGroupByPath(
-        "User parameter:BaseApp/Preferences/Mod/Mesh");
+        "User parameter:BaseApp/Preferences/Mod/Mesh"
+    );
     ParameterGrp::handle asy = handle->GetGroup("Asymptote");
     MeshCore::MeshOutput::SetAsymptoteSize(asy->GetASCII("Width", "500"), asy->GetASCII("Height"));
 
@@ -72,6 +75,11 @@ PyMOD_INIT_FUNC(Mesh)
     Base::Interpreter().addType(&Mesh::MeshFeaturePy::Type,meshModule,"Feature");
 
     Mesh::Extension3MFFactory::addProducer(new Mesh::GuiExtension3MFProducer);
+
+    // This registration is sufficient to allow one to measure free distances with a mesh
+    App::MeasureManager::addMeasureHandler("Mesh", [](App::DocumentObject*, const char*) {
+        return App::MeasureElementType::INVALID;
+    });
 
     // init Type system
     Mesh::PropertyNormalList    ::init();

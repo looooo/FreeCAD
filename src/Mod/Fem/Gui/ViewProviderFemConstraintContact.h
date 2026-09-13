@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 FreeCAD Developers                                 *
  *   Authors: Michael Hindley <hindlemp@eskom.co.za>                       *
@@ -23,8 +25,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef GUI_VIEWPROVIDERFEMCONSTRAINTCONTACT_H
-#define GUI_VIEWPROVIDERFEMCONSTRAINTCONTACT_H
+#pragma once
 
 #include "ViewProviderFemConstraint.h"
 
@@ -44,5 +45,3 @@ protected:
     bool setEdit(int ModNum) override;
 };
 }  // namespace FemGui
-
-#endif  // GUI_VIEWPROVIDERFEMCONSTRAINTContact_H

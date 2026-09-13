@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2005 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -22,22 +24,24 @@
  ***************************************************************************/
 
 
-#ifndef BASE_FILEINFO_H
-#define BASE_FILEINFO_H
+#pragma once
 
-#include <boost/filesystem.hpp>
+#include <filesystem>
 #include <string>
 #include <vector>
-#include <Base/TimeInfo.h>
+#include <optional>
+
+#include <FCGlobal.h>
 
 
 namespace Base
 {
+class TimeInfo;
 
 /// When reading and writing a character stream, the incoming data can be dumped into the stream
 /// unaltered (if it contains only data that is valid in the current XML character set), or it can
 /// be Base64-encoded. This enum is used by Reader and Writer to distinguish the two cases.
-enum class CharStreamFormat
+enum class CharStreamFormat : std::uint8_t
 {
     Raw,
     Base64Encoded
@@ -51,7 +55,7 @@ enum class CharStreamFormat
 class BaseExport FileInfo
 {
 public:
-    enum Permissions
+    enum Permissions : std::uint8_t
     {
         WriteOnly = 0x01,
         ReadOnly = 0x02,
@@ -59,16 +63,17 @@ public:
     };
 
     /// Construction
-    explicit FileInfo(const char* fileName = "");
-    explicit FileInfo(const std::string& fileName);
+    explicit FileInfo(std::string fileName);
+    explicit FileInfo(const char* fileName = "")
+        : FileInfo(std::string {fileName})
+    {}
     /// Set a new file name
-    void setFile(const char* name);
+    void setFile(std::string name);
     /// Set a new file name
-    void setFile(const std::string& name)
+    void setFile(const char* name)
     {
-        setFile(name.c_str());
+        setFile(std::string {name});
     }
-
 
     /** @name extraction of information */
     //@{
@@ -121,12 +126,12 @@ public:
     bool isFile() const;
     /// Checks if it is a directory (not a file)
     bool isDir() const;
+    /// Checks if it is a symbolic link (returns false if the file doesn't exist)
+    bool isSymlink() const;
     /// The size of the file
     unsigned int size() const;
     /// Returns the time when the file was last modified.
     TimeInfo lastModified() const;
-    /// Returns the time when the file was last read (accessed).
-    TimeInfo lastRead() const;
     //@}
 
     /** @name Directory management*/
@@ -151,6 +156,11 @@ public:
     /// Rename the file
     bool copyTo(const char* NewName) const;
 
+    /// Returns the folder or directory the symlink points
+    std::optional<std::string> getSymlinkTarget();
+    /// Returns the absolute path without any "..", "." or symlinks
+    std::optional<std::string> getCannonicalPath();
+
     /** @name Tools */
     //@{
     /// Get a unique File Name in the given or (if 0) in the temp path
@@ -158,9 +168,9 @@ public:
     /// Get the path to the dir which is considered to temp files
     static const std::string& getTempPath();
     /// Convert from filesystem path to string
-    static std::string pathToString(const boost::filesystem::path& path);
+    static std::string pathToString(const std::filesystem::path& path);
     /// Convert from string to filesystem path
-    static boost::filesystem::path stringToPath(const std::string& str);
+    static std::filesystem::path stringToPath(const std::string& str);
     //@}
 
 private:
@@ -168,6 +178,3 @@ private:
 };
 
 }  // namespace Base
-
-
-#endif  // BASE_FILEINFO_H

@@ -1,5 +1,5 @@
-#ifndef KDL_CHAINIKSOLVERPOS_GN_HPP
-#define KDL_CHAINIKSOLVERPOS_GN_HPP
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /**
  \file   chainiksolverpos_lma.hpp
  \brief  computing inverse position kinematics using Levenberg-Marquardt.
@@ -29,7 +29,7 @@
  *   Suite 330, Boston, MA  02111-1307  USA                                *
  *                                                                         *
  ***************************************************************************/
-
+#pragma once
 
 #include "chainiksolver.hpp"
 #include "chain.hpp"
@@ -227,7 +227,11 @@ private:
     MatrixXq A;
     VectorXq tmp;
     Eigen::LDLT<MatrixXq> ldlt;
+#if EIGEN_VERSION_AT_LEAST(5, 0, 0)
+     Eigen::JacobiSVD<MatrixXq, Eigen::ComputeThinU | Eigen::ComputeThinV> svd;
+#else
     Eigen::JacobiSVD<MatrixXq> svd;
+#endif
     VectorXq diffq;
     VectorXq q_new;
     VectorXq original_Aii;
@@ -238,10 +242,3 @@ private:
 
 
 } // namespace KDL
-
-
-
-
-
-
-#endif

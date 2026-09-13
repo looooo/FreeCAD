@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2018 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,12 +22,10 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef MESH_FUNCTIONAL_H
-#define MESH_FUNCTIONAL_H
+#pragma once
 
-#include <QFuture>
-#include <QtConcurrentRun>
 #include <algorithm>
+#include <future>
 
 
 namespace MeshCore
@@ -39,24 +39,26 @@ static void parallel_sort(Iter begin, Iter end, Pred comp, int threads)
     else {
         Iter mid = begin + (end - begin) / 2;
         if (threads == 2) {
-            QFuture<void> future =
-                QtConcurrent::run(parallel_sort<Iter, Pred>, begin, mid, comp, threads / 2);
+            auto future = std::async(parallel_sort<Iter, Pred>, begin, mid, comp, threads / 2);
             std::sort(mid, end, comp);
-            future.waitForFinished();
+            future.wait();
         }
         else {
-            QFuture<void> a =
-                QtConcurrent::run(parallel_sort<Iter, Pred>, begin, mid, comp, threads / 2);
-            QFuture<void> b =
-                QtConcurrent::run(parallel_sort<Iter, Pred>, mid, end, comp, threads / 2);
-            a.waitForFinished();
-            b.waitForFinished();
+            auto a = std::async(
+                std::launch::async,
+                parallel_sort<Iter, Pred>,
+                begin,
+                mid,
+                comp,
+                threads / 2
+            );
+            auto b
+                = std::async(std::launch::async, parallel_sort<Iter, Pred>, mid, end, comp, threads / 2);
+            a.wait();
+            b.wait();
         }
         std::inplace_merge(begin, mid, end, comp);
     }
 }
 
 }  // namespace MeshCore
-
-
-#endif  // MESH_FUNCTIONAL_H

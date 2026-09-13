@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2002 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,56 +22,54 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
-# include <BRep_Builder.hxx>
-# include <BRep_Tool.hxx>
-# include <BRepAdaptor_Curve.hxx>
-# include <BRepBuilderAPI_MakeEdge.hxx>
-# include <BRepBuilderAPI_MakeFace.hxx>
-# include <BRepBuilderAPI_MakePolygon.hxx>
-# include <BRepBuilderAPI_MakeSolid.hxx>
-# include <BRepCheck_Analyzer.hxx>
-# include <BRepFeat_SplitShape.hxx>
-# include <BRepOffsetAPI_Sewing.hxx>
-# include <BRepPrim_Wedge.hxx>
-# include <BRepPrimAPI_MakeBox.hxx>
-# include <BRepPrimAPI_MakeCone.hxx>
-# include <BRepPrimAPI_MakeCylinder.hxx>
-# include <BRepPrimAPI_MakeRevolution.hxx>
-# include <BRepPrimAPI_MakeSphere.hxx>
-# include <BRepPrimAPI_MakeTorus.hxx>
-# include <BRepFill.hxx>
-# include <BRepFill_Filling.hxx>
-# include <BRepLib.hxx>
-# include <BSplCLib.hxx>
-# include <gp_Ax3.hxx>
-# include <gp_Circ.hxx>
-# include <gp_Pnt.hxx>
-# include <Geom_BSplineSurface.hxx>
-# include <Geom_Circle.hxx>
-# include <Geom_Plane.hxx>
-# include <GeomFill_AppSurf.hxx>
-# include <GeomFill_Generator.hxx>
-# include <GeomFill_Line.hxx>
-# include <GeomFill_SectionGenerator.hxx>
-# include <Interface_Static.hxx>
-# include <NCollection_List.hxx>
-# include <Precision.hxx>
-# include <ShapeFix.hxx>
-# include <ShapeBuild_ReShape.hxx>
-# include <ShapeUpgrade_ShellSewing.hxx>
-# include <Standard_DomainError.hxx>
-# include <Standard_Version.hxx>
-# include <TopExp_Explorer.hxx>
-# include <TopoDS_Compound.hxx>
-# include <TopoDS_Edge.hxx>
-# include <TopoDS_Face.hxx>
-# include <TopoDS_Shell.hxx>
-# include <TopoDS_Solid.hxx>
-# include <TopTools_ListIteratorOfListOfShape.hxx>
-#endif
-# include <BRepFill_Generator.hxx>
+#include <BRep_Builder.hxx>
+#include <BRep_Tool.hxx>
+#include <BRepAdaptor_Curve.hxx>
+#include <BRepBuilderAPI_MakeEdge.hxx>
+#include <BRepBuilderAPI_MakeFace.hxx>
+#include <BRepBuilderAPI_MakePolygon.hxx>
+#include <BRepBuilderAPI_MakeSolid.hxx>
+#include <BRepCheck_Analyzer.hxx>
+#include <BRepFeat_SplitShape.hxx>
+#include <BRepOffsetAPI_Sewing.hxx>
+#include <BRepPrim_Wedge.hxx>
+#include <BRepPrimAPI_MakeBox.hxx>
+#include <BRepPrimAPI_MakeCone.hxx>
+#include <BRepPrimAPI_MakeCylinder.hxx>
+#include <BRepPrimAPI_MakeRevolution.hxx>
+#include <BRepPrimAPI_MakeSphere.hxx>
+#include <BRepPrimAPI_MakeTorus.hxx>
+#include <BRepFill.hxx>
+#include <BRepFill_Filling.hxx>
+#include <BRepLib.hxx>
+#include <BSplCLib.hxx>
+#include <gp_Ax3.hxx>
+#include <gp_Circ.hxx>
+#include <gp_Pnt.hxx>
+#include <Geom_BSplineSurface.hxx>
+#include <Geom_Circle.hxx>
+#include <Geom_Plane.hxx>
+#include <GeomFill_AppSurf.hxx>
+#include <GeomFill_Generator.hxx>
+#include <GeomFill_Line.hxx>
+#include <GeomFill_SectionGenerator.hxx>
+#include <Interface_Static.hxx>
+#include <NCollection_List.hxx>
+#include <Precision.hxx>
+#include <ShapeFix.hxx>
+#include <ShapeBuild_ReShape.hxx>
+#include <ShapeUpgrade_ShellSewing.hxx>
+#include <Standard_DomainError.hxx>
+#include <Standard_Version.hxx>
+#include <TopExp_Explorer.hxx>
+#include <TopoDS_Compound.hxx>
+#include <TopoDS_Edge.hxx>
+#include <TopoDS_Face.hxx>
+#include <TopoDS_Shell.hxx>
+#include <TopoDS_Solid.hxx>
+#include <TopTools_ListOfShape.hxx>
+
+#include <BRepFill_Generator.hxx>
 
 #include <App/Application.h>
 #include <App/Document.h>
@@ -81,6 +81,7 @@
 #include <Base/GeometryPyCXX.h>
 #include <Base/Interpreter.h>
 #include <Base/PyWrapParseTupleAndKeywords.h>
+#include <Base/Tools.h>
 #include <Base/VectorPy.h>
 
 #include "BSplineSurfacePy.h"
@@ -95,6 +96,7 @@
 #include "OCCError.h"
 #include "PartFeature.h"
 #include "PartPyCXX.h"
+#include "PyException.h"
 #include "Tools.h"
 #include "TopoShapeCompoundPy.h"
 #include "TopoShapePy.h"
@@ -103,65 +105,95 @@
 #include "TopoShapeShellPy.h"
 #include "TopoShapeSolidPy.h"
 #include "TopoShapeWirePy.h"
+#include "TopoShapeOpCode.h"
+#include "TopoShapeMapper.h"
 
 #ifdef FCUseFreeType
-#  include "FT2FC.h"
+# include "FT2FC.h"
 #endif
+
+FC_LOG_LEVEL_INIT("Part")
 
 extern const char* BRepBuilderAPI_FaceErrorText(BRepBuilderAPI_FaceError fe);
 
-#ifndef M_PI
-#define M_PI    3.14159265358979323846 /* pi */
-#endif
+namespace Part
+{
 
-#ifndef M_PI_2
-#define M_PI_2  1.57079632679489661923 /* pi/2 */
-#endif
+namespace
+{
+void warnDeprecatedImportMethod(const char* methodName, const char* replacement)
+{
+    if (!Base::warnDeprecatedPythonApi(
+            "Method",
+            methodName,
+            Base::PythonApiDeprecation {
+                .deprecatedIn = "26.3",
+                .removedIn = "27.2",
+                .replacement = replacement,
+            }
+        )) {
+        throw Py::Exception();
+    }
+}
+}  // namespace
 
-namespace Part {
-
-PartExport void getPyShapes(PyObject *obj, std::vector<TopoShape> &shapes) {
-    if(!obj)
+PartExport void getPyShapes(PyObject* obj, std::vector<TopoShape>& shapes)
+{
+    if (!obj) {
         return;
-    if(PyObject_TypeCheck(obj,&Part::TopoShapePy::Type))
+    }
+    if (PyObject_TypeCheck(obj, &Part::TopoShapePy::Type)) {
         shapes.push_back(*static_cast<TopoShapePy*>(obj)->getTopoShapePtr());
-    else if (PyObject_TypeCheck(obj, &GeometryPy::Type))
+    }
+    else if (PyObject_TypeCheck(obj, &GeometryPy::Type)) {
         shapes.emplace_back(static_cast<GeometryPy*>(obj)->getGeometryPtr()->toShape());
-    else if(PySequence_Check(obj)) {
+    }
+    else if (PySequence_Check(obj)) {
         Py::Sequence list(obj);
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
-            if (PyObject_TypeCheck((*it).ptr(), &(Part::TopoShapePy::Type)))
+            if (PyObject_TypeCheck((*it).ptr(), &(Part::TopoShapePy::Type))) {
                 shapes.push_back(*static_cast<TopoShapePy*>((*it).ptr())->getTopoShapePtr());
-            else if (PyObject_TypeCheck((*it).ptr(), &GeometryPy::Type))
-                shapes.emplace_back(static_cast<GeometryPy*>(
-                                (*it).ptr())->getGeometryPtr()->toShape());
-            else
+            }
+            else if (PyObject_TypeCheck((*it).ptr(), &GeometryPy::Type)) {
+                shapes.emplace_back(static_cast<GeometryPy*>((*it).ptr())->getGeometryPtr()->toShape());
+            }
+            else {
                 throw Py::TypeError("expect shape in sequence");
+            }
         }
-    }else
+    }
+    else {
         throw Py::TypeError("expect shape or sequence of shapes");
+    }
 }
 
-PartExport std::vector<TopoShape> getPyShapes(PyObject *obj) {
+PartExport std::vector<TopoShape> getPyShapes(PyObject* obj)
+{
     std::vector<TopoShape> ret;
-    getPyShapes(obj,ret);
+    getPyShapes(obj, ret);
     return ret;
 }
 
-struct EdgePoints {
+namespace
+{
+
+struct EdgePoints
+{
     gp_Pnt v1, v2;
     std::list<TopoDS_Edge>::iterator it;
     TopoDS_Edge edge;
 };
 
+}  // namespace
+
 PartExport std::list<TopoDS_Edge> sort_Edges(double tol3d, std::list<TopoDS_Edge>& edges)
 {
     tol3d = tol3d * tol3d;
-    std::list<EdgePoints>  edge_points;
+    std::list<EdgePoints> edge_points;
     TopExp_Explorer xp;
     for (std::list<TopoDS_Edge>::iterator it = edges.begin(); it != edges.end(); ++it) {
         EdgePoints ep;
-        xp.Init(*it,TopAbs_VERTEX);
+        xp.Init(*it, TopAbs_VERTEX);
         ep.v1 = BRep_Tool::Pnt(TopoDS::Vertex(xp.Current()));
         xp.Next();
         ep.v2 = BRep_Tool::Pnt(TopoDS::Vertex(xp.Current()));
@@ -170,13 +202,14 @@ PartExport std::list<TopoDS_Edge> sort_Edges(double tol3d, std::list<TopoDS_Edge
         edge_points.push_back(ep);
     }
 
-    if (edge_points.empty())
+    if (edge_points.empty()) {
         return {};
+    }
 
     std::list<TopoDS_Edge> sorted;
     gp_Pnt first, last;
     first = edge_points.front().v1;
-    last  = edge_points.front().v2;
+    last = edge_points.front().v2;
 
     sorted.push_back(edge_points.front().edge);
     edges.erase(edge_points.front().it);
@@ -205,11 +238,14 @@ PartExport std::list<TopoDS_Edge> sort_Edges(double tol3d, std::list<TopoDS_Edge
             else if (pEI->v2.SquareDistance(last) <= tol3d) {
                 last = pEI->v1;
                 Standard_Real first, last;
+                BRepLib::BuildCurves3d(pEI->edge);
                 const Handle(Geom_Curve) & curve = BRep_Tool::Curve(pEI->edge, first, last);
-                first = curve->ReversedParameter(first);
-                last = curve->ReversedParameter(last);
-                TopoDS_Edge edgeReversed = BRepBuilderAPI_MakeEdge(curve->Reversed(), last, first);
-                sorted.push_back(edgeReversed);
+                if (!curve.IsNull()) {
+                    first = curve->ReversedParameter(first);
+                    last = curve->ReversedParameter(last);
+                    TopoDS_Edge edgeReversed = BRepBuilderAPI_MakeEdge(curve->Reversed(), last, first);
+                    sorted.push_back(edgeReversed);
+                }
                 edges.erase(pEI->it);
                 edge_points.erase(pEI);
                 pEI = edge_points.begin();
@@ -218,11 +254,14 @@ PartExport std::list<TopoDS_Edge> sort_Edges(double tol3d, std::list<TopoDS_Edge
             else if (pEI->v1.SquareDistance(first) <= tol3d) {
                 first = pEI->v2;
                 Standard_Real first, last;
+                BRepLib::BuildCurves3d(pEI->edge);
                 const Handle(Geom_Curve) & curve = BRep_Tool::Curve(pEI->edge, first, last);
-                first = curve->ReversedParameter(first);
-                last = curve->ReversedParameter(last);
-                TopoDS_Edge edgeReversed = BRepBuilderAPI_MakeEdge(curve->Reversed(), last, first);
-                sorted.push_front(edgeReversed);
+                if (!curve.IsNull()) {
+                    first = curve->ReversedParameter(first);
+                    last = curve->ReversedParameter(last);
+                    TopoDS_Edge edgeReversed = BRepBuilderAPI_MakeEdge(curve->Reversed(), last, first);
+                    sorted.push_front(edgeReversed);
+                }
                 edges.erase(pEI->it);
                 edge_points.erase(pEI);
                 pEI = edge_points.begin();
@@ -238,78 +277,95 @@ PartExport std::list<TopoDS_Edge> sort_Edges(double tol3d, std::list<TopoDS_Edge
 
     return sorted;
 }
-}
+}  // namespace Part
 
-namespace Part {
-class BRepFeatModule : public Py::ExtensionModule<BRepFeatModule>
+namespace Part
+{
+class BRepFeatModule: public Py::ExtensionModule<BRepFeatModule>
 {
 public:
-    BRepFeatModule() : Py::ExtensionModule<BRepFeatModule>("BRepFeat")
+    BRepFeatModule()
+        : Py::ExtensionModule<BRepFeatModule>("BRepFeat")
     {
-        initialize("This is a module working with the BRepFeat package."); // register with Python
+        initialize("This is a module working with the BRepFeat package.");  // register with Python
     }
 };
 
-class BRepOffsetAPIModule : public Py::ExtensionModule<BRepOffsetAPIModule>
+class BRepOffsetAPIModule: public Py::ExtensionModule<BRepOffsetAPIModule>
 {
 public:
-    BRepOffsetAPIModule() : Py::ExtensionModule<BRepOffsetAPIModule>("BRepOffsetAPI")
+    BRepOffsetAPIModule()
+        : Py::ExtensionModule<BRepOffsetAPIModule>("BRepOffsetAPI")
     {
-        initialize("This is a module working with the BRepOffsetAPI package."); // register with Python
+        initialize("This is a module working with the BRepOffsetAPI package.");  // register with Python
     }
 };
 
-class Geom2dModule : public Py::ExtensionModule<Geom2dModule>
+class Geom2dModule: public Py::ExtensionModule<Geom2dModule>
 {
 public:
-    Geom2dModule() : Py::ExtensionModule<Geom2dModule>("Geom2d")
+    Geom2dModule()
+        : Py::ExtensionModule<Geom2dModule>("Geom2d")
     {
-        initialize("This is a module working with 2d geometries."); // register with Python
+        initialize("This is a module working with 2d geometries.");  // register with Python
     }
 };
 
-class GeomPlateModule : public Py::ExtensionModule<GeomPlateModule>
+class GeomPlateModule: public Py::ExtensionModule<GeomPlateModule>
 {
 public:
-    GeomPlateModule() : Py::ExtensionModule<GeomPlateModule>("GeomPlate")
+    GeomPlateModule()
+        : Py::ExtensionModule<GeomPlateModule>("GeomPlate")
     {
-        initialize("This is a module working with the GeomPlate framework."); // register with Python
+        initialize("This is a module working with the GeomPlate framework.");  // register with Python
     }
 };
 
-class HLRBRepModule : public Py::ExtensionModule<HLRBRepModule>
+class HLRBRepModule: public Py::ExtensionModule<HLRBRepModule>
 {
 public:
-    HLRBRepModule() : Py::ExtensionModule<HLRBRepModule>("HLRBRep")
+    HLRBRepModule()
+        : Py::ExtensionModule<HLRBRepModule>("HLRBRep")
     {
-        initialize("This is a module working with the HLRBRep framework."); // register with Python
+        initialize("This is a module working with the HLRBRep framework.");  // register with Python
     }
 };
 
-class ShapeFixModule : public Py::ExtensionModule<ShapeFixModule>
+class ShapeFixModule: public Py::ExtensionModule<ShapeFixModule>
 {
 public:
-    ShapeFixModule() : Py::ExtensionModule<ShapeFixModule>("ShapeFix")
+    ShapeFixModule()
+        : Py::ExtensionModule<ShapeFixModule>("ShapeFix")
     {
-        add_varargs_method("sameParameter",&ShapeFixModule::sameParameter,
+        add_varargs_method(
+            "sameParameter",
+            &ShapeFixModule::sameParameter,
             "sameParameter(shape, enforce, prec=0.0)"
         );
-        add_varargs_method("encodeRegularity",&ShapeFixModule::encodeRegularity,
+        add_varargs_method(
+            "encodeRegularity",
+            &ShapeFixModule::encodeRegularity,
             "encodeRegularity(shape, tolerance = 1e-10)\n"
         );
-        add_varargs_method("removeSmallEdges",&ShapeFixModule::removeSmallEdges,
+        add_varargs_method(
+            "removeSmallEdges",
+            &ShapeFixModule::removeSmallEdges,
             "removeSmallEdges(shape, tolerance, ReShapeContext)\n"
             "Removes edges which are less than given tolerance from shape"
         );
-        add_varargs_method("fixVertexPosition",&ShapeFixModule::fixVertexPosition,
+        add_varargs_method(
+            "fixVertexPosition",
+            &ShapeFixModule::fixVertexPosition,
             "fixVertexPosition(shape, tolerance, ReShapeContext)\n"
             "Fix position of the vertices having tolerance more tnan specified one"
         );
-        add_varargs_method("leastEdgeSize",&ShapeFixModule::leastEdgeSize,
+        add_varargs_method(
+            "leastEdgeSize",
+            &ShapeFixModule::leastEdgeSize,
             "leastEdgeSize(shape)\n"
             "Calculate size of least edge"
         );
-        initialize("This is a module working with the ShapeFix framework."); // register with Python
+        initialize("This is a module working with the ShapeFix framework.");  // register with Python
     }
 
 private:
@@ -318,8 +374,11 @@ private:
         PyObject* shape;
         PyObject* enforce;
         double prec = 0.0;
-        if (!PyArg_ParseTuple(args.ptr(), "O!O!|d", &TopoShapePy::Type, &shape, &PyBool_Type, &enforce, &prec))
+        if (
+            !PyArg_ParseTuple(args.ptr(), "O!O!|d", &TopoShapePy::Type, &shape, &PyBool_Type, &enforce, &prec)
+        ) {
             throw Py::Exception();
+        }
 
         TopoDS_Shape sh = static_cast<TopoShapePy*>(shape)->getTopoShapePtr()->getShape();
         bool ok = ShapeFix::SameParameter(sh, Base::asBoolean(enforce), prec);
@@ -329,8 +388,9 @@ private:
     {
         PyObject* shape;
         double tolang = 1.0e-10;
-        if (!PyArg_ParseTuple(args.ptr(), "O!|d", &TopoShapePy::Type, &shape, &tolang))
+        if (!PyArg_ParseTuple(args.ptr(), "O!|d", &TopoShapePy::Type, &shape, &tolang)) {
             throw Py::Exception();
+        }
 
         TopoDS_Shape sh = static_cast<TopoShapePy*>(shape)->getTopoShapePtr()->getShape();
         ShapeFix::EncodeRegularity(sh, tolang);
@@ -340,8 +400,9 @@ private:
     {
         PyObject* shape;
         double tol;
-        if (!PyArg_ParseTuple(args.ptr(), "O!d", &TopoShapePy::Type, &shape, &tol))
+        if (!PyArg_ParseTuple(args.ptr(), "O!d", &TopoShapePy::Type, &shape, &tol)) {
             throw Py::Exception();
+        }
 
         TopoDS_Shape sh = static_cast<TopoShapePy*>(shape)->getTopoShapePtr()->getShape();
         Handle(ShapeBuild_ReShape) reshape = new ShapeBuild_ReShape();
@@ -352,8 +413,9 @@ private:
     {
         PyObject* shape;
         double tol;
-        if (!PyArg_ParseTuple(args.ptr(), "O!d", &TopoShapePy::Type, &shape, &tol))
+        if (!PyArg_ParseTuple(args.ptr(), "O!d", &TopoShapePy::Type, &shape, &tol)) {
             throw Py::Exception();
+        }
 
         TopoDS_Shape sh = static_cast<TopoShapePy*>(shape)->getTopoShapePtr()->getShape();
         Handle(ShapeBuild_ReShape) reshape = new ShapeBuild_ReShape();
@@ -363,8 +425,9 @@ private:
     Py::Object leastEdgeSize(const Py::Tuple& args)
     {
         PyObject* shape;
-        if (!PyArg_ParseTuple(args.ptr(), "O!", &TopoShapePy::Type, &shape))
+        if (!PyArg_ParseTuple(args.ptr(), "O!", &TopoShapePy::Type, &shape)) {
             throw Py::Exception();
+        }
 
         TopoDS_Shape sh = static_cast<TopoShapePy*>(shape)->getTopoShapePtr()->getShape();
         double len = ShapeFix::LeastEdgeSize(sh);
@@ -372,25 +435,27 @@ private:
     }
 };
 
-class ShapeUpgradeModule : public Py::ExtensionModule<ShapeUpgradeModule>
+class ShapeUpgradeModule: public Py::ExtensionModule<ShapeUpgradeModule>
 {
 public:
-    ShapeUpgradeModule() : Py::ExtensionModule<ShapeUpgradeModule>("ShapeUpgrade")
+    ShapeUpgradeModule()
+        : Py::ExtensionModule<ShapeUpgradeModule>("ShapeUpgrade")
     {
-        initialize("This is a module working with the ShapeUpgrade framework."); // register with Python
+        initialize("This is a module working with the ShapeUpgrade framework.");  // register with Python
     }
 };
 
-class ChFi2dModule : public Py::ExtensionModule<ChFi2dModule>
+class ChFi2dModule: public Py::ExtensionModule<ChFi2dModule>
 {
 public:
-    ChFi2dModule() : Py::ExtensionModule<ChFi2dModule>("ChFi2d")
+    ChFi2dModule()
+        : Py::ExtensionModule<ChFi2dModule>("ChFi2d")
     {
-        initialize("This is a module working with the ChFi2d framework."); // register with Python
+        initialize("This is a module working with the ChFi2d framework.");  // register with Python
     }
 };
 
-class Module : public Py::ExtensionModule<Module>
+class Module: public Py::ExtensionModule<Module>
 {
     BRepFeatModule brepFeat;
     BRepOffsetAPIModule brepOffsetApi;
@@ -400,62 +465,100 @@ class Module : public Py::ExtensionModule<Module>
     ShapeFixModule shapeFix;
     ShapeUpgradeModule shapeUpgrade;
     ChFi2dModule chFi2d;
+
 public:
-    Module() : Py::ExtensionModule<Module>("Part")
+    Module()
+        : Py::ExtensionModule<Module>("Part")
     {
-        add_varargs_method("open",&Module::open,
-            "open(string) -- Create a new document and load the file into the document."
+        add_varargs_method(
+            "open",
+            &Module::open,
+            "open(string) -- Deprecated. Use Import.open(string) instead."
         );
-        add_varargs_method("insert",&Module::insert,
-            "insert(string,string) -- Insert the file into the given document."
+        add_varargs_method(
+            "insert",
+            &Module::insert,
+            "insert(string,string) -- Deprecated. Use Import.insert(string,string) instead."
         );
-        add_varargs_method("export",&Module::exporter,
+        add_varargs_method(
+            "export",
+            &Module::exporter,
             "export(list,string) -- Export a list of objects into a single file."
         );
-        add_varargs_method("read",&Module::read,
-            "read(string) -- Load the file and return the shape."
+        add_varargs_method("read", &Module::read, "read(string) -- Load the file and return the shape.");
+        add_varargs_method(
+            "show",
+            &Module::show,
+            "show(shape,[string]) -- Add the shape to the active document or create one if no "
+            "document exists.\n"
+            "Returns document object."
         );
-        add_varargs_method("show",&Module::show,
-            "show(shape,[string]) -- Add the shape to the active document or create one if no document exists."
-        );
-        add_varargs_method("getFacets",&Module::getFacets,
+        add_varargs_method(
+            "getFacets",
+            &Module::getFacets,
             "getFacets(shape): simplified mesh generation"
         );
-        add_varargs_method("makeCompound",&Module::makeCompound,
+        add_keyword_method(
+            "makeCompound",
+            &Module::makeCompound,
             "makeCompound(list) -- Create a compound out of a list of shapes."
         );
-        add_varargs_method("makeShell",&Module::makeShell,
+        add_keyword_method(
+            "makeShell",
+            &Module::makeShell,
             "makeShell(list) -- Create a shell out of a list of faces."
         );
-        add_varargs_method("makeFace",&Module::makeFace,
-            "makeFace(list_of_shapes_or_compound, maker_class_name) -- Create a face (faces) using facemaker class.\n"
-            "maker_class_name is a string like 'Part::FaceMakerSimple'."
+        add_keyword_method(
+            "makeFace",
+            &Module::makeFace,
+            "makeFace(list_of_shapes_or_compound, [maker_class_name, op], "
+            "*, noElementMap=False) -- "
+            "Create a face (faces) using facemaker class.\n"
+            "maker_class_name is a string like 'Part::FaceMakerSimple'.\n"
+            "Set noElementMap=True for transient geometry where stable element "
+            "naming is not needed."
         );
-        add_varargs_method("makeFilledSurface",&Module::makeFilledSurface,
-            "makeFilledSurface(list of curves, tolerance) -- Create a surface out of a list of curves."
+        add_keyword_method(
+            "makeFilledSurface",
+            &Module::makeFilledSurface,
+            "makeFilledSurface(list of curves, tolerance) -- Create a surface out of a list of "
+            "curves."
         );
-        add_varargs_method("makeFilledFace",&Module::makeFilledFace,
+        add_keyword_method(
+            "makeFilledFace",
+            &Module::makeFilledFace,
             "makeFilledFace(list) -- Create a face out of a list of edges."
         );
-        add_varargs_method("makeSolid",&Module::makeSolid,
-            "makeSolid(shape): Create a solid out of shells of shape. If shape is a compsolid, the overall volume solid is created."
+        add_keyword_method(
+            "makeSolid",
+            &Module::makeSolid,
+            "makeSolid(shape): Create a solid out of shells of shape. If shape is a compsolid, the "
+            "overall volume solid is created."
         );
-        add_varargs_method("makePlane",&Module::makePlane,
+        add_varargs_method(
+            "makePlane",
+            &Module::makePlane,
             "makePlane(length,width,[pnt,dirZ,dirX]) -- Make a plane\n"
             "By default pnt=Vector(0,0,0) and dirZ=Vector(0,0,1), dirX is ignored in this case"
         );
-        add_varargs_method("makeBox",&Module::makeBox,
+        add_varargs_method(
+            "makeBox",
+            &Module::makeBox,
             "makeBox(length,width,height,[pnt,dir]) -- Make a box located\n"
             "in pnt with the dimensions (length,width,height)\n"
             "By default pnt=Vector(0,0,0) and dir=Vector(0,0,1)"
         );
-        add_varargs_method("makeWedge",&Module::makeWedge,
+        add_varargs_method(
+            "makeWedge",
+            &Module::makeWedge,
             "makeWedge(xmin, ymin, zmin, z2min, x2min,\n"
             "xmax, ymax, zmax, z2max, x2max,[pnt,dir])\n"
             " -- Make a wedge located in pnt\n"
             "By default pnt=Vector(0,0,0) and dir=Vector(0,0,1)"
         );
-        add_varargs_method("makeLine",&Module::makeLine,
+        add_varargs_method(
+            "makeLine",
+            &Module::makeLine,
             "makeLine(startpnt,endpnt) -- Make a line between two points\n"
             "\n"
             "Args:\n"
@@ -469,7 +572,9 @@ public:
             "Returns:\n"
             "    Edge: Part.Edge object\n"
         );
-        add_varargs_method("makePolygon",&Module::makePolygon,
+        add_varargs_method(
+            "makePolygon",
+            &Module::makePolygon,
             "makePolygon(pntslist) -- Make a polygon from a list of points\n"
             "\n"
             "Args:\n"
@@ -481,69 +586,114 @@ public:
             "        not the same as the first point, the Wire will not be \n"
             "        closed and cannot be used to create a face.\n"
         );
-        add_varargs_method("makeCircle",&Module::makeCircle,
+        add_varargs_method(
+            "makeCircle",
+            &Module::makeCircle,
             "makeCircle(radius,[pnt,dir,angle1,angle2]) -- Make a circle with a given radius\n"
             "By default pnt=Vector(0,0,0), dir=Vector(0,0,1), angle1=0 and angle2=360"
         );
-        add_varargs_method("makeSphere",&Module::makeSphere,
-            "makeSphere(radius,[pnt, dir, angle1,angle2,angle3]) -- Make a sphere with a given radius\n"
+        add_varargs_method(
+            "makeSphere",
+            &Module::makeSphere,
+            "makeSphere(radius,[pnt, dir, angle1,angle2,angle3]) -- Make a sphere with a given "
+            "radius\n"
             "By default pnt=Vector(0,0,0), dir=Vector(0,0,1), angle1=0, angle2=90 and angle3=360"
         );
-        add_varargs_method("makeCylinder",&Module::makeCylinder,
-            "makeCylinder(radius,height,[pnt,dir,angle]) -- Make a cylinder with a given radius and height\n"
+        add_varargs_method(
+            "makeCylinder",
+            &Module::makeCylinder,
+            "makeCylinder(radius,height,[pnt,dir,angle]) -- Make a cylinder with a given radius "
+            "and height\n"
             "By default pnt=Vector(0,0,0),dir=Vector(0,0,1) and angle=360"
         );
-        add_varargs_method("makeCone",&Module::makeCone,
-            "makeCone(radius1,radius2,height,[pnt,dir,angle]) -- Make a cone with given radii and height\n"
+        add_varargs_method(
+            "makeCone",
+            &Module::makeCone,
+            "makeCone(radius1,radius2,height,[pnt,dir,angle]) -- Make a cone with given radii and "
+            "height\n"
             "By default pnt=Vector(0,0,0), dir=Vector(0,0,1) and angle=360"
         );
-        add_varargs_method("makeTorus",&Module::makeTorus,
-            "makeTorus(radius1,radius2,[pnt,dir,angle1,angle2,angle]) -- Make a torus with a given radii and angles\n"
+        add_varargs_method(
+            "makeTorus",
+            &Module::makeTorus,
+            "makeTorus(radius1,radius2,[pnt,dir,angle1,angle2,angle]) -- Make a torus with a given "
+            "radii and angles\n"
             "By default pnt=Vector(0,0,0),dir=Vector(0,0,1),angle1=0,angle1=360 and angle=360"
         );
-        add_varargs_method("makeHelix",&Module::makeHelix,
-            "makeHelix(pitch,height,radius,[angle]) -- Make a helix with a given pitch, height and radius\n"
-            "By default a cylindrical surface is used to create the helix. If the fourth parameter is set\n"
+        add_varargs_method(
+            "makeHelix",
+            &Module::makeHelix,
+            "makeHelix(pitch,height,radius,[angle]) -- Make a helix with a given pitch, height and "
+            "radius\n"
+            "By default a cylindrical surface is used to create the helix. If the fourth parameter "
+            "is set\n"
             "(the apex given in degree) a conical surface is used instead"
         );
-        add_varargs_method("makeLongHelix",&Module::makeLongHelix,
-            "makeLongHelix(pitch,height,radius,[angle],[hand]) -- Make a (multi-edge) helix with a given pitch, height and radius\n"
-            "By default a cylindrical surface is used to create the helix. If the fourth parameter is set\n"
+        add_varargs_method(
+            "makeLongHelix",
+            &Module::makeLongHelix,
+            "makeLongHelix(pitch,height,radius,[angle],[hand]) -- Make a (multi-edge) helix with a "
+            "given pitch, height and radius\n"
+            "By default a cylindrical surface is used to create the helix. If the fourth parameter "
+            "is set\n"
             "(the apex given in degree) a conical surface is used instead."
         );
-        add_varargs_method("makeThread",&Module::makeThread,
-            "makeThread(pitch,depth,height,radius) -- Make a thread with a given pitch, depth, height and radius"
+        add_varargs_method(
+            "makeThread",
+            &Module::makeThread,
+            "makeThread(pitch,depth,height,radius) -- Make a thread with a given pitch, depth, "
+            "height and radius"
         );
-        add_varargs_method("makeRevolution",&Module::makeRevolution,
-            "makeRevolution(Curve or Edge,[vmin,vmax,angle,pnt,dir,shapetype]) -- Make a revolved shape\n"
+        add_varargs_method(
+            "makeRevolution",
+            &Module::makeRevolution,
+            "makeRevolution(Curve or Edge,[vmin,vmax,angle,pnt,dir,shapetype]) -- Make a revolved "
+            "shape\n"
             "by rotating the curve or a portion of it around an axis given by (pnt,dir).\n"
             "By default vmin/vmax=bounds of the curve, angle=360, pnt=Vector(0,0,0),\n"
             "dir=Vector(0,0,1) and shapetype=Part.Solid"
         );
-        add_varargs_method("makeRuledSurface",&Module::makeRuledSurface,
+        add_keyword_method(
+            "makeRuledSurface",
+            &Module::makeRuledSurface,
             "makeRuledSurface(Edge|Wire,Edge|Wire) -- Make a ruled surface\n"
             "Create a ruled surface out of two edges or wires. If wires are used then"
             "these must have the same number of edges."
         );
-        add_varargs_method("makeShellFromWires",&Module::makeShellFromWires,
+        add_keyword_method(
+            "makeShellFromWires",
+            &Module::makeShellFromWires,
             "makeShellFromWires(Wires) -- Make a shell from wires.\n"
             "The wires must have the same number of edges."
         );
-        add_varargs_method("makeTube",&Module::makeTube,
+        add_keyword_method(
+            "makeLoft",
+            &Module::makeLoft,
+            "makeLoft(list of wires,[solid=False,ruled=False,closed=False,maxDegree=5]) -- Create "
+            "a loft shape."
+        );
+        add_varargs_method(
+            "makeTube",
+            &Module::makeTube,
             "makeTube(edge,radius,[continuity,max degree,max segments]) -- Create a tube.\n"
             "continuity is a string which must be 'C0','C1','C2','C3','CN','G1' or 'G1',"
         );
-        add_varargs_method("makeSweepSurface",&Module::makeSweepSurface,
+        add_varargs_method(
+            "makeSweepSurface",
+            &Module::makeSweepSurface,
             "makeSweepSurface(edge(path),edge(profile),[float]) -- Create a profile along a path."
         );
-        add_varargs_method("makeLoft",&Module::makeLoft,
-            "makeLoft(list of wires,[solid=False,ruled=False,closed=False,maxDegree=5]) -- Create a loft shape."
+        add_varargs_method(
+            "makeWireString",
+            &Module::makeWireString,
+            "makeWireString(string,fontdir,fontfile,height,[track]) -- Make list of wires in the "
+            "form of a string's characters."
         );
-        add_varargs_method("makeWireString",&Module::makeWireString,
-            "makeWireString(string,fontdir,fontfile,height,[track]) -- Make list of wires in the form of a string's characters."
-        );
-        add_varargs_method("makeSplitShape",&Module::makeSplitShape,
-            "makeSplitShape(shape, list of shape pairs,[check Interior=True]) -> two lists of shapes.\n"
+        add_varargs_method(
+            "makeSplitShape",
+            &Module::makeSplitShape,
+            "makeSplitShape(shape, list of shape pairs,[check Interior=True]) -> two lists of "
+            "shapes.\n"
             "The following shape pairs are supported:\n"
             "* Wire, Face\n"
             "* Edge, Face\n"
@@ -562,19 +712,32 @@ public:
             "Part.show(r[0][0])\n"
             "Part.show(r[1][0])\n"
         );
-        add_varargs_method("exportUnits",&Module::exportUnits,
-            "exportUnits([string=MM|M|INCH|FT|MI|KM|MIL|UM|CM|UIN]) -- Set units for exporting STEP/IGES files and returns the units."
+        add_varargs_method(
+            "exportUnits",
+            &Module::exportUnits,
+            "exportUnits([string=MM|M|INCH|FT|MI|KM|MIL|UM|CM|UIN]) -- Set units for exporting "
+            "STEP/IGES files and returns the units."
         );
-        add_varargs_method("setStaticValue",&Module::setStaticValue,
-            "setStaticValue(string,string|int|float) -- Set a name to a value The value can be a string, int or float."
+        add_varargs_method(
+            "setStaticValue",
+            &Module::setStaticValue,
+            "setStaticValue(string,string|int|float) -- Set a name to a value The value can be a "
+            "string, int or float."
         );
-        add_varargs_method("cast_to_shape",&Module::cast_to_shape,
+        add_varargs_method(
+            "cast_to_shape",
+            &Module::cast_to_shape,
             "cast_to_shape(shape) -- Cast to the actual shape type"
         );
-        add_varargs_method("getSortedClusters",&Module::getSortedClusters,
-            "getSortedClusters(list of edges) -- Helper method to sort and cluster a variety of edges"
+        add_varargs_method(
+            "getSortedClusters",
+            &Module::getSortedClusters,
+            "getSortedClusters(list of edges) -- Helper method to sort and cluster a variety of "
+            "edges"
         );
-        add_varargs_method("__sortEdges__",&Module::sortEdges,
+        add_varargs_method(
+            "__sortEdges__",
+            &Module::sortEdges,
             "__sortEdges__(list of edges) -- list of edges\n"
             "Helper method to sort an unsorted list of edges so that afterwards\n"
             "the start and end vertex of two consecutive edges are geometrically coincident.\n"
@@ -582,47 +745,70 @@ public:
             "connected edges which means that the output list can be smaller than the input list.\n"
             "The sorted list can be used to create a Wire."
         );
-        add_varargs_method("sortEdges",&Module::sortEdges2,
+        add_varargs_method(
+            "sortEdges",
+            &Module::sortEdges2,
             "sortEdges(list of edges, [tol3d]) -- list of lists of edges\n"
-            "It does basically the same as __sortEdges__ but sorts all input edges and thus returns\n"
+            "It does basically the same as __sortEdges__ but sorts all input edges and thus "
+            "returns\n"
             "a list of lists of edges\n"
             "optional 3D tolerance defaults to Precision::Confusion"
         );
-        add_varargs_method("__toPythonOCC__",&Module::toPythonOCC,
-            "__toPythonOCC__(shape) -- Helper method to convert an internal shape to pythonocc shape"
+        add_varargs_method(
+            "__toPythonOCC__",
+            &Module::toPythonOCC,
+            "__toPythonOCC__(shape) -- Helper method to convert an internal shape to pythonocc "
+            "shape"
         );
-        add_varargs_method("__fromPythonOCC__",&Module::fromPythonOCC,
-            "__fromPythonOCC__(occ) -- Helper method to convert a pythonocc shape to an internal shape"
+        add_varargs_method(
+            "__fromPythonOCC__",
+            &Module::fromPythonOCC,
+            "__fromPythonOCC__(occ) -- Helper method to convert a pythonocc shape to an internal "
+            "shape"
         );
-        add_varargs_method("clearShapeCache",&Module::clearShapeCache,
+        add_varargs_method(
+            "clearShapeCache",
+            &Module::clearShapeCache,
             "clearShapeCache() -- Clears internal shape cache"
         );
-        add_keyword_method("getShape",&Module::getShape,
-            "getShape(obj,subname=None,mat=None,needSubElement=False,transform=True,retType=0):\n"
+        add_keyword_method(
+            "getShape",
+            &Module::getShape,
+            "getShape(obj,subname=None,mat=None,needSubElement=False,transform=True,retType=0,"
+            "noElementMap=False,refine=False):\n"
             "Obtain the TopoShape of a given object with SubName reference\n\n"
             "* obj: the input object\n"
             "* subname: dot separated sub-object reference\n"
             "* mat: the current transformation matrix\n"
-            "* needSubElement: if False, ignore the sub-element (e.g. Face1, Edge1) reference in 'subname'\n"
-            "* transform: if False, then skip obj's transformation. Use this if mat already include obj's\n"
+            "* needSubElement: if False, ignore the sub-element (e.g. Face1, Edge1) reference in "
+            "'subname'\n"
+            "* transform: if False, then skip obj's transformation. Use this if mat already "
+            "include obj's\n"
             "             transformation matrix\n"
             "* retType: 0: return TopoShape,\n"
-            "           1: return (shape,mat,subObj), where subObj is the object referenced in 'subname',\n"
+            "           1: return (shape,mat,subObj), where subObj is the object referenced in "
+            "'subname',\n"
             "              and 'mat' is the accumulated transformation matrix of that sub-object.\n"
             "           2: same as 1, but make sure 'subObj' is resolved if it is a link.\n"
+            "* noElementMap: if True, return a shape without mapped element names. Use this for "
+            "transient geometry where stable element naming is not needed.\n"
             "* refine: refine the returned shape"
         );
-        add_varargs_method("splitSubname",&Module::splitSubname,
+        add_varargs_method(
+            "splitSubname",
+            &Module::splitSubname,
             "splitSubname(subname) -> list(sub,mapped,subElement)\n"
             "Split the given subname into a list\n\n"
             "sub: subname without any sub-element reference\n"
             "mapped: mapped element name, or '' if none\n"
             "subElement: old style element name, or '' if none"
         );
-        add_varargs_method("joinSubname",&Module::joinSubname,
+        add_varargs_method(
+            "joinSubname",
+            &Module::joinSubname,
             "joinSubname(sub,mapped,subElement) -> subname\n"
         );
-        initialize("This is a module working with shapes."); // register with Python
+        initialize("This is a module working with shapes.");  // register with Python
 
         PyModule_AddObject(m_module, "BRepFeat", brepFeat.module().ptr());
         PyModule_AddObject(m_module, "BRepOffsetAPI", brepOffsetApi.module().ptr());
@@ -635,98 +821,54 @@ public:
     }
 
 private:
-    Py::Object invoke_method_keyword( void *method_def,
-            const Py::Tuple &args, const Py::Dict &keywords ) override
+    Py::Object invoke_method_keyword(void* method_def, const Py::Tuple& args, const Py::Dict& keywords) override
     {
-        try {
-            return Py::ExtensionModule<Module>::invoke_method_keyword(method_def, args, keywords);
-        }
-        catch (const Standard_Failure &e) {
-            std::string str;
-            Standard_CString msg = e.GetMessageString();
-            str += typeid(e).name();
-            str += " ";
-            if (msg) {str += msg;}
-            else     {str += "No OCCT Exception Message";}
-            Base::Console().Error("%s\n", str.c_str());
-            throw Py::Exception(Part::PartExceptionOCCError, str);
-        }
-        catch (const Base::Exception &e) {
-            std::string str;
-            str += "FreeCAD exception thrown (";
-            str += e.what();
-            str += ")";
-            e.ReportException();
-            throw Py::RuntimeError(str);
-        }
-        catch (const std::exception &e) {
-            std::string str;
-            str += "C++ exception thrown (";
-            str += e.what();
-            str += ")";
-            Base::Console().Error("%s\n", str.c_str());
-            throw Py::RuntimeError(str);
-        }
+        return Part::pyWrapCppExceptions(
+            [&]() {
+                return Py::ExtensionModule<Module>::invoke_method_keyword(method_def, args, keywords);
+            },
+            Part::PartExceptionOCCError,
+            true
+        );
     }
 
-    Py::Object invoke_method_varargs(void *method_def, const Py::Tuple &args) override
+    Py::Object invoke_method_varargs(void* method_def, const Py::Tuple& args) override
     {
-        try {
-            return Py::ExtensionModule<Module>::invoke_method_varargs(method_def, args);
-        }
-        catch (const Standard_Failure &e) {
-            std::string str;
-            Standard_CString msg = e.GetMessageString();
-            str += typeid(e).name();
-            str += " ";
-            if (msg) {str += msg;}
-            else     {str += "No OCCT Exception Message";}
-            Base::Console().Error("%s\n", str.c_str());
-            throw Py::Exception(Part::PartExceptionOCCError, str);
-        }
-        catch (const Base::Exception &e) {
-            std::string str;
-            str += "FreeCAD exception thrown (";
-            str += e.what();
-            str += ")";
-            e.ReportException();
-            throw Py::RuntimeError(str);
-        }
-        catch (const std::exception &e) {
-            std::string str;
-            str += "C++ exception thrown (";
-            str += e.what();
-            str += ")";
-            Base::Console().Error("%s\n", str.c_str());
-            throw Py::RuntimeError(str);
-        }
+        return Part::pyWrapCppExceptions(
+            [&]() { return Py::ExtensionModule<Module>::invoke_method_varargs(method_def, args); },
+            Part::PartExceptionOCCError,
+            true
+        );
     }
 
     Py::Object open(const Py::Tuple& args)
     {
         char* Name;
-        if (!PyArg_ParseTuple(args.ptr(), "et","utf-8",&Name))
+        if (!PyArg_ParseTuple(args.ptr(), "et", "utf-8", &Name)) {
             throw Py::Exception();
+        }
         std::string EncodedName = std::string(Name);
         PyMem_Free(Name);
 
-        //Base::Console().Log("Open in Part with %s",Name);
         Base::FileInfo file(EncodedName.c_str());
 
         // extract ending
-        if (file.extension().empty())
+        if (file.extension().empty()) {
             throw Py::RuntimeError("No file extension");
+        }
+
+        warnDeprecatedImportMethod("Part.open", "Import.open");
 
         if (file.hasExtension({"stp", "step"})) {
             // create new document and add Import feature
-            App::Document *pcDoc = App::GetApplication().newDocument();
-            ImportStepParts(pcDoc,EncodedName.c_str());
+            App::Document* pcDoc = App::GetApplication().newDocument();
+            ImportStepParts(pcDoc, EncodedName.c_str());
 
             pcDoc->recompute();
         }
         else if (file.hasExtension({"igs", "iges"})) {
-            App::Document *pcDoc = App::GetApplication().newDocument();
-            ImportIgesParts(pcDoc,EncodedName.c_str());
+            App::Document* pcDoc = App::GetApplication().newDocument();
+            ImportIgesParts(pcDoc, EncodedName.c_str());
             pcDoc->recompute();
         }
         else {
@@ -734,9 +876,10 @@ private:
             shape.read(EncodedName.c_str());
 
             // create new document set loaded shape
-            App::Document *pcDoc = App::GetApplication().newDocument(file.fileNamePure().c_str());
-            Part::Feature *object = static_cast<Part::Feature *>(pcDoc->addObject
-                ("Part::Feature",file.fileNamePure().c_str()));
+            App::Document* pcDoc = App::GetApplication().newDocument(file.fileNamePure().c_str());
+            Part::Feature* object = static_cast<Part::Feature*>(
+                pcDoc->addObject("Part::Feature", file.fileNamePure().c_str())
+            );
             object->Shape.setValue(shape);
             pcDoc->recompute();
         }
@@ -747,39 +890,44 @@ private:
     {
         char* Name;
         const char* DocName;
-        if (!PyArg_ParseTuple(args.ptr(), "ets","utf-8",&Name,&DocName))
+        if (!PyArg_ParseTuple(args.ptr(), "ets", "utf-8", &Name, &DocName)) {
             throw Py::Exception();
+        }
 
         std::string EncodedName = std::string(Name);
         PyMem_Free(Name);
 
-        //Base::Console().Log("Insert in Part with %s",Name);
+        // Base::Console().log("Insert in Part with %s",Name);
         Base::FileInfo file(EncodedName.c_str());
 
         // extract ending
-        if (file.extension().empty())
+        if (file.extension().empty()) {
             throw Py::RuntimeError("No file extension");
+        }
 
-        App::Document *pcDoc = App::GetApplication().getDocument(DocName);
+        warnDeprecatedImportMethod("Part.insert", "Import.insert");
+
+        App::Document* pcDoc = App::GetApplication().getDocument(DocName);
         if (!pcDoc) {
             pcDoc = App::GetApplication().newDocument(DocName);
         }
 
         if (file.hasExtension({"stp", "step"})) {
-            ImportStepParts(pcDoc,EncodedName.c_str());
+            ImportStepParts(pcDoc, EncodedName.c_str());
 
             pcDoc->recompute();
         }
         else if (file.hasExtension({"igs", "iges"})) {
-            ImportIgesParts(pcDoc,EncodedName.c_str());
+            ImportIgesParts(pcDoc, EncodedName.c_str());
             pcDoc->recompute();
         }
         else {
             TopoShape shape;
             shape.read(EncodedName.c_str());
 
-            Part::Feature *object = static_cast<Part::Feature *>(pcDoc->addObject
-                ("Part::Feature",file.fileNamePure().c_str()));
+            Part::Feature* object = static_cast<Part::Feature*>(
+                pcDoc->addObject("Part::Feature", file.fileNamePure().c_str())
+            );
             object->Shape.setValue(shape);
             pcDoc->recompute();
         }
@@ -790,8 +938,9 @@ private:
     {
         PyObject* object;
         char* Name;
-        if (!PyArg_ParseTuple(args.ptr(), "Oet",&object,"utf-8",&Name))
+        if (!PyArg_ParseTuple(args.ptr(), "Oet", &object, "utf-8", &Name)) {
             throw Py::Exception();
+        }
 
         std::string EncodedName = std::string(Name);
         PyMem_Free(Name);
@@ -804,15 +953,20 @@ private:
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
             PyObject* item = (*it).ptr();
             if (PyObject_TypeCheck(item, &(App::DocumentObjectPy::Type))) {
-                App::DocumentObject* obj = static_cast<App::DocumentObjectPy*>(item)->getDocumentObjectPtr();
+                App::DocumentObject* obj
+                    = static_cast<App::DocumentObjectPy*>(item)->getDocumentObjectPtr();
                 if (obj->isDerivedFrom<Part::Feature>()) {
                     Part::Feature* part = static_cast<Part::Feature*>(obj);
                     const TopoDS_Shape& shape = part->Shape.getValue();
-                    if (!shape.IsNull())
+                    if (!shape.IsNull()) {
                         builder.Add(comp, shape);
+                    }
                 }
                 else {
-                    Base::Console().Message("'%s' is not a shape, export will be ignored.\n", obj->Label.getValue());
+                    Base::Console().message(
+                        "'%s' is not a shape, export will be ignored.\n",
+                        obj->Label.getValue()
+                    );
                 }
             }
         }
@@ -825,8 +979,9 @@ private:
     Py::Object read(const Py::Tuple& args)
     {
         char* Name;
-        if (!PyArg_ParseTuple(args.ptr(), "et","utf-8",&Name))
+        if (!PyArg_ParseTuple(args.ptr(), "et", "utf-8", &Name)) {
             throw Py::Exception();
+        }
 
         std::string EncodedName = std::string(Name);
         PyMem_Free(Name);
@@ -837,27 +992,43 @@ private:
     }
     Py::Object show(const Py::Tuple& args)
     {
-        PyObject *pcObj = nullptr;
-        const char *name = "Shape";
-        if (!PyArg_ParseTuple(args.ptr(), "O!|s", &(TopoShapePy::Type), &pcObj, &name))
+        PyObject* pcObj = nullptr;
+        const char* name = "Shape";
+        if (!PyArg_ParseTuple(args.ptr(), "O!|s", &(TopoShapePy::Type), &pcObj, &name)) {
             throw Py::Exception();
+        }
 
-        App::Document *pcDoc = App::GetApplication().getActiveDocument();
-        if (!pcDoc)
+        App::Document* pcDoc = App::GetApplication().getActiveDocument();
+        if (!pcDoc) {
             pcDoc = App::GetApplication().newDocument();
-        TopoShapePy* pShape = static_cast<TopoShapePy*>(pcObj);
-        Part::Feature *pcFeature = static_cast<Part::Feature*>(pcDoc->addObject("Part::Feature", name));
+        }
+        TopoShape shape;
+        if (PyObject_TypeCheck(pcObj, &TopoShapePy::Type)) {
+            shape = *static_cast<TopoShapePy*>(pcObj)->getTopoShapePtr();
+        }
+        else if (PyObject_TypeCheck(pcObj, &GeometryPy::Type)) {
+            shape = static_cast<GeometryPy*>(pcObj)->getGeometryPtr()->toShape();
+        }
+        else if (PyObject_TypeCheck(pcObj, &App::DocumentObjectPy::Type)) {
+            auto obj = static_cast<App::DocumentObjectPy*>(pcObj)->getDocumentObjectPtr();
+            shape = Feature::getTopoShape(obj, ShapeOption::ResolveLink | ShapeOption::Transform);
+        }
+        else {
+            throw Py::TypeError("Expects argument of type DocumentObject, Shape, or Geometry");
+        }
+        Part::Feature* pcFeature = pcDoc->addObject<Part::Feature>(name);
         // copy the data
-        pcFeature->Shape.setValue(pShape->getTopoShapePtr()->getShape());
-        pcDoc->recompute();
+        pcFeature->Shape.setValue(shape);
+        pcFeature->purgeTouched();
         return Py::asObject(pcFeature->getPyObject());
     }
     Py::Object getFacets(const Py::Tuple& args)
     {
-        PyObject *shape;
+        PyObject* shape;
         Py::List list;
-        if (!PyArg_ParseTuple(args.ptr(), "O", &shape))
+        if (!PyArg_ParseTuple(args.ptr(), "O", &shape)) {
             throw Py::Exception();
+        }
         auto theShape = static_cast<Part::TopoShapePy*>(shape)->getTopoShapePtr()->getShape();
         for (TopExp_Explorer ex(theShape, TopAbs_FACE); ex.More(); ex.Next()) {
             TopoDS_Face currentFace = TopoDS::Face(ex.Current());
@@ -866,7 +1037,7 @@ private:
             std::vector<Poly_Triangle> facets;
             if (Tools::getTriangulation(currentFace, points, facets)) {
                 for (const auto& it : facets) {
-                    Standard_Integer n1,n2,n3;
+                    Standard_Integer n1, n2, n3;
                     it.Get(n1, n2, n3);
 
                     gp_Pnt p1 = points[n1];
@@ -875,9 +1046,24 @@ private:
 
                     // TODO: verify if tolerance should be hard coded
                     if (!p1.IsEqual(p2, 0.01) && !p2.IsEqual(p3, 0.01) && !p3.IsEqual(p1, 0.01)) {
-                        PyObject *t1 = PyTuple_Pack(3, PyFloat_FromDouble(p1.X()), PyFloat_FromDouble(p1.Y()), PyFloat_FromDouble(p1.Z()));
-                        PyObject *t2 = PyTuple_Pack(3, PyFloat_FromDouble(p2.X()), PyFloat_FromDouble(p2.Y()), PyFloat_FromDouble(p2.Z()));
-                        PyObject *t3 = PyTuple_Pack(3, PyFloat_FromDouble(p3.X()), PyFloat_FromDouble(p3.Y()), PyFloat_FromDouble(p3.Z()));
+                        PyObject* t1 = PyTuple_Pack(
+                            3,
+                            PyFloat_FromDouble(p1.X()),
+                            PyFloat_FromDouble(p1.Y()),
+                            PyFloat_FromDouble(p1.Z())
+                        );
+                        PyObject* t2 = PyTuple_Pack(
+                            3,
+                            PyFloat_FromDouble(p2.X()),
+                            PyFloat_FromDouble(p2.Y()),
+                            PyFloat_FromDouble(p2.Z())
+                        );
+                        PyObject* t3 = PyTuple_Pack(
+                            3,
+                            PyFloat_FromDouble(p3.X()),
+                            PyFloat_FromDouble(p3.Y()),
+                            PyFloat_FromDouble(p3.Z())
+                        );
                         list.append(Py::asObject(PyTuple_Pack(3, t1, t2, t3)));
                     }
                 }
@@ -885,259 +1071,312 @@ private:
         }
         return list;
     }
-    Py::Object makeCompound(const Py::Tuple& args)
+    Py::Object makeCompound(const Py::Tuple& args, const Py::Dict& kwds)
     {
-        PyObject *pcObj;
-        if (!PyArg_ParseTuple(args.ptr(), "O", &pcObj))
-            throw Py::Exception();
-
-        BRep_Builder builder;
-        TopoDS_Compound Comp;
-        builder.MakeCompound(Comp);
-
-        PY_TRY {
-            for(auto &s : getPyShapes(pcObj)) {
-                const auto &sh = s.getShape();
-                if (!sh.IsNull())
-                    builder.Add(Comp, sh);
-            }
-        } _PY_CATCH_OCC(throw Py::Exception())
-        return Py::asObject(new TopoShapeCompoundPy(new TopoShape(Comp)));
-    }
-    Py::Object makeShell(const Py::Tuple& args)
-    {
-        PyObject *obj;
-        if (!PyArg_ParseTuple(args.ptr(), "O", &obj))
-            throw Py::Exception();
-
-        BRep_Builder builder;
-        TopoDS_Shape shape;
-        TopoDS_Shell shell;
-        //BRepOffsetAPI_Sewing mkShell;
-        builder.MakeShell(shell);
-
-        try {
-            Py::Sequence list(obj);
-            for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
-                if (PyObject_TypeCheck((*it).ptr(), &(Part::TopoShapeFacePy::Type))) {
-                    const TopoDS_Shape& sh = static_cast<TopoShapeFacePy*>((*it).ptr())->
-                        getTopoShapePtr()->getShape();
-                    if (!sh.IsNull())
-                        builder.Add(shell, sh);
-                }
-            }
-
-            shape = shell;
-            BRepCheck_Analyzer check(shell);
-            if (!check.IsValid()) {
-                ShapeUpgrade_ShellSewing sewShell;
-                shape = sewShell.ApplySewing(shell);
-            }
-        }
-        catch (Standard_Failure& e) {
-            throw Py::Exception(PartExceptionOCCError, e.GetMessageString());
-        }
-
-        return Py::asObject(new TopoShapeShellPy(new TopoShape(shape)));
-    }
-    Py::Object makeFace(const Py::Tuple& args)
-    {
-        try {
-            char* className = nullptr;
-            PyObject* pcPyShapeOrList = nullptr;
-            PyErr_Clear();
-            if (PyArg_ParseTuple(args.ptr(), "Os", &pcPyShapeOrList, &className)) {
-                std::unique_ptr<FaceMaker> fm = Part::FaceMaker::ConstructFromType(className);
-
-                //dump all supplied shapes to facemaker, no matter what type (let facemaker decide).
-                if (PySequence_Check(pcPyShapeOrList)){
-                    Py::Sequence list(pcPyShapeOrList);
-                    for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
-                        PyObject* item = (*it).ptr();
-                        if (PyObject_TypeCheck(item, &(Part::TopoShapePy::Type))) {
-                            const TopoDS_Shape& sh = static_cast<Part::TopoShapePy*>(item)->getTopoShapePtr()->getShape();
-                            fm->addShape(sh);
-                        } else {
-                            throw Py::TypeError("Object is not a shape.");
-                        }
-                    }
-                } else if (PyObject_TypeCheck(pcPyShapeOrList, &(Part::TopoShapePy::Type))) {
-                    const TopoDS_Shape& sh = static_cast<Part::TopoShapePy*>(pcPyShapeOrList)->getTopoShapePtr()->getShape();
-                    if (sh.IsNull())
-                        throw NullShapeException("Shape is null!");
-                    if (sh.ShapeType() == TopAbs_COMPOUND)
-                        fm->useCompound(TopoDS::Compound(sh));
-                    else
-                        fm->addShape(sh);
-                } else {
-                    throw Py::Exception(PyExc_TypeError, "First argument is neither a shape nor list of shapes.");
-                }
-
-                fm->Build();
-
-                TopoShape topo(fm->Shape());
-                return Py::asObject(topo.getPyObject());
-            }
-
-            throw Py::TypeError(std::string("Argument type signature not recognized. Should be either (list, string), or (shape, string)"));
-
-        } catch (Standard_Failure& e) {
-            throw Py::Exception(PartExceptionOCCError, e.GetMessageString());
-        } catch (Base::Exception &e){
-            e.setPyException();
+        PyObject* pcObj;
+        PyObject* force = Py_True;
+        TopoShape::SingleShapeCompoundCreationPolicy
+            policy;  // = TopoShape::SingleShapeCompoundCreationPolicy::forceCompound;
+        PyObject* module = PyImport_ImportModule("PartEnums");
+        PyObject* policyEnum
+            = PyObject_GetAttrString(module, (char*)"SingleShapeCompoundCreationPolicy");
+        const char* op = nullptr;
+        const std::array<const char*, 4> kwd_list = {"shapes", "force", "op", nullptr};
+        if (!Base::Wrapped_ParseTupleAndKeywords(
+                args.ptr(),
+                kwds.ptr(),
+                "O|O!s",
+                kwd_list,
+                &pcObj,
+                policyEnum,
+                &force,
+                &op
+            )) {
             throw Py::Exception();
         }
+
+        policy = static_cast<TopoShape::SingleShapeCompoundCreationPolicy>(PyLong_AsLong(force));
+        Py_DECREF(policyEnum);
+
+        return shape2pyshape(Part::TopoShape().makeElementCompound(getPyShapes(pcObj), op, policy));
     }
-    Py::Object makeFilledSurface(const Py::Tuple &args)
+    Py::Object makeShell(const Py::Tuple& args, const Py::Dict& kwds)
     {
-        PyObject *obj;
-        double tolerance;
-        if (!PyArg_ParseTuple(args.ptr(), "Od", &obj, &tolerance))
+        PyObject* obj;
+        const char* op = nullptr;
+        const std::array<const char*, 3> kwd_list = {"shapes", "op", nullptr};
+        if (!Base::Wrapped_ParseTupleAndKeywords(args.ptr(), kwds.ptr(), "O|s", kwd_list, &obj, &op)) {
             throw Py::Exception();
-
-        try {
-            GeomFill_Generator generator;
-            Py::Sequence list(obj);
-            for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
-                if (PyObject_TypeCheck((*it).ptr(), &(Part::GeometryCurvePy::Type))) {
-                    Handle(Geom_Curve) hCurve = Handle(Geom_Curve)::DownCast(static_cast<Part::GeometryCurvePy*>((*it).ptr())->getGeomCurvePtr()->handle());
-                    if (!hCurve.IsNull()) {
-                        generator.AddCurve(hCurve);
-                    }
-                }
-            }
-
-            generator.Perform(tolerance);
-            Handle(Geom_Surface) hSurface = generator.Surface();
-            if (!hSurface.IsNull()) {
-                return Py::asObject(makeFromSurface(hSurface)->getPyObject());
-            }
-            else {
-                throw Py::Exception(PartExceptionOCCError, "Failed to created surface by filling curves");
-            }
         }
-        catch (Standard_Failure& e) {
-            throw Py::Exception(PartExceptionOCCError, e.GetMessageString());
-        }
+        return shape2pyshape(
+            Part::TopoShape().makeElementBoolean(Part::OpCodes::Shell, getPyShapes(obj), op)
+        );
     }
-    Py::Object makeFilledFace(const Py::Tuple& args)
+    Py::Object makeFace(const Py::Tuple& args, const Py::Dict& kwds)
     {
-        // TODO: BRepFeat_SplitShape
-        PyObject *obj;
-        PyObject *surf=nullptr;
-        if (!PyArg_ParseTuple(args.ptr(), "O|O!", &obj, &TopoShapeFacePy::Type, &surf))
+        PyObject* obj;
+        const char* className = nullptr;
+        const char* op = nullptr;
+        PyObject* noElementMap = Py_False;
+        const std::array<const char*, 5> kwd_list
+            = {"shapes", "class_name", "op", "noElementMap", nullptr};
+        if (!Base::Wrapped_ParseTupleAndKeywords(
+                args.ptr(),
+                kwds.ptr(),
+                "O|ss$O!",
+                kwd_list,
+                &obj,
+                &className,
+                &op,
+                &PyBool_Type,
+                &noElementMap
+            )) {
             throw Py::Exception();
-
-        // See also BRepOffsetAPI_MakeFilling
-        BRepFill_Filling builder;
-        try {
-            if (surf) {
-                const TopoDS_Shape& face = static_cast<TopoShapeFacePy*>(surf)->
-                    getTopoShapePtr()->getShape();
-                if (!face.IsNull() && face.ShapeType() == TopAbs_FACE) {
-                    builder.LoadInitSurface(TopoDS::Face(face));
-                }
-            }
-            Py::Sequence list(obj);
-            int numConstraints = 0;
-            for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
-                if (PyObject_TypeCheck((*it).ptr(), &(Part::TopoShapePy::Type))) {
-                    const TopoDS_Shape& sh = static_cast<TopoShapePy*>((*it).ptr())->
-                        getTopoShapePtr()->getShape();
-                    if (!sh.IsNull()) {
-                        if (sh.ShapeType() == TopAbs_EDGE) {
-                            builder.Add(TopoDS::Edge(sh), GeomAbs_C0);
-                            numConstraints++;
-                        }
-                        else if (sh.ShapeType() == TopAbs_FACE) {
-                            builder.Add(TopoDS::Face(sh), GeomAbs_C0);
-                            numConstraints++;
-                        }
-                        else if (sh.ShapeType() == TopAbs_VERTEX) {
-                            const TopoDS_Vertex& v = TopoDS::Vertex(sh);
-                            gp_Pnt pnt = BRep_Tool::Pnt(v);
-                            builder.Add(pnt);
-                            numConstraints++;
-                        }
-                    }
-                }
-            }
-
-            if (numConstraints == 0) {
-                throw Py::Exception(PartExceptionOCCError, "Failed to create face with no constraints");
-            }
-
-            builder.Build();
-            if (builder.IsDone()) {
-                return Py::asObject(new TopoShapeFacePy(new TopoShape(builder.Face())));
-            }
-            else {
-                throw Py::Exception(PartExceptionOCCError, "Failed to created face by filling edges");
-            }
         }
-        catch (Standard_Failure& e) {
-            throw Py::Exception(PartExceptionOCCError, e.GetMessageString());
-        }
+        auto elementMapPolicy = Base::asBoolean(noElementMap) ? ElementMapPolicy::Drop
+                                                              : ElementMapPolicy::Propagate;
+        return shape2pyshape(
+            TopoShape().makeElementFace(getPyShapes(obj), op, className, nullptr, elementMapPolicy)
+        );
     }
-    Py::Object makeSolid(const Py::Tuple& args)
+
+    template<class F>
+    void parseSequence(PyObject* pyObj, const char* err, F f)
     {
-        PyObject *obj;
-        if (!PyArg_ParseTuple(args.ptr(), "O!", &(TopoShapePy::Type), &obj))
-            throw Py::Exception();
-
-        try {
-            const TopoDS_Shape& shape = static_cast<TopoShapePy*>(obj)
-                ->getTopoShapePtr()->getShape();
-            //first, if we were given a compsolid, try making a solid out of it
-            TopExp_Explorer CSExp (shape, TopAbs_COMPSOLID);
-            TopoDS_CompSolid compsolid;
-            int count=0;
-            for (; CSExp.More(); CSExp.Next()) {
-                ++count;
-                compsolid = TopoDS::CompSolid(CSExp.Current());
-                if (count > 1)
-                    break;
+        if (pyObj != Py_None) {
+            if (!PySequence_Check(pyObj)) {
+                throw Py::TypeError(err);
             }
-            if (count == 0) {
-                //no compsolids. Get shells...
-                BRepBuilderAPI_MakeSolid mkSolid;
-                TopExp_Explorer anExp (shape, TopAbs_SHELL);
-                count=0;
-                for (; anExp.More(); anExp.Next()) {
-                    ++count;
-                    mkSolid.Add(TopoDS::Shell(anExp.Current()));
+            Py::Sequence seq(pyObj);
+            for (Py::Sequence::iterator it = seq.begin(); it != seq.end(); ++it) {
+                if (!PySequence_Check((*it).ptr())) {
+                    throw Py::TypeError(err);
                 }
-
-                if (count == 0)//no shells?
-                    Standard_Failure::Raise("No shells or compsolids found in shape");
-
-                TopoDS_Solid solid = mkSolid.Solid();
-                BRepLib::OrientClosedSolid(solid);
-                return Py::asObject(new TopoShapeSolidPy(new TopoShape(solid)));
-            } else if (count == 1) {
-                BRepBuilderAPI_MakeSolid mkSolid(compsolid);
-                TopoDS_Solid solid = mkSolid.Solid();
-                return Py::asObject(new TopoShapeSolidPy(new TopoShape(solid)));
-            } else { // if (count > 1)
-                Standard_Failure::Raise("Only one compsolid can be accepted. Provided shape has more than one compsolid.");
-                return Py::None(); //prevents compiler warning
+                Py::Sequence tuple((*it).ptr());
+                if (tuple.size() != 2) {
+                    throw Py::TypeError(err);
+                }
+                auto iter = tuple.begin();
+                if (!PyObject_TypeCheck((*iter).ptr(), &(Part::TopoShapePy::Type))) {
+                    throw Py::TypeError(err);
+                }
+                const TopoDS_Shape& sh
+                    = static_cast<TopoShapePy*>((*iter).ptr())->getTopoShapePtr()->getShape();
+                f(sh, (*iter).ptr(), err);
             }
-        }
-        catch (Standard_Failure& err) {
-            std::stringstream errmsg;
-            errmsg << "Creation of solid failed: " << err.GetMessageString();
-            throw Py::Exception(PartExceptionOCCError, errmsg.str().c_str());
         }
     }
+
+
+    Py::Object makeFilledSurface(const Py::Tuple& args, const Py::Dict& kwds)
+    {
+        TopoShape::BRepFillingParams params;
+        PyObject* obj = nullptr;
+        PyObject* pySurface = Py_None;
+        PyObject* supports = Py_None;
+        PyObject* orders = Py_None;
+        PyObject* anisotropy = params.anisotropy ? Py_True : Py_False;
+        const char* op = nullptr;
+        const std::array<const char*, 16> kwd_list = {
+            "shapes",
+            "surface",
+            "supports",
+            "orders",
+            "degree",
+            "ptsOnCurve",
+            "numIter",
+            "anisotropy",
+            "tol2d",
+            "tol3d",
+            "tolG1",
+            "tolG2",
+            "maxDegree",
+            "maxSegments",
+            "op",
+            nullptr
+        };
+        if (!Base::Wrapped_ParseTupleAndKeywords(
+                args.ptr(),
+                kwds.ptr(),
+                "O|O!OOIIIOddddIIs",
+                kwd_list,
+                &obj,
+                &pySurface,
+                &orders,
+                &params.degree,
+                &params.ptsoncurve,
+                &params.numiter,
+                &anisotropy,
+                &params.tol2d,
+                &params.tol3d,
+                &params.tolG1,
+                &params.tolG2,
+                &params.maxdeg,
+                &params.maxseg,
+                &op
+            )) {
+            throw Py::Exception();
+        }
+        params.anisotropy = PyObject_IsTrue(anisotropy);
+        TopoShape surface;
+        if (pySurface != Py_None) {
+            surface = *static_cast<TopoShapePy*>(pySurface)->getTopoShapePtr();
+        }
+        parseSequence(
+            supports,
+            "Expects 'supports' to be a sequence of tuple(shape, shape)",
+            [&](const TopoDS_Shape& s, PyObject* value, const char* err) {
+                if (!PyObject_TypeCheck(value, &(Part::TopoShapePy::Type))) {
+                    throw Py::TypeError(err);
+                }
+                params.supports[s] = static_cast<TopoShapePy*>(value)->getTopoShapePtr()->getShape();
+            }
+        );
+        parseSequence(
+            orders,
+            "Expects 'orders' to be a sequence of tuple(shape, PartEnums.Shape)",
+            [&](const TopoDS_Shape& s, PyObject* value, const char* err) {
+                if (!PyLong_Check(value)) {
+                    throw Py::ValueError(err);
+                }
+                int order = Py::Long(value);
+                params.orders[s] = static_cast<TopoShape::Continuity>(order);
+                return;
+            }
+        );
+        auto shapes = getPyShapes(obj);
+        if (shapes.empty()) {
+            throw Py::ValueError("No input shape");
+        }
+        return shape2pyshape(
+            TopoShape(0, shapes.front().Hasher).makeElementFilledFace(shapes, params, op)
+        );
+    }
+
+    Py::Object makeFilledFace(const Py::Tuple& args, const Py::Dict& kwds)
+    {
+        TopoShape::BRepFillingParams params;
+        PyObject* obj = nullptr;
+        PyObject* pySurface = Py_None;
+        PyObject* supports = Py_None;
+        PyObject* orders = Py_None;
+        PyObject* anisotropy = params.anisotropy ? Py_True : Py_False;
+        const char* op = nullptr;
+        const std::array<const char*, 16> kwd_list = {
+            "shapes",
+            "surface",
+            "supports",
+            "orders",
+            "degree",
+            "ptsOnCurve",
+            "numIter",
+            "anisotropy",
+            "tol2d",
+            "tol3d",
+            "tolG1",
+            "tolG2",
+            "maxDegree",
+            "maxSegments",
+            "op",
+            nullptr
+        };
+        if (!Base::Wrapped_ParseTupleAndKeywords(
+                args.ptr(),
+                kwds.ptr(),
+                "O|O!OOIIIOddddIIs",
+                kwd_list,
+                &obj,
+                &pySurface,
+                &orders,
+                &params.degree,
+                &params.ptsoncurve,
+                &params.numiter,
+                &anisotropy,
+                &params.tol2d,
+                &params.tol3d,
+                &params.tolG1,
+                &params.tolG2,
+                &params.maxdeg,
+                &params.maxseg,
+                &op
+            )) {
+            throw Py::Exception();
+        }
+        params.anisotropy = PyObject_IsTrue(anisotropy);
+        TopoShape surface;
+        if (pySurface != Py_None) {
+            surface = *static_cast<TopoShapePy*>(pySurface)->getTopoShapePtr();
+        }
+        parseSequence(
+            supports,
+            "Expects 'supports' to be a sequence of tuple(shape, shape)",
+            [&](const TopoDS_Shape& s, PyObject* value, const char* err) {
+                if (!PyObject_TypeCheck(value, &(Part::TopoShapePy::Type))) {
+                    throw Py::TypeError(err);
+                }
+                params.supports[s] = static_cast<TopoShapePy*>(value)->getTopoShapePtr()->getShape();
+            }
+        );
+        parseSequence(
+            orders,
+            "Expects 'orders' to be a sequence of tuple(shape, PartEnums.Shape)",
+            [&](const TopoDS_Shape& s, PyObject* value, const char* err) {
+                if (!PyLong_Check(value)) {
+                    throw Py::ValueError(err);
+                }
+                int order = Py::Long(value);
+                params.orders[s] = static_cast<TopoShape::Continuity>(order);
+                return;
+            }
+        );
+        auto shapes = getPyShapes(obj);
+        if (shapes.empty()) {
+            throw Py::ValueError("No input shape");
+        }
+        return shape2pyshape(
+            TopoShape(0, shapes.front().Hasher).makeElementFilledFace(shapes, params, op)
+        );
+    }
+
+    Py::Object makeSolid(const Py::Tuple& args, const Py::Dict& kwds)
+    {
+        PyObject* obj;
+        const char* op = nullptr;
+        const std::array<const char*, 3> kwd_list = {"shape", "op", nullptr};
+        if (!Base::Wrapped_ParseTupleAndKeywords(
+                args.ptr(),
+                kwds.ptr(),
+                "O!|s",
+                kwd_list,
+                &(TopoShapePy::Type),
+                &obj,
+                &op
+            )) {
+            throw Py::Exception();
+        }
+        return shape2pyshape(
+            TopoShape().makeElementSolid(*static_cast<TopoShapePy*>(obj)->getTopoShapePtr(), op)
+        );
+    }
+
     Py::Object makePlane(const Py::Tuple& args)
     {
         double length, width;
-        PyObject *pPnt=nullptr, *pDirZ=nullptr, *pDirX=nullptr;
-        if (!PyArg_ParseTuple(args.ptr(), "dd|O!O!O!", &length, &width,
-                                                 &(Base::VectorPy::Type), &pPnt,
-                                                 &(Base::VectorPy::Type), &pDirZ,
-                                                 &(Base::VectorPy::Type), &pDirX))
+        PyObject *pPnt = nullptr, *pDirZ = nullptr, *pDirX = nullptr;
+        if (!PyArg_ParseTuple(
+                args.ptr(),
+                "dd|O!O!O!",
+                &length,
+                &width,
+                &(Base::VectorPy::Type),
+                &pPnt,
+                &(Base::VectorPy::Type),
+                &pDirZ,
+                &(Base::VectorPy::Type),
+                &pDirX
+            )) {
             throw Py::Exception();
+        }
 
         if (length < Precision::Confusion()) {
             throw Py::ValueError("length of plane too small");
@@ -1147,8 +1386,8 @@ private:
         }
 
         try {
-            gp_Pnt p(0,0,0);
-            gp_Dir d(0,0,1);
+            gp_Pnt p(0, 0, 0);
+            gp_Dir d(0, 0, 1);
             if (pPnt) {
                 Base::Vector3d pnt = static_cast<Base::VectorPy*>(pPnt)->value();
                 p.SetCoord(pnt.x, pnt.y, pnt.z);
@@ -1168,7 +1407,7 @@ private:
                 aPlane = new Geom_Plane(p, d);
             }
 
-            BRepBuilderAPI_MakeFace Face(aPlane, 0.0, length, 0.0, width, Precision::Confusion() );
+            BRepBuilderAPI_MakeFace Face(aPlane, 0.0, length, 0.0, width, Precision::Confusion());
             return Py::asObject(new TopoShapeFacePy(new TopoShape((Face.Face()))));
         }
         catch (Standard_DomainError&) {
@@ -1181,12 +1420,20 @@ private:
     Py::Object makeBox(const Py::Tuple& args)
     {
         double length, width, height;
-        PyObject *pPnt=nullptr, *pDir=nullptr;
-        if (!PyArg_ParseTuple(args.ptr(), "ddd|O!O!",
-            &length, &width, &height,
-            &(Base::VectorPy::Type), &pPnt,
-            &(Base::VectorPy::Type), &pDir))
+        PyObject *pPnt = nullptr, *pDir = nullptr;
+        if (!PyArg_ParseTuple(
+                args.ptr(),
+                "ddd|O!O!",
+                &length,
+                &width,
+                &height,
+                &(Base::VectorPy::Type),
+                &pPnt,
+                &(Base::VectorPy::Type),
+                &pDir
+            )) {
             throw Py::Exception();
+        }
 
         if (length < Precision::Confusion()) {
             throw Py::ValueError("length of box too small");
@@ -1199,8 +1446,8 @@ private:
         }
 
         try {
-            gp_Pnt p(0,0,0);
-            gp_Dir d(0,0,1);
+            gp_Pnt p(0, 0, 0);
+            gp_Dir d(0, 0, 1);
             if (pPnt) {
                 Base::Vector3d pnt = static_cast<Base::VectorPy*>(pPnt)->value();
                 p.SetCoord(pnt.x, pnt.y, pnt.z);
@@ -1209,7 +1456,7 @@ private:
                 Base::Vector3d vec = static_cast<Base::VectorPy*>(pDir)->value();
                 d.SetCoord(vec.x, vec.y, vec.z);
             }
-            BRepPrimAPI_MakeBox mkBox(gp_Ax2(p,d), length, width, height);
+            BRepPrimAPI_MakeBox mkBox(gp_Ax2(p, d), length, width, height);
             TopoDS_Shape ResultShape = mkBox.Shape();
             return Py::asObject(new TopoShapeSolidPy(new TopoShape(ResultShape)));
         }
@@ -1220,17 +1467,33 @@ private:
     Py::Object makeWedge(const Py::Tuple& args)
     {
         double xmin, ymin, zmin, z2min, x2min, xmax, ymax, zmax, z2max, x2max;
-        PyObject *pPnt=nullptr, *pDir=nullptr;
-        if (!PyArg_ParseTuple(args.ptr(), "dddddddddd|O!O!",
-            &xmin, &ymin, &zmin, &z2min, &x2min, &xmax, &ymax, &zmax, &z2max, &x2max,
-            &(Base::VectorPy::Type), &pPnt, &(Base::VectorPy::Type), &pDir))
+        PyObject *pPnt = nullptr, *pDir = nullptr;
+        if (!PyArg_ParseTuple(
+                args.ptr(),
+                "dddddddddd|O!O!",
+                &xmin,
+                &ymin,
+                &zmin,
+                &z2min,
+                &x2min,
+                &xmax,
+                &ymax,
+                &zmax,
+                &z2max,
+                &x2max,
+                &(Base::VectorPy::Type),
+                &pPnt,
+                &(Base::VectorPy::Type),
+                &pDir
+            )) {
             throw Py::Exception();
+        }
 
-        double dx = xmax-xmin;
-        double dy = ymax-ymin;
-        double dz = zmax-zmin;
-        double dz2 = z2max-z2min;
-        double dx2 = x2max-x2min;
+        double dx = xmax - xmin;
+        double dy = ymax - ymin;
+        double dz = zmax - zmin;
+        double dz2 = z2max - z2min;
+        double dx2 = x2max - x2min;
         if (dx < Precision::Confusion()) {
             throw Py::ValueError("delta x of wedge too small");
         }
@@ -1248,8 +1511,8 @@ private:
         }
 
         try {
-            gp_Pnt p(0,0,0);
-            gp_Dir d(0,0,1);
+            gp_Pnt p(0, 0, 0);
+            gp_Dir d(0, 0, 1);
             if (pPnt) {
                 Base::Vector3d pnt = static_cast<Base::VectorPy*>(pPnt)->value();
                 p.SetCoord(pnt.x, pnt.y, pnt.z);
@@ -1258,7 +1521,8 @@ private:
                 Base::Vector3d vec = static_cast<Base::VectorPy*>(pDir)->value();
                 d.SetCoord(vec.x, vec.y, vec.z);
             }
-            BRepPrim_Wedge mkWedge(gp_Ax2(p,d), xmin, ymin, zmin, z2min, x2min, xmax, ymax, zmax, z2max, x2max);
+            BRepPrim_Wedge
+                mkWedge(gp_Ax2(p, d), xmin, ymin, zmin, z2min, x2min, xmax, ymax, zmax, z2max, x2max);
             BRepBuilderAPI_MakeSolid mkSolid;
             mkSolid.Add(mkWedge.Shell());
             return Py::asObject(new TopoShapeSolidPy(new TopoShape(mkSolid.Solid())));
@@ -1270,8 +1534,9 @@ private:
     Py::Object makeLine(const Py::Tuple& args)
     {
         PyObject *obj1, *obj2;
-        if (!PyArg_ParseTuple(args.ptr(), "OO", &obj1, &obj2))
+        if (!PyArg_ParseTuple(args.ptr(), "OO", &obj1, &obj2)) {
             throw Py::Exception();
+        }
 
         Base::Vector3d pnt1, pnt2;
         if (PyObject_TypeCheck(obj1, &(Base::VectorPy::Type))) {
@@ -1294,32 +1559,30 @@ private:
         }
 
         // Create directly the underlying line geometry
-        BRepBuilderAPI_MakeEdge makeEdge(gp_Pnt(pnt1.x, pnt1.y, pnt1.z),
-                                         gp_Pnt(pnt2.x, pnt2.y, pnt2.z));
+        BRepBuilderAPI_MakeEdge makeEdge(gp_Pnt(pnt1.x, pnt1.y, pnt1.z), gp_Pnt(pnt2.x, pnt2.y, pnt2.z));
 
-        const char *error=nullptr;
-        switch (makeEdge.Error())
-        {
-        case BRepBuilderAPI_EdgeDone:
-            break; // ok
-        case BRepBuilderAPI_PointProjectionFailed:
-            error = "Point projection failed";
-            break;
-        case BRepBuilderAPI_ParameterOutOfRange:
-            error = "Parameter out of range";
-            break;
-        case BRepBuilderAPI_DifferentPointsOnClosedCurve:
-            error = "Different points on closed curve";
-            break;
-        case BRepBuilderAPI_PointWithInfiniteParameter:
-            error = "Point with infinite parameter";
-            break;
-        case BRepBuilderAPI_DifferentsPointAndParameter:
-            error = "Different point and parameter";
-            break;
-        case BRepBuilderAPI_LineThroughIdenticPoints:
-            error = "Line through identical points";
-            break;
+        const char* error = nullptr;
+        switch (makeEdge.Error()) {
+            case BRepBuilderAPI_EdgeDone:
+                break;  // ok
+            case BRepBuilderAPI_PointProjectionFailed:
+                error = "Point projection failed";
+                break;
+            case BRepBuilderAPI_ParameterOutOfRange:
+                error = "Parameter out of range";
+                break;
+            case BRepBuilderAPI_DifferentPointsOnClosedCurve:
+                error = "Different points on closed curve";
+                break;
+            case BRepBuilderAPI_PointWithInfiniteParameter:
+                error = "Point with infinite parameter";
+                break;
+            case BRepBuilderAPI_DifferentsPointAndParameter:
+                error = "Different point and parameter";
+                break;
+            case BRepBuilderAPI_LineThroughIdenticPoints:
+                error = "Line through identical points";
+                break;
         }
         // Error
         if (error) {
@@ -1331,10 +1594,11 @@ private:
     }
     Py::Object makePolygon(const Py::Tuple& args)
     {
-        PyObject *pcObj;
-        PyObject *pclosed=Py_False;
-        if (!PyArg_ParseTuple(args.ptr(), "O|O!", &pcObj, &(PyBool_Type), &pclosed))
+        PyObject* pcObj;
+        PyObject* pclosed = Py_False;
+        if (!PyArg_ParseTuple(args.ptr(), "O|O!", &pcObj, &(PyBool_Type), &pclosed)) {
             throw Py::Exception();
+        }
 
         BRepBuilderAPI_MakePolygon mkPoly;
         try {
@@ -1342,16 +1606,19 @@ private:
             for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
                 if (PyObject_TypeCheck((*it).ptr(), &(Base::VectorPy::Type))) {
                     Base::Vector3d v = static_cast<Base::VectorPy*>((*it).ptr())->value();
-                    mkPoly.Add(gp_Pnt(v.x,v.y,v.z));
+                    mkPoly.Add(gp_Pnt(v.x, v.y, v.z));
                 }
                 else if (PyObject_TypeCheck((*it).ptr(), &PyTuple_Type)) {
                     Base::Vector3d v = Base::getVectorFromTuple<double>((*it).ptr());
-                    mkPoly.Add(gp_Pnt(v.x,v.y,v.z));
+                    mkPoly.Add(gp_Pnt(v.x, v.y, v.z));
                 }
             }
 
-            if (!mkPoly.IsDone())
-                Standard_Failure::Raise("Cannot create polygon because less than two vertices are given");
+            if (!mkPoly.IsDone()) {
+                throw Standard_Failure(
+                    "Cannot create polygon because less than two vertices are given"
+                );
+            }
 
             // if the polygon should be closed
             if (Base::asBoolean(pclosed)) {
@@ -1368,18 +1635,25 @@ private:
     }
     Py::Object makeCircle(const Py::Tuple& args)
     {
-        double radius, angle1=0.0, angle2=360;
-        PyObject *pPnt=nullptr, *pDir=nullptr;
-        if (!PyArg_ParseTuple(args.ptr(), "d|O!O!dd",
-            &radius,
-            &(Base::VectorPy::Type), &pPnt,
-            &(Base::VectorPy::Type), &pDir,
-            &angle1, &angle2))
+        double radius, angle1 = 0.0, angle2 = 360;
+        PyObject *pPnt = nullptr, *pDir = nullptr;
+        if (!PyArg_ParseTuple(
+                args.ptr(),
+                "d|O!O!dd",
+                &radius,
+                &(Base::VectorPy::Type),
+                &pPnt,
+                &(Base::VectorPy::Type),
+                &pDir,
+                &angle1,
+                &angle2
+            )) {
             throw Py::Exception();
+        }
 
         try {
-            gp_Pnt loc(0,0,0);
-            gp_Dir dir(0,0,1);
+            gp_Pnt loc(0, 0, 0);
+            gp_Dir dir(0, 0, 1);
             if (pPnt) {
                 Base::Vector3d pnt = static_cast<Base::VectorPy*>(pPnt)->value();
                 loc.SetCoord(pnt.x, pnt.y, pnt.z);
@@ -1393,8 +1667,12 @@ private:
             circle.SetAxis(axis);
             circle.SetRadius(radius);
 
-            Handle(Geom_Circle) hCircle = new Geom_Circle (circle);
-            BRepBuilderAPI_MakeEdge aMakeEdge(hCircle, angle1*(M_PI/180), angle2*(M_PI/180));
+            Handle(Geom_Circle) hCircle = new Geom_Circle(circle);
+            BRepBuilderAPI_MakeEdge aMakeEdge(
+                hCircle,
+                Base::toRadians<double>(angle1),
+                Base::toRadians<double>(angle2)
+            );
             TopoDS_Edge edge = aMakeEdge.Edge();
             return Py::asObject(new TopoShapeEdgePy(new TopoShape(edge)));
         }
@@ -1404,18 +1682,26 @@ private:
     }
     Py::Object makeSphere(const Py::Tuple& args)
     {
-        double radius, angle1=-90, angle2=90, angle3=360;
-        PyObject *pPnt=nullptr, *pDir=nullptr;
-        if (!PyArg_ParseTuple(args.ptr(), "d|O!O!ddd",
-            &radius,
-            &(Base::VectorPy::Type), &pPnt,
-            &(Base::VectorPy::Type), &pDir,
-            &angle1, &angle2, &angle3))
+        double radius, angle1 = -90, angle2 = 90, angle3 = 360;
+        PyObject *pPnt = nullptr, *pDir = nullptr;
+        if (!PyArg_ParseTuple(
+                args.ptr(),
+                "d|O!O!ddd",
+                &radius,
+                &(Base::VectorPy::Type),
+                &pPnt,
+                &(Base::VectorPy::Type),
+                &pDir,
+                &angle1,
+                &angle2,
+                &angle3
+            )) {
             throw Py::Exception();
+        }
 
         try {
-            gp_Pnt p(0,0,0);
-            gp_Dir d(0,0,1);
+            gp_Pnt p(0, 0, 0);
+            gp_Dir d(0, 0, 1);
             if (pPnt) {
                 Base::Vector3d pnt = static_cast<Base::VectorPy*>(pPnt)->value();
                 p.SetCoord(pnt.x, pnt.y, pnt.z);
@@ -1424,7 +1710,13 @@ private:
                 Base::Vector3d vec = static_cast<Base::VectorPy*>(pDir)->value();
                 d.SetCoord(vec.x, vec.y, vec.z);
             }
-            BRepPrimAPI_MakeSphere mkSphere(gp_Ax2(p,d), radius, angle1*(M_PI/180), angle2*(M_PI/180), angle3*(M_PI/180));
+            BRepPrimAPI_MakeSphere mkSphere(
+                gp_Ax2(p, d),
+                radius,
+                Base::toRadians<double>(angle1),
+                Base::toRadians<double>(angle2),
+                Base::toRadians<double>(angle3)
+            );
             TopoDS_Shape shape = mkSphere.Shape();
             return Py::asObject(new TopoShapeSolidPy(new TopoShape(shape)));
         }
@@ -1434,18 +1726,25 @@ private:
     }
     Py::Object makeCylinder(const Py::Tuple& args)
     {
-        double radius, height, angle=360;
-        PyObject *pPnt=nullptr, *pDir=nullptr;
-        if (!PyArg_ParseTuple(args.ptr(), "dd|O!O!d",
-            &radius, &height,
-            &(Base::VectorPy::Type), &pPnt,
-            &(Base::VectorPy::Type), &pDir,
-            &angle))
+        double radius, height, angle = 360;
+        PyObject *pPnt = nullptr, *pDir = nullptr;
+        if (!PyArg_ParseTuple(
+                args.ptr(),
+                "dd|O!O!d",
+                &radius,
+                &height,
+                &(Base::VectorPy::Type),
+                &pPnt,
+                &(Base::VectorPy::Type),
+                &pDir,
+                &angle
+            )) {
             throw Py::Exception();
+        }
 
         try {
-            gp_Pnt p(0,0,0);
-            gp_Dir d(0,0,1);
+            gp_Pnt p(0, 0, 0);
+            gp_Dir d(0, 0, 1);
             if (pPnt) {
                 Base::Vector3d pnt = static_cast<Base::VectorPy*>(pPnt)->value();
                 p.SetCoord(pnt.x, pnt.y, pnt.z);
@@ -1454,7 +1753,7 @@ private:
                 Base::Vector3d vec = static_cast<Base::VectorPy*>(pDir)->value();
                 d.SetCoord(vec.x, vec.y, vec.z);
             }
-            BRepPrimAPI_MakeCylinder mkCyl(gp_Ax2(p,d),radius, height, angle*(M_PI/180));
+            BRepPrimAPI_MakeCylinder mkCyl(gp_Ax2(p, d), radius, height, Base::toRadians<double>(angle));
             TopoDS_Shape shape = mkCyl.Shape();
             return Py::asObject(new TopoShapeSolidPy(new TopoShape(shape)));
         }
@@ -1464,18 +1763,26 @@ private:
     }
     Py::Object makeCone(const Py::Tuple& args)
     {
-        double radius1, radius2,  height, angle=360;
-        PyObject *pPnt=nullptr, *pDir=nullptr;
-        if (!PyArg_ParseTuple(args.ptr(), "ddd|O!O!d",
-            &radius1, &radius2, &height,
-            &(Base::VectorPy::Type), &pPnt,
-            &(Base::VectorPy::Type), &pDir,
-            &angle))
+        double radius1, radius2, height, angle = 360;
+        PyObject *pPnt = nullptr, *pDir = nullptr;
+        if (!PyArg_ParseTuple(
+                args.ptr(),
+                "ddd|O!O!d",
+                &radius1,
+                &radius2,
+                &height,
+                &(Base::VectorPy::Type),
+                &pPnt,
+                &(Base::VectorPy::Type),
+                &pDir,
+                &angle
+            )) {
             throw Py::Exception();
+        }
 
         try {
-            gp_Pnt p(0,0,0);
-            gp_Dir d(0,0,1);
+            gp_Pnt p(0, 0, 0);
+            gp_Dir d(0, 0, 1);
             if (pPnt) {
                 Base::Vector3d pnt = static_cast<Base::VectorPy*>(pPnt)->value();
                 p.SetCoord(pnt.x, pnt.y, pnt.z);
@@ -1484,7 +1791,8 @@ private:
                 Base::Vector3d vec = static_cast<Base::VectorPy*>(pDir)->value();
                 d.SetCoord(vec.x, vec.y, vec.z);
             }
-            BRepPrimAPI_MakeCone mkCone(gp_Ax2(p,d),radius1, radius2, height, angle*(M_PI/180));
+            BRepPrimAPI_MakeCone
+                mkCone(gp_Ax2(p, d), radius1, radius2, height, Base::toRadians<double>(angle));
             TopoDS_Shape shape = mkCone.Shape();
             return Py::asObject(new TopoShapeSolidPy(new TopoShape(shape)));
         }
@@ -1494,18 +1802,27 @@ private:
     }
     Py::Object makeTorus(const Py::Tuple& args)
     {
-        double radius1, radius2, angle1=0.0, angle2=360, angle=360;
-        PyObject *pPnt=nullptr, *pDir=nullptr;
-        if (!PyArg_ParseTuple(args.ptr(), "dd|O!O!ddd",
-            &radius1, &radius2,
-            &(Base::VectorPy::Type), &pPnt,
-            &(Base::VectorPy::Type), &pDir,
-            &angle1, &angle2, &angle))
+        double radius1, radius2, angle1 = 0.0, angle2 = 360, angle = 360;
+        PyObject *pPnt = nullptr, *pDir = nullptr;
+        if (!PyArg_ParseTuple(
+                args.ptr(),
+                "dd|O!O!ddd",
+                &radius1,
+                &radius2,
+                &(Base::VectorPy::Type),
+                &pPnt,
+                &(Base::VectorPy::Type),
+                &pDir,
+                &angle1,
+                &angle2,
+                &angle
+            )) {
             throw Py::Exception();
+        }
 
         try {
-            gp_Pnt p(0,0,0);
-            gp_Dir d(0,0,1);
+            gp_Pnt p(0, 0, 0);
+            gp_Dir d(0, 0, 1);
             if (pPnt) {
                 Base::Vector3d pnt = static_cast<Base::VectorPy*>(pPnt)->value();
                 p.SetCoord(pnt.x, pnt.y, pnt.z);
@@ -1514,7 +1831,14 @@ private:
                 Base::Vector3d vec = static_cast<Base::VectorPy*>(pDir)->value();
                 d.SetCoord(vec.x, vec.y, vec.z);
             }
-            BRepPrimAPI_MakeTorus mkTorus(gp_Ax2(p,d), radius1, radius2, angle1*(M_PI/180), angle2*(M_PI/180), angle*(M_PI/180));
+            BRepPrimAPI_MakeTorus mkTorus(
+                gp_Ax2(p, d),
+                radius1,
+                radius2,
+                Base::toRadians<double>(angle1),
+                Base::toRadians<double>(angle2),
+                Base::toRadians<double>(angle)
+            );
             const TopoDS_Shape& shape = mkTorus.Shape();
             return Py::asObject(new TopoShapeSolidPy(new TopoShape(shape)));
         }
@@ -1524,21 +1848,29 @@ private:
     }
     Py::Object makeHelix(const Py::Tuple& args)
     {
-        double pitch, height, radius, angle=-1.0;
-        PyObject *pleft=Py_False;
-        PyObject *pvertHeight=Py_False;
-        if (!PyArg_ParseTuple(args.ptr(), "ddd|dO!O!",
-            &pitch, &height, &radius, &angle,
-            &(PyBool_Type), &pleft,
-            &(PyBool_Type), &pvertHeight))
+        double pitch, height, radius, angle = -1.0;
+        PyObject* pleft = Py_False;
+        PyObject* pvertHeight = Py_False;
+        if (!PyArg_ParseTuple(
+                args.ptr(),
+                "ddd|dO!O!",
+                &pitch,
+                &height,
+                &radius,
+                &angle,
+                &(PyBool_Type),
+                &pleft,
+                &(PyBool_Type),
+                &pvertHeight
+            )) {
             throw Py::Exception();
+        }
 
         try {
             TopoShape helix;
             Standard_Boolean anIsLeft = Base::asBoolean(pleft);
             Standard_Boolean anIsVertHeight = Base::asBoolean(pvertHeight);
-            TopoDS_Shape wire = helix.makeHelix(pitch, height, radius, angle,
-                                                anIsLeft, anIsVertHeight);
+            TopoDS_Shape wire = helix.makeHelix(pitch, height, radius, angle, anIsLeft, anIsVertHeight);
             return Py::asObject(new TopoShapeWirePy(new TopoShape(wire)));
         }
         catch (Standard_Failure& e) {
@@ -1547,10 +1879,11 @@ private:
     }
     Py::Object makeLongHelix(const Py::Tuple& args)
     {
-        double pitch, height, radius, angle=-1.0;
-        PyObject *pleft=Py_False;
-        if (!PyArg_ParseTuple(args.ptr(), "ddd|dO!", &pitch, &height, &radius, &angle,
-                                               &(PyBool_Type), &pleft)) {
+        double pitch, height, radius, angle = -1.0;
+        PyObject* pleft = Py_False;
+        if (
+            !PyArg_ParseTuple(args.ptr(), "ddd|dO!", &pitch, &height, &radius, &angle, &(PyBool_Type), &pleft)
+        ) {
             throw Py::RuntimeError("Part.makeLongHelix fails on parms");
         }
 
@@ -1567,8 +1900,9 @@ private:
     Py::Object makeThread(const Py::Tuple& args)
     {
         double pitch, depth, height, radius;
-        if (!PyArg_ParseTuple(args.ptr(), "dddd", &pitch, &depth, &height, &radius))
+        if (!PyArg_ParseTuple(args.ptr(), "dddd", &pitch, &depth, &height, &radius)) {
             throw Py::Exception();
+        }
 
         try {
             TopoShape helix;
@@ -1581,40 +1915,63 @@ private:
     }
     Py::Object makeRevolution(const Py::Tuple& args)
     {
-        double vmin = DBL_MAX, vmax=-DBL_MAX;
-        double angle=360;
-        PyObject *pPnt=nullptr, *pDir=nullptr, *pCrv;
+        constexpr double doubleMax = std::numeric_limits<double>::max();
+        double vmin = doubleMax, vmax = -doubleMax;
+        double angle = 360;
+        PyObject *pPnt = nullptr, *pDir = nullptr, *pCrv;
         Handle(Geom_Curve) curve;
         PyObject* defaultType = Base::getTypeAsObject(&Part::TopoShapeSolidPy::Type);
         PyObject* type = defaultType;
 
         do {
-            if (PyArg_ParseTuple(args.ptr(), "O!|dddO!O!O!", &(GeometryPy::Type), &pCrv,
-                                                       &vmin, &vmax, &angle,
-                                                       &(Base::VectorPy::Type), &pPnt,
-                                                       &(Base::VectorPy::Type), &pDir,
-                                                       &(PyType_Type), &type)) {
+            if (PyArg_ParseTuple(
+                    args.ptr(),
+                    "O!|dddO!O!O!",
+                    &(GeometryPy::Type),
+                    &pCrv,
+                    &vmin,
+                    &vmax,
+                    &angle,
+                    &(Base::VectorPy::Type),
+                    &pPnt,
+                    &(Base::VectorPy::Type),
+                    &pDir,
+                    &(PyType_Type),
+                    &type
+                )) {
                 GeometryPy* pcGeo = static_cast<GeometryPy*>(pCrv);
-                curve = Handle(Geom_Curve)::DownCast
-                    (pcGeo->getGeometryPtr()->handle());
+                curve = Handle(Geom_Curve)::DownCast(pcGeo->getGeometryPtr()->handle());
                 if (curve.IsNull()) {
                     throw Py::Exception(PyExc_TypeError, "geometry is not a curve");
                 }
-                if (vmin == DBL_MAX)
+                if (vmin == doubleMax) {
                     vmin = curve->FirstParameter();
+                }
 
-                if (vmax == -DBL_MAX)
+                if (vmax == -doubleMax) {
                     vmax = curve->LastParameter();
+                }
                 break;
             }
 
             PyErr_Clear();
-            if (PyArg_ParseTuple(args.ptr(), "O!|dddO!O!O!", &(TopoShapePy::Type), &pCrv,
-                                                       &vmin, &vmax, &angle,
-                                                       &(Base::VectorPy::Type), &pPnt,
-                                                       &(Base::VectorPy::Type), &pDir,
-                                                       &(PyType_Type), &type)) {
-                const TopoDS_Shape& shape = static_cast<TopoShapePy*>(pCrv)->getTopoShapePtr()->getShape();
+            if (PyArg_ParseTuple(
+                    args.ptr(),
+                    "O!|dddO!O!O!",
+                    &(TopoShapePy::Type),
+                    &pCrv,
+                    &vmin,
+                    &vmax,
+                    &angle,
+                    &(Base::VectorPy::Type),
+                    &pPnt,
+                    &(Base::VectorPy::Type),
+                    &pDir,
+                    &(PyType_Type),
+                    &type
+                )) {
+                const TopoDS_Shape& shape
+                    = static_cast<TopoShapePy*>(pCrv)->getTopoShapePtr()->getShape();
                 if (shape.IsNull()) {
                     throw Py::Exception(PartExceptionOCCError, "shape is empty");
                 }
@@ -1626,7 +1983,7 @@ private:
                 const TopoDS_Edge& edge = TopoDS::Edge(shape);
                 BRepAdaptor_Curve adapt(edge);
 
-                const Handle(Geom_Curve)& hCurve = adapt.Curve().Curve();
+                const Handle(Geom_Curve) & hCurve = adapt.Curve().Curve();
                 // Apply placement of the shape to the curve
                 TopLoc_Location loc = edge.Location();
                 curve = Handle(Geom_Curve)::DownCast(hCurve->Transformed(loc.Transformation()));
@@ -1634,22 +1991,25 @@ private:
                     throw Py::Exception(PartExceptionOCCError, "invalid curve in edge");
                 }
 
-                if (vmin == DBL_MAX)
+                if (vmin == doubleMax) {
                     vmin = adapt.FirstParameter();
-                if (vmax == -DBL_MAX)
+                }
+                if (vmax == -doubleMax) {
                     vmax = adapt.LastParameter();
+                }
                 break;
             }
 
             // invalid arguments
-            throw Py::TypeError("Expected arguments are:\n"
-                                "Curve or Edge, [float, float, float, Vector, Vector, ShapeType]");
-        }
-        while(false);
+            throw Py::TypeError(
+                "Expected arguments are:\n"
+                "Curve or Edge, [float, float, float, Vector, Vector, ShapeType]"
+            );
+        } while (false);
 
         try {
-            gp_Pnt p(0,0,0);
-            gp_Dir d(0,0,1);
+            gp_Pnt p(0, 0, 0);
+            gp_Dir d(0, 0, 1);
             if (pPnt) {
                 Base::Vector3d pnt = static_cast<Base::VectorPy*>(pPnt)->value();
                 p.SetCoord(pnt.x, pnt.y, pnt.z);
@@ -1662,7 +2022,8 @@ private:
             PyObject* shellType = Base::getTypeAsObject(&Part::TopoShapeShellPy::Type);
             PyObject* faceType = Base::getTypeAsObject(&Part::TopoShapeFacePy::Type);
 
-            BRepPrimAPI_MakeRevolution mkRev(gp_Ax2(p,d),curve, vmin, vmax, angle*(M_PI/180));
+            BRepPrimAPI_MakeRevolution
+                mkRev(gp_Ax2(p, d), curve, vmin, vmax, Base::toRadians<double>(angle));
             if (type == defaultType) {
                 TopoDS_Shape shape = mkRev.Solid();
                 return Py::asObject(new TopoShapeSolidPy(new TopoShape(shape)));
@@ -1684,92 +2045,105 @@ private:
             throw Py::Exception(PartExceptionOCCDomainError, "creation of revolved shape failed");
         }
     }
-    Py::Object makeRuledSurface(const Py::Tuple& args)
+
+    Py::Object makeRuledSurface(const Py::Tuple& args, const Py::Dict& kwds)
     {
-        // http://opencascade.blogspot.com/2009/10/surface-modeling-part1.html
+        const char* op = nullptr;
+        int orientation = 0;
         PyObject *sh1, *sh2;
-        if (!PyArg_ParseTuple(args.ptr(), "O!O!", &(TopoShapePy::Type), &sh1,
-                                            &(TopoShapePy::Type), &sh2))
+        const std::array<const char*, 5> kwd_list = {"path", "profile", "orientation", "op", nullptr};
+        if (!Base::Wrapped_ParseTupleAndKeywords(
+                args.ptr(),
+                kwds.ptr(),
+                "O!O!|is",
+                kwd_list,
+                &(TopoShapePy::Type),
+                &sh1,
+                &(TopoShapePy::Type),
+                &sh2,
+                &orientation,
+                &op
+            )) {
             throw Py::Exception();
-
-        const TopoDS_Shape& shape1 = static_cast<TopoShapePy*>(sh1)->getTopoShapePtr()->getShape();
-        const TopoDS_Shape& shape2 = static_cast<TopoShapePy*>(sh2)->getTopoShapePtr()->getShape();
-
-        try {
-            if (shape1.ShapeType() == TopAbs_EDGE && shape2.ShapeType() == TopAbs_EDGE) {
-                TopoDS_Face face = BRepFill::Face(TopoDS::Edge(shape1), TopoDS::Edge(shape2));
-                return Py::asObject(new TopoShapeFacePy(new TopoShape(face)));
-            }
-            else if (shape1.ShapeType() == TopAbs_WIRE && shape2.ShapeType() == TopAbs_WIRE) {
-                TopoDS_Shell shell = BRepFill::Shell(TopoDS::Wire(shape1), TopoDS::Wire(shape2));
-                return Py::asObject(new TopoShapeShellPy(new TopoShape(shell)));
-            }
-            else {
-                throw Py::Exception(PartExceptionOCCError, "curves must either be edges or wires");
-            }
         }
-        catch (Standard_Failure&) {
-            throw Py::Exception(PartExceptionOCCError, "creation of ruled surface failed");
-        }
+
+        std::vector<TopoShape> shapes;
+        shapes.push_back(*static_cast<TopoShapePy*>(sh1)->getTopoShapePtr());
+        shapes.push_back(*static_cast<TopoShapePy*>(sh2)->getTopoShapePtr());
+        return shape2pyshape(TopoShape().makeElementRuledSurface(shapes, orientation, op));
     }
-    Py::Object makeShellFromWires(const Py::Tuple& args)
+
+    Py::Object makeShellFromWires(const Py::Tuple& args, const Py::Dict& kwds)
     {
-        PyObject *pylist;
-        if (!PyArg_ParseTuple(args.ptr(), "O", &pylist))
+        PyObject* pylist;
+        const char* op = nullptr;
+        const std::array<const char*, 3> kwd_list = {"shape", "op", nullptr};
+        if (!Base::Wrapped_ParseTupleAndKeywords(args.ptr(), kwds.ptr(), "O|s", kwd_list, &pylist, &op)) {
             throw Py::Exception();
-
+        }
         try {
-            BRepFill_Generator fill;
-            Py::Sequence list(pylist);
-            for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
-                Py::TopoShape shape(*it);
-                const TopoDS_Shape& s = shape.extensionObject()->getTopoShapePtr()->getShape();
-                if (!s.IsNull() && s.ShapeType() == TopAbs_WIRE) {
-                    fill.AddWire(TopoDS::Wire(s));
-                }
-            }
-
-            fill.Perform();
-            return Py::asObject(new TopoShapeShellPy(new TopoShape(fill.Shell())));
+            return shape2pyshape(
+                TopoShape().makeElementShellFromWires(getPyShapes(pylist), /*silent*/ false, op)
+            );
         }
         catch (Standard_Failure&) {
             throw Py::Exception(PartExceptionOCCError, "creation of shell failed");
         }
     }
+
     Py::Object makeTube(const Py::Tuple& args)
     {
-        PyObject *pshape;
+        PyObject* pshape;
         double radius;
-        double tolerance=0.001;
+        double tolerance = 0.001;
         const char* scont = "C0";
         int maxdegree = 3;
         int maxsegment = 30;
 
         // Path + radius
-        if (!PyArg_ParseTuple(args.ptr(), "O!d|sii", &(TopoShapePy::Type), &pshape, &radius, &scont, &maxdegree, &maxsegment))
+        if (!PyArg_ParseTuple(
+                args.ptr(),
+                "O!d|sii",
+                &(TopoShapePy::Type),
+                &pshape,
+                &radius,
+                &scont,
+                &maxdegree,
+                &maxsegment
+            )) {
             throw Py::Exception();
+        }
 
         std::string str_cont = scont;
         int cont;
-        if (str_cont == "C0")
+        if (str_cont == "C0") {
             cont = (int)GeomAbs_C0;
-        else if (str_cont == "C1")
+        }
+        else if (str_cont == "C1") {
             cont = (int)GeomAbs_C1;
-        else if (str_cont == "C2")
+        }
+        else if (str_cont == "C2") {
             cont = (int)GeomAbs_C2;
-        else if (str_cont == "C3")
+        }
+        else if (str_cont == "C3") {
             cont = (int)GeomAbs_C3;
-        else if (str_cont == "CN")
+        }
+        else if (str_cont == "CN") {
             cont = (int)GeomAbs_CN;
-        else if (str_cont == "G1")
+        }
+        else if (str_cont == "G1") {
             cont = (int)GeomAbs_G1;
-        else if (str_cont == "G2")
+        }
+        else if (str_cont == "G2") {
             cont = (int)GeomAbs_G2;
-        else
+        }
+        else {
             cont = (int)GeomAbs_C0;
+        }
 
         try {
-            const TopoDS_Shape& path_shape = static_cast<TopoShapePy*>(pshape)->getTopoShapePtr()->getShape();
+            const TopoDS_Shape& path_shape
+                = static_cast<TopoShapePy*>(pshape)->getTopoShapePtr()->getShape();
             TopoShape myShape(path_shape);
             TopoDS_Shape face = myShape.makeTube(radius, tolerance, cont, maxdegree, maxsegment);
             return Py::asObject(new TopoShapeFacePy(new TopoShape(face)));
@@ -1781,73 +2155,102 @@ private:
     Py::Object makeSweepSurface(const Py::Tuple& args)
     {
         PyObject *path, *profile;
-        double tolerance=0.001;
+        double tolerance = 0.001;
         int fillMode = 0;
 
         // Path + profile
-        if (!PyArg_ParseTuple(args.ptr(), "O!O!|di", &(TopoShapePy::Type), &path,
-                                               &(TopoShapePy::Type), &profile,
-                                               &tolerance, &fillMode))
+        if (!PyArg_ParseTuple(
+                args.ptr(),
+                "O!O!|di",
+                &(TopoShapePy::Type),
+                &path,
+                &(TopoShapePy::Type),
+                &profile,
+                &tolerance,
+                &fillMode
+            )) {
             throw Py::Exception();
+        }
 
         try {
-            const TopoDS_Shape& path_shape = static_cast<TopoShapePy*>(path)->getTopoShapePtr()->getShape();
-            const TopoDS_Shape& prof_shape = static_cast<TopoShapePy*>(profile)->getTopoShapePtr()->getShape();
-
-            TopoShape myShape(path_shape);
-            TopoDS_Shape face = myShape.makeSweep(prof_shape, tolerance, fillMode);
-            return Py::asObject(new TopoShapeFacePy(new TopoShape(face)));
+            TopoShape mShape = *static_cast<TopoShapePy*>(path)->getTopoShapePtr();
+            // makeSweep uses GeomFill_Pipe which does not support shape
+            // history. So use makEPipeShell() as a replacement
+            return shape2pyshape(TopoShape(0, mShape.Hasher)
+                                     .makeElementPipeShell(
+                                         {mShape,
+                                          *static_cast<TopoShapePy*>(profile)->getTopoShapePtr()},
+                                         Part::MakeSolid::noSolid,
+                                         Standard_False,
+                                         TransitionMode::Transformed,
+                                         nullptr,
+                                         tolerance
+                                     ));
         }
         catch (Standard_Failure& e) {
             throw Py::Exception(PartExceptionOCCError, e.GetMessageString());
         }
     }
-    Py::Object makeLoft(const Py::Tuple& args)
+
+    Py::Object makeLoft(const Py::Tuple& args, const Py::Dict& kwds)
     {
-        PyObject *pcObj;
-        PyObject *psolid=Py_False;
-        PyObject *pruled=Py_False;
-        PyObject *pclosed=Py_False;
+        PyObject* pcObj;
+        PyObject* psolid = Py_False;
+        PyObject* pruled = Py_False;
+        PyObject* pclosed = Py_False;
         int degMax = 5;
-        if (!PyArg_ParseTuple(args.ptr(), "O|O!O!O!i", &pcObj,
-                                              &(PyBool_Type), &psolid,
-                                              &(PyBool_Type), &pruled,
-                                              &(PyBool_Type), &pclosed,
-                                              &degMax)) {
+
+        const char* op = nullptr;
+        const std::array<const char*, 7> kwd_list
+            = {"shapes", "solid", "ruled", "closed", "max_degree", "op", nullptr};
+        if (!Base::Wrapped_ParseTupleAndKeywords(
+                args.ptr(),
+                kwds.ptr(),
+                "O!|O!O!O!is",
+                kwd_list,
+                &(PyList_Type),
+                &pcObj,
+                &(PyBool_Type),
+                &psolid,
+                &(PyBool_Type),
+                &pruled,
+                &(PyBool_Type),
+                &pclosed,
+                &degMax,
+                &op
+            )) {
             throw Py::Exception();
         }
-
-        TopTools_ListOfShape profiles;
-        Py::Sequence list(pcObj);
-
-        for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
-            if (PyObject_TypeCheck((*it).ptr(), &(Part::TopoShapePy::Type))) {
-                const TopoDS_Shape& sh = static_cast<TopoShapePy*>((*it).ptr())->
-                    getTopoShapePtr()->getShape();
-                profiles.Append(sh);
-            }
-        }
-
-        TopoShape myShape;
-        Standard_Boolean anIsSolid = Base::asBoolean(psolid);
-        Standard_Boolean anIsRuled = Base::asBoolean(pruled);
-        Standard_Boolean anIsClosed = Base::asBoolean(pclosed);
-        TopoDS_Shape aResult = myShape.makeLoft(profiles, anIsSolid, anIsRuled, anIsClosed, degMax);
-        return Py::asObject(new TopoShapePy(new TopoShape(aResult)));
-
+        Standard_Boolean anIsSolid = PyObject_IsTrue(psolid) ? Standard_True : Standard_False;
+        Standard_Boolean anIsRuled = PyObject_IsTrue(pruled) ? Standard_True : Standard_False;
+        Standard_Boolean anIsClosed = PyObject_IsTrue(pclosed) ? Standard_True : Standard_False;
+        return shape2pyshape(
+            TopoShape().makeElementLoft(
+                getPyShapes(pcObj),
+                anIsSolid ? Part::IsSolid::solid : Part::IsSolid::notSolid,
+                anIsRuled ? Part::IsRuled::ruled : Part::IsRuled::notRuled,
+                anIsClosed ? Part::IsClosed::closed : Part::IsClosed::notClosed,
+                degMax,
+                op
+            )
+        );
     }
+
     Py::Object makeSplitShape(const Py::Tuple& args)
     {
         PyObject* shape;
         PyObject* list;
         PyObject* checkInterior = Py_True;
-        if (!PyArg_ParseTuple(args.ptr(), "O!O|O!", &(TopoShapePy::Type), &shape, &list,
-                                                    &PyBool_Type, &checkInterior))
+        if (
+            !PyArg_ParseTuple(args.ptr(), "O!O|O!", &(TopoShapePy::Type), &shape, &list, &PyBool_Type, &checkInterior)
+        ) {
             throw Py::Exception();
+        }
 
         try {
-            TopoDS_Shape initShape = static_cast<TopoShapePy*>
-                    (shape)->getTopoShapePtr()->getShape();
+            std::vector<TopoShape> sources;
+            sources.push_back(*static_cast<TopoShapePy*>(shape)->getTopoShapePtr());
+            TopoDS_Shape initShape = static_cast<TopoShapePy*>(shape)->getTopoShapePtr()->getShape();
             BRepFeat_SplitShape splitShape(initShape);
             splitShape.SetCheckInterior(Base::asBoolean(checkInterior));
 
@@ -1856,10 +2259,12 @@ private:
                 Py::Tuple tuple(*it);
                 Py::TopoShape sh1(tuple[0]);
                 Py::TopoShape sh2(tuple[1]);
-                const TopoDS_Shape& shape1= sh1.extensionObject()->getTopoShapePtr()->getShape();
-                const TopoDS_Shape& shape2= sh2.extensionObject()->getTopoShapePtr()->getShape();
-                if (shape1.IsNull() || shape2.IsNull())
+                sources.push_back(*sh1.extensionObject()->getTopoShapePtr());
+                const TopoDS_Shape& shape1 = sh1.extensionObject()->getTopoShapePtr()->getShape();
+                const TopoDS_Shape& shape2 = sh2.extensionObject()->getTopoShapePtr()->getShape();
+                if (shape1.IsNull() || shape2.IsNull()) {
                     throw Py::RuntimeError("Cannot add null shape");
+                }
                 if (shape2.ShapeType() == TopAbs_FACE) {
                     if (shape1.ShapeType() == TopAbs_EDGE) {
                         splitShape.Add(TopoDS::Edge(shape1), TopoDS::Face(shape2));
@@ -1892,15 +2297,20 @@ private:
             const TopTools_ListOfShape& l = splitShape.Left();
 
             Py::List list1;
-            for (TopTools_ListIteratorOfListOfShape it(d); it.More(); it.Next()) {
-                list1.append(shape2pyshape(it.Value()));
-            }
-
             Py::List list2;
-            for (TopTools_ListIteratorOfListOfShape it(l); it.More(); it.Next()) {
-                list2.append(shape2pyshape(it.Value()));
+            MapperMaker mapper(splitShape);
+            for (TopTools_ListIteratorOfListOfShape it(d); it.More(); it.Next()) {
+                TopoShape s(0, sources.front().Hasher);
+                list1.append(shape2pyshape(
+                    s.makeShapeWithElementMap(it.Value(), mapper, sources, Part::OpCodes::Split)
+                ));
             }
-
+            for (TopTools_ListIteratorOfListOfShape it(l); it.More(); it.Next()) {
+                TopoShape s(0, sources.front().Hasher);
+                list2.append(shape2pyshape(
+                    s.makeShapeWithElementMap(it.Value(), mapper, sources, Part::OpCodes::Split)
+                ));
+            }
             Py::Tuple tuple(2);
             tuple.setItem(0, list1);
             tuple.setItem(1, list2);
@@ -1913,7 +2323,7 @@ private:
     Py::Object makeWireString(const Py::Tuple& args)
     {
 #ifdef FCUseFreeType
-        PyObject *intext;
+        PyObject* intext;
         const char* dir;
         const char* fontfile;
         const char* fontspec;
@@ -1921,24 +2331,25 @@ private:
         double height;
         double track = 0;
 
-        Py_UNICODE *unichars = nullptr;
+        Py_UCS4* unichars = nullptr;
         Py_ssize_t pysize;
 
-        PyObject *CharList;
+        PyObject* CharList;
 
-        if (PyArg_ParseTuple(args.ptr(), "Ossd|d", &intext,                               // compatibility with old version
-                                         &dir,
-                                         &fontfile,
-                                         &height,
-                                         &track)) {
+        if (PyArg_ParseTuple(
+                args.ptr(),
+                "Ossd|d",
+                &intext,  // compatibility with old version
+                &dir,
+                &fontfile,
+                &height,
+                &track
+            )) {
             useFontSpec = false;
         }
         else {
             PyErr_Clear();
-            if (PyArg_ParseTuple(args.ptr(), "Osd|d", &intext,
-                                            &fontspec,
-                                            &height,
-                                            &track)) {
+            if (PyArg_ParseTuple(args.ptr(), "Osd|d", &intext, &fontspec, &height, &track)) {
                 useFontSpec = true;
             }
             else {
@@ -1946,42 +2357,19 @@ private:
             }
         }
 
-        //FIXME: Test this!
+        // FIXME: Test this!
         if (PyBytes_Check(intext)) {
-            PyObject *p = Base::PyAsUnicodeObject(PyBytes_AsString(intext));
+            PyObject* p = Base::PyAsUnicodeObject(PyBytes_AsString(intext));
             if (!p) {
                 throw Py::TypeError("** makeWireString can't convert PyString.");
             }
 
             pysize = PyUnicode_GetLength(p);
-#if PY_VERSION_HEX < 0x03090000
-            unichars = PyUnicode_AS_UNICODE(p);
-#else
-#ifdef FC_OS_WIN32
-            //PyUNICODE is only 16 bits on Windows (wchar_t), so passing 32 bit UCS4
-            //will result in unknown glyph in even positions, and wrong characters in
-            //odd positions.
-            unichars = (Py_UNICODE*)PyUnicode_AsWideCharString(p, &pysize);
-#else
-            unichars = (Py_UNICODE *)PyUnicode_AsUCS4Copy(p);
-#endif
-#endif
+            unichars = PyUnicode_AsUCS4Copy(p);
         }
         else if (PyUnicode_Check(intext)) {
             pysize = PyUnicode_GetLength(intext);
-
-#if PY_VERSION_HEX < 0x03090000
-            unichars = PyUnicode_AS_UNICODE(intext);
-#else
-#ifdef FC_OS_WIN32
-            //PyUNICODE is only 16 bits on Windows (wchar_t), so passing 32 bit UCS4
-            //will result in unknown glyph in even positions, and wrong characters in
-            //odd positions.
-            unichars = (Py_UNICODE*)PyUnicode_AsWideCharString(intext, &pysize);
-#else
-            unichars = (Py_UNICODE *)PyUnicode_AsUCS4Copy(intext);
-#endif
-#endif
+            unichars = PyUnicode_AsUCS4Copy(intext);
         }
         else {
             throw Py::TypeError("** makeWireString bad text parameter");
@@ -1989,21 +2377,22 @@ private:
 
         try {
             if (useFontSpec) {
-                CharList = FT2FC(unichars,pysize,fontspec,height,track);
+                CharList = FT2FC(unichars, pysize, fontspec, height, track);
             }
             else {
-                CharList = FT2FC(unichars,pysize,dir,fontfile,height,track);
+                CharList = FT2FC(unichars, pysize, dir, fontfile, height, track);
             }
-#if PY_VERSION_HEX >= 0x03090000
             if (unichars) {
                 PyMem_Free(unichars);
             }
-#endif
         }
-        catch (Standard_DomainError&) {                                      // Standard_DomainError is OCC error.
-            throw Py::Exception(PartExceptionOCCDomainError, "makeWireString failed - Standard_DomainError");
+        catch (Standard_DomainError&) {  // Standard_DomainError is OCC error.
+            throw Py::Exception(
+                PartExceptionOCCDomainError,
+                "makeWireString failed - Standard_DomainError"
+            );
         }
-        catch (std::runtime_error& e) {                                     // FT2 or FT2FC errors
+        catch (std::runtime_error& e) {  // FT2 or FT2FC errors
             throw Py::Exception(PartExceptionOCCError, e.what());
         }
 
@@ -2014,9 +2403,10 @@ private:
     }
     Py::Object exportUnits(const Py::Tuple& args)
     {
-        char* unit=nullptr;
-        if (!PyArg_ParseTuple(args.ptr(), "|s", &unit))
+        char* unit = nullptr;
+        if (!PyArg_ParseTuple(args.ptr(), "|s", &unit)) {
             throw Py::Exception();
+        }
 
         if (unit) {
             if (!Interface::writeIgesUnit(unit)) {
@@ -2071,8 +2461,8 @@ private:
     }
     Py::Object cast_to_shape(const Py::Tuple& args)
     {
-        PyObject *object;
-        if (PyArg_ParseTuple(args.ptr(),"O!",&(Part::TopoShapePy::Type), &object)) {
+        PyObject* object;
+        if (PyArg_ParseTuple(args.ptr(), "O!", &(Part::TopoShapePy::Type), &object)) {
             TopoShape* ptr = static_cast<TopoShapePy*>(object)->getTopoShapePtr();
             return Py::asObject(ptr->getPyObject());
         }
@@ -2081,7 +2471,7 @@ private:
     }
     Py::Object getSortedClusters(const Py::Tuple& args)
     {
-        PyObject *obj;
+        PyObject* obj;
         if (!PyArg_ParseTuple(args.ptr(), "O", &obj)) {
             throw Py::Exception(PartExceptionOCCError, "list of edges expected");
         }
@@ -2091,9 +2481,11 @@ private:
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
             PyObject* item = (*it).ptr();
             if (PyObject_TypeCheck(item, &(Part::TopoShapePy::Type))) {
-                const TopoDS_Shape& sh = static_cast<Part::TopoShapePy*>(item)->getTopoShapePtr()->getShape();
-                if (sh.ShapeType() == TopAbs_EDGE)
+                const TopoDS_Shape& sh
+                    = static_cast<Part::TopoShapePy*>(item)->getTopoShapePtr()->getShape();
+                if (sh.ShapeType() == TopAbs_EDGE) {
                     edges.push_back(TopoDS::Edge(sh));
+                }
                 else {
                     throw Py::TypeError("shape is not an edge");
                 }
@@ -2107,10 +2499,10 @@ private:
         tEdgeClusterVector aclusteroutput = acluster.GetClusters();
 
         Py::List root_list;
-        for (const auto & it : aclusteroutput) {
+        for (const auto& it : aclusteroutput) {
             Py::List add_list;
             for (const auto& it1 : it) {
-                add_list.append(Py::Object(new TopoShapeEdgePy(new TopoShape(it1)),true));
+                add_list.append(Py::Object(new TopoShapeEdgePy(new TopoShape(it1)), true));
             }
             root_list.append(add_list);
         }
@@ -2119,7 +2511,7 @@ private:
     }
     Py::Object sortEdges(const Py::Tuple& args)
     {
-        PyObject *obj;
+        PyObject* obj;
         if (!PyArg_ParseTuple(args.ptr(), "O", &obj)) {
             throw Py::TypeError("list of edges expected");
         }
@@ -2129,9 +2521,11 @@ private:
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
             PyObject* item = (*it).ptr();
             if (PyObject_TypeCheck(item, &(Part::TopoShapePy::Type))) {
-                const TopoDS_Shape& sh = static_cast<Part::TopoShapePy*>(item)->getTopoShapePtr()->getShape();
-                if (sh.ShapeType() == TopAbs_EDGE)
+                const TopoDS_Shape& sh
+                    = static_cast<Part::TopoShapePy*>(item)->getTopoShapePtr()->getShape();
+                if (sh.ShapeType() == TopAbs_EDGE) {
                     edges.push_back(TopoDS::Edge(sh));
+                }
                 else {
                     throw Py::TypeError("shape is not an edge");
                 }
@@ -2143,15 +2537,15 @@ private:
 
         std::list<TopoDS_Edge> sorted = sort_Edges(Precision::Confusion(), edges);
         Py::List sorted_list;
-        for (const auto & it : sorted) {
-            sorted_list.append(Py::Object(new TopoShapeEdgePy(new TopoShape(it)),true));
+        for (const auto& it : sorted) {
+            sorted_list.append(Py::Object(new TopoShapeEdgePy(new TopoShape(it)), true));
         }
 
         return sorted_list;
     }
     Py::Object sortEdges2(const Py::Tuple& args)
     {
-        PyObject *obj;
+        PyObject* obj;
         double tol3d = Precision::Confusion();
         if (!PyArg_ParseTuple(args.ptr(), "O|d", &obj, &tol3d)) {
             throw Py::Exception(PartExceptionOCCError, "list of edges expected");
@@ -2162,9 +2556,11 @@ private:
         for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
             PyObject* item = (*it).ptr();
             if (PyObject_TypeCheck(item, &(Part::TopoShapePy::Type))) {
-                const TopoDS_Shape& sh = static_cast<Part::TopoShapePy*>(item)->getTopoShapePtr()->getShape();
-                if (sh.ShapeType() == TopAbs_EDGE)
+                const TopoDS_Shape& sh
+                    = static_cast<Part::TopoShapePy*>(item)->getTopoShapePtr()->getShape();
+                if (sh.ShapeType() == TopAbs_EDGE) {
                     edges.push_back(TopoDS::Edge(sh));
+                }
                 else {
                     throw Py::TypeError("shape is not an edge");
                 }
@@ -2175,11 +2571,11 @@ private:
         }
 
         Py::List root_list;
-        while(!edges.empty()) {
+        while (!edges.empty()) {
             std::list<TopoDS_Edge> sorted = sort_Edges(tol3d, edges);
             Py::List sorted_list;
-            for (const auto & it : sorted) {
-                sorted_list.append(Py::Object(new TopoShapeEdgePy(new TopoShape(it)),true));
+            for (const auto& it : sorted) {
+                sorted_list.append(Py::Object(new TopoShapeEdgePy(new TopoShape(it)), true));
             }
             root_list.append(sorted_list);
         }
@@ -2187,15 +2583,21 @@ private:
     }
     Py::Object toPythonOCC(const Py::Tuple& args)
     {
-        PyObject *pcObj;
-        if (!PyArg_ParseTuple(args.ptr(), "O!", &(TopoShapePy::Type), &pcObj))
+        PyObject* pcObj;
+        if (!PyArg_ParseTuple(args.ptr(), "O!", &(TopoShapePy::Type), &pcObj)) {
             throw Py::Exception();
+        }
 
         try {
             TopoDS_Shape* shape = new TopoDS_Shape();
             (*shape) = static_cast<TopoShapePy*>(pcObj)->getTopoShapePtr()->getShape();
             PyObject* proxy = nullptr;
-            proxy = Base::Interpreter().createSWIGPointerObj("OCC.TopoDS", "TopoDS_Shape *", static_cast<void*>(shape), 1);
+            proxy = Base::Interpreter().createSWIGPointerObj(
+                "OCC.TopoDS",
+                "TopoDS_Shape *",
+                static_cast<void*>(shape),
+                1
+            );
             return Py::asObject(proxy);
         }
         catch (const Base::Exception& e) {
@@ -2204,14 +2606,18 @@ private:
     }
     Py::Object fromPythonOCC(const Py::Tuple& args)
     {
-        PyObject *proxy;
-        if (!PyArg_ParseTuple(args.ptr(), "O", &proxy))
+        PyObject* proxy;
+        if (!PyArg_ParseTuple(args.ptr(), "O", &proxy)) {
             throw Py::Exception();
+        }
 
         void* ptr;
         try {
             TopoShape* shape = new TopoShape();
-            Base::Interpreter().convertSWIGPointerObj("OCC.TopoDS","TopoDS_Shape *", proxy, &ptr, 0);
+            Base::Interpreter().convertSWIGPointerObj("OCC.TopoDS", "TopoDS_Shape *", proxy, &ptr, 0);
+            if (!ptr) {
+                throw Py::RuntimeError("Conversion of OCC.TopoDS.TopoDS_Shape failed");
+            }
             TopoDS_Shape* s = static_cast<TopoDS_Shape*>(ptr);
             shape->setShape(*s);
             return Py::asObject(new TopoShapePy(shape));
@@ -2221,97 +2627,148 @@ private:
         }
     }
 
-    Py::Object getShape(const Py::Tuple& args, const Py::Dict &kwds) {
-        PyObject *pObj;
-        const char *subname = nullptr;
-        PyObject *pyMat = nullptr;
-        PyObject *needSubElement = Py_False;
-        PyObject *transform = Py_True;
-        PyObject *noElementMap = Py_False;
-        PyObject *refine = Py_False;
+    Py::Object getShape(const Py::Tuple& args, const Py::Dict& kwds)
+    {
+        PyObject* pObj;
+        const char* subname = nullptr;
+        PyObject* pyMat = nullptr;
+        PyObject* needSubElement = Py_False;
+        PyObject* transform = Py_True;
+        PyObject* noElementMap = Py_False;
+        PyObject* refine = Py_False;
         short retType = 0;
-        static const std::array<const char *, 9> kwd_list{"obj", "subname", "mat",
-                                                          "needSubElement", "transform", "retType", "noElementMap",
-                                                          "refine", nullptr};
-        if (!Base::Wrapped_ParseTupleAndKeywords(args.ptr(), kwds.ptr(), "O!|sO!O!O!hO!O!", kwd_list,
-                                                 &App::DocumentObjectPy::Type, &pObj, &subname, &Base::MatrixPy::Type,
-                                                 &pyMat,
-                                                 &PyBool_Type, &needSubElement, &PyBool_Type, &transform, &retType,
-                                                 &PyBool_Type, &noElementMap, &PyBool_Type, &refine)) {
+        static const std::array<const char*, 9> kwd_list {
+            "obj",
+            "subname",
+            "mat",
+            "needSubElement",
+            "transform",
+            "retType",
+            "noElementMap",
+            "refine",
+            nullptr
+        };
+        if (!Base::Wrapped_ParseTupleAndKeywords(
+                args.ptr(),
+                kwds.ptr(),
+                "O!|sO!O!O!hO!O!",
+                kwd_list,
+                &App::DocumentObjectPy::Type,
+                &pObj,
+                &subname,
+                &Base::MatrixPy::Type,
+                &pyMat,
+                &PyBool_Type,
+                &needSubElement,
+                &PyBool_Type,
+                &transform,
+                &retType,
+                &PyBool_Type,
+                &noElementMap,
+                &PyBool_Type,
+                &refine
+            )) {
             throw Py::Exception();
         }
 
-        App::DocumentObject *obj =
-            static_cast<App::DocumentObjectPy*>(pObj)->getDocumentObjectPtr();
-        App::DocumentObject *subObj = nullptr;
+        App::DocumentObject* obj = static_cast<App::DocumentObjectPy*>(pObj)->getDocumentObjectPtr();
+        App::DocumentObject* subObj = nullptr;
         Base::Matrix4D mat;
-        if(pyMat)
+        if (pyMat) {
             mat = *static_cast<Base::MatrixPy*>(pyMat)->getMatrixPtr();
-        auto shape = Feature::getTopoShape(obj,subname,Base::asBoolean(needSubElement),
-                &mat,&subObj,retType==2,Base::asBoolean(transform),
-                Base::asBoolean(noElementMap));
+        }
+
+        bool resolveLink = (retType == 2);
+        auto shape = Feature::getTopoShape(
+            obj,
+            (resolveLink ? ShapeOption::ResolveLink : ShapeOption::NoFlag)
+                | (Base::asBoolean(needSubElement) ? ShapeOption::NeedSubElement : ShapeOption::NoFlag)
+                | (Base::asBoolean(transform) ? ShapeOption::Transform : ShapeOption::NoFlag)
+                | (Base::asBoolean(noElementMap) ? ShapeOption::NoElementMap : ShapeOption::NoFlag),
+            subname,
+            &mat,
+            &subObj
+        );
+
         if (Base::asBoolean(refine)) {
-            // shape = TopoShape(0,shape.Hasher).makERefine(shape);
-            BRepBuilderAPI_RefineModel mkRefine(shape.getShape());
-            shape.setShape(mkRefine.Shape());
+            shape = TopoShape(0, shape.Hasher).makeElementRefine(shape);
         }
         Py::Object sret(shape2pyshape(shape));
-        if(retType==0)
+        if (retType == 0) {
             return sret;
+        }
 
-        return Py::TupleN(sret,Py::asObject(new Base::MatrixPy(new Base::Matrix4D(mat))),
-                subObj?Py::Object(subObj->getPyObject(),true):Py::Object());
+        return Py::TupleN(
+            sret,
+            Py::asObject(new Base::MatrixPy(new Base::Matrix4D(mat))),
+            subObj ? Py::Object(subObj->getPyObject(), true) : Py::Object()
+        );
     }
 
-    Py::Object clearShapeCache(const Py::Tuple &args) {
-        if (!PyArg_ParseTuple(args.ptr(),""))
+    Py::Object clearShapeCache(const Py::Tuple& args)
+    {
+        if (!PyArg_ParseTuple(args.ptr(), "")) {
             throw Py::Exception();
+        }
         Part::Feature::clearShapeCache();
         return Py::Object();
     }
 
-    Py::Object splitSubname(const Py::Tuple& args) {
-        const char *subname;
-        if (!PyArg_ParseTuple(args.ptr(), "s",&subname))
+    Py::Object splitSubname(const Py::Tuple& args)
+    {
+        const char* subname;
+        if (!PyArg_ParseTuple(args.ptr(), "s", &subname)) {
             throw Py::Exception();
+        }
         auto element = Data::findElementName(subname);
-        std::string sub(subname,element-subname);
+        std::string sub(subname, element - subname);
         Py::List list;
         list.append(Py::String(sub));
-        const char *dot = strchr(element,'.');
-        if(!dot)
-            dot = element+strlen(element);
-        const char *mapped = Data::isMappedElement(element);
-        if(mapped)
-            list.append(Py::String(std::string(mapped,dot-mapped)));
-        else
+        const char* dot = strchr(element, '.');
+        if (!dot) {
+            dot = element + strlen(element);
+        }
+        const char* mapped = Data::isMappedElement(element);
+        if (mapped) {
+            list.append(Py::String(std::string(mapped, dot - mapped)));
+        }
+        else {
             list.append(Py::String());
-        if(*dot=='.')
-            list.append(Py::String(dot+1));
-        else if(!mapped)
+        }
+        if (*dot == '.') {
+            list.append(Py::String(dot + 1));
+        }
+        else if (!mapped) {
             list.append(Py::String(element));
-        else
+        }
+        else {
             list.append(Py::String());
+        }
         return list;
     }
 
-    Py::Object joinSubname(const Py::Tuple& args) {
-        const char *sub;
-        const char *mapped;
-        const char *element;
-        if (!PyArg_ParseTuple(args.ptr(), "sss",&sub,&mapped,&element))
+    Py::Object joinSubname(const Py::Tuple& args)
+    {
+        const char* sub;
+        const char* mapped;
+        const char* element;
+        if (!PyArg_ParseTuple(args.ptr(), "sss", &sub, &mapped, &element)) {
             throw Py::Exception();
+        }
         std::string subname(sub);
-        if (!subname.empty() && subname[subname.size()-1]!='.')
+        if (!subname.empty() && subname[subname.size() - 1] != '.') {
             subname += '.';
-        if (mapped && mapped[0]) {
-            if (!Data::isMappedElement(mapped))
+        }
+        if (!Base::Tools::isNullOrEmpty(mapped)) {
+            if (!Data::isMappedElement(mapped)) {
                 subname += Data::ELEMENT_MAP_PREFIX;
+            }
             subname += mapped;
         }
-        if (element && element[0]) {
-            if (!subname.empty() && subname[subname.size()-1]!='.')
+        if (!Base::Tools::isNullOrEmpty(element)) {
+            if (!subname.empty() && subname[subname.size() - 1] != '.') {
                 subname += '.';
+            }
             subname += element;
         }
         return Py::String(subname);
@@ -2323,4 +2780,4 @@ PyObject* initModule()
     return Base::Interpreter().addModule(new Module);
 }
 
-} // namespace Part
+}  // namespace Part

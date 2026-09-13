@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2020 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,17 +22,30 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef PreferencesGui_h_
-#define PreferencesGui_h_
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
 #include <QColor>
 
+#include "QGIView.h"
+
+class QColor;
+class QString;
+
+namespace Base
+{
+class Color;
+}
+
 class QFont;
 class QString;
 
 #include <Mod/TechDraw/App/Preferences.h>
+
+namespace TechDraw{
+enum class ArrowType : int;
+}
 
 namespace TechDrawGui
 {
@@ -46,30 +61,30 @@ static int         dimFontSizePX();
 static QColor      normalQColor();
 static QColor      selectQColor();
 static QColor      preselectQColor();
-static App::Color  sectionLineColor();
+static Base::Color sectionLineColor();
 static QColor      sectionLineQColor();
-static App::Color  centerColor();
+static Base::Color centerColor();
 static QColor      centerQColor();
 static QColor      vertexQColor();
-static App::Color  leaderColor();
+static Base::Color leaderColor();
 static QColor      leaderQColor();
-static App::Color  dimColor();
+static Base::Color dimColor();
 static QColor      dimQColor();
-static App::Color  pageColor();
+static Base::Color pageColor();
 static QColor      pageQColor();
+static Base::Color breaklineColor();
+static QColor      breaklineQColor();
 
-static int         dimArrowStyle();
+static TechDraw::ArrowType dimArrowStyle();
 static double      dimArrowSize();
 
 static double      edgeFuzz();
-
-static Qt::PenStyle  sectionLineStyle();
-static bool          sectionLineMarks();
+static double      markFuzz();
 
 static QString     weldingDirectory();
 
 static bool showGrid();
-static App::Color gridColor();
+static Base::Color gridColor();
 static QColor gridQColor();
 static double gridSpacing();
 static bool multiSelection();
@@ -81,7 +96,13 @@ static QColor       lightenColor(QColor orig);
 
 static double       templateClickBoxSize();
 static QColor       templateClickBoxColor();
+
+static int          get3dMarkerSize();
+
+static ViewFrameMode getViewFrameMode();
+static void setViewFrameMode(ViewFrameMode newMode);
+
+
 };
 
 } //end namespace TechDrawGui
-#endif

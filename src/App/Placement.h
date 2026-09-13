@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2002 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -21,8 +23,7 @@
  ***************************************************************************/
 
 
-#ifndef _AppPlacement_h_
-#define _AppPlacement_h_
+#pragma once
 
 #include "FeaturePython.h"
 
@@ -37,21 +38,17 @@ class AppExport Placement: public App::GeoFeature
     PROPERTY_HEADER_WITH_OVERRIDE(App::Placement);
 
 public:
-  /// Constructor
-  Placement();
-  ~Placement() override;
+    /// Constructor
+    Placement();
+    ~Placement() override;
 
-  /// returns the type name of the ViewProvider
-  const char* getViewProviderName() const override {
-      return "Gui::ViewProviderPlacement";
-  }
-
-
+    /// returns the type name of the ViewProvider
+    const char* getViewProviderName() const override
+    {
+        return "Gui::ViewProviderPlacement";
+    }
 };
 using PlacementPython = App::FeaturePythonT<App::Placement>;
 
 
-} //namespace App
-
-
-#endif
+}  // namespace App

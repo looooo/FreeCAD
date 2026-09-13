@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # FreeCAD TemplatePyMod module  
 # (c) 2011 Werner Mayer LGPL
 
@@ -30,7 +32,7 @@ class TaskWatcherFilter:
         self.commands = ["Sketcher_NewSketch", "PartDesign_Fillet", "PartDesign_Chamfer"]
         self.filter = "SELECT Part::Feature SUBELEMENT Face COUNT 1"
         self.title = "Face tools"
-        self.icon = "Part_Box"
+        self.icon = "Part_Box_Parametric"
 
 class TaskPanel:
     def __init__(self):
@@ -61,7 +63,7 @@ class TaskPanel:
         return True
 
     def getStandardButtons(self):
-        return int(QtGui.QDialogButtonBox.Ok)
+        return QtGui.QDialogButtonBox.Ok
 
     def helpRequested(self):
         pass

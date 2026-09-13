@@ -22,10 +22,8 @@
  **************************************************************************/
 
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
+#include <boost/core/ignore_unused.hpp>
 #include <Standard_Version.hxx>
-#if OCC_VERSION_HEX >= 0x070500
 #include <BRep_Builder.hxx>
 #include <Message_ProgressRange.hxx>
 #include <Quantity_ColorRGBA.hxx>
@@ -37,8 +35,6 @@
 #include <XCAFDoc_ShapeTool.hxx>
 #include <XCAFDoc_VisMaterial.hxx>
 #include <XCAFDoc_VisMaterialTool.hxx>
-#endif
-#endif
 
 #include "ReaderGltf.h"
 #include "Tools.h"
@@ -54,9 +50,8 @@ ReaderGltf::ReaderGltf(const Base::FileInfo& file)
 {}
 
 // NOLINTNEXTLINE
-void ReaderGltf::read(Handle(TDocStd_Document) hDoc)
+void ReaderGltf::read(Handle(TDocStd_Document) hDoc, const Message_ProgressRange& theProgress)
 {
-#if OCC_VERSION_HEX >= 0x070500
     const double unit = 0.001;  // mm
     RWGltf_CafReader aReader;
     aReader.SetSystemLengthUnit(unit);
@@ -65,23 +60,17 @@ void ReaderGltf::read(Handle(TDocStd_Document) hDoc)
     aReader.SetParallel(true);
 
     TCollection_AsciiString filename(file.filePath().c_str());
-    Standard_Boolean ret = aReader.Perform(filename, Message_ProgressRange());
+    Standard_Boolean ret = aReader.Perform(filename, theProgress);
     if (!ret) {
         throw Base::FileException("Cannot read from file: ", file);
     }
 
     processDocument(hDoc);
-
-#else
-    (void)hDoc;
-    throw Base::RuntimeError("gITF support requires OCCT 7.5.0 or later");
-#endif
 }
 
 // NOLINTNEXTLINE
 void ReaderGltf::processDocument(Handle(TDocStd_Document) hDoc)
 {
-#if OCC_VERSION_HEX >= 0x070500
     Handle(XCAFDoc_ShapeTool) aShapeTool = XCAFDoc_DocumentTool::ShapeTool(hDoc->Main());
 
     TDF_LabelSequence shapeLabels;
@@ -100,15 +89,15 @@ void ReaderGltf::processDocument(Handle(TDocStd_Document) hDoc)
             }
         }
     }
-#endif
 }
 
 // NOLINTNEXTLINE
-TopoDS_Shape ReaderGltf::processSubShapes(Handle(TDocStd_Document) hDoc,
-                                          const TDF_LabelSequence& subShapeLabels)
+TopoDS_Shape ReaderGltf::processSubShapes(
+    Handle(TDocStd_Document) hDoc,
+    const TDF_LabelSequence& subShapeLabels
+)
 {
     TopoDS_Compound compound;
-#if OCC_VERSION_HEX >= 0x070500
     Handle(XCAFDoc_ShapeTool) aShapeTool = XCAFDoc_DocumentTool::ShapeTool(hDoc->Main());
     Handle(XCAFDoc_ColorTool) aColorTool = XCAFDoc_DocumentTool::ColorTool(hDoc->Main());
     Handle(XCAFDoc_VisMaterialTool) aVisTool = XCAFDoc_DocumentTool::VisMaterialTool(hDoc->Main());
@@ -138,7 +127,6 @@ TopoDS_Shape ReaderGltf::processSubShapes(Handle(TDocStd_Document) hDoc,
             aColorTool->SetColor(faceLabel, rgba, XCAFDoc_ColorSurf);
         }
     }
-#endif
 
     return {std::move(compound)};
 }
@@ -167,7 +155,12 @@ TopoDS_Shape ReaderGltf::fixShape(TopoDS_Shape shape)  // NOLINT
 
     if (cleanup()) {
         sh.sewShape();
-        return sh.removeSplitter();
+        try {
+            return sh.removeSplitter();
+        }
+        catch (const Standard_Failure& e) {
+            return sh.getShape();
+        }
     }
 
     return sh.getShape();

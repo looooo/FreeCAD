@@ -20,16 +20,17 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <limits>
+#include <functional>
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
-# include <Inventor/actions/SoGetBoundingBoxAction.h>
-# include <Inventor/nodes/SoClipPlane.h>
-# include <Inventor/nodes/SoGroup.h>
-# include <Inventor/sensors/SoTimerSensor.h>
-# include <QDockWidget>
-# include <QPointer>
-#endif
+#include <Inventor/actions/SoGetBoundingBoxAction.h>
+#include <Inventor/nodes/SoClipPlane.h>
+#include <Inventor/nodes/SoGroup.h>
+#include <Inventor/sensors/SoTimerSensor.h>
+#include <QDockWidget>
+#include <QPointer>
+
+#include <App/Application.h>
 
 #include "Clipping.h"
 #include "ui_Clipping.h"
@@ -39,7 +40,8 @@
 
 using namespace Gui::Dialog;
 
-class Clipping::Private {
+class Clipping::Private
+{
 public:
     Ui_Clipping ui;
     QPointer<Gui::View3DInventor> view;
@@ -48,30 +50,34 @@ public:
     SoClipPlane* clipY;
     SoClipPlane* clipZ;
     SoClipPlane* clipView;
-    bool flipX{false};
-    bool flipY{false};
-    bool flipZ{false};
+    bool flipX {false};
+    bool flipY {false};
+    bool flipZ {false};
     SoTimerSensor* sensor;
+    App::Document* shownOn {nullptr};
+    QDockWidget* dockWidget {nullptr};
+    fastsignals::scoped_connection activeDocConnection;
+
     Private()
     {
         clipX = new SoClipPlane();
         clipX->on.setValue(false);
-        clipX->plane.setValue(SbPlane(SbVec3f(1,0,0),0));
+        clipX->plane.setValue(SbPlane(SbVec3f(1, 0, 0), 0));
         clipX->ref();
 
         clipY = new SoClipPlane();
         clipY->on.setValue(false);
-        clipY->plane.setValue(SbPlane(SbVec3f(0,1,0),0));
+        clipY->plane.setValue(SbPlane(SbVec3f(0, 1, 0), 0));
         clipY->ref();
 
         clipZ = new SoClipPlane();
         clipZ->on.setValue(false);
-        clipZ->plane.setValue(SbPlane(SbVec3f(0,0,1),0));
+        clipZ->plane.setValue(SbPlane(SbVec3f(0, 0, 1), 0));
         clipZ->ref();
 
         clipView = new SoClipPlane();
         clipView->on.setValue(false);
-        clipView->plane.setValue(SbPlane(SbVec3f(0,0,1),0));
+        clipView->plane.setValue(SbPlane(SbVec3f(0, 0, 1), 0));
         clipView->ref();
 
         node = nullptr;
@@ -85,7 +91,7 @@ public:
         clipView->unref();
         delete sensor;
     }
-    static void moveCallback(void * data, SoSensor * sensor)
+    static void moveCallback(void* data, SoSensor* sensor)
     {
         Q_UNUSED(sensor);
         auto self = static_cast<Private*>(data);
@@ -93,46 +99,52 @@ public:
             Gui::View3DInventorViewer* view = self->view->getViewer();
             SoClipPlane* clip = self->clipView;
             SbPlane pln = clip->plane.getValue();
-            clip->plane.setValue(SbPlane(view->getViewDirection(),pln.getDistanceFromOrigin()));
+            clip->plane.setValue(SbPlane(view->getViewDirection(), pln.getDistanceFromOrigin()));
         }
     }
 };
 
 /* TRANSLATOR Gui::Dialog::Clipping */
 
-Clipping::Clipping(Gui::View3DInventor* view, QWidget* parent)
-  : QDialog(parent)
-  , d(new Private)
+Clipping::Clipping(Gui::View3DInventor* view, App::Document* showOn, QWidget* parent)
+    : QDialog(parent)
+    , d(new Private)
 {
     // create widgets
     d->ui.setupUi(this);
     setupConnections();
 
-    d->ui.clipView->setRange(-INT_MAX,INT_MAX);
+    constexpr int max = std::numeric_limits<int>::max();
+    d->ui.clipView->setRange(-max, max);
     d->ui.clipView->setSingleStep(0.1f);
-    d->ui.clipX->setRange(-INT_MAX,INT_MAX);
+    d->ui.clipX->setRange(-max, max);
     d->ui.clipX->setSingleStep(0.1f);
-    d->ui.clipY->setRange(-INT_MAX,INT_MAX);
+    d->ui.clipY->setRange(-max, max);
     d->ui.clipY->setSingleStep(0.1f);
-    d->ui.clipZ->setRange(-INT_MAX,INT_MAX);
+    d->ui.clipZ->setRange(-max, max);
     d->ui.clipZ->setSingleStep(0.1f);
 
-    d->ui.dirX->setRange(-INT_MAX,INT_MAX);
+    d->ui.dirX->setRange(-max, max);
     d->ui.dirX->setSingleStep(0.1f);
-    d->ui.dirY->setRange(-INT_MAX,INT_MAX);
+    d->ui.dirY->setRange(-max, max);
     d->ui.dirY->setSingleStep(0.1f);
-    d->ui.dirZ->setRange(-INT_MAX,INT_MAX);
+    d->ui.dirZ->setRange(-max, max);
     d->ui.dirZ->setSingleStep(0.1f);
     d->ui.dirZ->setValue(1.0f);
+    d->shownOn = showOn;
 
     d->view = view;
     View3DInventorViewer* viewer = view->getViewer();
     d->node = static_cast<SoGroup*>(viewer->getSceneGraph());
     d->node->ref();
-    d->node->insertChild(d->clipX, 0);
-    d->node->insertChild(d->clipY, 0);
-    d->node->insertChild(d->clipZ, 0);
-    d->node->insertChild(d->clipView, 0);
+    int index = -1;
+    if (auto editingRoot = viewer->getEditingRoot()) {
+        index = d->node->findChild(editingRoot);
+    }
+    d->node->insertChild(d->clipX, index + 1);
+    d->node->insertChild(d->clipY, index + 1);
+    d->node->insertChild(d->clipZ, index + 1);
+    d->node->insertChild(d->clipView, index + 1);
 
     SoGetBoundingBoxAction action(viewer->getSoRenderManager()->getViewportRegion());
     action.apply(viewer->getSceneGraph());
@@ -146,7 +158,7 @@ Clipping::Clipping(Gui::View3DInventor* view, QWidget* parent)
         d->ui.clipZ->setValue(cnt[2]);
 
         int minDecimals = 2;
-        float lenx, leny,lenz;
+        float lenx, leny, lenz;
         box.getSize(lenx, leny, lenz);
         int steps = 100;
         float minlen = std::min<float>(lenx, std::min<float>(leny, lenz));
@@ -186,14 +198,15 @@ Clipping::Clipping(Gui::View3DInventor* view, QWidget* parent)
     }
 }
 
-Clipping* Clipping::makeDockWidget(Gui::View3DInventor* view)
+Clipping* Clipping::makeDockWidget(Gui::View3DInventor* view, App::Document* showOn)
 {
     // embed this dialog into a QDockWidget
-    auto clipping = new Clipping(view);
+    auto clipping = new Clipping(view, showOn);
     Gui::DockWindowManager* pDockMgr = Gui::DockWindowManager::instance();
     QDockWidget* dw = pDockMgr->addDockWindow("Clipping", clipping, Qt::LeftDockWidgetArea);
-    dw->setFeatures(QDockWidget::DockWidgetMovable|QDockWidget::DockWidgetFloatable);
+    dw->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
     dw->show();
+    clipping->d->dockWidget = dw;
 
     return clipping;
 }
@@ -201,6 +214,7 @@ Clipping* Clipping::makeDockWidget(Gui::View3DInventor* view)
 /** Destroys the object and frees any allocated resources */
 Clipping::~Clipping()
 {
+    d->activeDocConnection.disconnect();
     d->node->removeChild(d->clipX);
     d->node->removeChild(d->clipY);
     d->node->removeChild(d->clipZ);
@@ -211,6 +225,9 @@ Clipping::~Clipping()
 
 void Clipping::setupConnections()
 {
+    // clang-format off
+    d->activeDocConnection = App::GetApplication().signalActiveDocument.connect(
+            std::bind(&Clipping::onActiveDocument, this, std::placeholders::_1));
     connect(d->ui.groupBoxX, &QGroupBox::toggled,
             this, &Clipping::onGroupBoxXToggled);
     connect(d->ui.groupBoxY, &QGroupBox::toggled,
@@ -243,6 +260,7 @@ void Clipping::setupConnections()
             this, &Clipping::onDirYValueChanged);
     connect(d->ui.dirZ, qOverload<double>(&QDoubleSpinBox::valueChanged),
             this, &Clipping::onDirZValueChanged);
+    // clang-format on
 }
 
 void Clipping::reject()
@@ -253,7 +271,18 @@ void Clipping::reject()
         dw->deleteLater();
     }
 }
-
+void Clipping::onActiveDocument(const App::Document& doc)
+{
+    if (!d || !d->dockWidget) {
+        return;
+    }
+    if (&doc == d->shownOn) {
+        d->dockWidget->show();
+    }
+    else {
+        d->dockWidget->hide();
+    }
+}
 void Clipping::onGroupBoxXToggled(bool on)
 {
     if (on) {
@@ -284,40 +313,40 @@ void Clipping::onGroupBoxZToggled(bool on)
 void Clipping::onClipXValueChanged(double val)
 {
     SbPlane pln = d->clipX->plane.getValue();
-    d->clipX->plane.setValue(SbPlane(pln.getNormal(),d->flipX ? -val : val));
+    d->clipX->plane.setValue(SbPlane(pln.getNormal(), d->flipX ? -val : val));
 }
 
 void Clipping::onClipYValueChanged(double val)
 {
     SbPlane pln = d->clipY->plane.getValue();
-    d->clipY->plane.setValue(SbPlane(pln.getNormal(),d->flipY ? -val : val));
+    d->clipY->plane.setValue(SbPlane(pln.getNormal(), d->flipY ? -val : val));
 }
 
 void Clipping::onClipZValueChanged(double val)
 {
     SbPlane pln = d->clipZ->plane.getValue();
-    d->clipZ->plane.setValue(SbPlane(pln.getNormal(),d->flipZ ? -val : val));
+    d->clipZ->plane.setValue(SbPlane(pln.getNormal(), d->flipZ ? -val : val));
 }
 
 void Clipping::onFlipClipXClicked()
 {
     d->flipX = !d->flipX;
     SbPlane pln = d->clipX->plane.getValue();
-    d->clipX->plane.setValue(SbPlane(-pln.getNormal(),-pln.getDistanceFromOrigin()));
+    d->clipX->plane.setValue(SbPlane(-pln.getNormal(), -pln.getDistanceFromOrigin()));
 }
 
 void Clipping::onFlipClipYClicked()
 {
     d->flipY = !d->flipY;
     SbPlane pln = d->clipY->plane.getValue();
-    d->clipY->plane.setValue(SbPlane(-pln.getNormal(),-pln.getDistanceFromOrigin()));
+    d->clipY->plane.setValue(SbPlane(-pln.getNormal(), -pln.getDistanceFromOrigin()));
 }
 
 void Clipping::onFlipClipZClicked()
 {
     d->flipZ = !d->flipZ;
     SbPlane pln = d->clipZ->plane.getValue();
-    d->clipZ->plane.setValue(SbPlane(-pln.getNormal(),-pln.getDistanceFromOrigin()));
+    d->clipZ->plane.setValue(SbPlane(-pln.getNormal(), -pln.getDistanceFromOrigin()));
 }
 
 void Clipping::onGroupBoxViewToggled(bool on)
@@ -334,7 +363,7 @@ void Clipping::onGroupBoxViewToggled(bool on)
 void Clipping::onClipViewValueChanged(double val)
 {
     SbPlane pln = d->clipView->plane.getValue();
-    d->clipView->plane.setValue(SbPlane(pln.getNormal(),val));
+    d->clipView->plane.setValue(SbPlane(pln.getNormal(), val));
 }
 
 void Clipping::onFromViewClicked()
@@ -343,7 +372,7 @@ void Clipping::onFromViewClicked()
         Gui::View3DInventorViewer* view = d->view->getViewer();
         SbVec3f dir = view->getViewDirection();
         SbPlane pln = d->clipView->plane.getValue();
-        d->clipView->plane.setValue(SbPlane(dir,pln.getDistanceFromOrigin()));
+        d->clipView->plane.setValue(SbPlane(dir, pln.getDistanceFromOrigin()));
     }
 }
 
@@ -354,10 +383,12 @@ void Clipping::onAdjustViewdirectionToggled(bool on)
     d->ui.dirZ->setDisabled(on);
     d->ui.fromView->setDisabled(on);
 
-    if (on)
+    if (on) {
         d->sensor->schedule();
-    else
+    }
+    else {
         d->sensor->unschedule();
+    }
 }
 
 void Clipping::onDirXValueChanged(double)
@@ -367,9 +398,10 @@ void Clipping::onDirXValueChanged(double)
     double z = d->ui.dirZ->value();
 
     SbPlane pln = d->clipView->plane.getValue();
-    SbVec3f normal(x,y,z);
-    if (normal.sqrLength() > 0.0f)
-        d->clipView->plane.setValue(SbPlane(normal,pln.getDistanceFromOrigin()));
+    SbVec3f normal(x, y, z);
+    if (normal.sqrLength() > 0.0f) {
+        d->clipView->plane.setValue(SbPlane(normal, pln.getDistanceFromOrigin()));
+    }
 }
 
 void Clipping::onDirYValueChanged(double)
@@ -379,9 +411,10 @@ void Clipping::onDirYValueChanged(double)
     double z = d->ui.dirZ->value();
 
     SbPlane pln = d->clipView->plane.getValue();
-    SbVec3f normal(x,y,z);
-    if (normal.sqrLength() > 0.0f)
-        d->clipView->plane.setValue(SbPlane(normal,pln.getDistanceFromOrigin()));
+    SbVec3f normal(x, y, z);
+    if (normal.sqrLength() > 0.0f) {
+        d->clipView->plane.setValue(SbPlane(normal, pln.getDistanceFromOrigin()));
+    }
 }
 
 void Clipping::onDirZValueChanged(double)
@@ -391,9 +424,10 @@ void Clipping::onDirZValueChanged(double)
     double z = d->ui.dirZ->value();
 
     SbPlane pln = d->clipView->plane.getValue();
-    SbVec3f normal(x,y,z);
-    if (normal.sqrLength() > 0.0f)
-        d->clipView->plane.setValue(SbPlane(normal,pln.getDistanceFromOrigin()));
+    SbVec3f normal(x, y, z);
+    if (normal.sqrLength() > 0.0f) {
+        d->clipView->plane.setValue(SbPlane(normal, pln.getDistanceFromOrigin()));
+    }
 }
 
 #include "moc_Clipping.cpp"

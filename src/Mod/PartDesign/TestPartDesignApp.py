@@ -1,4 +1,6 @@
-#**************************************************************************
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
+# **************************************************************************
 #   Copyright (c) 2011 Juergen Riegel <FreeCAD@juergen-riegel.net>        *
 #                                                                         *
 #   This file is part of the FreeCAD CAx development system.              *
@@ -18,11 +20,11 @@
 #   License along with FreeCAD; if not, write to the Free Software        *
 #   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  *
 #   USA                                                                   *
-#**************************************************************************
+# **************************************************************************
 
-#---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 # define the test cases to test the FreeCAD PartDesign module
-#---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 
 # datum tools
 from PartDesignTests.TestDatum import TestDatumPoint, TestDatumLine, TestDatumPlane
@@ -32,18 +34,23 @@ from PartDesignTests.TestShapeBinder import TestSubShapeBinder
 # additive/subtractive features & primitives
 from PartDesignTests.TestPad import TestPad
 from PartDesignTests.TestPocket import TestPocket
+from PartDesignTests.TestHelix import TestHelix
 from PartDesignTests.TestHole import TestHole
 from PartDesignTests.TestRevolve import TestRevolve
 from PartDesignTests.TestPipe import TestPipe
 from PartDesignTests.TestLoft import TestLoft
 from PartDesignTests.TestPrimitive import TestPrimitive
+from PartDesignTests.TestHelix import TestHelix
 
 # transformations and boolean
 from PartDesignTests.TestMirrored import TestMirrored
 from PartDesignTests.TestLinearPattern import TestLinearPattern
+from PartDesignTests.TestCircularPattern import TestCircularPattern
+from PartDesignTests.TestPathPattern import TestPathPattern
 from PartDesignTests.TestPolarPattern import TestPolarPattern
 from PartDesignTests.TestMultiTransform import TestMultiTransform
 from PartDesignTests.TestBoolean import TestBoolean
+from PartDesignTests.TestBaseFeature import TestBaseFeature
 
 # dressup features
 from PartDesignTests.TestFillet import TestFillet
@@ -53,3 +60,8 @@ from PartDesignTests.TestThickness import TestThickness
 
 # extras
 from PartDesignTests.TestInvoluteGear import TestInvoluteGear
+from PartDesignTests.TestSketch import TestSketch
+from PartDesignTests.TestSuppressed import TestSuppressed
+
+# Topological naming problem
+from PartDesignTests.TestTopologicalNamingProblem import TestTopologicalNamingProblem

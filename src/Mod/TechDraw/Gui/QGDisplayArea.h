@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2017 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,14 +22,15 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_QGDISPLAYAREA_H
-#define DRAWINGGUI_QGDISPLAYAREA_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
 #include <QGraphicsItem>
 #include <QPointF>
 #include <QRectF>
+
+#include "QGIUserTypes.h"
 
 QT_BEGIN_NAMESPACE
 class QPainter;
@@ -43,7 +46,7 @@ public:
     explicit QGDisplayArea();
     ~QGDisplayArea() override {}
 
-    enum {Type = QGraphicsItem::UserType + 137};
+    enum {Type = UserType::QGDisplayArea};
     int type() const override { return Type;}
     QRectF boundingRect() const override;
 
@@ -58,6 +61,3 @@ private:
 };
 
 }
-
-#endif // DRAWINGGUI_QGDISPLAYAREA_H
-

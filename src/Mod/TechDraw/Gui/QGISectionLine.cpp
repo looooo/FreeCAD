@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,18 +22,18 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 # include <QGraphicsScene>
 # include <QPainter>
 # include <QPainterPath>
 # include <QStyleOptionGraphicsItem>
-#endif
+
 
 #include <App/Application.h>
 #include <Base/Console.h>
 #include <Base/Parameter.h>
 #include <Base/Tools.h>
+
+#include <Mod/TechDraw/App/Preferences.h>
 
 #include "QGISectionLine.h"
 #include "PreferencesGui.h"
@@ -50,30 +52,29 @@ using namespace TechDrawGui;
 using namespace TechDraw;
 
 QGISectionLine::QGISectionLine() :
+    m_symbol(""),
+    m_line(new QGraphicsPathItem()),
+    m_extend(new QGraphicsPathItem()),
+    m_arrow1(new QGIArrow()),
+    m_arrow2(new QGIArrow()),
+    m_symbol1(new QGCustomText()),
+    m_symbol2(new QGCustomText()),
+    m_symSize(0.0),
+    m_arrowSize(QGIArrow::getPrefArrowSize()),
     m_pathMode(false),
     m_arrowMode()
 {
-    m_symbol = "";
-    m_symSize = 0.0;
-
     m_extLen = 1.5 * Rez::guiX(QGIArrow::getPrefArrowSize());   //is there a standard for this??
-    m_arrowSize = QGIArrow::getPrefArrowSize();
 
-    m_line = new QGraphicsPathItem();
     addToGroup(m_line);
-    m_extend = new QGraphicsPathItem();
     addToGroup(m_extend);
-    m_arrow1 = new QGIArrow();
     addToGroup(m_arrow1);
-    m_arrow2 = new QGIArrow();
     addToGroup(m_arrow2);
-    m_symbol1 = new QGCustomText();
+
     addToGroup(m_symbol1);
-    m_symbol2 = new QGCustomText();
     addToGroup(m_symbol2);
 
     setWidth(Rez::guiX(0.75));          //a default?
-    setStyle(getSectionStyle());
     setColor(getSectionColor());
 
 }
@@ -81,7 +82,7 @@ QGISectionLine::QGISectionLine() :
 void QGISectionLine::draw()
 {
     prepareGeometryChange();
-    int format = getPrefSectionStandard();
+    int format = Preferences::sectionLineConvention();
     if (format == ANSISTANDARD) {                           //"ASME"/"ANSI"
         extensionEndsTrad();
     } else {
@@ -98,15 +99,18 @@ void QGISectionLine::draw()
     update();
 }
 
+//! makes the small lines connecting the ends of the main section line to the arrowheads.
 void QGISectionLine::makeExtensionLine()
 {
-    QPen extendPen;
-    extendPen.setWidthF(getWidth());
-    extendPen.setColor(getSectionColor());
-    extendPen.setStyle(Qt::SolidLine);
-    extendPen.setCapStyle(Qt::FlatCap);
+    // start with the current settings for the rest of the graphic
+    QPen extendPen{m_pen};
+
+    // change the unique attributes
+    extendPen.setStyle(Qt::SolidLine);      // main section line might not be continuous, but arrow shafts should be
+    extendPen.setCapStyle(Qt::FlatCap);     // prevents ugly overlaps at main line and arrow points
     m_extend->setPen(extendPen);
 
+    // make the lines
     QPainterPath pp;
 
     pp.moveTo(m_beginExt1);
@@ -121,14 +125,16 @@ void QGISectionLine::makeExtensionLine()
 void QGISectionLine::makeSectionLine()
 {
     QPainterPath pp;
-    pp.moveTo(m_start);
-    pp.lineTo(m_end);
+    if (m_showLine) {
+        pp.moveTo(m_start);
+        pp.lineTo(m_end);
+    }
     m_line->setPath(pp);
 }
 
 void QGISectionLine::makeArrows()
 {
-    int format = getPrefSectionStandard();
+    int format = Preferences::sectionLineConvention();
     if (format == ANSISTANDARD) {
         makeArrowsTrad();
     } else {
@@ -139,11 +145,11 @@ void QGISectionLine::makeArrows()
 //make Euro (ISO) Arrows
 void QGISectionLine::makeArrowsISO()
 {
-    m_arrow1->setStyle(0);
-    m_arrow1->setSize(QGIArrow::getPrefArrowSize());
+    m_arrow1->setStyle(ArrowType::FILLED_ARROW);
+    m_arrow1->setSize(m_arrowSize);
     m_arrow1->setPos(m_start);
-    m_arrow2->setStyle(0);
-    m_arrow2->setSize(QGIArrow::getPrefArrowSize());
+    m_arrow2->setStyle(ArrowType::FILLED_ARROW);
+    m_arrow2->setSize(m_arrowSize);
     m_arrow2->setPos(m_end);
 
     if (m_arrowMode == SINGLEDIRECTIONMODE) {
@@ -163,10 +169,10 @@ void QGISectionLine::makeArrowsISO()
 //make traditional (ASME) section arrows
 void QGISectionLine::makeArrowsTrad()
 {
-    m_arrow1->setStyle(0);
-    m_arrow1->setSize(QGIArrow::getPrefArrowSize());
-    m_arrow2->setStyle(0);
-    m_arrow2->setSize(QGIArrow::getPrefArrowSize());
+    m_arrow1->setStyle(ArrowType::FILLED_ARROW);
+    m_arrow1->setSize(m_arrowSize);
+    m_arrow2->setStyle(ArrowType::FILLED_ARROW);
+    m_arrow2->setSize(m_arrowSize);
 
     if (m_arrowMode == SINGLEDIRECTIONMODE) {
         double arrowRotation = getArrowRotation(m_arrowDir);
@@ -193,7 +199,7 @@ void QGISectionLine::makeArrowsTrad()
 
 void QGISectionLine::makeSymbols()
 {
-    int format = getPrefSectionStandard();
+    int format = Preferences::sectionLineConvention();
     if (format == ANSISTANDARD) {
         makeSymbolsTrad();
     } else {
@@ -205,8 +211,10 @@ void QGISectionLine::makeSymbols()
 void QGISectionLine::makeSymbolsTrad()
 {
     prepareGeometryChange();
-    int fontSize = QGIView::exactFontSize(Base::Tools::toStdString(m_symFont.family()), m_symSize);
-    m_symFont.setPixelSize(fontSize);
+    if (m_symSize >= 0.0) {
+        int fontSize = QGIView::exactFontSize(m_symFont.family().toStdString(), m_symSize);
+        m_symFont.setPixelSize(fontSize);
+    }
     m_symbol1->setFont(m_symFont);
     m_symbol1->setPlainText(QString::fromUtf8(m_symbol));
     m_symbol2->setFont(m_symFont);
@@ -214,7 +222,7 @@ void QGISectionLine::makeSymbolsTrad()
 
     QRectF symRect = m_symbol1->boundingRect();
     double symHeight = symRect.height();
-    double gap = 0.5 * symHeight;  //symHeight as surrogate for char box
+    double gap = symHeight / 2;  //symHeight as surrogate for char box
 
     QPointF motion1(m_arrowDir1.x, -m_arrowDir1.y);    //move in same direction as arrow
     QPointF motion2(m_arrowDir2.x, -m_arrowDir2.y);     //Qt y coords!
@@ -225,18 +233,21 @@ void QGISectionLine::makeSymbolsTrad()
     m_symbol1->centerAt(symPos1);
     m_symbol2->centerAt(symPos2);
 
+    constexpr double DegreesInCircle{360.0};
     m_symbol1->setTransformOriginPoint(m_symbol1->mapFromParent(symPos1));
-    m_symbol1->setRotation(360.0 - rotation());         //to Qt angle
+    m_symbol1->setRotation(DegreesInCircle - rotation());         //to Qt angle
     m_symbol2->setTransformOriginPoint(m_symbol2->mapFromParent(symPos2));
-    m_symbol2->setRotation(360.0 - rotation());
+    m_symbol2->setRotation(DegreesInCircle - rotation());
 }
 
 //symbols go at ends of extensions
 void QGISectionLine::makeSymbolsISO()
 {
     prepareGeometryChange();
-    int fontSize = QGIView::exactFontSize(Base::Tools::toStdString(m_symFont.family()), m_symSize);
-    m_symFont.setPixelSize(fontSize);
+    if (m_symSize >= 0.0) {
+        int fontSize = QGIView::exactFontSize(m_symFont.family().toStdString(), m_symSize);
+        m_symFont.setPixelSize(fontSize);
+    }
     m_symbol1->setFont(m_symFont);
     m_symbol1->setPlainText(QString::fromUtf8(m_symbol));
     m_symbol2->setFont(m_symFont);
@@ -244,7 +255,7 @@ void QGISectionLine::makeSymbolsISO()
 
     QRectF symRect = m_symbol1->boundingRect();
     double symHeight = symRect.height();
-    double gap = 0.5 * symHeight;  //symHeight as surrogate for char box
+    double gap = symHeight / 2;  //symHeight as surrogate for char box
 
     QPointF motion1(-m_arrowDir1.x, m_arrowDir1.y);     //move away from extension end
     QPointF motion2(-m_arrowDir2.x, m_arrowDir2.y);     //Qt y coords!
@@ -255,10 +266,11 @@ void QGISectionLine::makeSymbolsISO()
     m_symbol1->centerAt(symPos1);
     m_symbol2->centerAt(symPos2);
 
+    constexpr double DegreesInCircle{360.0};
     m_symbol1->setTransformOriginPoint(m_symbol1->mapFromParent(symPos1));
-    m_symbol1->setRotation(360.0 - rotation());
+    m_symbol1->setRotation(DegreesInCircle - rotation());
     m_symbol2->setTransformOriginPoint(m_symbol2->mapFromParent(symPos2));
-    m_symbol2->setRotation(360.0 - rotation());
+    m_symbol2->setRotation(DegreesInCircle - rotation());
 }
 
 //extension lines are on the stock side of the section line
@@ -291,7 +303,7 @@ void QGISectionLine::extensionEndsISO()
         offsetDir = normalizeQPointF(offsetDir);
 
         //draw from section line endpoint less arrow length
-        QPointF offsetStart = offsetDir * Rez::guiX(QGIArrow::getPrefArrowSize());
+        QPointF offsetStart = offsetDir * Rez::guiX(m_arrowSize);
         QPointF offsetEnd = m_extLen * offsetDir;
 
         m_beginExt1 = m_start + offsetStart;
@@ -302,14 +314,14 @@ void QGISectionLine::extensionEndsISO()
         //extension lines run in reverse of arrow direction from base of arrowhead for distance m_extLen
         QPointF offsetDir1(-m_arrowDir1.x, m_arrowDir1.y);      //reversed and inverted y
         offsetDir1 = normalizeQPointF(offsetDir1);
-        QPointF offsetStart1 =  offsetDir1 * Rez::guiX(QGIArrow::getPrefArrowSize());
+        QPointF offsetStart1 =  offsetDir1 * Rez::guiX(m_arrowSize);
         QPointF offsetEnd1 = m_extLen * offsetDir1;
         m_beginExt1 = m_start + offsetStart1;
         m_endExt1   = m_start + offsetStart1 + offsetEnd1;
 
         QPointF offsetDir2(-m_arrowDir2.x, m_arrowDir2.y);      //reversed and inverted y
         offsetDir2 = normalizeQPointF(offsetDir2);
-        QPointF offsetStart2 =  offsetDir2 * Rez::guiX(QGIArrow::getPrefArrowSize());
+        QPointF offsetStart2 =  offsetDir2 * Rez::guiX(m_arrowSize);
         QPointF offsetEnd2 = m_extLen * offsetDir2;
         m_beginExt2 = m_end + offsetStart2;
         m_endExt2   = m_end + offsetStart2 + offsetEnd2;
@@ -318,16 +330,10 @@ void QGISectionLine::extensionEndsISO()
 
 void QGISectionLine::makeChangePointMarks()
 {
-//    Base::Console().Message("QGISL::makeChangePointMarks()\n");
-    double segmentLength = 0.50 * QGIArrow::getPrefArrowSize();
+    double segmentLength = m_arrowSize / 2;
     QPen cPointPen;
-    //TODO: this should really be 2.0 * thickLineWidth, but we only have one
-    //width available (which should be 'thin', for the section line)
-    cPointPen.setWidthF(2.0 * getWidth());
-    cPointPen.setColor(getSectionColor());
-    cPointPen.setStyle(Qt::SolidLine);
     for (auto& cPoint : m_changePointData) {
-        QGraphicsPathItem* cPointItem = new QGraphicsPathItem();
+        auto* cPointItem = new QGraphicsPathItem();
         addToGroup(cPointItem);
 
         QPainterPath pPath;
@@ -339,7 +345,6 @@ void QGISectionLine::makeChangePointMarks()
         pPath.lineTo(Rez::guiPt(end));
 
         cPointItem->setPath(pPath);
-        cPointItem->setPen(cPointPen);
         cPointItem->setZValue(ZVALUE::SECTIONLINE + 1);
         cPointItem->setPos(0.0, 0.0);
 
@@ -363,7 +368,7 @@ void QGISectionLine::setBounds(double x1, double y1, double x2, double y2)
     m_end = QPointF(x2, y2);
 }
 
-void QGISectionLine::setSymbol(char* sym)
+void QGISectionLine::setSymbol(const char *sym)
 {
     m_symbol = sym;
 }
@@ -400,9 +405,10 @@ double QGISectionLine::getArrowRotation(Base::Vector3d arrowDir)
     arrowDir.Normalize();
     double angle = atan2f(arrowDir.y, arrowDir.x);
     if (angle < 0.0) {
-        angle = 2 * M_PI + angle;
+        angle = (2 * std::numbers::pi) + angle;
     }
-    double arrowRotation = 360.0 - angle * (180.0/M_PI);   //convert to Qt rotation (clockwise degrees)
+    constexpr double DegreesInCircle{360.0};
+    double arrowRotation = DegreesInCircle - Base::toDegrees(angle);   //convert to Qt rotation (clockwise degrees)
     return arrowRotation;
 }
 
@@ -411,24 +417,35 @@ QPointF QGISectionLine::getArrowPosition(Base::Vector3d arrowDir, QPointF refPoi
     QPointF qArrowDir(arrowDir.x, -arrowDir.y);              //remember Y dir is flipped
     qArrowDir = normalizeQPointF(qArrowDir);
 
-    double offsetLength = m_extLen + Rez::guiX(QGIArrow::getPrefArrowSize());
+    double offsetLength = m_extLen + Rez::guiX(m_arrowSize);
     QPointF offsetVec = offsetLength * qArrowDir;
 
     return QPointF(refPoint + offsetVec);
 }
 
-void QGISectionLine::setFont(QFont f, double fsize)
+void QGISectionLine::setArrowSize(double arrowSize)
+{
+    m_arrowSize = arrowSize;
+}
+
+void QGISectionLine::setFont(const QFont &f)
+{
+    m_symFont = f;
+    m_symSize = -1.0;
+}
+
+void QGISectionLine::setFont(const QFont &f, double fsize)
 {
     m_symFont = f;
     m_symSize = fsize;
 }
 
-void QGISectionLine::setPath(QPainterPath& path)
+void QGISectionLine::setPath(const QPainterPath &path)
 {
     m_line->setPath(path);
 }
 
-void QGISectionLine::setChangePoints(TechDraw::ChangePointVector changePointData)
+void QGISectionLine::setChangePoints(const TechDraw::ChangePointVector& changePointData)
 {
     m_changePointData = changePointData;
     clearChangePointMarks();
@@ -468,27 +485,8 @@ void QGISectionLine::setSectionColor(QColor c)
 
 QColor QGISectionLine::getSectionColor()
 {
-    return PreferencesGui::sectionLineQColor();
+    return getColor();
 }
-
-//SectionLineStyle
-void QGISectionLine::setSectionStyle(int style)
-{
-    Qt::PenStyle sectStyle = static_cast<Qt::PenStyle> (style);
-    setStyle(sectStyle);
-}
-
-Qt::PenStyle QGISectionLine::getSectionStyle()
-{
-    return PreferencesGui::sectionLineStyle();
-}
-
-//ASME("traditional") vs ISO("reference arrow method") arrows
-int QGISectionLine::getPrefSectionStandard()
-{
-    return Preferences::getPreferenceGroup("Standards")->GetInt("SectionLineStandard", ISOSTANDARD);
-}
-
 
 void QGISectionLine::paint ( QPainter * painter, const QStyleOptionGraphicsItem * option, QWidget * widget) {
     QStyleOptionGraphicsItem myOption(*option);
@@ -500,22 +498,27 @@ void QGISectionLine::paint ( QPainter * painter, const QStyleOptionGraphicsItem 
 
 void QGISectionLine::setTools()
 {
-    m_pen.setWidthF(m_width);
-    m_pen.setColor(m_colCurrent);
-    m_brush.setStyle(m_brushCurrent);
-    m_brush.setColor(m_colCurrent);
-
     m_line->setPen(m_pen);
+    m_extend->setPen(m_pen);
 
-    m_arrow1->setNormalColor(m_colCurrent);
-    m_arrow1->setFillColor(m_colCurrent);
+    QColor currentColor = m_pen.color();
+    m_arrow1->setNormalColor(currentColor);
+    m_arrow1->setFillColor(currentColor);
     m_arrow1->setPrettyNormal();
-    m_arrow2->setNormalColor(m_colCurrent);
-    m_arrow2->setFillColor(m_colCurrent);
+    m_arrow2->setNormalColor(currentColor);
+    m_arrow2->setFillColor(currentColor);
     m_arrow2->setPrettyNormal();
 
-    m_symbol1->setDefaultTextColor(m_colCurrent);
-    m_symbol2->setDefaultTextColor(m_colCurrent);
+    m_symbol1->setDefaultTextColor(currentColor);
+    m_symbol2->setDefaultTextColor(currentColor);
+
+    QPen cPointPen{m_pen};
+    cPointPen.setWidthF(m_pen.widthF() * 2);
+    cPointPen.setStyle(Qt::SolidLine);
+
+    for(auto& mark : m_changePointMarks) {
+        mark->setPen(cPointPen);
+    }
 }
 
 

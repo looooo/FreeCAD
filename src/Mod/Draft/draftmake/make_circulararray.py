@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # ***************************************************************************
 # *   (c) 2019 Eliud Cabrera Castillo <e.cabrera-castillo@tum.de>           *
 # *                                                                         *
@@ -21,6 +23,7 @@
 # *                                                                         *
 # ***************************************************************************
 """Provides functions to create circular Array objects."""
+
 ## @package make_circulararray
 # \ingroup draftmake
 # \brief Provides functions to create circular Array objects.
@@ -28,18 +31,24 @@
 ## \addtogroup draftmake
 # @{
 import FreeCAD as App
+import WorkingPlane
 import draftmake.make_array as make_array
 import draftutils.utils as utils
 
-from draftutils.messages import _msg, _err
+from draftutils.messages import _err
 from draftutils.translate import translate
 
 
-def make_circular_array(base_object,
-                        r_distance=100, tan_distance=50,
-                        number=3, symmetry=1,
-                        axis=App.Vector(0, 0, 1), center=App.Vector(0, 0, 0),
-                        use_link=True):
+def make_circular_array(
+    base_object,
+    r_distance=100,
+    tan_distance=50,
+    number=3,
+    symmetry=1,
+    axis=None,
+    center=App.Vector(0, 0, 0),
+    use_link=True,
+):
     """Create a circular array from the given object.
 
     Parameters
@@ -81,7 +90,8 @@ def make_circular_array(base_object,
         Et cetera.
 
     axis: Base::Vector3, optional
-        It defaults to `App.Vector(0, 0, 1)` or the `+Z` axis.
+        It defaults to the active Draft working plane axis if available,
+        otherwise to `App.Vector(0, 0, 1)` or the `+Z` axis.
         The unit vector indicating the axis of rotation.
 
     center: Base::Vector3, optional
@@ -119,59 +129,55 @@ def make_circular_array(base_object,
     make_ortho_array, make_polar_array, make_path_array, make_point_array
     """
     _name = "make_circular_array"
-    utils.print_header(_name, translate("draft","Circular array"))
 
-    if isinstance(base_object, str):
-        base_object_str = base_object
-
-    found, base_object = utils.find_object(base_object,
-                                           doc=App.activeDocument())
+    found, base_object = utils.find_object(base_object, doc=App.activeDocument())
     if not found:
-        _msg("base_object: {}".format(base_object_str))
-        _err(translate("draft","Wrong input: object not in document."))
+        _err(translate("draft", "Wrong input: base_object not in document."))
         return None
 
-    _msg("base_object: {}".format(base_object.Label))
-
-    _msg("r_distance: {}".format(r_distance))
-    _msg("tan_distance: {}".format(tan_distance))
-
     try:
-        utils.type_check([(r_distance, (int, float, App.Units.Quantity)),
-                          (tan_distance, (int, float, App.Units.Quantity))],
-                         name=_name)
+        utils.type_check(
+            [
+                (r_distance, (int, float, App.Units.Quantity)),
+                (tan_distance, (int, float, App.Units.Quantity)),
+            ],
+            name=_name,
+        )
     except TypeError:
-        _err(translate("draft","Wrong input: must be a number or quantity."))
+        _err(translate("draft", "Wrong input: must be a number or quantity."))
         return None
 
-    _msg("number: {}".format(number))
-    _msg("symmetry: {}".format(symmetry))
-
     try:
-        utils.type_check([(number, int),
-                          (symmetry, int)], name=_name)
+        utils.type_check([(number, int), (symmetry, int)], name=_name)
     except TypeError:
-        _err(translate("draft","Wrong input: must be an integer number."))
+        _err(translate("draft", "Wrong input: must be an integer number."))
         return None
 
-    _msg("axis: {}".format(axis))
-    _msg("center: {}".format(center))
+    if axis is None:
+        if App.GuiUp:
+            axis = WorkingPlane.get_working_plane(update=False).axis
+        else:
+            axis = App.Vector(0, 0, 1)
 
     try:
-        utils.type_check([(axis, App.Vector),
-                          (center, App.Vector)], name=_name)
+        utils.type_check([(axis, App.Vector), (center, App.Vector)], name=_name)
     except TypeError:
-        _err(translate("draft","Wrong input: must be a vector."))
+        _err(translate("draft", "Wrong input: must be a vector."))
         return None
 
     use_link = bool(use_link)
-    _msg("use_link: {}".format(use_link))
 
-    new_obj = make_array.make_array(base_object,
-                                    arg1=r_distance, arg2=tan_distance,
-                                    arg3=axis, arg4=center,
-                                    arg5=number, arg6=symmetry,
-                                    use_link=use_link)
+    new_obj = make_array.make_array(
+        base_object,
+        arg1=r_distance,
+        arg2=tan_distance,
+        arg3=axis,
+        arg4=center,
+        arg5=number,
+        arg6=symmetry,
+        use_link=use_link,
+    )
     return new_obj
+
 
 ## @}

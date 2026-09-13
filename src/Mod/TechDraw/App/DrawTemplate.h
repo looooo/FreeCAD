@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2014 Luke Parry <l.parry@warwick.ac.uk>                 *
  *                                                                         *
@@ -20,8 +22,9 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TECHDRAW_DrawTemplate_h_
-#define TECHDRAW_DrawTemplate_h_
+#pragma once
+
+#include <QString>
 
 #include <App/DocumentObject.h>
 #include <App/FeaturePython.h>
@@ -56,6 +59,9 @@ public:
     virtual double getHeight() const;
 
     virtual DrawPage* getParentPage() const;
+    virtual std::pair<int, int> getPageNumbers() const;
+
+    virtual std::string getAutofillValue(const std::string& id) const;
 
     /// returns the type name of the ViewProvider
     const char* getViewProviderName(void) const override{
@@ -65,6 +71,22 @@ public:
     // from base class
     PyObject *getPyObject(void) override;
 
+    class Autofill
+    {
+        public:
+            static constexpr const char *Author       = "author";
+            static constexpr const char *Date         = "date";
+            static constexpr const char *Organization = "organization";
+            static constexpr const char *Organisation = "organisation";
+            static constexpr const char *Owner        = "owner";
+            static constexpr const char *Company      = "company";
+            static constexpr const char *Scale        = "scale";
+            static constexpr const char *Sheet        = "sheet";
+            static constexpr const char *Title        = "title";
+            static constexpr const char *PageNumber   = "page_number";
+            static constexpr const char *PageCount    = "page_count";
+    };
+
 private:
     static const char* OrientationEnums[];
 
@@ -73,7 +95,3 @@ private:
 using DrawTemplatePython = App::FeaturePythonT<DrawTemplate>;
 
 } //namespace TechDraw
-
-
-
-#endif //TECHDRAW_DrawTemplate_h_

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2021 edi                                                *
  *                                                                         *
@@ -20,13 +22,10 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 # include <cmath>
-#endif
+
 
 #include <App/DocumentObject.h>
-#include <Base/Tools.h>
 #include <Gui/BitmapFactory.h>
 #include <Gui/Command.h>
 #include <Mod/TechDraw/App/DrawViewBalloon.h>
@@ -84,13 +83,13 @@ void TaskCustomizeFormat::setUiEdit()
         isDimension = true;
         std::string dimText = dim->FormatSpec.getStrValue();
         dimRawValue = dim->getDimValue();
-        ui->leFormat->setText(Base::Tools::fromStdString(dimText));
+        ui->leFormat->setText(QString::fromStdString(dimText));
     }
     else if (auto balloon = dynamic_cast<TechDraw::DrawViewBalloon*>(selectedObject))
     {
         isDimension = false;
         std::string balloonText = balloon->Text.getStrValue();
-        ui->leFormat->setText(Base::Tools::fromStdString(balloonText));
+        ui->leFormat->setText(QString::fromStdString(balloonText));
     }
     // GD&T
     connect(ui->pbA01, &QPushButton::clicked, this, &TaskCustomizeFormat::onSymbolClicked);
@@ -174,11 +173,7 @@ void TaskCustomizeFormat::onFormatChanged()
     QString formatPreview = ui->leFormat->text();
     if (isDimension)
     {
-        constexpr int size(80);
-        char buffer[size];
-        std::string formatString = formatPreview.toUtf8().constData();
-        auto usedSize = snprintf(buffer, size, formatString.c_str(), dimRawValue);
-        formatPreview = QString::fromUtf8(buffer, usedSize);
+        formatPreview = QString::asprintf(formatPreview.toUtf8(), dimRawValue);
     }
     ui->lbShowPreview->setText(formatPreview);
 }
@@ -188,7 +183,8 @@ bool TaskCustomizeFormat::accept()
     // Slot: the OK button has been pressed
     QString formatPreview = ui->leFormat->text();
     std::string formatString = formatPreview.toUtf8().constData();
-    Gui::Command::openCommand(QT_TRANSLATE_NOOP("Command", "Customize Format"));
+    int tid = Gui::Command::openActiveDocumentCommand(QT_TRANSLATE_NOOP("Command", "Customize Format"));
+
     if (isDimension)
     {
         auto dim = dynamic_cast<TechDraw::DrawViewDimension*>(selectedObject);
@@ -199,7 +195,7 @@ bool TaskCustomizeFormat::accept()
         auto balloon = dynamic_cast<TechDraw::DrawViewBalloon*>(selectedObject);
         balloon->Text.setValue(formatString);
     }
-    Gui::Command::commitCommand();
+    Gui::Command::commitCommand(tid);
     return true;
 }
 

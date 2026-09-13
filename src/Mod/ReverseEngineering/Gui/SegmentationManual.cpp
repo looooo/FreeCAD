@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2020 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,15 +22,13 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <QPushButton>
-#endif
+
 
 #include <App/Document.h>
 #include <Gui/Application.h>
 #include <Gui/Document.h>
-#include <Gui/Selection.h>
+#include <Gui/Selection/Selection.h>
 #include <Mod/Mesh/App/Core/Algorithm.h>
 #include <Mod/Mesh/App/Core/Approximation.h>
 #include <Mod/Mesh/App/Core/Segmentation.h>
@@ -47,7 +47,7 @@ SegmentationManual::SegmentationManual(QWidget* parent, Qt::WindowFlags fl)
 {
     ui->setupUi(this);
     setupConnections();
-    ui->spSelectComp->setRange(1, INT_MAX);
+    ui->spSelectComp->setRange(1, std::numeric_limits<int>::max());
     ui->spSelectComp->setValue(10);
 
     Gui::Selection().clearSelection();
@@ -60,44 +60,22 @@ SegmentationManual::~SegmentationManual() = default;
 
 void SegmentationManual::setupConnections()
 {
-    connect(ui->selectRegion,
-            &QPushButton::clicked,
-            this,
-            &SegmentationManual::onSelectRegionClicked);
+    connect(ui->selectRegion, &QPushButton::clicked, this, &SegmentationManual::onSelectRegionClicked);
     connect(ui->selectAll, &QPushButton::clicked, this, &SegmentationManual::onSelectAllClicked);
-    connect(ui->selectComponents,
-            &QPushButton::clicked,
-            this,
-            &SegmentationManual::onSelectComponentsClicked);
-    connect(ui->selectTriangle,
-            &QPushButton::clicked,
-            this,
-            &SegmentationManual::onSelectTriangleClicked);
-    connect(ui->deselectAll,
-            &QPushButton::clicked,
-            this,
-            &SegmentationManual::onDeselectAllClicked);
-    connect(ui->visibleTriangles,
-            &QCheckBox::toggled,
-            this,
-            &SegmentationManual::onVisibleTrianglesToggled);
-    connect(ui->screenTriangles,
-            &QCheckBox::toggled,
-            this,
-            &SegmentationManual::onScreenTrianglesToggled);
+    connect(
+        ui->selectComponents,
+        &QPushButton::clicked,
+        this,
+        &SegmentationManual::onSelectComponentsClicked
+    );
+    connect(ui->selectTriangle, &QPushButton::clicked, this, &SegmentationManual::onSelectTriangleClicked);
+    connect(ui->deselectAll, &QPushButton::clicked, this, &SegmentationManual::onDeselectAllClicked);
+    connect(ui->visibleTriangles, &QCheckBox::toggled, this, &SegmentationManual::onVisibleTrianglesToggled);
+    connect(ui->screenTriangles, &QCheckBox::toggled, this, &SegmentationManual::onScreenTrianglesToggled);
     connect(ui->cbSelectComp, &QCheckBox::toggled, this, &SegmentationManual::onSelectCompToggled);
-    connect(ui->planeDetect,
-            &QPushButton::clicked,
-            this,
-            &SegmentationManual::onPlaneDetectClicked);
-    connect(ui->cylinderDetect,
-            &QPushButton::clicked,
-            this,
-            &SegmentationManual::onCylinderDetectClicked);
-    connect(ui->sphereDetect,
-            &QPushButton::clicked,
-            this,
-            &SegmentationManual::onSphereDetectClicked);
+    connect(ui->planeDetect, &QPushButton::clicked, this, &SegmentationManual::onPlaneDetectClicked);
+    connect(ui->cylinderDetect, &QPushButton::clicked, this, &SegmentationManual::onCylinderDetectClicked);
+    connect(ui->sphereDetect, &QPushButton::clicked, this, &SegmentationManual::onSphereDetectClicked);
 }
 
 void SegmentationManual::changeEvent(QEvent* e)
@@ -153,8 +131,11 @@ public:
     static void findGeometry(
         int minFaces,
         double tolerance,
-        std::function<MeshCore::AbstractSurfaceFit*(const std::vector<Base::Vector3f>&,
-                                                    const std::vector<Base::Vector3f>&)> fitFunc)
+        std::function<MeshCore::AbstractSurfaceFit*(
+            const std::vector<Base::Vector3f>&,
+            const std::vector<Base::Vector3f>&
+        )> fitFunc
+    )
     {
         Gui::Document* gdoc = Gui::Application::Instance->activeDocument();
         if (!gdoc) {
@@ -164,8 +145,9 @@ public:
         App::Document* adoc = gdoc->getDocument();
         std::vector<Mesh::Feature*> meshes = adoc->getObjectsOfType<Mesh::Feature>();
         for (auto it : meshes) {
-            MeshGui::ViewProviderMesh* vpm =
-                static_cast<MeshGui::ViewProviderMesh*>(gdoc->getViewProvider(it));
+            MeshGui::ViewProviderMesh* vpm = static_cast<MeshGui::ViewProviderMesh*>(
+                gdoc->getViewProvider(it)
+            );
             const Mesh::MeshObject& mesh = it->Mesh.getValue();
 
             if (mesh.hasSelectedFacets()) {
@@ -192,7 +174,9 @@ public:
                             surfFit,
                             kernel,
                             minFaces,
-                            tolerance));
+                            tolerance
+                        )
+                    );
                     finder.FindSegments(segm);
 
                     for (const auto& segmIt : segm) {
@@ -215,7 +199,7 @@ void SegmentationManual::onPlaneDetectClicked()
 
         MeshCore::PlaneFit fit;
         fit.AddPoints(points);
-        if (fit.Fit() < FLOAT_MAX) {
+        if (fit.Fit() < std::numeric_limits<float>::max()) {
             Base::Vector3f base = fit.GetBase();
             Base::Vector3f axis = fit.GetNormal();
             return new MeshCore::PlaneSurfaceFit(base, axis);
@@ -239,7 +223,7 @@ void SegmentationManual::onCylinderDetectClicked()
             Base::Vector3f axis = fit.GetInitialAxisFromNormals(normal);
             fit.SetInitialValues(base, axis);
         }
-        if (fit.Fit() < FLOAT_MAX) {
+        if (fit.Fit() < std::numeric_limits<float>::max()) {
             Base::Vector3f base = fit.GetBase();
             Base::Vector3f axis = fit.GetAxis();
             float radius = fit.GetRadius();
@@ -259,7 +243,7 @@ void SegmentationManual::onSphereDetectClicked()
 
         MeshCore::SphereFit fit;
         fit.AddPoints(points);
-        if (fit.Fit() < FLOAT_MAX) {
+        if (fit.Fit() < std::numeric_limits<float>::max()) {
             Base::Vector3f base = fit.GetCenter();
             float radius = fit.GetRadius();
             return new MeshCore::SphereSurfaceFit(base, radius);
@@ -295,8 +279,7 @@ void SegmentationManual::createSegment()
             algo.GetFacetsFlag(facets, MeshCore::MeshFacet::SELECTED);
 
             std::unique_ptr<Mesh::MeshObject> segment(mesh.meshFromSegment(facets));
-            Mesh::Feature* feaSegm =
-                static_cast<Mesh::Feature*>(adoc->addObject("Mesh::Feature", "Segment"));
+            auto* feaSegm = adoc->addObject<Mesh::Feature>("Segment");
             Mesh::MeshObject* feaMesh = feaSegm->Mesh.startEditing();
             feaMesh->swap(*segment);
             feaMesh->clearFacetSelection();
@@ -343,9 +326,7 @@ void SegmentationManual::reject()
 TaskSegmentationManual::TaskSegmentationManual()
 {
     widget = new SegmentationManual();
-    taskbox = new Gui::TaskView::TaskBox(QPixmap(), widget->windowTitle(), false, nullptr);
-    taskbox->groupLayout()->addWidget(widget);
-    Content.push_back(taskbox);
+    addTaskBox(widget, false);
 }
 
 void TaskSegmentationManual::modifyStandardButtons(QDialogButtonBox* box)

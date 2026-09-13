@@ -1,13 +1,14 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: BSL-1.0
 # Copyright 2020 Andy Maloney <asmaloney@gmail.com>
 
 target_sources( ${PROJECT_NAME}
 	PRIVATE
-		${CMAKE_CURRENT_LIST_DIR}/E57Exception.h
-		${CMAKE_CURRENT_LIST_DIR}/E57Format.h
-		${CMAKE_CURRENT_LIST_DIR}/E57SimpleData.h
-		${CMAKE_CURRENT_LIST_DIR}/E57SimpleReader.h
-		${CMAKE_CURRENT_LIST_DIR}/E57SimpleWriter.h
+		E57Exception.h
+		E57Format.h
+		E57SimpleData.h
+		E57SimpleReader.h
+		E57SimpleWriter.h
+		E57Version.h
 )
 
 #install(
@@ -17,13 +18,13 @@ target_sources( ${PROJECT_NAME}
 #		E57SimpleData.h
 #		E57SimpleReader.h
 #		E57SimpleWriter.h
+#		E57Version.h
 #	DESTINATION
 #		include/E57Format
 #)
 
 target_include_directories( ${PROJECT_NAME}
-	PUBLIC
+	SYSTEM PUBLIC
 		$<INSTALL_INTERFACE:include/E57Format>
 		$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
-

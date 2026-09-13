@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 FreeCAD Developers                                 *
  *   Author: Przemo Firszt <przemo@firszt.eu>                              *
@@ -22,8 +24,7 @@
  ***************************************************************************/
 
 
-#ifndef FEM_CONSTRAINTPRESSURE_H
-#define FEM_CONSTRAINTPRESSURE_H
+#pragma once
 
 #include "FemConstraint.h"
 
@@ -37,10 +38,10 @@ class FemExport ConstraintPressure: public Fem::Constraint
 public:
     ConstraintPressure();
 
+    App::PropertyBool EnableAmplitude;
+    App::PropertyStringList AmplitudeValues;
     App::PropertyPressure Pressure;
     App::PropertyBool Reversed;
-    App::PropertyVectorList Points;
-    App::PropertyVectorList Normals;
 
     /// recalculate the object
     App::DocumentObjectExecReturn* execute() override;
@@ -49,11 +50,11 @@ public:
     const char* getViewProviderName() const override;
 
 protected:
-    void
-    handleChangedPropertyType(Base::XMLReader& reader, const char* TypeName, App::Property* prop);
-    void onChanged(const App::Property* prop) override;
+    void handleChangedPropertyType(
+        Base::XMLReader& reader,
+        const char* TypeName,
+        App::Property* prop
+    ) override;
 };
 
 }  // namespace Fem
-
-#endif  // FEM_CONSTRAINTPRESSURE_H

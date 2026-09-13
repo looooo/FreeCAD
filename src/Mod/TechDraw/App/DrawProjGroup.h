@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Luke Parry <l.parry@warwick.ac.uk>                 *
  *                                                                         *
@@ -20,10 +22,8 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TECHDRAW_FEATUREVIEWGROUP_H_
-#define TECHDRAW_FEATUREVIEWGROUP_H_
+#pragma once
 
-#include <string>
 #include <QRectF>
 
 #include <App/DocumentObject.h>
@@ -43,6 +43,9 @@ namespace TechDraw
 const int MAXPROJECTIONCOUNT = 10;
 
 class DrawProjGroupItem;
+enum class ProjDirection : int;
+enum class SpinDirection : int;
+enum class RotationMotion : int;
 
 /**
  * Class super-container for managing a collection of DrawProjGroupItem
@@ -70,6 +73,14 @@ public:
     App::PropertyLength spacingY;
 
     App::PropertyLink Anchor; /// Anchor Element to align views to
+
+    // this needs to be kept in the same sequence as the literals in the cpp file and with the QComboBox
+    // in TaskProjGroup.ui.
+    enum class ViewProjectionConvention {
+        FirstAngle = 0,
+        ThirdAngle,
+        Page
+    };
 
     double autoScale() const override;
     double autoScale(double w, double h) const override;
@@ -112,10 +123,10 @@ public:
     //return PyObject as DrawProjGroupPy
     PyObject *getPyObject() override;
 
-    /// Determines either "First Angle" or "Third Angle".
+    /// Determines either "First angle" or "Third angle".
     App::Enumeration usedProjectionType();
 
-    /// Allowed projection types - either Document, First Angle or Third Angle
+    /// Allowed projection types - either Document, First angle or Third angle
     static const char* ProjectionTypeEnums[];
 
     bool hasAnchor();
@@ -123,12 +134,13 @@ public:
     Base::Vector3d getAnchorDirection();
     TechDraw::DrawProjGroupItem* getAnchor();
     std::pair<Base::Vector3d, Base::Vector3d> getDirsFromFront(DrawProjGroupItem* view);
-    std::pair<Base::Vector3d, Base::Vector3d> getDirsFromFront(std::string viewType);
+    std::pair<Base::Vector3d, Base::Vector3d> getDirsFromFront(TechDraw::ProjDirection viewType);
 
     void updateSecondaryDirs();
 
-    void rotate(const std::string &rotationdirection);
-    void spin(const std::string &spindirection);
+    void rotate(const TechDraw::RotationMotion& motion);
+    void spin(const TechDraw::SpinDirection& spindirection);
+    void spin(double angle);
 
     void dumpISO(const char * title);
     std::vector<DrawProjGroupItem*> getViewsAsDPGI();
@@ -148,6 +160,7 @@ public:
     void dumpTouchedProps();
 
 protected:
+    void unsetupObject() override;
     void onChanged(const App::Property* prop) override;
 
     /// Annoying helper - keep in sync with DrawProjGroupItem::TypeEnums
@@ -197,5 +210,3 @@ protected:
 };
 
 } //namespace TechDraw
-
-#endif // TECHDRAW_FEATUREVIEWGROUP_H_

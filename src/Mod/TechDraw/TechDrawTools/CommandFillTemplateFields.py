@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # ***************************************************************************
 # *   Copyright (c) 2023 Syres                                              *
 # *                                                                         *
@@ -30,7 +32,6 @@ from PySide.QtCore import QT_TRANSLATE_NOOP
 
 import FreeCAD as App
 import FreeCADGui as Gui
-import codecs
 import csv
 import os.path
 
@@ -46,11 +47,11 @@ class CommandFillTemplateFields:
             "Pixmap": "actions/TechDraw_FillTemplateFields.svg",
             "Accel": "",
             "MenuText": QT_TRANSLATE_NOOP(
-                "TechDraw_FillTemplateFields", "Update template fields"
+                "TechDraw_FillTemplateFields", "Update Template Fields"
             ),
             "ToolTip": QT_TRANSLATE_NOOP(
                 "TechDraw_FillTemplateFields",
-                "Use document info to populate the template fields",
+                "Uses document info to populate the template fields",
             ),
         }
 
@@ -62,37 +63,39 @@ class CommandFillTemplateFields:
         """Return True when the command should be active
         or False when it should be disabled (greyed)."""
         if App.ActiveDocument:
-            objs = App.ActiveDocument.Objects
+            objs = App.ActiveDocument.findObjects(Type="TechDraw::DrawPage")
+            if not objs:
+                return False
+
             for obj in objs:
-                if obj.TypeId == "TechDraw::DrawPage":
-                    file_path = (
-                        App.getResourceDir()
-                        + "Mod/TechDraw/CSVdata/FillTemplateFields.csv"
-                    )
-                    if os.path.exists(file_path):
-                        listofkeys = [
-                            "CreatedByChkLst",
-                            "ScaleChkLst",
-                            "LabelChkLst",
-                            "CommentChkLst",
-                            "CompanyChkLst",
-                            "LicenseChkLst",
-                            "CreatedDateChkLst",
-                            "LastModifiedDateChkLst",
-                        ]
-                        with codecs.open(file_path, encoding="utf-8") as fp:
-                            reader = csv.DictReader(fp)
-                            page = obj
-                            texts = page.Template.EditableTexts
-                            if (
-                                texts
-                                and os.path.exists(file_path)
-                                and listofkeys == reader.fieldnames
-                                and obj.Views != []
-                            ):
-                                return True
-        else:
+                file_path = (
+                    App.getResourceDir()
+                    + "Mod/TechDraw/CSVdata/FillTemplateFields.csv"
+                )
+                if os.path.exists(file_path):
+                    listofkeys = [
+                        "CreatedByChkLst",
+                        "ScaleChkLst",
+                        "LabelChkLst",
+                        "CommentChkLst",
+                        "CompanyChkLst",
+                        "LicenseChkLst",
+                        "CreatedDateChkLst",
+                        "LastModifiedDateChkLst",
+                    ]
+                    with open(file_path, encoding="utf-8", newline="") as fp:
+                        reader = csv.DictReader(fp)
+                        page = obj
+                        texts = page.Template.EditableTexts
+                        if (
+                            texts
+                            and os.path.exists(file_path)
+                            and listofkeys == reader.fieldnames
+                            and obj.Views != []
+                        ):
+                            return True
             return False
+
 
 
 #

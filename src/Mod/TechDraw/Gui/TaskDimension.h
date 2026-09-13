@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2021 Uwe Stöhr <uwestoehr@lyx.org>                      *
  *                                                                         *
@@ -20,9 +22,9 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef GUI_TASKVIEW_TASKDIMENSION_H
-#define GUI_TASKVIEW_TASKDIMENSION_H
+#pragma once
 
+#include <Gui/DocumentObserver.h>
 #include <Gui/TaskView/TaskDialog.h>
 #include <Gui/TaskView/TaskView.h>
 #include <Mod/TechDraw/TechDrawGlobal.h>
@@ -68,12 +70,17 @@ private Q_SLOTS:
     void onDimUseSelectionClicked();
     void onExtUseDefaultClicked();
     void onExtUseSelectionClicked();
+    void onNumDecChanged(int decimals);
+    void onReferenceChanged();
 
 private:
     std::unique_ptr<Ui_TaskDimension> ui;
     QGIViewDimension *m_parent;
-    ViewProviderDimension *m_dimensionVP;
+    Gui::WeakPtrT<ViewProviderDimension> m_dimensionVP;
     std::pair<double, bool> getAngleFromSelection();
+    std::string m_originalFormatChar;
+    std::string m_formatPrefix;
+    std::string m_formatSuffix;
 };
 
 class TaskDlgDimension : public Gui::TaskView::TaskDialog
@@ -108,5 +115,3 @@ private:
 };
 
 } //namespace TechDrawGui
-
-#endif // #ifndef GUI_TASKVIEW_TASKDIMENSION_H

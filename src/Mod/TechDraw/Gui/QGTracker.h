@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_TRACKER_H
-#define DRAWINGGUI_TRACKER_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
@@ -36,6 +37,7 @@ QT_END_NAMESPACE
 #include <Base/Parameter.h>
 #include <Base/Vector3D.h>
 
+#include "QGIUserTypes.h"
 #include "QGIPrimPath.h"
 
 namespace TechDrawGui
@@ -44,25 +46,32 @@ namespace TechDrawGui
 class QGSPage;
 class QGIView;
 
-//TODO: make this a proper enum
-static constexpr int TRACKERPICK(0);
-static constexpr int TRACKEREDIT(1);
-static constexpr int TRACKERCANCEL(2);
-static constexpr int TRACKERCANCELEDIT(3);
-static constexpr int TRACKERFINISHED(4);
-static constexpr int TRACKERSAVE(5);
+enum class TrackerAction
+{
+    PICK = 0,
+    EDIT = 1,
+    CANCEL = 2,
+    CANCELEDIT = 3,
+    FINISHED = 4,
+    SAVE = 5
+};
 
 class TechDrawGuiExport QGTracker : public QObject, public QGIPrimPath
 {
     Q_OBJECT
 public:
-    enum TrackerMode { None, Line, Circle, Rectangle, Point };
+    enum class TrackerMode {
+        None,
+        Line,
+        Circle,
+        Rectangle,
+        Point
+    };
 
-    explicit QGTracker(QGSPage* scene = nullptr, QGTracker::TrackerMode m = QGTracker::TrackerMode::None);
-    ~QGTracker() override;
+    explicit QGTracker(QGSPage* scene = nullptr, TrackerMode m = TrackerMode::None);
+    ~QGTracker() override = default;
 
-
-    enum {Type = QGraphicsItem::UserType + 210};
+    enum {Type = UserType::QGTracker};
 
     int type() const override { return Type;}
     void paint(QPainter * painter, const QStyleOptionGraphicsItem * option, QWidget * widget = nullptr ) override;
@@ -87,6 +96,8 @@ public:
     void setTrackerMode(TrackerMode m) { m_trackerMode = m; }
     QPointF snapToAngle(QPointF pt);
 
+    void setOwnerQView(QGIView* owner) { m_qgParent = owner; }
+
 Q_SIGNALS:
     void drawingFinished(std::vector<QPointF> pts, TechDrawGui::QGIView* qgParent);
     void qViewPicked(QPointF pos, TechDrawGui::QGIView* qgParent);
@@ -104,18 +115,12 @@ protected:
     double getTrackerWeight();
 
 private:
-    QGraphicsPathItem* m_track;
-    QPointF m_segBegin;
-    QPointF m_segEnd;
     std::vector<QPointF> m_points;
     bool m_sleep;
     QGIView* m_qgParent;
     TrackerMode m_trackerMode;
-    QPen m_trackPen;
     QPen m_tailPen;
     QPointF m_lastClick;
 };
 
 } // namespace
-
-#endif // DRAWINGGUI_TRACKER_H

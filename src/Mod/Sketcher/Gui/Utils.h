@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2021 Abdullah Tahiri <abdullah.tahiri.yo@gmail.com>     *
  *                                                                         *
@@ -20,18 +22,18 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef SKETCHERGUI_Recompute_H
-#define SKETCHERGUI_Recompute_H
+#pragma once
 
 #include <Base/Exception.h>
 #include <Base/Tools.h>
 #include <Base/Tools2D.h>
 #include <Mod/Sketcher/App/GeoEnum.h>
+#include <QListWidget>
+#include <QMap>
+#include <QString>
 
 #include "AutoConstraint.h"
 #include "ViewProviderSketchGeometryExtension.h"
-#include "GeometryCreationMode.h"
-
 
 namespace App
 {
@@ -61,6 +63,7 @@ bool isLineSegment(const Part::Geometry&);
 bool isArcOfHyperbola(const Part::Geometry&);
 bool isArcOfParabola(const Part::Geometry&);
 bool isBSplineCurve(const Part::Geometry&);
+bool isPeriodicBSplineCurve(const Part::Geometry&);
 bool isPoint(const Part::Geometry&);
 
 bool isCircleOrArc(const Part::Geometry& geo);
@@ -74,6 +77,15 @@ namespace SketcherGui
 class DrawSketchHandler;
 class ViewProviderSketch;
 
+enum OffsetMode : bool
+{
+    NoOffset = false,
+    OffsetConstraint = true
+};
+
+// to improve readability, expose the enum cases directly in the namespace
+using enum OffsetMode;
+
 /// This function tries to auto-recompute the active document if the option
 /// is set in the user parameter. If the option is not set nothing will be done
 /// @return true if a recompute was undertaken, false if not.
@@ -85,20 +97,27 @@ bool tryAutoRecompute(Sketcher::SketchObject* obj, bool& autoremoveredundants);
 /// is not enabled, then it solves the SketchObject.
 void tryAutoRecomputeIfNotSolve(Sketcher::SketchObject* obj);
 
+// Recomputes and closes a transaction, then resets the transaction id
+void closeAndRecompute(int& tid, bool abort, Sketcher::SketchObject* Obj);
+
 /// Release any currently-active handler for the document.
 /// Returns true if a handler was released, and false if not
 bool ReleaseHandler(Gui::Document* doc);
 
 std::string getStrippedPythonExceptionString(const Base::Exception&);
 
-void getIdsFromName(const std::string& name,
-                    const Sketcher::SketchObject* Obj,
-                    int& GeoId,
-                    Sketcher::PointPos& PosId);
+void getIdsFromName(
+    const std::string& name,
+    const Sketcher::SketchObject* Obj,
+    int& GeoId,
+    Sketcher::PointPos& PosId
+);
 
 /// Returns ONLY the geometry elements when the "Edge" is selected (including GeomPoints)
-std::vector<int> getGeoIdsOfEdgesFromNames(const Sketcher::SketchObject* Obj,
-                                           const std::vector<std::string>& names);
+std::vector<int> getGeoIdsOfEdgesFromNames(
+    const Sketcher::SketchObject* Obj,
+    const std::vector<std::string>& names
+);
 
 bool checkBothExternal(int GeoId1, int GeoId2);
 
@@ -106,10 +125,7 @@ bool isPointOrSegmentFixed(const Sketcher::SketchObject* Obj, int GeoId);
 
 bool areBothPointsOrSegmentsFixed(const Sketcher::SketchObject* Obj, int GeoId1, int GeoId2);
 
-bool areAllPointsOrSegmentsFixed(const Sketcher::SketchObject* Obj,
-                                 int GeoId1,
-                                 int GeoId2,
-                                 int GeoId3);
+bool areAllPointsOrSegmentsFixed(const Sketcher::SketchObject* Obj, int GeoId1, int GeoId2, int GeoId3);
 
 bool inline isVertex(int GeoId, Sketcher::PointPos PosId);
 
@@ -121,14 +137,14 @@ bool isSimpleVertex(const Sketcher::SketchObject* Obj, int GeoId, Sketcher::Poin
 bool isBsplineKnot(const Sketcher::SketchObject* Obj, int GeoId);
 /// Checks if the (`GeoId`, `PosId`) pair corresponds to a B-Spline knot, including first and last
 /// knots
-bool isBsplineKnotOrEndPoint(const Sketcher::SketchObject* Obj,
-                             int GeoId,
-                             Sketcher::PointPos PosId);
+bool isBsplineKnotOrEndPoint(const Sketcher::SketchObject* Obj, int GeoId, Sketcher::PointPos PosId);
 
-bool IsPointAlreadyOnCurve(int GeoIdCurve,
-                           int GeoIdPoint,
-                           Sketcher::PointPos PosIdPoint,
-                           Sketcher::SketchObject* Obj);
+bool IsPointAlreadyOnCurve(
+    int GeoIdCurve,
+    int GeoIdPoint,
+    Sketcher::PointPos PosIdPoint,
+    Sketcher::SketchObject* Obj
+);
 
 bool isBsplinePole(const Part::Geometry* geo);
 
@@ -136,10 +152,12 @@ bool isBsplinePole(const Sketcher::SketchObject* Obj, int GeoId);
 
 /// Checks whether there is a constraint of the given type with a First element geoid and a FirstPos
 /// PosId
-bool checkConstraint(const std::vector<Sketcher::Constraint*>& vals,
-                     Sketcher::ConstraintType type,
-                     int geoid,
-                     Sketcher::PointPos pos);
+bool checkConstraint(
+    const std::vector<Sketcher::Constraint*>& vals,
+    Sketcher::ConstraintType type,
+    int geoid,
+    Sketcher::PointPos pos
+);
 
 inline bool isVertex(int GeoId, Sketcher::PointPos PosId)
 {
@@ -151,52 +169,50 @@ inline bool isEdge(int GeoId, Sketcher::PointPos PosId)
     return (GeoId != Sketcher::GeoEnum::GeoUndef && PosId == Sketcher::PointPos::none);
 }
 
-extern GeometryCreationMode geometryCreationMode;  // defined in CommandCreateGeo.cpp
-
-inline bool isConstructionMode()
-{
-    return geometryCreationMode == GeometryCreationMode::Construction;
-}
-
-inline const char* constructionModeAsBooleanText()
-{
-    return geometryCreationMode == GeometryCreationMode::Construction ? "True" : "False";
-}
-
 /* helper functions ======================================================*/
 
 // Return counter-clockwise angle from horizontal out of p1 to p2 in radians.
 double GetPointAngle(const Base::Vector2d& p1, const Base::Vector2d& p2);
 
 // Set the two points on circles at minimal distance
-void GetCirclesMinimalDistance(const Part::Geometry* geom1,
-                               const Part::Geometry* geom2,
-                               Base::Vector3d& point1,
-                               Base::Vector3d& point2);
+void GetCirclesMinimalDistance(
+    const Part::Geometry* geom1,
+    const Part::Geometry* geom2,
+    Base::Vector3d& point1,
+    Base::Vector3d& point2
+);
 
-void ActivateHandler(Gui::Document* doc, DrawSketchHandler* handler);
+void ActivateHandler(Gui::Document* doc, std::unique_ptr<DrawSketchHandler> handler);
 
 /// Returns if a sketch is in edit mode
 bool isSketchInEdit(Gui::Document* doc);
 
 /// Returns whether an edit mode command should be activated or not. It is only activated if the
 /// sketcher is no special state or a sketchHandler is active.
-bool isCommandActive(Gui::Document* doc, bool actsOnSelection = false);
-
-bool isSketcherBSplineActive(Gui::Document* doc, bool actsOnSelection);
+bool isCommandActive(Gui::Document* doc);
+bool isCommandNeedingConstraintActive(Gui::Document* doc);
+bool isCommandNeedingGeometryActive(Gui::Document* doc);
+bool isCommandNeedingBSplineActive(Gui::Document* doc);
 
 SketcherGui::ViewProviderSketch* getInactiveHandlerEditModeSketchViewProvider(Gui::Document* doc);
 
 SketcherGui::ViewProviderSketch* getInactiveHandlerEditModeSketchViewProvider();
 
-void removeRedundantHorizontalVertical(Sketcher::SketchObject* psketch,
-                                       std::vector<AutoConstraint>& sug1,
-                                       std::vector<AutoConstraint>& sug2);
+void removeRedundantHorizontalVertical(
+    Sketcher::SketchObject* psketch,
+    std::vector<AutoConstraint>& sug1,
+    std::vector<AutoConstraint>& sug2
+);
 
-void ConstraintToAttachment(Sketcher::GeoElementId element,
-                            Sketcher::GeoElementId attachment,
-                            double distance,
-                            App::DocumentObject* obj);
+void ConstraintToAttachment(
+    Sketcher::GeoElementId element,
+    Sketcher::GeoElementId attachment,
+    double distance,
+    App::DocumentObject* obj
+);
+
+void ConstraintLineByAngle(int geoId, double angle, App::DocumentObject* obj);
+void Constraint2LinesByAngle(int geoId1, int geoId2, double angle, App::DocumentObject* obj);
 
 // convenience functions for cursor coordinates
 bool hideUnits();
@@ -205,7 +221,21 @@ bool useSystemDecimals();
 std::string lengthToDisplayFormat(double value, int digits);
 std::string angleToDisplayFormat(double value, int digits);
 
-bool areColinear(const Base::Vector2d& p1, const Base::Vector2d& p2, const Base::Vector2d& p3);
+bool areCollinear(const Base::Vector2d& p1, const Base::Vector2d& p2, const Base::Vector2d& p3);
+
+// Returns the index of the element in the vector, GeoUndef if the element is GeoUndef and -1 if not
+// found
+int indexOfGeoId(const std::vector<int>& vec, int elem);
+
+inline void scrollTo(QListWidget* list, int i, bool select)
+{
+    if (select && list->model()) {  // scrollTo only on select, not de-select
+        QModelIndex index = list->model()->index(i, 0);
+        list->scrollTo(index, QAbstractItemView::PositionAtCenter);
+    }
+}
+
+QMap<QString, QString> findAvailableFontFiles();
 
 }  // namespace SketcherGui
 
@@ -227,9 +257,7 @@ auto toPointerVector(const std::vector<std::unique_ptr<T>>& vector)
 {
     std::vector<T*> vp(vector.size());
 
-    std::transform(vector.begin(), vector.end(), vp.begin(), [](auto& p) {
-        return p.get();
-    });
+    std::transform(vector.begin(), vector.end(), vp.begin(), [](auto& p) { return p.get(); });
 
     return vp;
 }
@@ -245,11 +273,9 @@ auto getSafeGeomLayerId(T geom)
     int layerId = 0;
 
     if (geom->hasExtension(SketcherGui::ViewProviderSketchGeometryExtension::getClassTypeId())) {
-        auto vpext =
-            std::static_pointer_cast<const SketcherGui::ViewProviderSketchGeometryExtension>(
-                geom->getExtension(
-                        SketcherGui::ViewProviderSketchGeometryExtension::getClassTypeId())
-                    .lock());
+        auto vpext = std::static_pointer_cast<const SketcherGui::ViewProviderSketchGeometryExtension>(
+            geom->getExtension(SketcherGui::ViewProviderSketchGeometryExtension::getClassTypeId()).lock()
+        );
 
         layerId = vpext->getVisualLayerId();
     }
@@ -270,10 +296,8 @@ void setSafeGeomLayerId(T geom, int layerindex)
     }
 
     auto vpext = std::static_pointer_cast<SketcherGui::ViewProviderSketchGeometryExtension>(
-        geom->getExtension(SketcherGui::ViewProviderSketchGeometryExtension::getClassTypeId())
-            .lock());
+        geom->getExtension(SketcherGui::ViewProviderSketchGeometryExtension::getClassTypeId()).lock()
+    );
 
     vpext->setVisualLayerId(layerindex);
 }
-
-#endif  // SKETCHERGUI_Recompute_H

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2019 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,13 +22,11 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
-#ifndef _PreComp_
 # include <cstdlib>
 # include <cstring>
 # include <sstream>
-#endif
+
 
 #include <App/Document.h>
 #include <Base/Console.h>
@@ -53,7 +53,7 @@ DrawViewDimExtent::DrawViewDimExtent(void)
     Source.setScope(App::LinkScope::Global);
 
     //Source3d is a candidate for deprecation as References3D contains the same information
-    ADD_PROPERTY_TYPE(Source3d, (nullptr, nullptr), "", (App::PropertyType)(App::Prop_Output), "3d geometry to be dimensioned");
+    ADD_PROPERTY_TYPE(Source3d, (nullptr, nullptr), "", (App::PropertyType)(App::Prop_Output), "3D geometry to be dimensioned");
     Source3d.setScope(App::LinkScope::Global);
     ADD_PROPERTY_TYPE(DirExtent ,(0), "", App::Prop_Output, "Horizontal / Vertical");
 
@@ -64,14 +64,14 @@ DrawViewDimExtent::DrawViewDimExtent(void)
 
 App::DocumentObjectExecReturn *DrawViewDimExtent::execute(void)
 {
-//    Base::Console().Message("DVDE::execute() - %s\n", getNameInDocument());
+//    Base::Console().message("DVDE::execute() - %s\n", getNameInDocument());
     if (!keepUpdated()) {
         return App::DocumentObject::StdReturn;
     }
     App::DocumentObject* docObj = Source.getValue();
     if (!docObj)
         return App::DocumentObject::StdReturn;
-    DrawViewPart* dvp = dynamic_cast<DrawViewPart*>(docObj);
+    DrawViewPart* dvp = freecad_cast<DrawViewPart*>(docObj);
     if (!dvp)
         return App::DocumentObject::StdReturn;
 
@@ -94,7 +94,7 @@ App::DocumentObjectExecReturn *DrawViewDimExtent::execute(void)
 //! validate 2D references - only checks if the target exists
 bool DrawViewDimExtent::checkReferences2D() const
 {
-//    Base::Console().Message("DVDE::checkReferences2d() - %s\n", getNameInDocument());
+//    Base::Console().message("DVDE::checkReferences2d() - %s\n", getNameInDocument());
     const std::vector<App::DocumentObject*> &objects = References2D.getValues();
     if (objects.empty()) {
         return false;
@@ -111,10 +111,10 @@ bool DrawViewDimExtent::checkReferences2D() const
 }
 pointPair DrawViewDimExtent::getPointsExtent(ReferenceVector references)
 {
-//    Base::Console().Message("DVD::getPointsExtent() - %s\n", getNameInDocument());
+//    Base::Console().message("DVD::getPointsExtent() - %s\n", getNameInDocument());
     App::DocumentObject* refObject = references.front().getObject();
     int direction = DirExtent.getValue();
-    if (refObject->isDerivedFrom(TechDraw::DrawViewPart::getClassTypeId())) {
+    if (refObject->isDerivedFrom<TechDraw::DrawViewPart>()) {
         auto dvp = static_cast<TechDraw::DrawViewPart*>(refObject);
 
         std::vector<std::string> edgeNames;     //empty list means we are using all the edges

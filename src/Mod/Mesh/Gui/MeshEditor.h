@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2010 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef MESHGUI_MESHEDITOR_H
-#define MESHGUI_MESHEDITOR_H
+#pragma once
 
 #include <QObject>
 
@@ -71,8 +72,7 @@ public:
     void setDisplayMode(const char* ModeName) override;
     const char* getDefaultDisplayMode() const override;
     std::vector<std::string> getDisplayModes() const override;
-    SoPickedPoint* getPickedPoint(const SbVec2s& pos,
-                                  const Gui::View3DInventorViewer* viewer) const;
+    SoPickedPoint* getPickedPoint(const SbVec2s& pos, const Gui::View3DInventorViewer* viewer) const;
 
     ViewProviderMesh* mesh {nullptr};
     std::vector<int> index;
@@ -81,6 +81,8 @@ public:
     SoCoordinate3* pcCoords;
     SoFaceSet* pcFaces;
     SoFCMeshPickNode* pcMeshPick;
+
+    FC_DISABLE_COPY_MOVE(ViewProviderFace)
 };
 
 /**
@@ -112,6 +114,8 @@ private:
 
 private:
     ViewProviderFace* faceView;
+
+    Q_DISABLE_COPY_MOVE(MeshFaceAddition)
 };
 
 class MeshGuiExport MeshHoleFiller
@@ -123,10 +127,12 @@ public:
     MeshHoleFiller(MeshHoleFiller&&) = delete;
     MeshHoleFiller& operator=(const MeshHoleFiller&) = delete;
     MeshHoleFiller& operator=(MeshHoleFiller&&) = delete;
-    virtual bool fillHoles(Mesh::MeshObject&,
-                           const std::list<std::vector<Mesh::PointIndex>>&,
-                           Mesh::PointIndex,
-                           Mesh::PointIndex)
+    virtual bool fillHoles(
+        Mesh::MeshObject&,
+        const std::list<std::vector<Mesh::PointIndex>>&,
+        Mesh::PointIndex,
+        Mesh::PointIndex
+    )
     {
         return false;
     }
@@ -154,15 +160,12 @@ private Q_SLOTS:
 
 private:
     using TBoundary = std::vector<Mesh::PointIndex>;
-    using Connection = boost::signals2::connection;
+    using Connection = fastsignals::connection;
 
     static void fileHoleCallback(void* ud, SoEventCallback* n);
     void createPolygons();
     SoNode* getPickedPolygon(const SoRayPickAction& action) const;
-    float findClosestPoint(const SbLine& ray,
-                           const TBoundary& polygon,
-                           Mesh::PointIndex&,
-                           SbVec3f&) const;
+    float findClosestPoint(const SbLine& ray, const TBoundary& polygon, Mesh::PointIndex&, SbVec3f&) const;
     void slotChangedObject(const App::DocumentObject& Obj, const App::Property& Prop);
 
 private:
@@ -179,9 +182,8 @@ private:
     TBoundary myPolygon;
     MeshHoleFiller& myHoleFiller;
     Connection myConnection;
+
+    Q_DISABLE_COPY_MOVE(MeshFillHole)
 };
 
 }  // namespace MeshGui
-
-
-#endif  // MESHGUI_MESHEDITOR_H

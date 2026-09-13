@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,15 +22,14 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
-#ifndef _PreComp_
 # include <iomanip>
 # include <sstream>
-#endif
+
 
 #include <Base/Console.h>
 #include <Base/Interpreter.h>
+#include <Base/Tools.h>
 
 #include "DrawViewDraft.h"
 
@@ -79,7 +80,7 @@ short DrawViewDraft::mustExecute() const
 
 App::DocumentObjectExecReturn *DrawViewDraft::execute()
 {
-//    Base::Console().Message("DVDr::execute() \n");
+//    Base::Console().message("DVDr::execute() \n");
     if (!keepUpdated()) {
         return App::DocumentObject::StdReturn;
     }
@@ -94,13 +95,13 @@ App::DocumentObjectExecReturn *DrawViewDraft::execute()
         // Draft.get_svg(obj, scale=1, linewidth=0.35, fontsize=12, fillstyle="shape color", direction=None, linestyle=None, color=None, linespacing=None, techdraw=False)
 
         std::stringstream paramStr;
-        App::Color col = Color.getValue();
+        Base::Color col = Color.getValue();
         paramStr << ", scale=" << getScale()
                  << ", linewidth=" << LineWidth.getValue()
                  << ", fontsize=" << FontSize.getValue()
                  // TODO treat fillstyle here
                  << ", direction=FreeCAD.Vector(" << Direction.getValue().x << ", " << Direction.getValue().y << ", " << Direction.getValue().z << ")"
-                 << ", linestyle=\"" << LineStyle.getValue() << "\""
+                 << ", linestyle=\"" << Base::Tools::escapeEncodeString(LineStyle.getStrValue()) << "\""
                  << ", color=\"" << col.asHexString() << "\""
                  << ", linespacing=" << LineSpacing.getValue()
                  // We must set techdraw to "true" becausea couple of things behave differently than in Drawing

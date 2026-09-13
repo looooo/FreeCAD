@@ -1,5 +1,6 @@
 #! python
-# -*- coding: utf-8 -*-
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # (c) 2006 Werner Mayer LGPL
 #
 # FreeCAD RevInfo script to get the revision information from Subversion, Bazaar, and Git.
@@ -9,7 +10,8 @@
 # 2012/02/01: The script was extended to support git
 # 2011/02/05: The script was extended to support also Bazaar
 
-import os, sys, re, time, getopt
+import os, sys, re, datetime, time, getopt
+from urllib.parse import urlparse
 import xml.sax
 import xml.sax.handler
 import xml.sax.xmlreader
@@ -18,6 +20,7 @@ try:
     from StringIO import StringIO
 except ImportError:
     from io import StringIO
+
 
 # SAX handler to parse the subversion output
 class SvnHandler(xml.sax.handler.ContentHandler):
@@ -266,17 +269,18 @@ class GitControl(VersionControl):
                 if remote in self.remotes:
                     url = self.remotes[remote]
                     # rewrite github to public url
-                    match = re.match("git@github\.com:(\S+?)/(\S+\.git)", url) or re.match(
-                        "https://github\.com/(\S+)/(\S+\.git)", url
+                    match = re.match(r"git@github\.com:(\S+?)/(\S+\.git)", url) or re.match(
+                        r"https://github\.com/(\S+)/(\S+\.git)", url
                     )
                     if match is not None:
                         url = "git://github.com/%s/%s" % match.groups()
-                    match = re.match("ssh://\S+?@(\S+)", url)
+                    match = re.match(r"ssh://\S+?@(\S+)", url)
                     if match is not None:
                         url = "git://%s" % match.group(1)
+                    parsed_url = urlparse(url)
                     entryscore = (
                         url == "git://github.com/FreeCAD/FreeCAD.git",
-                        "github.com" in url,
+                        parsed_url.netloc == "github.com",
                         branch == self.branch,
                         branch == "main",
                         "@" not in url,
@@ -301,10 +305,13 @@ class GitControl(VersionControl):
         referencerevision = 14555
 
         result = None
-        countallfh = os.popen("git rev-list --count %s..HEAD" % referencecommit)
+        null_device = "nul" if os.name == "nt" else "/dev/null"
+        countallfh = os.popen(f"git rev-list --count {referencecommit}..HEAD 2>{null_device}")
         countallstr = countallfh.read().strip()
-        if countallfh.close() is not None:  # reference commit not present
-            self.rev = "%04d (Git shallow)" % referencerevision
+        if countallfh.close() is not None:  # reference commit not present, use the date
+            date_object = datetime.datetime.strptime(self.date, "%Y/%m/%d %H:%M:%S")
+            formatted_date = date_object.strftime("%Y%m%d")
+            self.rev = f"{formatted_date} (Git shallow)"
             return
         else:
             countall = int(countallstr)
@@ -369,7 +376,7 @@ class GitControl(VersionControl):
             "%Y/%m/%d %H:%M:%S", time.gmtime(float(info.strip().split(" ", 1)[0]))
         )
         for self.branch in os.popen("git branch --no-color").read().split("\n"):
-            if re.match("\*", self.branch) is not None:
+            if re.match(r"\*", self.branch) is not None:
                 break
         self.branch = self.branch[2:]
         self.getremotes()  # setup self.remotes and branchlst

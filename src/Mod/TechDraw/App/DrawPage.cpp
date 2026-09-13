@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2002 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,15 +22,13 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 # include <sstream>
 
 # include <Precision.hxx>
-#endif
 
 #include <App/Application.h>
 #include <App/Document.h>
+#include <App/Link.h>
 #include <Base/Console.h>
 #include <Base/Parameter.h>
 
@@ -55,7 +55,7 @@ App::PropertyFloatConstraint::Constraints DrawPage::scaleRange = {
 
 PROPERTY_SOURCE(TechDraw::DrawPage, App::DocumentObject)
 
-const char* DrawPage::ProjectionTypeEnums[] = {"First Angle", "Third Angle", nullptr};
+const char* DrawPage::ProjectionTypeEnums[] = {"First angle", "Third angle", nullptr};
 
 DrawPage::DrawPage(void)
 {
@@ -98,7 +98,7 @@ void DrawPage::onChanged(const App::Property* prop)
     if (prop == &KeepUpdated && KeepUpdated.getValue()) {
         if (!isRestoring() && !isUnsetting()) {
             //would be nice if this message was displayed immediately instead of after the recomputeFeature
-            Base::Console().Message("Rebuilding Views for: %s/%s\n", getNameInDocument(),
+            Base::Console().message("Rebuilding Views for: %s/%s\n", getNameInDocument(),
                                     Label.getValue());
             updateAllViews();
             purgeTouched();
@@ -114,12 +114,10 @@ void DrawPage::onChanged(const App::Property* prop)
         // WF: not sure this loop is required.  Views figure out their scale as required. but maybe
         //     this is needed just to mark the Views to recompute??
         if (!isRestoring()) {
-            const std::vector<App::DocumentObject*>& vals = Views.getValues();
-            for (std::vector<App::DocumentObject*>::const_iterator it = vals.begin();
-                 it < vals.end(); ++it) {
-                TechDraw::DrawView* view = dynamic_cast<TechDraw::DrawView*>(*it);
+            for (auto* obj : getViews()) {
+                auto* view = freecad_cast<DrawView*>(obj);
                 if (view && view->ScaleType.isValue("Page")) {
-                    if (std::abs(view->Scale.getValue() - Scale.getValue()) > FLT_EPSILON) {
+                    if (std::abs(view->Scale.getValue() - Scale.getValue()) > std::numeric_limits<float>::epsilon()) {
                         view->Scale.setValue(Scale.getValue());
                     }
                 }
@@ -128,10 +126,8 @@ void DrawPage::onChanged(const App::Property* prop)
     }
     else if (prop == &ProjectionType) {
         // touch all ortho views in the Page as they may be dependent on Projection Type  //(is this true?)
-        const std::vector<App::DocumentObject*>& vals = Views.getValues();
-        for (std::vector<App::DocumentObject*>::const_iterator it = vals.begin(); it < vals.end();
-             ++it) {
-            TechDraw::DrawProjGroup* view = dynamic_cast<TechDraw::DrawProjGroup*>(*it);
+        for (auto* obj : getViews()) {
+            auto* view = freecad_cast<DrawProjGroup*>(obj);
             if (view && view->ProjectionType.isValue("Default")) {
                 view->ProjectionType.touch();
             }
@@ -176,7 +172,7 @@ bool DrawPage::hasValidTemplate() const
     App::DocumentObject* obj = nullptr;
     obj = Template.getValue();
 
-    if (obj && obj->isDerivedFrom(TechDraw::DrawTemplate::getClassTypeId())) {
+    if (obj && obj->isDerivedFrom<TechDraw::DrawTemplate>()) {
         TechDraw::DrawTemplate* templ = static_cast<TechDraw::DrawTemplate*>(obj);
         if (templ->getWidth() > 0. && templ->getHeight() > 0.) {
             return true;
@@ -190,7 +186,7 @@ double DrawPage::getPageWidth() const
 {
     App::DocumentObject* obj = Template.getValue();
 
-    if (obj && obj->isDerivedFrom(TechDraw::DrawTemplate::getClassTypeId())) {
+    if (obj && obj->isDerivedFrom<TechDraw::DrawTemplate>()) {
         TechDraw::DrawTemplate* templ = static_cast<TechDraw::DrawTemplate*>(obj);
         return templ->getWidth();
     }
@@ -202,7 +198,7 @@ double DrawPage::getPageHeight() const
 {
     App::DocumentObject* obj = Template.getValue();
 
-    if (obj && obj->isDerivedFrom(TechDraw::DrawTemplate::getClassTypeId())) {
+    if (obj && obj->isDerivedFrom<TechDraw::DrawTemplate>()) {
         TechDraw::DrawTemplate* templ = static_cast<TechDraw::DrawTemplate*>(obj);
         return templ->getHeight();
     }
@@ -216,7 +212,7 @@ const char* DrawPage::getPageOrientation() const
     App::DocumentObject* obj;
     obj = Template.getValue();
 
-    if (obj && obj->isDerivedFrom(TechDraw::DrawTemplate::getClassTypeId())) {
+    if (obj && obj->isDerivedFrom<TechDraw::DrawTemplate>()) {
         TechDraw::DrawTemplate* templ = static_cast<TechDraw::DrawTemplate*>(obj);
         return templ->Orientation.getValueAsString();
     }
@@ -228,36 +224,52 @@ int DrawPage::getOrientation() const
 {
     App::DocumentObject* obj = Template.getValue();
 
-    if (obj && obj->isDerivedFrom(TechDraw::DrawTemplate::getClassTypeId())) {
-        TechDraw::DrawTemplate* templ = static_cast<TechDraw::DrawTemplate*>(obj);
+    if (obj && obj->isDerivedFrom<DrawTemplate>()) {
+        auto* templ = static_cast<DrawTemplate*>(obj);
         return templ->Orientation.getValue();
     }
     throw Base::RuntimeError("Template not set for Page");
 }
 
-int DrawPage::addView(App::DocumentObject* docObj)
+int DrawPage::addView(App::DocumentObject* docObj, bool setPosition)
 {
-    if (!docObj->isDerivedFrom(TechDraw::DrawView::getClassTypeId())) {
+    if (!docObj->isDerivedFrom<DrawView>()
+        && !docObj->isDerivedFrom<App::Link>()) {
         return -1;
     }
-    DrawView* view = static_cast<DrawView*>(docObj);
 
-    //position all new views in center of Page (exceptDVDimension)
-    if (!docObj->isDerivedFrom(TechDraw::DrawViewDimension::getClassTypeId())
-        && !docObj->isDerivedFrom(TechDraw::DrawViewBalloon::getClassTypeId())) {
+    auto* view = freecad_cast<DrawView*>(docObj);
+
+    if (!view) {
+        auto* link = dynamic_cast<App::Link*>(docObj);
+        if (!link) {
+            return -1;
+        }
+
+        view = freecad_cast<DrawView*>(link->getLinkedObject());
+        if (!view) {
+            return -1;
+        }
+    }
+
+    //position all new views without owners in center of Page (exceptDVDimension)
+    if (!view->claimParent()
+        && !docObj->isDerivedFrom<DrawViewDimension>()
+        && !docObj->isDerivedFrom<DrawViewBalloon>()
+        && setPosition) {
         view->X.setValue(getPageWidth() / 2.0);
         view->Y.setValue(getPageHeight() / 2.0);
     }
 
     //add view to list
-    const std::vector<App::DocumentObject*> currViews = Views.getValues();
-    std::vector<App::DocumentObject*> newViews(currViews);
+    std::vector<App::DocumentObject*> newViews(Views.getValues());
     newViews.push_back(docObj);
     Views.setValues(newViews);
 
+
     //check if View fits on Page
     if (!view->checkFit(this)) {
-        Base::Console().Warning("%s is larger than page. Will be scaled.\n",
+        Base::Console().warning("%s is larger than page. Will be scaled.\n",
                                 view->getNameInDocument());
         view->ScaleType.setValue("Automatic");
     }
@@ -270,7 +282,7 @@ int DrawPage::addView(App::DocumentObject* docObj)
 //Note Views might be removed from document elsewhere so need to check if a View is still in Document here
 int DrawPage::removeView(App::DocumentObject* docObj)
 {
-    if (!docObj->isDerivedFrom(TechDraw::DrawView::getClassTypeId())) {
+    if (!docObj->isDerivedFrom<DrawView>() && !docObj->isDerivedFrom<App::Link>()) {
         return -1;
     }
 
@@ -282,18 +294,16 @@ int DrawPage::removeView(App::DocumentObject* docObj)
     if (!docObj->isAttachedToDocument()) {
         return -1;
     }
-    const std::vector<App::DocumentObject*> currViews = Views.getValues();
     std::vector<App::DocumentObject*> newViews;
-    std::vector<App::DocumentObject*>::const_iterator it = currViews.begin();
-    for (; it != currViews.end(); it++) {
-        App::Document* viewDoc = (*it)->getDocument();
+    for (auto* view : Views.getValues()) {
+        App::Document* viewDoc = view->getDocument();
         if (!viewDoc) {
             continue;
         }
 
         std::string viewName = docObj->getNameInDocument();
-        if (viewName.compare((*it)->getNameInDocument()) != 0) {
-            newViews.push_back((*it));
+        if (viewName.compare(view->getNameInDocument()) != 0) {
+            newViews.push_back(view);
         }
     }
     Views.setValues(newViews);
@@ -306,6 +316,10 @@ void DrawPage::requestPaint(void) { signalGuiPaint(this); }
 void DrawPage::onDocumentRestored()
 {
     if (canUpdate()) {
+        TechDraw::DrawTemplate* tmplte = dynamic_cast<TechDraw::DrawTemplate*>(Template.getValue());
+        if (tmplte) {
+            tmplte->recomputeFeature();
+        }
         updateAllViews();
     }
 
@@ -314,7 +328,7 @@ void DrawPage::onDocumentRestored()
 
 void DrawPage::redrawCommand()
 {
-    //    Base::Console().Message("DP::redrawCommand()\n");
+    //    Base::Console().message("DP::redrawCommand()\n");
     forceRedraw(true);
     updateAllViews();
     forceRedraw(false);
@@ -322,13 +336,13 @@ void DrawPage::redrawCommand()
 
 void DrawPage::updateAllViews()
 {
-    //    Base::Console().Message("DP::updateAllViews()\n");
-    std::vector<App::DocumentObject*> featViews =
-        getAllViews();//unordered list of views within page
+    //    Base::Console().message("DP::updateAllViews()\n");
+    //unordered list of views within page
+    std::vector<App::DocumentObject*> featViews = getAllViews();
 
     //first, make sure all the Parts have been executed so GeometryObjects exist
     for (auto& v : featViews) {
-        TechDraw::DrawViewPart* part = dynamic_cast<TechDraw::DrawViewPart*>(v);
+        auto* part = freecad_cast<DrawViewPart*>(v);
         if (part) {
             //view, section, detail, dpgi
             part->recomputeFeature();
@@ -337,12 +351,12 @@ void DrawPage::updateAllViews()
     //second, do the rest of the views that may depend on a part view
     //TODO: check if we have 2 layers of dependency (ex. leader > weld > tile?)
     for (auto& v : featViews) {
-        TechDraw::DrawViewPart* part = dynamic_cast<TechDraw::DrawViewPart*>(v);
+        auto* part = freecad_cast<DrawViewPart*>(v);
         if (part) {
             continue;
         }
 
-        TechDraw::DrawView* view = dynamic_cast<TechDraw::DrawView*>(v);
+        auto* view = freecad_cast<DrawView*>(v);
         if (view) {
             view->overrideKeepUpdated(true);
             view->recomputeFeature();
@@ -350,14 +364,53 @@ void DrawPage::updateAllViews()
     }
 }
 
-std::vector<App::DocumentObject*> DrawPage::getAllViews(void)
+std::vector<App::DocumentObject*> DrawPage::getViews() const
 {
-    auto views = Views.getValues();//list of docObjects
+    std::vector<App::DocumentObject*> views = Views.getValues();
     std::vector<App::DocumentObject*> allViews;
     for (auto& v : views) {
+        bool addChildren = false;
+
+        if (v->isDerivedFrom<App::Link>()) {
+            // In the case of links, child object of the view need to be added since
+            // they are not in the page Views property.
+            v = static_cast<App::Link*>(v)->getLinkedObject();
+            addChildren = true;
+        }
+
+        if (!v->isDerivedFrom<DrawView>()) {
+            continue;
+        }
+
         allViews.push_back(v);
-        if (v->isDerivedFrom(TechDraw::DrawProjGroup::getClassTypeId())) {
-            TechDraw::DrawProjGroup* dpg = static_cast<TechDraw::DrawProjGroup*>(v);
+
+        if (addChildren) {
+            for (auto* dep : v->getInList()) {
+                if (dep && dep->isDerivedFrom<TechDraw::DrawView>()) {
+                    allViews.push_back(dep);
+                }
+            }
+        }
+    }
+    return allViews;
+}
+
+std::vector<App::DocumentObject*> DrawPage::getAllViews() const
+{
+    std::vector<App::DocumentObject*> views = Views.getValues();
+    std::vector<App::DocumentObject*> allViews;
+    for (auto& v : views) {
+        if (v->isDerivedFrom<App::Link>()) {
+            v = static_cast<App::Link*>(v)->getLinkedObject();
+        }
+
+        if (!v->isDerivedFrom<DrawView>()) {
+            continue;
+        }
+
+        allViews.push_back(v);
+        if (v->isDerivedFrom<DrawProjGroup>()) {
+            auto* dpg = static_cast<DrawProjGroup*>(v);
             if (dpg) {//can't really happen!
                 std::vector<App::DocumentObject*> pgViews = dpg->Views.getValues();
                 allViews.insert(allViews.end(), pgViews.begin(), pgViews.end());
@@ -377,8 +430,7 @@ void DrawPage::unsetupObject()
     std::string pageName = getNameInDocument();
 
     try {
-        const std::vector<App::DocumentObject*> currViews = Views.getValues();
-        for (auto& v : currViews) {
+        for (auto& v : Views.getValues()) {
             //NOTE: the order of objects in Page.Views does not reflect the object hierarchy
             //      this means that a ProjGroup could be deleted before its child ProjGroupItems.
             //      this causes problems when removing objects from document
@@ -392,7 +444,7 @@ void DrawPage::unsetupObject()
         Views.setValues(emptyViews);
     }
     catch (...) {
-        Base::Console().Warning("DP::unsetupObject - %s - error while deleting children\n",
+        Base::Console().warning("DP::unsetupObject - %s - error while deleting children\n",
                                 getNameInDocument());
     }
 
@@ -418,7 +470,7 @@ void DrawPage::handleChangedPropertyType(Base::XMLReader& reader, const char* Ty
 {
     if (prop == &Scale) {
         App::PropertyFloat tmp;
-        if (strcmp(tmp.getTypeId().getName(), TypeName) == 0) {//property in file is Float
+        if (tmp.getTypeId().getName() == TypeName) {  // property in file is Float
             tmp.setContainer(this);
             tmp.Restore(reader);
             double tmpValue = tmp.getValue();

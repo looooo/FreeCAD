@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2002 Jürgen Riegel <juergen.riegel@web.de>              *
  *   Copyright (c) 2013 Luke Parry <l.parry@warwick.ac.uk>                 *
@@ -34,9 +36,7 @@
 // everything else is mostly providing services to other objects, such as the
 // actual drawing routines in Gui
 
-#include "PreCompiled.h"
 
-#ifndef _PreComp_
 #include <BRepAlgo_NormalProjection.hxx>
 #include <BRepBndLib.hxx>
 #include <BRepBuilderAPI_Copy.hxx>
@@ -63,13 +63,15 @@
 #include <gp_Pln.hxx>
 #include <gp_Pnt.hxx>
 #include <sstream>
-#endif
+
 
 #include <App/Document.h>
 #include <Base/BoundBox.h>
 #include <Base/Console.h>
+#include <Base/Converter.h>
 #include <Base/Exception.h>
 #include <Base/Parameter.h>
+#include <Base/Tools.h>
 
 #include "Cosmetic.h"
 #include "CenterLine.h"
@@ -96,14 +98,16 @@ using DU = DrawUtil;
 
 PROPERTY_SOURCE_WITH_EXTENSIONS(TechDraw::DrawViewPart, TechDraw::DrawView)
 
-DrawViewPart::DrawViewPart(void)
-    : geometryObject(nullptr), m_tempGeometryObject(nullptr), m_waitingForFaces(false),
+DrawViewPart::DrawViewPart()
+    : geometryObject(nullptr),
+      m_tempGeometryObject(nullptr),
+      m_handleFaces(false),
+      nowUnsetting(false),
+      m_waitingForFaces(false),
       m_waitingForHlr(false)
 {
     static const char* group = "Projection";
     static const char* sgroup = "HLR Parameters";
-    nowUnsetting = false;
-    m_handleFaces = false;
 
     CosmeticExtension::initExtension(this);
 
@@ -114,8 +118,8 @@ DrawViewPart::DrawViewPart(void)
     ADD_PROPERTY_TYPE(XSource, (nullptr), group, App::Prop_None, "External 3D Shape to view");
 
     ADD_PROPERTY_TYPE(Direction, (0.0, -1.0, 0.0), group, App::Prop_None,
-                      "Projection Plane normal. The direction you are looking from.");
-    ADD_PROPERTY_TYPE(XDirection, (0.0, 0.0, 0.0), group, App::Prop_None,
+                      "Projection Plane normal. View direction for the projection plane");
+    ADD_PROPERTY_TYPE(XDirection, (1.0, 0.0, 0.0), group, App::Prop_None,
                       "Projection Plane X Axis in R3. Rotates/Mirrors View");
     ADD_PROPERTY_TYPE(Perspective, (false), group, App::Prop_None,
                       "Perspective(true) or Orthographic(false) projection");
@@ -154,11 +158,11 @@ DrawViewPart::~DrawViewPart()
 {
     //don't delete this object while it still has dependent threads running
     if (m_hlrFuture.isRunning()) {
-        Base::Console().Message("%s is waiting for HLR to finish\n", Label.getValue());
+        Base::Console().message("%s is waiting for HLR to finish\n", Label.getValue());
         m_hlrFuture.waitForFinished();
     }
     if (m_faceFuture.isRunning()) {
-        Base::Console().Message("%s is waiting for face finding to finish\n", Label.getValue());
+        Base::Console().message("%s is waiting for face finding to finish\n", Label.getValue());
         m_faceFuture.waitForFinished();
     }
     removeAllReferencesFromGeom();
@@ -166,17 +170,17 @@ DrawViewPart::~DrawViewPart()
 
 //! returns a compound of all the shapes from the DocumentObjects in the Source &
 //!  XSource property lists
-TopoDS_Shape DrawViewPart::getSourceShape(bool fuse) const
+TopoDS_Shape DrawViewPart::getSourceShape(bool fuse, bool allow2d) const
 {
-//    Base::Console().Message("DVP::getSourceShape()\n");
+//    Base::Console().message("DVP::getSourceShape()\n");
     const std::vector<App::DocumentObject*>& links = getAllSources();
     if (links.empty()) {
-        return TopoDS_Shape();
+        return {};
     }
     if (fuse) {
         return ShapeExtractor::getShapesFused(links);
     }
-    return ShapeExtractor::getShapes(links);
+    return ShapeExtractor::getShapes(links, allow2d);
 }
 
 //! deliver a shape appropriate for making a detail view based on this view
@@ -184,13 +188,13 @@ TopoDS_Shape DrawViewPart::getSourceShape(bool fuse) const
 //! version of the shape?  Should we have a getShapeForSection?
 TopoDS_Shape DrawViewPart::getShapeForDetail() const
 {
-    return ShapeUtils::rotateShape(getSourceShape(true), getProjectionCS(), Rotation.getValue());
+    return ShapeUtils::rotateShape(getSourceShape(false), getProjectionCS(), Rotation.getValue());
 }
 
 //! combine the regular links and xlinks into a single list
 std::vector<App::DocumentObject*> DrawViewPart::getAllSources() const
 {
-    //    Base::Console().Message("DVP::getAllSources()\n");
+    //    Base::Console().message("DVP::getAllSources()\n");
     std::vector<App::DocumentObject*> links = Source.getValues();
     std::vector<App::DocumentObject*> xLinks = XSource.getValues();
 
@@ -203,27 +207,29 @@ std::vector<App::DocumentObject*> DrawViewPart::getAllSources() const
 
 //! pick vertex objects out of the Source properties and
 //! add them directly to the geometry without going through HLR
-void DrawViewPart::addPoints(void)
+void DrawViewPart::addPoints()
 {
-//    Base::Console().Message("DVP::addPoints()\n");
+//    Base::Console().message("DVP::addPoints()\n");
     // get all the 2d shapes in the sources, then pick through them for vertices.
-    std::vector<TopoDS_Shape> shapes = ShapeExtractor::getShapes2d(getAllSources());
-    for (auto& s : shapes) {
-        if (s.ShapeType() == TopAbs_VERTEX) {
-            gp_Pnt gp = BRep_Tool::Pnt(TopoDS::Vertex(s));
+    std::vector<TopoDS_Shape> shapesAll = ShapeExtractor::getShapes2d(getAllSources());
+    for (auto& shape : shapesAll) {
+        if (shape.ShapeType() == TopAbs_VERTEX) {
+            gp_Pnt gp = BRep_Tool::Pnt(TopoDS::Vertex(shape));
             Base::Vector3d vp(gp.X(), gp.Y(), gp.Z());
             vp = vp - m_saveCentroid;
             //need to offset the point to match the big projection
             Base::Vector3d projected = projectPoint(vp * getScale());
             TechDraw::VertexPtr v1(std::make_shared<TechDraw::Vertex>(projected));
-            geometryObject->addVertex(v1);
+            if (geometryObject) {
+                geometryObject->addVertex(v1);
+            }
         }
     }
 }
 
-App::DocumentObjectExecReturn* DrawViewPart::execute(void)
+App::DocumentObjectExecReturn* DrawViewPart::execute()
 {
-    //    Base::Console().Message("DVP::execute() - %s\n", getNameInDocument());
+    // Base::Console().message("DVP::execute() - %s\n", getNameInDocument());
     if (!keepUpdated()) {
         return DrawView::execute();
     }
@@ -234,7 +240,7 @@ App::DocumentObjectExecReturn* DrawViewPart::execute(void)
 
     TopoDS_Shape shape = getSourceShape();
     if (shape.IsNull()) {
-        Base::Console().Message("DVP::execute - %s - Source shape is Null.\n", getNameInDocument());
+        Base::Console().message("DVP::execute - %s - Source shape is Null.\n", getNameInDocument());
         return DrawView::execute();
     }
 
@@ -274,7 +280,13 @@ void DrawViewPart::onChanged(const App::Property* prop)
     // Otherwise bad things will happen because there'll be a normalization for direction calculations later.
     Base::Vector3d dir = Direction.getValue();
     if (DrawUtil::fpCompare(dir.Length(), 0.0)) {
+        Base::Console().warning("%s Direction is null. Using (0, -1, 0).\n", Label.getValue());
         Direction.setValue(Base::Vector3d(0.0, -1.0, 0.0));
+    }
+    Base::Vector3d xdir = XDirection.getValue();
+    if (DrawUtil::fpCompare(xdir.Length(), 0.0)) {
+        Base::Console().warning("%s XDirection is null. Using (1, 0, 0).\n", Label.getValue());
+        XDirection.setValue(Base::Vector3d(1.0, 0.0, 0.0));
     }
 
     DrawView::onChanged(prop);
@@ -282,7 +294,6 @@ void DrawViewPart::onChanged(const App::Property* prop)
 
 void DrawViewPart::partExec(TopoDS_Shape& shape)
 {
-    //    Base::Console().Message("DVP::partExec() - %s\n", getNameInDocument());
     if (waitingForHlr()) {
         //finish what we are already doing before starting a new cycle
         return;
@@ -290,17 +301,16 @@ void DrawViewPart::partExec(TopoDS_Shape& shape)
 
     //we need to keep using the old geometryObject until the new one is fully populated
     m_tempGeometryObject = makeGeometryForShape(shape);
-    if (CoarseView.getValue()) {
-        onHlrFinished();//poly algo does not run in separate thread, so we need to invoke
+    if (CoarseView.getValue() ||
+        !DU::isGuiUp()) {
+        onHlrFinished();//poly algo and console mode do not run in separate thread, so we need to invoke
                         //the post hlr processing manually
     }
 }
 
 //! prepare the shape for HLR processing by centering, scaling and rotating it
-GeometryObjectPtr DrawViewPart::makeGeometryForShape(TopoDS_Shape& shape)
+GeometryObjectPtr DrawViewPart::makeGeometryForShape(const TopoDS_Shape& shape)
 {
-//    Base::Console().Message("DVP::makeGeometryForShape() - %s\n", getNameInDocument());
-
     // if we use the passed reference directly, the centering doesn't work.  Maybe the underlying OCC TShape
     // isn't modified?  using a copy works and the referenced shape (from getSourceShape in execute())
     // isn't used for anything anyway.
@@ -310,17 +320,16 @@ GeometryObjectPtr DrawViewPart::makeGeometryForShape(TopoDS_Shape& shape)
     TopoDS_Shape localShape = copier.Shape();
 
     gp_Pnt gCentroid = ShapeUtils::findCentroid(localShape, getProjectionCS());
-    m_saveCentroid = DU::toVector3d(gCentroid);
+    m_saveCentroid = Base::convertTo<Base::Vector3d>(gCentroid);
     m_saveShape = centerScaleRotate(this, localShape, m_saveCentroid);
 
     return buildGeometryObject(localShape, getProjectionCS());
 }
 
 //! Modify a shape by centering, scaling and rotating and return the centered (but not rotated) shape
-TopoDS_Shape DrawViewPart::centerScaleRotate(DrawViewPart* dvp, TopoDS_Shape& inOutShape,
+TopoDS_Shape DrawViewPart::centerScaleRotate(const DrawViewPart *dvp, TopoDS_Shape& inOutShape,
                                              Base::Vector3d centroid)
 {
-//    Base::Console().Message("DVP::centerScaleRotate() - %s\n", dvp->getNameInDocument());
     gp_Ax2 viewAxis = dvp->getProjectionCS();
 
     //center shape on origin
@@ -336,12 +345,9 @@ TopoDS_Shape DrawViewPart::centerScaleRotate(DrawViewPart* dvp, TopoDS_Shape& in
 }
 
 //! create a geometry object and trigger the HLR process in another thread
-TechDraw::GeometryObjectPtr DrawViewPart::buildGeometryObject(TopoDS_Shape& shape,
+TechDraw::GeometryObjectPtr DrawViewPart::buildGeometryObject(const TopoDS_Shape& shape,
                                                               const gp_Ax2& viewAxis)
 {
-//    Base::Console().Message("DVP::buildGeometryObject() - %s\n", getNameInDocument());
-    showProgressMessage(getNameInDocument(), "is finding hidden lines");
-
     TechDraw::GeometryObjectPtr go(
         std::make_shared<TechDraw::GeometryObject>(getNameInDocument(), this));
     go->setIsoCount(IsoCount.getValue());
@@ -354,38 +360,49 @@ TechDraw::GeometryObjectPtr DrawViewPart::buildGeometryObject(TopoDS_Shape& shap
         //the polygon approximation HLR process runs quickly, so doesn't need to be in a
         //separate thread
         go->projectShapeWithPolygonAlgo(shape, viewAxis);
+        return go;
     }
-    else {
-        //projectShape (the HLR process) runs in a separate thread since it can take a long time
-        //note that &m_hlrWatcher in the third parameter is not strictly required, but using the
-        //4 parameter signature instead of the 3 parameter signature prevents clazy warning:
-        //https://github.com/KDE/clazy/blob/1.11/docs/checks/README-connect-3arg-lambda.md
-        connectHlrWatcher = QObject::connect(&m_hlrWatcher, &QFutureWatcherBase::finished,
-                                             &m_hlrWatcher, [this] { this->onHlrFinished(); });
 
-        // We create a lambda closure to hold a copy of go, shape and viewAxis.
-        // This is important because those variables might be local to the calling
-        // function and might get destructed before the parallel processing finishes.
-        auto lambda = [go, shape, viewAxis]{go->projectShape(shape, viewAxis);};
-        m_hlrFuture = QtConcurrent::run(std::move(lambda));
-        m_hlrWatcher.setFuture(m_hlrFuture);
-        waitingForHlr(true);
+    if (!DU::isGuiUp()) {
+        // if the Gui is not running (actual the event loop), we cannot use the separate thread,
+        // since we will never be notified of thread completion.
+        go->projectShape(shape, viewAxis);
+        return go;
     }
+
+    //projectShape (the HLR process) runs in a separate thread since it can take a long time
+    //note that &m_hlrWatcher in the third parameter is not strictly required, but using the
+    //4 parameter signature instead of the 3 parameter signature prevents clazy warning:
+    //https://github.com/KDE/clazy/blob/1.11/docs/checks/README-connect-3arg-lambda.md
+    connectHlrWatcher = QObject::connect(&m_hlrWatcher, &QFutureWatcherBase::finished,
+                                         &m_hlrWatcher, [this] { this->onHlrFinished(); });
+
+    // We create a lambda closure to hold a copy of go, shape and viewAxis.
+    // This is important because those variables might be local to the calling
+    // function and might get destructed before the parallel processing finishes.
+    auto lambda = [go, shape, viewAxis]{go->projectShape(shape, viewAxis);};
+    m_hlrFuture = QtConcurrent::run(std::move(lambda));
+    m_hlrWatcher.setFuture(m_hlrFuture);
+    waitingForHlr(true);
+
     return go;
 }
 
 //! continue processing after hlr thread completes
-void DrawViewPart::onHlrFinished(void)
+void DrawViewPart::onHlrFinished()
 {
-    //    Base::Console().Message("DVP::onHlrFinished() - %s\n", getNameInDocument());
-
     //now that the new GeometryObject is fully populated, we can replace the old one
     if (m_tempGeometryObject) {
         geometryObject = m_tempGeometryObject;//replace with new
         m_tempGeometryObject = nullptr;       //superfluous?
     }
     if (!geometryObject) {
-        throw Base::RuntimeError("DrawViewPart has lost its geometry");
+        throw Base::RuntimeError("DrawViewPart has lost its geometry object");
+    }
+
+    if (!hasGeometry()) {
+        Base::Console().error("TechDraw did not retrieve any geometry for %s/%s\n",
+                              getNameInDocument(), Label.getValue());
     }
 
     //the last hlr related task is to make a bbox of the results
@@ -399,6 +416,13 @@ void DrawViewPart::onHlrFinished(void)
 
     //start face finding in a separate thread.  We don't find faces when using the polygon
     //HLR method.
+
+    if (handleFaces() && !DU::isGuiUp()) {
+        extractFaces();
+        onFacesFinished();
+        return;
+    }
+
     if (handleFaces() && !CoarseView.getValue()) {
         try {
             //note that &m_faceWatcher in the third parameter is not strictly required, but using the
@@ -415,7 +439,7 @@ void DrawViewPart::onHlrFinished(void)
         }
         catch (Standard_Failure& e) {
             waitingForFaces(false);
-            Base::Console().Error("DVP::partExec - %s - extractFaces failed - %s **\n",
+            Base::Console().error("DVP::partExec - %s - extractFaces failed - %s **\n",
                                   getNameInDocument(), e.GetMessageString());
             throw Base::RuntimeError("DVP::onHlrFinished - error extracting faces");
         }
@@ -423,9 +447,8 @@ void DrawViewPart::onHlrFinished(void)
 }
 
 //! run any tasks that need to been done after geometry is available
-void DrawViewPart::postHlrTasks(void)
+void DrawViewPart::postHlrTasks()
 {
-    //    Base::Console().Message("DVP::postHlrTasks() - %s\n", getNameInDocument());
     //add geometry that doesn't come from HLR
     addCosmeticVertexesToGeom();
     addCosmeticEdgesToGeom();
@@ -434,23 +457,22 @@ void DrawViewPart::postHlrTasks(void)
 
     //balloons need to be recomputed here because their
     //references will be invalid until the geometry exists
-    std::vector<TechDraw::DrawViewBalloon*> bals = getBalloons();
-    for (auto& b : bals) {
-        b->recomputeFeature();
+    std::vector<TechDraw::DrawViewBalloon*> balloonsAll = getBalloons();
+    for (auto& balloon : balloonsAll) {
+        balloon->recomputeFeature();
     }
     // Dimensions need to be recomputed now if face finding is not going to take place.
     if (!handleFaces() || CoarseView.getValue()) {
-        std::vector<TechDraw::DrawViewDimension*> dims = getDimensions();
-        for (auto& d : dims) {
-            d->recomputeFeature();
+        std::vector<TechDraw::DrawViewDimension*> dimsAll = getDimensions();
+        for (auto& dim : dimsAll) {
+            dim->recomputeFeature();
         }
     }
 
-    //second pass if required
+    // rescale if view doesn't fit on page
     if (ScaleType.isValue("Automatic") && !checkFit()) {
         double newScale = autoScale();
         Scale.setValue(newScale);
-        Scale.purgeTouched();
         partExec(m_saveShape);
     }
 
@@ -460,16 +482,16 @@ void DrawViewPart::postHlrTasks(void)
 }
 
 // Run any tasks that need to be done after faces are available
-void DrawViewPart::postFaceExtractionTasks(void)
+void DrawViewPart::postFaceExtractionTasks()
 {
     // Some centerlines depend on faces so we could not add CL geometry before now
     addCenterLinesToGeom();
 
     // Dimensions need to be recomputed because their references will be invalid
     //  until all the geometry (including centerlines dependent on faces) exists.
-    std::vector<TechDraw::DrawViewDimension*> dims = getDimensions();
-    for (auto& d : dims) {
-        d->recomputeFeature();
+    std::vector<TechDraw::DrawViewDimension*> dimsAll = getDimensions();
+    for (auto& dim : dimsAll) {
+        dim->recomputeFeature();
     }
 
     requestPaint();
@@ -479,8 +501,6 @@ void DrawViewPart::postFaceExtractionTasks(void)
 //! make faces from the edge geometry
 void DrawViewPart::extractFaces()
 {
-    //    Base::Console().Message("DVP::extractFaces() - %s waitingForHlr: %d waitingForFaces: %d\n",
-    //                            getNameInDocument(), waitingForHlr(), waitingForFaces());
     if (!geometryObject) {
         //geometry is in flux, can not make faces right now
         return;
@@ -492,7 +512,7 @@ void DrawViewPart::extractFaces()
         geometryObject->getVisibleFaceEdges(SmoothVisible.getValue(), SeamVisible.getValue());
 
     if (goEdges.empty()) {
-        //        Base::Console().Message("DVP::extractFaces - %s - no face edges available!\n", getNameInDocument());    //debug
+        //        Base::Console().message("DVP::extractFaces - %s - no face edges available!\n", getNameInDocument());    //debug
         return;
     }
 
@@ -511,7 +531,7 @@ void DrawViewPart::findFacesNew(const std::vector<BaseGeomPtr> &goEdges)
 
     if (cleanEdges.empty() && closedEdges.empty()) {
         //how does this happen?  something wrong somewhere
-        //            Base::Console().Message("DVP::findFacesNew - no clean or closed wires\n");    //debug
+        //            Base::Console().message("DVP::findFacesNew - no clean or closed wires\n");    //debug
         return;
     }
 
@@ -526,13 +546,16 @@ void DrawViewPart::findFacesNew(const std::vector<BaseGeomPtr> &goEdges)
     catch (Base::Exception& e) {
         throw Base::RuntimeError(e.what());
     }
-    geometryObject->clearFaceGeom();
+
+    if (geometryObject) {
+        geometryObject->clearFaceGeom();
+    }
 
     std::vector<TopoDS_Wire> closedWires;
-    for (auto& e : closedEdges) {
-        BRepBuilderAPI_MakeWire mkWire(e);
-        TopoDS_Wire w = mkWire.Wire();
-        closedWires.push_back(w);
+    for (auto& edge : closedEdges) {
+        BRepBuilderAPI_MakeWire mkWire(edge);
+        TopoDS_Wire wire = mkWire.Wire();
+        closedWires.push_back(wire);
     }
     if (!closedWires.empty()) {
         sortedWires.insert(sortedWires.end(), closedWires.begin(), closedWires.end());
@@ -542,13 +565,13 @@ void DrawViewPart::findFacesNew(const std::vector<BaseGeomPtr> &goEdges)
     }
 
     if (sortedWires.empty()) {
-        Base::Console().Warning(
-            "DVP::findFacesNew - %s - Can't make faces from projected edges\n",
+        Base::Console().warning(
+            "DVP::findFacesNew - %s - Cannot make faces from projected edges\n",
             getNameInDocument());
     }
     else {
         constexpr double minWireArea = 0.000001;//arbitrary very small face size
-        std::vector<TopoDS_Wire>::iterator itWire = sortedWires.begin();
+        auto itWire = sortedWires.begin();
         for (; itWire != sortedWires.end(); itWire++) {
             if (!BRep_Tool::IsClosed(*itWire)) {
                 continue;//can not make a face from open wire
@@ -559,17 +582,18 @@ void DrawViewPart::findFacesNew(const std::vector<BaseGeomPtr> &goEdges)
                 continue;//can not make a face from wire with no area
             }
 
-            TechDraw::FacePtr f(std::make_shared<TechDraw::Face>());
+            TechDraw::FacePtr face(std::make_shared<TechDraw::Face>());
             const TopoDS_Wire& wire = (*itWire);
-            f->wires.push_back(new TechDraw::Wire(wire));
+            face->wires.push_back(new TechDraw::Wire(wire));
             if (geometryObject) {
-                geometryObject->addFaceGeom(f);
+                geometryObject->addFaceGeom(face);
             }
         }
     }
 }
 
-// original face finding method
+// original face finding method.  This is retained only to produce the same face geometry in older
+// documents.
 void DrawViewPart::findFacesOld(const std::vector<BaseGeomPtr> &goEdges)
 {
     //make a copy of the input edges so the loose tolerances of face finding are
@@ -657,15 +681,17 @@ void DrawViewPart::findFacesOld(const std::vector<BaseGeomPtr> &goEdges)
 
     newEdges = DrawProjectSplit::removeDuplicateEdges(newEdges);
 
-    geometryObject->clearFaceGeom();
+    if (geometryObject) {
+        geometryObject->clearFaceGeom();
+    }
 
     //find all the wires in the pile of faceEdges
     std::vector<TopoDS_Wire> sortedWires;
     EdgeWalker eWalker;
     sortedWires = eWalker.execute(newEdges);
     if (sortedWires.empty()) {
-        Base::Console().Warning(
-            "DVP::findFacesOld - %s -Can't make faces from projected edges\n",
+        Base::Console().warning(
+            "DVP::findFacesOld - %s -Cannott make faces from projected edges\n",
             getNameInDocument());
         return;
     }
@@ -685,9 +711,9 @@ void DrawViewPart::findFacesOld(const std::vector<BaseGeomPtr> &goEdges)
 }
 
 //continue processing after extractFaces thread completes
-void DrawViewPart::onFacesFinished(void)
+void DrawViewPart::onFacesFinished()
 {
-    //    Base::Console().Message("DVP::onFacesFinished() - %s\n", getNameInDocument());
+    //    Base::Console().message("DVP::onFacesFinished() - %s\n", getNameInDocument());
     waitingForFaces(false);
     QObject::disconnect(connectFaceWatcher);
     showProgressMessage(getNameInDocument(), "has finished extracting faces");
@@ -698,6 +724,38 @@ void DrawViewPart::onFacesFinished(void)
     requestPaint();
 }
 
+
+//! returns the position of the first visible vertex within snap radius of newAnchorPoint.  newAnchorPoint
+//! should be unscaled in conventional coordinates.  if no suitable vertex is found, newAnchorPoint
+//! is returned. the result is unscaled and inverted?
+Base::Vector3d DrawViewPart::snapHighlightToVertex(Base::Vector3d newAnchorPoint,
+                                                   double radius) const
+{
+    if (!Preferences::snapDetailHighlights()) {
+        return newAnchorPoint;
+    }
+
+    double snapRadius = radius * Preferences::detailSnapRadius();
+    double dvpScale = getScale();
+    std::vector<Base::Vector3d> vertexPoints;
+    auto vertsAll = getVertexGeometry();
+    double nearDistance{std::numeric_limits<double>::max()};
+    Base::Vector3d nearPoint{newAnchorPoint};
+    for (auto& vert: vertsAll) {
+        if (vert->getHlrVisible()) {
+            Base::Vector3d vertPointUnscaled = DU::invertY(vert->point()) / dvpScale;
+            double distanceToVertex = (vertPointUnscaled - newAnchorPoint).Length();
+            if (distanceToVertex < snapRadius &&
+                distanceToVertex < nearDistance) {
+                nearDistance = distanceToVertex;
+                nearPoint = vertPointUnscaled;
+            }
+        }
+    }
+    return nearPoint;
+}
+
+
 //retrieve all the face hatches associated with this dvp
 std::vector<TechDraw::DrawHatch*> DrawViewPart::getHatches() const
 {
@@ -705,7 +763,7 @@ std::vector<TechDraw::DrawHatch*> DrawViewPart::getHatches() const
     std::vector<App::DocumentObject*> children = getInList();
     for (auto& child : children) {
         if (child->isDerivedFrom<DrawHatch>() && !child->isRemoving()) {
-            TechDraw::DrawHatch* hatch = dynamic_cast<TechDraw::DrawHatch*>(child);
+            TechDraw::DrawHatch* hatch = static_cast<TechDraw::DrawHatch*>(child);
             result.push_back(hatch);
         }
     }
@@ -720,7 +778,7 @@ std::vector<TechDraw::DrawGeomHatch*> DrawViewPart::getGeomHatches() const
     for (auto& child : children) {
         if (child->isDerivedFrom<DrawGeomHatch>()
             && !child->isRemoving()) {
-            TechDraw::DrawGeomHatch* geom = dynamic_cast<TechDraw::DrawGeomHatch*>(child);
+            TechDraw::DrawGeomHatch* geom = static_cast<TechDraw::DrawGeomHatch*>(child);
             result.push_back(geom);
         }
     }
@@ -739,7 +797,7 @@ std::vector<TechDraw::DrawViewDimension*> DrawViewPart::getDimensions() const
         std::unique(children.begin(), children.end());
     for (std::vector<App::DocumentObject*>::iterator it = children.begin(); it != newEnd; ++it) {
         if ((*it)->isDerivedFrom<DrawViewDimension>()) {
-            TechDraw::DrawViewDimension* dim = dynamic_cast<TechDraw::DrawViewDimension*>(*it);
+            TechDraw::DrawViewDimension* dim = static_cast<TechDraw::DrawViewDimension*>(*it);
             result.push_back(dim);
         }
     }
@@ -755,7 +813,7 @@ std::vector<TechDraw::DrawViewBalloon*> DrawViewPart::getBalloons() const
         std::unique(children.begin(), children.end());
     for (std::vector<App::DocumentObject*>::iterator it = children.begin(); it != newEnd; ++it) {
         if ((*it)->isDerivedFrom<DrawViewBalloon>()) {
-            TechDraw::DrawViewBalloon* balloon = dynamic_cast<TechDraw::DrawViewBalloon*>(*it);
+            TechDraw::DrawViewBalloon* balloon = static_cast<TechDraw::DrawViewBalloon*>(*it);
             result.push_back(balloon);
         }
     }
@@ -774,18 +832,10 @@ const std::vector<TechDraw::VertexPtr> DrawViewPart::getVertexGeometry() const
 //! TechDraw vertex names run from 0 to n-1
 TechDraw::VertexPtr DrawViewPart::getVertex(std::string vertexName) const
 {
-    const std::vector<TechDraw::VertexPtr> allVertex(DrawViewPart::getVertexGeometry());
-    size_t iTarget = DrawUtil::getIndexFromName(vertexName);
-    if (allVertex.empty()) {
-        //should not happen
-        throw Base::IndexError("DVP::getVertex - No vertices found.");
-    }
-    if (iTarget >= allVertex.size()) {
-        //should not happen
-        throw Base::IndexError("DVP::getVertex - Vertex not found.");
-    }
-
-    return allVertex.at(iTarget);
+    // Base::Console().message("DVP::getVertex(%s)\n", vertexName.c_str());
+    auto vertexIndex = DrawUtil::getIndexFromName(vertexName);
+    auto vertex = getProjVertexByIndex(vertexIndex);
+    return vertex;
 }
 
 //! returns existing BaseGeom of 2D Edge
@@ -795,11 +845,11 @@ TechDraw::BaseGeomPtr DrawViewPart::getEdge(std::string edgeName) const
     const std::vector<TechDraw::BaseGeomPtr>& geoms = getEdgeGeometry();
     if (geoms.empty()) {
         //should not happen
-        throw Base::IndexError("DVP::getEdge - No edges found.");
+        return nullptr;
     }
     size_t iEdge = DrawUtil::getIndexFromName(edgeName);
     if ((unsigned)iEdge >= geoms.size()) {
-        throw Base::IndexError("DVP::getEdge - Edge not found.");
+        return nullptr;
     }
     return geoms.at(iEdge);
 }
@@ -812,11 +862,11 @@ TechDraw::FacePtr DrawViewPart::getFace(std::string faceName) const
     const std::vector<TechDraw::FacePtr>& faces = getFaceGeometry();
     if (faces.empty()) {
         //should not happen
-        throw Base::IndexError("DVP::getFace - No faces found.");
+        return nullptr;
     }
     size_t iFace = DrawUtil::getIndexFromName(faceName);
     if (iFace >= faces.size()) {
-        throw Base::IndexError("DVP::getFace - Face not found.");
+        return nullptr;
     }
     return faces.at(iFace);
 }
@@ -846,9 +896,7 @@ TechDraw::BaseGeomPtr DrawViewPart::getGeomByIndex(int idx) const
     if (geoms.empty()) {
         return nullptr;
     }
-    if ((unsigned)idx >= geoms.size()) {
-        Base::Console().Error("DVP::getGeomByIndex(%d) - invalid index - size: %d\n", idx,
-                              geoms.size());
+    if (idx >= (int)geoms.size()) {
         return nullptr;
     }
     return geoms.at(idx);
@@ -859,10 +907,9 @@ TechDraw::VertexPtr DrawViewPart::getProjVertexByIndex(int idx) const
 {
     const std::vector<TechDraw::VertexPtr>& geoms = getVertexGeometry();
     if (geoms.empty()) {
-        return nullptr;
+       return nullptr;
     }
     if ((unsigned)idx >= geoms.size()) {
-        Base::Console().Error("DVP::getProjVertexByIndex(%d) - invalid index\n", idx);
         return nullptr;
     }
     return geoms.at(idx);
@@ -940,7 +987,7 @@ double DrawViewPart::getBoxY() const
 
 QRectF DrawViewPart::getRect() const
 {
-    //    Base::Console().Message("DVP::getRect() - %s\n", getNameInDocument());
+    //    Base::Console().message("DVP::getRect() - %s\n", getNameInDocument());
     double x = getBoxX();
     double y = getBoxY();
     return QRectF(0.0, 0.0, x, y);
@@ -978,13 +1025,13 @@ TopoDS_Shape DrawViewPart::getEdgeCompound() const
 // used in calculating the length of a section line
 double DrawViewPart::getSizeAlongVector(Base::Vector3d alignmentVector)
 {
-    //    Base::Console().Message("DVP::GetSizeAlongVector(%s)\n", DrawUtil::formatVector(alignmentVector).c_str());
+    //    Base::Console().message("DVP::GetSizeAlongVector(%s)\n", DrawUtil::formatVector(alignmentVector).c_str());
     double alignmentAngle = atan2(alignmentVector.y, alignmentVector.x) * -1.0;
     gp_Ax2 OXYZ;//shape has already been projected and we will rotate around Z
     if (getEdgeCompound().IsNull()) {
         return 1.0;
     }
-    TopoDS_Shape rotatedShape = ShapeUtils::rotateShape(getEdgeCompound(), OXYZ, alignmentAngle * 180.0 / M_PI);
+    TopoDS_Shape rotatedShape = ShapeUtils::rotateShape(getEdgeCompound(), OXYZ, Base::toDegrees(alignmentAngle));
     Bnd_Box shapeBox;
     shapeBox.SetGap(0.0);
     BRepBndLib::AddOptimal(rotatedShape, shapeBox);
@@ -997,7 +1044,7 @@ double DrawViewPart::getSizeAlongVector(Base::Vector3d alignmentVector)
 //used to project a pt (ex SectionOrigin) onto paper plane
 Base::Vector3d DrawViewPart::projectPoint(const Base::Vector3d& pt, bool invert) const
 {
-    //    Base::Console().Message("DVP::projectPoint(%s, %d\n",
+    //    Base::Console().message("DVP::projectPoint(%s, %d\n",
     //                            DrawUtil::formatVector(pt).c_str(), invert);
     Base::Vector3d stdOrg(0.0, 0.0, 0.0);
     gp_Ax2 viewAxis = getProjectionCS(stdOrg);
@@ -1036,24 +1083,16 @@ bool DrawViewPart::waitingForResult() const
     return false;
 }
 
-bool DrawViewPart::hasGeometry(void) const
+bool DrawViewPart::hasGeometry() const
 {
     if (!geometryObject) {
         return false;
     }
 
-    if (waitingForHlr()) {
-        return false;
-    }
     const std::vector<TechDraw::VertexPtr>& verts = getVertexGeometry();
     const std::vector<TechDraw::BaseGeomPtr>& edges = getEdgeGeometry();
-    if (verts.empty() && edges.empty()) {
-        return false;
-    }
-    else {
-        return true;
-    }
-    return false;
+
+    return !(verts.empty() && edges.empty());
 }
 
 //convert a vector in local XY coords into a coordinate system in global
@@ -1063,7 +1102,7 @@ bool DrawViewPart::hasGeometry(void) const
 //in the derived view.
 gp_Ax2 DrawViewPart::localVectorToCS(const Base::Vector3d localUnit) const
 {
-    //    Base::Console().Message("DVP::localVectorToCS(%s)\n", DU::formatVector((localUnit)).c_str());
+    //    Base::Console().message("DVP::localVectorToCS(%s)\n", DU::formatVector((localUnit)).c_str());
     double angle = atan2(localUnit.y, localUnit.x);//radians
     gp_Ax1 rotateAxisDir(gp_Pnt(0.0, 0.0, 0.0), getProjectionCS().Direction());
     gp_Vec gOldX = getProjectionCS().XDirection();
@@ -1083,14 +1122,14 @@ gp_Ax2 DrawViewPart::localVectorToCS(const Base::Vector3d localUnit) const
 
 Base::Vector3d DrawViewPart::localVectorToDirection(const Base::Vector3d localUnit) const
 {
-    //    Base::Console().Message("DVP::localVectorToDirection() - localUnit: %s\n", DrawUtil::formatVector(localUnit).c_str());
+    //    Base::Console().message("DVP::localVectorToDirection() - localUnit: %s\n", DrawUtil::formatVector(localUnit).c_str());
     gp_Ax2 cs = localVectorToCS(localUnit);
-    return DrawUtil::toVector3d(cs.Direction());
+    return Base::convertTo<Base::Vector3d>(cs.Direction());
 }
 
 gp_Ax2 DrawViewPart::getProjectionCS(const Base::Vector3d pt) const
 {
-    //    Base::Console().Message("DVP::getProjectionCS() - %s - %s\n", getNameInDocument(), Label.getValue());
+    //    Base::Console().message("DVP::getProjectionCS() - %s - %s\n", getNameInDocument(), Label.getValue());
     Base::Vector3d direction = Direction.getValue();
     gp_Dir gDir(direction.x, direction.y, direction.z);
     Base::Vector3d xDir = getXDirection();
@@ -1101,17 +1140,17 @@ gp_Ax2 DrawViewPart::getProjectionCS(const Base::Vector3d pt) const
         viewAxis = gp_Ax2(gOrg, gDir, gXDir);
     }
     catch (...) {
-        Base::Console().Warning("DVP - %s - failed to create projection CS\n", getNameInDocument());
+        Base::Console().warning("DVP - %s - failed to create projection CS\n", getNameInDocument());
     }
     return viewAxis;
 }
 
 gp_Ax2 DrawViewPart::getRotatedCS(const Base::Vector3d basePoint) const
 {
-    //    Base::Console().Message("DVP::getRotatedCS() - %s - %s\n", getNameInDocument(), Label.getValue());
+    //    Base::Console().message("DVP::getRotatedCS() - %s - %s\n", getNameInDocument(), Label.getValue());
     gp_Ax2 unrotated = getProjectionCS(basePoint);
-    gp_Ax1 rotationAxis(DU::togp_Pnt(basePoint), unrotated.Direction());
-    double angleRad = Rotation.getValue() * M_PI / 180.0;
+    gp_Ax1 rotationAxis(Base::convertTo<gp_Pnt>(basePoint), unrotated.Direction());
+    double angleRad = Base::toRadians(Rotation.getValue());
     gp_Ax2 rotated = unrotated.Rotated(rotationAxis, -angleRad);
     return rotated;
 }
@@ -1121,7 +1160,7 @@ gp_Ax2 DrawViewPart::getViewAxis(const Base::Vector3d& pt, const Base::Vector3d&
 {
     (void)direction;
     (void)flip;
-    Base::Console().Message("DVP::getViewAxis - deprecated. Use getProjectionCS.\n");
+    Base::Console().message("DVP::getViewAxis - deprecated. Use getProjectionCS.\n");
     return getProjectionCS(pt);
 }
 
@@ -1137,7 +1176,7 @@ Base::Vector3d DrawViewPart::getCurrentCentroid() const
     }
     gp_Ax2 cs = getProjectionCS();
     gp_Pnt gCenter = ShapeUtils::findCentroid(shape, cs);
-    return DU::toVector3d(gCenter);
+    return Base::convertTo<Base::Vector3d>(gCenter);
 }
 
 std::vector<DrawViewSection*> DrawViewPart::getSectionRefs() const
@@ -1146,7 +1185,13 @@ std::vector<DrawViewSection*> DrawViewPart::getSectionRefs() const
     std::vector<App::DocumentObject*> inObjs = getInList();
     for (auto& o : inObjs) {
         if (o->isDerivedFrom<DrawViewSection>()) {
-            result.push_back(static_cast<TechDraw::DrawViewSection*>(o));
+            // expressions can add extra links to this DVP so we keep only
+            // objects that are BaseViews
+            auto section = static_cast<TechDraw::DrawViewSection*>(o);
+            auto base = section->BaseView.getValue();
+            if (base == this) {
+                result.push_back(section);
+            }
         }
     }
     return result;
@@ -1157,10 +1202,16 @@ std::vector<DrawViewDetail*> DrawViewPart::getDetailRefs() const
     std::vector<DrawViewDetail*> result;
     std::vector<App::DocumentObject*> inObjs = getInList();
     for (auto& o : inObjs) {
-        if (o->isDerivedFrom<DrawViewDetail>()) {
-            if (!o->isRemoving()) {
-                result.push_back(static_cast<TechDraw::DrawViewDetail*>(o));
+        if (o->isDerivedFrom<DrawViewDetail>() &&
+            !o->isRemoving() ) {
+            // expressions can add extra links to this DVP so we keep only
+            // objects that are BaseViews
+            auto detail = static_cast<TechDraw::DrawViewDetail*>(o);
+            auto base = detail->BaseView.getValue();
+            if (base == this) {
+                result.push_back(detail);
             }
+
         }
     }
     return result;
@@ -1168,6 +1219,9 @@ std::vector<DrawViewDetail*> DrawViewPart::getDetailRefs() const
 
 const BaseGeomPtrVector DrawViewPart::getVisibleFaceEdges() const
 {
+    if (!geometryObject) {
+        return {};
+    }
     return geometryObject->getVisibleFaceEdges(SmoothVisible.getValue(), SeamVisible.getValue());
 }
 
@@ -1176,7 +1230,7 @@ bool DrawViewPart::handleFaces()
     return Preferences::getPreferenceGroup("General")->GetBool("HandleFaces", true);
 }
 
-bool DrawViewPart::newFaceFinder(void)
+bool DrawViewPart::newFaceFinder()
 {
     return Preferences::getPreferenceGroup("General")->GetBool("NewFaceFinder", false);
 }
@@ -1185,7 +1239,7 @@ bool DrawViewPart::newFaceFinder(void)
 //! hatches, geomhatches, dimensions, ...
 void DrawViewPart::unsetupObject()
 {
-//    Base::Console().Message("DVP::unsetupObject()\n");
+//    Base::Console().message("DVP::unsetupObject()\n");
     nowUnsetting = true;
     App::Document* doc = getDocument();
     std::string docName = doc->getName();
@@ -1243,7 +1297,7 @@ void DrawViewPart::unsetupObject()
 
 bool DrawViewPart::checkXDirection() const
 {
-    //    Base::Console().Message("DVP::checkXDirection()\n");
+    //    Base::Console().message("DVP::checkXDirection()\n");
     Base::Vector3d xDir = XDirection.getValue();
     if (DrawUtil::fpCompare(xDir.Length(), 0.0)) {
         return false;
@@ -1253,7 +1307,7 @@ bool DrawViewPart::checkXDirection() const
 
 Base::Vector3d DrawViewPart::getXDirection() const
 {
-    //    Base::Console().Message("DVP::getXDirection() - %s\n", Label.getValue());
+    //    Base::Console().message("DVP::getXDirection() - %s\n", Label.getValue());
     Base::Vector3d result(1.0, 0.0, 0.0);//default X
     App::Property* prop = getPropertyByName("XDirection");
     if (prop) {//have an XDirection property
@@ -1274,10 +1328,122 @@ Base::Vector3d DrawViewPart::getXDirection() const
     return result;
 }
 
+
+void DrawViewPart::rotate(const RotationMotion& motion)
+{
+    std::pair<Base::Vector3d, Base::Vector3d> newDirs;
+    if (motion == RotationMotion::Right)
+        newDirs = getDirsFromFront(ProjDirection::Left);// Front -> Right -> Rear -> Left -> Front
+    else if (motion == RotationMotion::Left)
+        newDirs = getDirsFromFront(ProjDirection::Right);// Front -> Left -> Rear -> Right -> Front
+    else if (motion == RotationMotion::Up)
+        newDirs = getDirsFromFront(ProjDirection::Bottom);// Front -> Top -> Rear -> Bottom -> Front
+    else if (motion == RotationMotion::Down)
+        newDirs = getDirsFromFront(ProjDirection::Top);// Front -> Bottom -> Rear -> Top -> Front
+
+    Direction.setValue(newDirs.first);
+    XDirection.setValue(newDirs.second);
+    recompute();
+}
+
+void DrawViewPart::spin(const SpinDirection& spindirection)
+{
+    double angle;
+    if (spindirection == SpinDirection::CW)
+        angle = std::numbers::pi / 2.0;// Top -> Right -> Bottom -> Left -> Top
+    if (spindirection == SpinDirection::CCW)
+        angle = -std::numbers::pi / 2.0;// Top -> Left -> Bottom -> Right -> Top
+
+    spin(angle);
+}
+
+void DrawViewPart::spin(double angle)
+{
+    Base::Vector3d org(0.0, 0.0, 0.0);
+    Base::Vector3d curRot = getXDirection();
+    Base::Vector3d curDir = Direction.getValue();
+    Base::Vector3d newRot = DrawUtil::vecRotate(curRot, angle, curDir, org);
+
+    XDirection.setValue(newRot);
+    recompute();
+}
+
+std::pair<Base::Vector3d, Base::Vector3d> DrawViewPart::getDirsFromFront(ProjDirection viewType)
+{
+    //    Base::Console().message("DVP::getDirsFromFront(%s)\n", viewType.c_str());
+    std::pair<Base::Vector3d, Base::Vector3d> result;
+
+    Base::Vector3d projDir, rotVec;
+
+    Base::Vector3d org(0.0, 0.0, 0.0);
+    gp_Ax2 anchorCS = getProjectionCS(org);
+    gp_Pnt gOrg(0.0, 0.0, 0.0);
+    gp_Dir gDir = anchorCS.Direction();
+    gp_Dir gXDir = anchorCS.XDirection();
+    gp_Dir gYDir = anchorCS.YDirection();
+    gp_Ax1 gUpAxis(gOrg, gYDir);
+    gp_Ax2 newCS;
+
+    double angle = std::numbers::pi / 2.0;//90*
+
+    if (viewType == ProjDirection::Right) {
+        newCS = anchorCS.Rotated(gUpAxis, angle);
+        projDir = dir2vec(newCS.Direction());
+        rotVec = dir2vec(newCS.XDirection());
+    }
+    else if (viewType == ProjDirection::Left) {
+        newCS = anchorCS.Rotated(gUpAxis, -angle);
+        projDir = dir2vec(newCS.Direction());
+        rotVec = dir2vec(newCS.XDirection());
+    }
+    else if (viewType == ProjDirection::Top) {
+        projDir = dir2vec(gYDir);
+        rotVec = dir2vec(gXDir);
+    }
+    else if (viewType == ProjDirection::Bottom) {
+        projDir = dir2vec(gYDir.Reversed());
+        rotVec = dir2vec(gXDir);
+    }
+    else if (viewType == ProjDirection::Rear) {
+        projDir = dir2vec(gDir.Reversed());
+        rotVec = dir2vec(gXDir.Reversed());
+    }
+    else if (viewType == ProjDirection::FrontTopLeft) {
+        gp_Dir newDir = gp_Dir(gp_Vec(gDir) - gp_Vec(gXDir) + gp_Vec(gYDir));
+        projDir = dir2vec(newDir);
+        gp_Dir newXDir = gp_Dir(gp_Vec(gXDir) + gp_Vec(gDir));
+        rotVec = dir2vec(newXDir);
+    }
+    else if (viewType == ProjDirection::FrontTopRight) {
+        gp_Dir newDir = gp_Dir(gp_Vec(gDir) + gp_Vec(gXDir) + gp_Vec(gYDir));
+        projDir = dir2vec(newDir);
+        gp_Dir newXDir = gp_Dir(gp_Vec(gXDir) - gp_Vec(gDir));
+        rotVec = dir2vec(newXDir);
+    }
+    else if (viewType == ProjDirection::FrontBottomLeft) {
+        gp_Dir newDir = gp_Dir(gp_Vec(gDir) - gp_Vec(gXDir) - gp_Vec(gYDir));
+        projDir = dir2vec(newDir);
+        gp_Dir newXDir = gp_Dir(gp_Vec(gXDir) + gp_Vec(gDir));
+        rotVec = dir2vec(newXDir);
+    }
+    else if (viewType == ProjDirection::FrontBottomRight) {
+        gp_Dir newDir = gp_Dir(gp_Vec(gDir) + gp_Vec(gXDir) - gp_Vec(gYDir));
+        projDir = dir2vec(newDir);
+        gp_Dir newXDir = gp_Dir(gp_Vec(gXDir) - gp_Vec(gDir));
+        rotVec = dir2vec(newXDir);
+    }
+
+    return std::make_pair(projDir, rotVec);
+}
+
+Base::Vector3d DrawViewPart::dir2vec(gp_Dir d)
+{
+    return Base::Vector3d(d.X(), d.Y(), d.Z());
+}
+
 Base::Vector3d DrawViewPart::getLegacyX(const Base::Vector3d& pt, const Base::Vector3d& axis,
                                         const bool flip) const
 {
-    //    Base::Console().Message("DVP::getLegacyX() - %s\n", Label.getValue());
     gp_Ax2 viewAxis = ShapeUtils::legacyViewAxis1(pt, axis, flip);
     gp_Dir gXDir = viewAxis.XDirection();
     return Base::Vector3d(gXDir.X(), gXDir.Y(), gXDir.Z());
@@ -1298,7 +1464,6 @@ void DrawViewPart::updateReferenceVert(std::string tag, Base::Vector3d loc2d)
 
 void DrawViewPart::addReferencesToGeom()
 {
-    //    Base::Console().Message("DVP::addReferencesToGeom() - %s\n", getNameInDocument());
     std::vector<TechDraw::VertexPtr> gVerts = getVertexGeometry();
     gVerts.insert(gVerts.end(), m_referenceVerts.begin(), m_referenceVerts.end());
     getGeometryObject()->setVertexGeometry(gVerts);
@@ -1308,11 +1473,7 @@ void DrawViewPart::addReferencesToGeom()
 //ex. LandmarkDimension as a reference
 std::string DrawViewPart::addReferenceVertex(Base::Vector3d v)
 {
-    //    Base::Console().Message("DVP::addReferenceVertex(%s) - %s\n",
-    //                            DrawUtil::formatVector(v).c_str(), getNameInDocument());
     std::string refTag;
-    //    Base::Vector3d scaledV = v * getScale();
-    //    TechDraw::Vertex* ref = new TechDraw::Vertex(scaledV);
     Base::Vector3d scaledV = v;
     TechDraw::VertexPtr ref(std::make_shared<TechDraw::Vertex>(scaledV));
     ref->isReference(true);
@@ -1336,9 +1497,10 @@ void DrawViewPart::removeReferenceVertex(std::string tag)
     resetReferenceVerts();
 }
 
+//! remove reference vertexes from the view geometry
 void DrawViewPart::removeAllReferencesFromGeom()
 {
-    //    Base::Console().Message("DVP::removeAllReferencesFromGeom()\n");
+    //    Base::Console().message("DVP::removeAllReferencesFromGeom()\n");
     if (!m_referenceVerts.empty()) {
         std::vector<TechDraw::VertexPtr> gVerts = getVertexGeometry();
         std::vector<TechDraw::VertexPtr> newVerts;
@@ -1353,9 +1515,69 @@ void DrawViewPart::removeAllReferencesFromGeom()
 
 void DrawViewPart::resetReferenceVerts()
 {
-    //    Base::Console().Message("DVP::resetReferenceVerts() %s\n", getNameInDocument());
+    //    Base::Console().message("DVP::resetReferenceVerts() %s\n", getNameInDocument());
     removeAllReferencesFromGeom();
     addReferencesToGeom();
+}
+
+void DrawViewPart::handleChangedPropertyType(Base::XMLReader &reader, const char * TypeName, App::Property * prop)
+{
+    if (prop == &Direction) {
+        // Direction was PropertyVector, then briefly PropertyDirection, now back to PropertyVector
+        App::PropertyDirection tmp;
+        if (tmp.getTypeId().getName() == TypeName) {
+            tmp.setContainer(this);
+            tmp.Restore(reader);
+            auto tmpValue = tmp.getValue();
+            Direction.setValue(tmpValue);
+        }
+        return;
+    }
+
+    if (prop == &XDirection) {
+        // XDirection was PropertyVector, then briefly PropertyDirection, now back to PropertyVector
+        App::PropertyDirection tmp;
+        if (tmp.getTypeId().getName() == TypeName) {
+            tmp.setContainer(this);
+            tmp.Restore(reader);
+            auto tmpValue = tmp.getValue();
+            XDirection.setValue(tmpValue);
+        }
+        return;
+    }
+
+    DrawView::handleChangedPropertyType(reader, TypeName, prop);
+}
+
+// true if owner->element is a cosmetic vertex
+bool DrawViewPart::isCosmeticVertex(const std::string& element)
+{
+    auto vertexIndex = DrawUtil::getIndexFromName(element);
+    auto vertex = getProjVertexByIndex(vertexIndex);
+    if (vertex) {
+        return vertex->getCosmetic();
+    }
+    return false;
+}
+
+// true if owner->element is a cosmetic edge
+bool DrawViewPart::isCosmeticEdge(const std::string& element)
+{
+    auto edge = getEdge(element);
+    if (edge && edge->source() == SourceType::COSMETICEDGE && edge->getCosmetic()) {
+        return true;
+    }
+    return false;
+}
+
+// true if owner->element is a center line
+bool DrawViewPart::isCenterLine(const std::string& element)
+{
+    auto edge = getEdge(element);
+    if (edge && edge->source() == SourceType::CENTERLINE && edge->getCosmetic()) {
+        return true;
+    }
+    return false;
 }
 
 // debugging ----------------------------------------------------------------------------
@@ -1363,11 +1585,11 @@ void DrawViewPart::resetReferenceVerts()
 void DrawViewPart::dumpVerts(std::string text)
 {
     if (!geometryObject) {
-        Base::Console().Message("no verts to dump yet\n");
+        Base::Console().message("no verts to dump yet\n");
         return;
     }
     std::vector<TechDraw::VertexPtr> gVerts = getVertexGeometry();
-    Base::Console().Message("%s - dumping %d vertGeoms\n", text.c_str(), gVerts.size());
+    Base::Console().message("%s - dumping %d vertGeoms\n", text.c_str(), gVerts.size());
     for (auto& gv : gVerts) {
         gv->dump();
     }
@@ -1376,7 +1598,7 @@ void DrawViewPart::dumpVerts(std::string text)
 void DrawViewPart::dumpCosVerts(std::string text)
 {
     std::vector<TechDraw::CosmeticVertex*> cVerts = CosmeticVertexes.getValues();
-    Base::Console().Message("%s - dumping %d CosmeticVertexes\n", text.c_str(), cVerts.size());
+    Base::Console().message("%s - dumping %d CosmeticVertexes\n", text.c_str(), cVerts.size());
     for (auto& cv : cVerts) {
         cv->dump("a CV");
     }
@@ -1385,7 +1607,7 @@ void DrawViewPart::dumpCosVerts(std::string text)
 void DrawViewPart::dumpCosEdges(std::string text)
 {
     std::vector<TechDraw::CosmeticEdge*> cEdges = CosmeticEdges.getValues();
-    Base::Console().Message("%s - dumping %d CosmeticEdge\n", text.c_str(), cEdges.size());
+    Base::Console().message("%s - dumping %d CosmeticEdge\n", text.c_str(), cEdges.size());
     for (auto& ce : cEdges) {
         ce->dump("a CE");
     }

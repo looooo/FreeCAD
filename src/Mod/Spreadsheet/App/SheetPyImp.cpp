@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2010 Jürgen Riegel <juergen.riegel@web.de>              *
  *   Copyright (c) 2015 Eivind Kvedalen <eivind@kvedalen.name>             *
@@ -21,7 +23,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <boost/tokenizer.hpp>
 
@@ -119,11 +120,13 @@ PyObject* SheetPy::get(PyObject* args)
             do {
                 App::Property* prop = getSheetPtr()->getPropertyByName(range.address().c_str());
                 if (!prop) {
-                    PyErr_Format(PyExc_ValueError,
-                                 "Invalid address '%s' in range %s:%s",
-                                 range.address().c_str(),
-                                 address,
-                                 address2);
+                    PyErr_Format(
+                        PyExc_ValueError,
+                        "Invalid address '%s' in range %s:%s",
+                        range.address().c_str(),
+                        address,
+                        address2
+                    );
                     return nullptr;
                 }
                 tuple.setItem(i++, Py::Object(prop->getPyObject(), true));
@@ -221,12 +224,7 @@ PyObject* SheetPy::importFile(PyObject* args)
     const char* quoteChar = "\"";
     const char* escapeChar = "\\";
 
-    if (!PyArg_ParseTuple(args,
-                          "s|sss:importFile",
-                          &filename,
-                          &delimiter,
-                          &quoteChar,
-                          &escapeChar)) {
+    if (!PyArg_ParseTuple(args, "s|sss:importFile", &filename, &delimiter, &quoteChar, &escapeChar)) {
         return nullptr;
     }
 
@@ -245,12 +243,7 @@ PyObject* SheetPy::exportFile(PyObject* args)
     const char* quoteChar = "\"";
     const char* escapeChar = "\\";
 
-    if (!PyArg_ParseTuple(args,
-                          "s|sss:exportFile",
-                          &filename,
-                          &delimiter,
-                          &quoteChar,
-                          &escapeChar)) {
+    if (!PyArg_ParseTuple(args, "s|sss:exportFile", &filename, &delimiter, &quoteChar, &escapeChar)) {
         return nullptr;
     }
 
@@ -385,23 +378,20 @@ PyObject* SheetPy::setStyle(PyObject* args)
         std::string line = PyUnicode_AsUTF8(value);
         tokenizer<escaped_list_separator<char>> tok(line, e);
 
-        for (tokenizer<escaped_list_separator<char>>::iterator i = tok.begin(); i != tok.end();
-             ++i) {
+        for (tokenizer<escaped_list_separator<char>>::iterator i = tok.begin(); i != tok.end(); ++i) {
             style.insert(*i);
         }
     }
     else {
-        std::string error =
-            std::string("style must be either set or string, not ") + value->ob_type->tp_name;
+        std::string error = std::string("style must be either set or string, not ")
+            + value->ob_type->tp_name;
         PyErr_SetString(PyExc_TypeError, error.c_str());
         return nullptr;
     }
 
     if (strcmp(options, "replace") == 0) {
         Range rangeIter(cell);
-        do {
-            getSheetPtr()->setStyle(*rangeIter, style);
-        } while (rangeIter.next());
+        getSheetPtr()->setStyle(rangeIter, style);
     }
     else if (strcmp(options, "add") == 0) {
         Range rangeIter(cell);
@@ -475,7 +465,8 @@ PyObject* SheetPy::setStyle(PyObject* args)
     else {
         PyErr_SetString(
             PyExc_ValueError,
-            "Optional parameter must be either 'replace', 'add', 'remove', or 'invert'");
+            "Optional parameter must be either 'replace', 'add', 'remove', or 'invert'"
+        );
         return nullptr;
     }
 
@@ -529,9 +520,7 @@ PyObject* SheetPy::setDisplayUnit(PyObject* args)
     try {
         Range rangeIter(cell);
 
-        do {
-            getSheetPtr()->setDisplayUnit(*rangeIter, value);
-        } while (rangeIter.next());
+        getSheetPtr()->setDisplayUnit(rangeIter, value);
     }
     catch (const Base::Exception& e) {
         PyErr_SetString(PyExc_ValueError, e.what());
@@ -683,16 +672,15 @@ PyObject* SheetPy::setAlignment(PyObject* args)
         std::string line = PyUnicode_AsUTF8(value);
         tokenizer<escaped_list_separator<char>> tok(line, e);
 
-        for (tokenizer<escaped_list_separator<char>>::iterator i = tok.begin(); i != tok.end();
-             ++i) {
+        for (tokenizer<escaped_list_separator<char>>::iterator i = tok.begin(); i != tok.end(); ++i) {
             if (!i->empty()) {
                 alignment = Cell::decodeAlignment(*i, alignment);
             }
         }
     }
     else {
-        std::string error =
-            std::string("style must be either set or string, not ") + value->ob_type->tp_name;
+        std::string error = std::string("style must be either set or string, not ")
+            + value->ob_type->tp_name;
         PyErr_SetString(PyExc_TypeError, error.c_str());
         return nullptr;
     }
@@ -701,9 +689,7 @@ PyObject* SheetPy::setAlignment(PyObject* args)
     if (strcmp(options, "replace") == 0) {
         Range rangeIter(cell);
 
-        do {
-            getSheetPtr()->setAlignment(*rangeIter, alignment);
-        } while (rangeIter.next());
+        getSheetPtr()->setAlignment(rangeIter, alignment);
     }
     else if (strcmp(options, "keep") == 0) {
         Range rangeIter(cell);
@@ -794,7 +780,7 @@ static float decodeFloat(const PyObject* obj)
     throw Base::TypeError("Float or integer expected");
 }
 
-static void decodeColor(PyObject* value, Color& c)
+static void decodeColor(PyObject* value, Base::Color& c)
 {
     if (PyTuple_Check(value)) {
         if (PyTuple_Size(value) < 3 || PyTuple_Size(value) > 4) {
@@ -822,7 +808,7 @@ PyObject* SheetPy::setForeground(PyObject* args)
     try {
         const char* range;
         PyObject* value;
-        Color c;
+        Base::Color c;
 
         if (!PyArg_ParseTuple(args, "sO:setForeground", &range, &value)) {
             return nullptr;
@@ -831,8 +817,31 @@ PyObject* SheetPy::setForeground(PyObject* args)
         decodeColor(value, c);
 
         Range rangeIter(range);
+        getSheetPtr()->setForeground(rangeIter, c);
+        Py_Return;
+    }
+    catch (const Base::TypeError& e) {
+        PyErr_SetString(PyExc_TypeError, e.what());
+        return nullptr;
+    }
+    catch (const Base::Exception& e) {
+        PyErr_SetString(PyExc_ValueError, e.what());
+        return nullptr;
+    }
+}
+
+PyObject* SheetPy::clearForeground(PyObject* args)
+{
+    try {
+        const char* range;
+
+        if (!PyArg_ParseTuple(args, "s:clearForeground", &range)) {
+            return nullptr;
+        }
+
+        Range rangeIter(range);
         do {
-            getSheetPtr()->setForeground(*rangeIter, c);
+            getSheetPtr()->clearForeground(*rangeIter);
         } while (rangeIter.next());
         Py_Return;
     }
@@ -863,7 +872,7 @@ PyObject* SheetPy::getForeground(PyObject* args)
         return nullptr;
     }
 
-    Color c;
+    Base::Color c;
     const Cell* cell = getSheetPtr()->getCell(address);
     if (cell && cell->getForeground(c)) {
         PyObject* t = PyTuple_New(4);
@@ -886,7 +895,7 @@ PyObject* SheetPy::setBackground(PyObject* args)
     try {
         const char* strAddress;
         PyObject* value;
-        Color c;
+        Base::Color c;
 
         if (!PyArg_ParseTuple(args, "sO:setBackground", &strAddress, &value)) {
             return nullptr;
@@ -895,8 +904,32 @@ PyObject* SheetPy::setBackground(PyObject* args)
         decodeColor(value, c);
         Range rangeIter(strAddress);
 
+        getSheetPtr()->setBackground(rangeIter, c);
+        Py_Return;
+    }
+    catch (const Base::TypeError& e) {
+        PyErr_SetString(PyExc_TypeError, e.what());
+        return nullptr;
+    }
+    catch (const Base::Exception& e) {
+        PyErr_SetString(PyExc_ValueError, e.what());
+        return nullptr;
+    }
+}
+
+PyObject* SheetPy::clearBackground(PyObject* args)
+{
+    try {
+        const char* strAddress;
+
+        if (!PyArg_ParseTuple(args, "s:clearBackground", &strAddress)) {
+            return nullptr;
+        }
+
+        Range rangeIter(strAddress);
+
         do {
-            getSheetPtr()->setBackground(*rangeIter, c);
+            getSheetPtr()->clearBackground(*rangeIter);
         } while (rangeIter.next());
         Py_Return;
     }
@@ -927,7 +960,7 @@ PyObject* SheetPy::getBackground(PyObject* args)
         return nullptr;
     }
 
-    Color c;
+    Base::Color c;
     const Cell* cell = getSheetPtr()->getCell(address);
     if (cell && cell->getBackground(c)) {
         PyObject* t = PyTuple_New(4);
@@ -1110,6 +1143,9 @@ PyObject* SheetPy::getUsedRange(PyObject* args)
         return nullptr;
     }
     auto usedRange = getSheetPtr()->getCells()->getUsedRange();
+    if (!std::get<0>(usedRange).isValid()) {
+        Py_Return;
+    }
     Py::Tuple pyTuple(2);
     pyTuple[0] = Py::String(std::get<0>(usedRange).toString());
     pyTuple[1] = Py::String(std::get<1>(usedRange).toString());

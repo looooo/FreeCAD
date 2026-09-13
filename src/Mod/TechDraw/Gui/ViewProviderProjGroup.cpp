@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Luke Parry <l.parry@warwick.ac.uk>                 *
  *                                                                         *
@@ -20,27 +22,32 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
+#include <FCConfig.h>
+
 # ifdef FC_OS_WIN32
 #  include <windows.h>
 # endif
 # include <QMenu>
 # include <QMessageBox>
 # include <QTextStream>
-#endif
 
 #include <App/DocumentObject.h>
 #include <Gui/Control.h>
 #include <Gui/MainWindow.h>
-#include <Gui/Selection.h>
+#include <Gui/Selection/Selection.h>
 
+#include <Mod/TechDraw/App/DrawViewBalloon.h>
 #include <Mod/TechDraw/App/DrawLeaderLine.h>
+#include <Mod/TechDraw/App/DrawRichAnno.h>
 #include <Mod/TechDraw/App/DrawProjGroupItem.h>
 #include <Mod/TechDraw/App/DrawViewDetail.h>
 #include <Mod/TechDraw/App/DrawViewSection.h>
 
 #include "TaskProjGroup.h"
+#include "QGIViewPart.h"
+#include "QGIProjGroup.h"
+#include "QGSPage.h"
+#include "ViewProviderPage.h"
 #include "ViewProviderProjGroup.h"
 
 using namespace TechDrawGui;
@@ -55,16 +62,6 @@ ViewProviderProjGroup::ViewProviderProjGroup()
     sPixmap = "TechDraw_TreeProjGroup";
 }
 
-ViewProviderProjGroup::~ViewProviderProjGroup()
-{
-}
-
-void ViewProviderProjGroup::setupContextMenu(QMenu* menu, QObject* receiver, const char* member)
-{
-    Q_UNUSED(menu);
-    Q_UNUSED(receiver);
-    Q_UNUSED(member);
-}
 
 bool ViewProviderProjGroup::setEdit(int ModNum)
 {
@@ -72,10 +69,11 @@ bool ViewProviderProjGroup::setEdit(int ModNum)
     // When double-clicking on the item for this sketch the
     // object unsets and sets its edit mode without closing
     // the task panel
-    Gui::TaskView::TaskDialog *dlg = Gui::Control().activeDialog();
-    TaskDlgProjGroup *projDlg = qobject_cast<TaskDlgProjGroup *>(dlg);
-    if (projDlg && projDlg->getViewProvider() != this)
+    auto* dlg = Gui::Control().activeDialog();
+    auto* projDlg = qobject_cast<TaskDlgProjGroup *>(dlg);
+    if (projDlg && projDlg->getViewProvider() != this) {
         projDlg = nullptr; // another sketch left open its task panel
+    }
 
     // clear the selection (convenience)
     Gui::Selection().clearSelection();
@@ -97,8 +95,9 @@ bool ViewProviderProjGroup::doubleClicked()
     return true;
 }
 
-bool ViewProviderProjGroup::onDelete(const std::vector<std::string> &)
+bool ViewProviderProjGroup::onDelete(const std::vector<std::string> & parms)
 {
+    Q_UNUSED(parms)
     // warn the user if the ProjGroup is not empty
 
     QString bodyMessage;
@@ -142,8 +141,9 @@ bool ViewProviderProjGroup::onDelete(const std::vector<std::string> &)
         bodyMessageStream << qApp->translate("Std_Delete",
             "The group cannot be deleted because its items have the following\nsection or detail views, or leader lines that would get broken:");
         bodyMessageStream << '\n';
-        for (const auto& ListIterator : ViewList)
+        for (const auto& ListIterator : ViewList) {
             bodyMessageStream << '\n' << QString::fromUtf8(ListIterator.c_str());
+        }
         QMessageBox::warning(Gui::getMainWindow(),
             qApp->translate("Std_Delete", "Object dependencies"), bodyMessage,
             QMessageBox::Ok);
@@ -156,20 +156,17 @@ bool ViewProviderProjGroup::onDelete(const std::vector<std::string> &)
         bodyMessageStream << qApp->translate("Std_Delete",
             "The projection group is not empty, therefore\nthe following referencing objects might be lost:");
         bodyMessageStream << '\n';
-        for (auto ObjIterator : objs)
+        for (auto ObjIterator : objs) {
             bodyMessageStream << '\n' << QString::fromUtf8(ObjIterator->Label.getValue());
+        }
         bodyMessageStream << "\n\n" << QObject::tr("Are you sure you want to continue?");
         // show and evaluate dialog
         int DialogResult = QMessageBox::warning(Gui::getMainWindow(),
             qApp->translate("Std_Delete", "Object dependencies"), bodyMessage,
             QMessageBox::Yes, QMessageBox::No);
-        if (DialogResult == QMessageBox::Yes)
-            return true;
-        else
-            return false;
+        return (DialogResult == QMessageBox::Yes);
     }
-    else
-        return true;
+    return true;
 }
 
 bool ViewProviderProjGroup::canDelete(App::DocumentObject *obj) const
@@ -183,18 +180,36 @@ bool ViewProviderProjGroup::canDelete(App::DocumentObject *obj) const
 
 std::vector<App::DocumentObject*> ViewProviderProjGroup::claimChildren() const
 {
-    // Collect any child fields
+    // Collect any child Document Objects and put them in the right place in the Feature tree
+    // valid children of an ProjGroup are:
+    //    - Balloons
+    //    - Leaders
+    //    - RichAnno
     std::vector<App::DocumentObject*> temp;
-    const std::vector<App::DocumentObject *> &views = getObject()->Views.getValues();
+    const std::vector<App::DocumentObject*>& candidates = getViewObject()->getInList();
+    // DPGI's do not point at the DPG, the DPG/DVC maintains links to the items
+
+    // why does this need a try/catch??
     try {
-      for (std::vector<App::DocumentObject *>::const_iterator it = views.begin(); it != views.end(); ++it) {
-          temp.push_back(*it);
-      }
-      return temp;
-    } catch (...) {
-        std::vector<App::DocumentObject*> tmp;
-        return tmp;
+        for (auto& obj : candidates) {
+            if (obj->isDerivedFrom<TechDraw::DrawViewBalloon>() ||
+                obj->isDerivedFrom<TechDraw::DrawLeaderLine>()  ||
+                obj->isDerivedFrom<TechDraw::DrawRichAnno>()) {
+                temp.push_back(obj);
+            }
+        }
+//        return temp;
     }
+    catch (...) {
+        return {};
+    }
+
+    // plus the individual ProjGroupItems
+    for (auto& view : getViewObject()->Views.getValues()) {
+        temp.push_back(view);
+    }
+
+    return temp;
 }
 
 TechDraw::DrawProjGroup* ViewProviderProjGroup::getViewObject() const
@@ -206,3 +221,55 @@ TechDraw::DrawProjGroup* ViewProviderProjGroup::getObject() const
 {
     return getViewObject();
 }
+
+
+//! gather the (existing) graphics for our sub views into our scene group.
+void ViewProviderProjGroup::regroupSubViews()
+{
+    auto vpPage = getViewProviderPage();
+    if (!vpPage) {
+        return;
+    }
+
+    auto scene = vpPage->getQGSPage();
+    auto dpgQView = getQView();
+
+    auto viewsAll =  getObject()->getViewsAsDPGI();
+    for (auto& view : viewsAll) {
+        auto viewQView = dynamic_cast<QGIViewPart *>(scene->findQViewForDocObj(view));
+        if (viewQView) {
+            scene->addItemToParent(viewQView, dpgQView);
+        }
+    }
+}
+
+void ViewProviderProjGroup::updateData(const App::Property* prop)
+{
+    TechDraw::DrawProjGroup* group = getViewObject();
+    if (prop == &group->AutoDistribute) {
+        onChangeAutoDistribute();
+        return;
+    }
+
+    ViewProviderDrawingView::updateData(prop);
+}
+
+void ViewProviderProjGroup::onChangeAutoDistribute()
+{
+    auto* groupQGI = static_cast<QGIProjGroup*>(getQView());
+    if (!groupQGI) {
+        // our QGItem does not exist yet
+        return;
+    }
+
+    QList<QGIViewPart*> secondaryQViews = groupQGI->secondaryQViews();
+    for (auto& secondary : secondaryQViews) {
+        if (secondary == groupQGI->getAnchorQItem()) {
+            // do not touch the anchor
+            continue;
+        }
+        secondary->updateView(false);
+    }
+}
+
+

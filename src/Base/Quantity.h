@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -21,20 +23,11 @@
  ***************************************************************************/
 
 
-#ifndef BASE_Quantity_H
-#define BASE_Quantity_H
+#pragma once
 
 #include "Unit.h"
-#include <QString>
-
-// NOLINTBEGIN
-#ifndef DOUBLE_MAX
-#define DOUBLE_MAX 1.7976931348623157E+308 /* max decimal value of a "double"*/
-#endif
-#ifndef DOUBLE_MIN
-#define DOUBLE_MIN 2.2250738585072014E-308 /* min decimal value of a "double"*/
-#endif
-// NOLINTEND
+#include <cstdint>
+#include <string>
 
 namespace Base
 {
@@ -42,12 +35,17 @@ class UnitsSchema;
 
 struct BaseExport QuantityFormat
 {
-    enum NumberOption
-    {
-        None = 0x00,
-        OmitGroupSeparator = 0x01,
-        RejectGroupSeparator = 0x02
-    };
+    // Base-owned number formatting flags.
+    //
+    // Note: values intentionally match Qt's QLocale::NumberOptions bit assignments for historical
+    // compatibility (e.g. persisted config values), but this type is independent of Qt.
+    using NumberOptions = std::uint32_t;
+    static constexpr NumberOptions None = 0x00;
+    static constexpr NumberOptions OmitGroupSeparator = 0x01;
+    static constexpr NumberOptions RejectGroupSeparator = 0x02;
+    // Reserved for future use (aligns with Qt values if/when needed):
+    static constexpr NumberOptions OmitLeadingZeroInExponent = 0x04;
+    static constexpr NumberOptions IncludeTrailingZeroesAfterDot = 0x08;
     enum NumberFormat
     {
         Default = 0,
@@ -55,36 +53,21 @@ struct BaseExport QuantityFormat
         Scientific = 2
     };
 
-    using NumberOptions = int;
     NumberOptions option;
     NumberFormat format;
-    int precision;
-    int denominator;
 
-    // Default denominator of minimum fractional inch. Only used in certain
-    // schemas.
-    // NOLINTNEXTLINE
-    static int defaultDenominator;  // i.e 8 for 1/8"
-
-    static inline int getDefaultDenominator()
+    int getPrecision() const;
+    inline void setPrecision(int precision)
     {
-        return defaultDenominator;
+        _precision = precision;
     }
 
-    static inline void setDefaultDenominator(int denom)
+    int getDenominator() const;
+    inline void setDenominator(int denominator)
     {
-        defaultDenominator = denom;
+        _denominator = denominator;
     }
 
-    inline int getDenominator() const
-    {
-        return denominator;
-    }
-
-    inline void setDenominator(int denom)
-    {
-        denominator = denom;
-    }
     QuantityFormat();
     explicit QuantityFormat(NumberFormat format, int decimals = -1);
     inline char toFormat() const
@@ -117,6 +100,9 @@ struct BaseExport QuantityFormat
                 return Default;
         }
     }
+
+private:
+    int _precision, _denominator;
 };
 
 /**
@@ -130,7 +116,7 @@ public:
     Quantity(const Quantity&) = default;
     Quantity(Quantity&&) = default;
     explicit Quantity(double value, const Unit& unit = Unit());
-    explicit Quantity(double value, const QString& unit);
+    explicit Quantity(double value, const std::string& unit);
     /// Destruction
     ~Quantity() = default;
 
@@ -165,18 +151,18 @@ public:
     {
         myFormat = fmt;
     }
-    /// transfer to user preferred unit/potence
-    QString getUserString(double& factor, QString& unitString) const;
-    QString getUserString() const
-    {  // to satisfy GCC
-        double dummy1 {};
-        QString dummy2 {};
-        return getUserString(dummy1, dummy2);
-    }
-    QString getUserString(UnitsSchema* schema, double& factor, QString& unitString) const;
-    QString getSafeUserString() const;
 
-    static Quantity parse(const QString& string);
+    std::string toString(const QuantityFormat& format = QuantityFormat(QuantityFormat::Default)) const;
+
+    std::string toNumber(const QuantityFormat& format = QuantityFormat(QuantityFormat::Default)) const;
+
+    std::string getUserString() const;
+    /// transfer to user preferred unit/potence
+    std::string getUserString(double& factor, std::string& unitString) const;
+    std::string getUserString(UnitsSchema* schema, double& factor, std::string& unitString) const;
+    std::string getSafeUserString() const;
+
+    static Quantity parse(const std::string& string);
 
     /// returns the unit of the quantity
     const Unit& getUnit() const
@@ -204,17 +190,14 @@ public:
     double getValueAs(const Quantity&) const;
 
 
-    /// true if it has a number without a unit
+    /// true if it has no unit
     bool isDimensionless() const;
     /// true if it has a specific unit or no dimension.
     bool isDimensionlessOrUnit(const Unit& unit) const;
-    /// true if it has a number and a valid unit
-    bool isQuantity() const;
     /// true if it has a number with or without a unit
     bool isValid() const;
     /// sets the quantity invalid
     void setInvalid();
-
 
     /** Predefined Unit types. */
     //@{
@@ -246,6 +229,8 @@ public:
     static const Quantity Hour;
 
     static const Quantity Ampere;
+    static const Quantity NanoAmpere;
+    static const Quantity MicroAmpere;
     static const Quantity MilliAmpere;
     static const Quantity KiloAmpere;
     static const Quantity MegaAmpere;
@@ -254,6 +239,8 @@ public:
     static const Quantity MilliKelvin;
     static const Quantity MicroKelvin;
 
+    static const Quantity NanoMole;
+    static const Quantity MicroMole;
     static const Quantity MilliMole;
     static const Quantity Mole;
 
@@ -263,14 +250,15 @@ public:
     static const Quantity Foot;
     static const Quantity Thou;
     static const Quantity Yard;
+    static const Quantity Mile;
+
+    static const Quantity MilePerHour;
 
     static const Quantity Pound;
     static const Quantity Ounce;
     static const Quantity Stone;
     static const Quantity Hundredweights;
-    static const Quantity Mile;
 
-    static const Quantity MilePerHour;
     static const Quantity SquareFoot;
     static const Quantity CubicFoot;
 
@@ -303,6 +291,8 @@ public:
     static const Quantity MPSI;
 
     static const Quantity Watt;
+    static const Quantity NanoWatt;
+    static const Quantity MicroWatt;
     static const Quantity MilliWatt;
     static const Quantity KiloWatt;
     static const Quantity VoltAmpere;
@@ -324,11 +314,10 @@ public:
     static const Quantity Coulomb;
 
     static const Quantity Tesla;
+    static const Quantity MilliTesla;
     static const Quantity Gauss;
 
     static const Quantity Weber;
-
-    // static const Quantity Oersted;
 
     static const Quantity Farad;
     static const Quantity MilliFarad;
@@ -364,7 +353,6 @@ public:
     static const Quantity AngSecond;
     //@}
 
-
 private:
     double myValue;
     Unit myUnit;
@@ -372,5 +360,3 @@ private:
 };
 
 }  // namespace Base
-
-#endif  // BASE_Quantity_H

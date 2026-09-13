@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2007 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,25 +22,18 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_PRECOMPILED_H
-#define DRAWINGGUI_PRECOMPILED_H
+#pragma once
 
 #include <FCConfig.h>
 
-#ifdef _MSC_VER
-# pragma warning(disable : 4005)
-#endif
-
 #ifdef FC_OS_WIN32
-# define NOMINMAX
 #endif
-
-#ifdef _PreComp_
 
 // standard
 #include <cassert>
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <sstream>
 
 // STL
@@ -48,7 +43,6 @@
 #include <vector>
 
 #ifdef FC_OS_WIN32
-# define WIN32_LEAN_AND_MEAN
 # include <windows.h>
 # undef small
 #endif
@@ -71,7 +65,3 @@
 
 // Open Inventor
 #include <Inventor/SbVec3f.h>
-
-#endif //_PreComp_
-
-#endif // DRAWINGGUI_PRECOMPILED_H

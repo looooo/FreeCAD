@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
+disable_occt8_deprecation_warnings()
 
 add_subdirectory(App)
 if(BUILD_GUI)
@@ -5,11 +8,15 @@ if(BUILD_GUI)
 endif(BUILD_GUI)
 
 #IF (BUILD_GUI)
-#    PYSIDE_WRAP_RC(Import_QRC_SRCS Resources/Import.qrc)
+#    PYSIDE_WRAP_RC(
+#        RELATIVE Import_QRC_SRCS_REL
+#        ABSOLUTE Import_QRC_SRCS
+#        RESOURCESResources/Import.qrc
+#    )
 #ENDIF (BUILD_GUI)
 
 #ADD_CUSTOM_TARGET(ImportRC ALL
-#    SOURCES ${Import_QRC_SRCS}
+#    DEPENDS ${Import_QRC_SRCS}
 #)
 
 
@@ -47,6 +54,7 @@ set(Import_Scripts
 
 if(BUILD_GUI)
     list (APPEND Import_Scripts InitGui.py)
+    list (APPEND Import_Scripts TestImportGui.py)
 endif(BUILD_GUI)
 
 add_custom_target(ImportScripts ALL

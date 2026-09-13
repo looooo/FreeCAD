@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-only
 /***************************************************************************
  *                                                                         *
  *   Copyright: https://code.google.com/p/qsint/                           *
@@ -5,8 +6,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TASKGROUP_P_H
-#define TASKGROUP_P_H
+#pragma once
 
 #include "actionlabel.h"
 #include "actionpanelscheme.h"
@@ -21,11 +21,10 @@ namespace QSint
 
 class TaskGroup : public QFrame
 {
-  typedef QFrame BaseClass;
+  using BaseClass = QFrame;
 
 public:
   TaskGroup(QWidget *parent, bool hasHeader = false);
-
   void setScheme(ActionPanelScheme *scheme);
 
   inline QBoxLayout* groupLayout()
@@ -40,7 +39,6 @@ public:
   QPixmap transparentRender();
 
 protected:
-  void paintEvent ( QPaintEvent * event ) override;
   void keyPressEvent ( QKeyEvent * event ) override;
   void keyReleaseEvent ( QKeyEvent * event ) override;
 
@@ -51,5 +49,3 @@ protected:
 
 
 }
-
-#endif // TASKGROUP_P_H

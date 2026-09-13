@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2002 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -21,7 +23,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <Base/Console.h>
 #include <Base/Interpreter.h>
@@ -48,9 +49,9 @@ PyMOD_INIT_FUNC(Import)
     }
 
     // add mesh elements
-    Base::Interpreter().addType(&Import::StepShapePy ::Type, importModule, "StepShape");
+    Base::Interpreter().addType(&Import::StepShapePy::Type, importModule, "StepShape");
 
 
-    Base::Console().Log("Loading Import module... done\n");
+    Base::Console().log("Loading Import module... done\n");
     PyMOD_Return(importModule);
 }

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2022 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TECHDRAW_TASKDIMREPAIR_H
-#define TECHDRAW_TASKDIMREPAIR_H
+#pragma once
 
 #include <QListWidget>
 #include <QTableWidget>
@@ -72,7 +73,6 @@ protected:
 private:
     std::unique_ptr<Ui_TaskDimRepair> ui;
     TechDraw::DrawViewDimension* m_dim;
-    long int m_dimType;
 
     long int m_saveMeasureType;
     long int m_saveDimType;
@@ -119,5 +119,3 @@ private:
 };
 
 }//namespace TechDrawGui
-
-#endif// #ifndef TECHDRAW_TASKDIMREPAIR_H

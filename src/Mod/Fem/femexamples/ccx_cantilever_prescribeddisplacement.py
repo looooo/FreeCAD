@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # ***************************************************************************
 # *   Copyright (c) 2019 Bernd Hahnebach <bernd@bimstatik.org>              *
 # *   Copyright (c) 2020 Sudhanshu Dubey <sudhanshu.thethunder@gmail.com>   *
@@ -31,18 +33,20 @@ from .manager import init_doc
 
 def get_information():
     return {
-        "name": "CCX cantilever prescibed displacement",
+        "name": "CCX cantilever prescribed displacement",
         "meshtype": "solid",
         "meshelement": "Tet10",
         "constraints": ["fixed", "displacement"],
-        "solvers": ["calculix", "ccxtools", "elmer"],
+        "solvers": ["ccxtools", "elmer", "z88"],
         "material": "solid",
-        "equations": ["mechanical"]
+        "equations": ["mechanical"],
     }
 
 
 def get_explanation(header=""):
-    return header + """
+    return (
+        header
+        + """
 
 To run the example from Python console use:
 from femexamples.ccx_cantilever_prescribeddisplacement import setup
@@ -53,14 +57,10 @@ See forum topic post:
 ...
 
 """
+    )
 
 
-def setup(doc=None, solvertype="ccxtools"):
-
-    if solvertype == "z88":
-        # constraint displacement is not supported for Z88
-        # pass a not valid solver name for z88, thus no solver is created
-        solvertype = "z88_not_valid"
+def setup(doc=None, solvertype="ccxtools", test_mode=False):
 
     # init FreeCAD document
     if doc is None:
@@ -72,14 +72,13 @@ def setup(doc=None, solvertype="ccxtools"):
 
     # setup CalculiX cantilever
     # apply a prescribed displacement of 250 mm in -z on the front end face
-    doc = setup_cantilever_base_solid(doc, solvertype)
+    doc = setup_cantilever_base_solid(doc, solvertype, test_mode)
     analysis = doc.Analysis
     geom_obj = doc.Box
 
     # constraint displacement
-    con_disp = ObjectsFem.makeConstraintDisplacement(doc, name="ConstraintDisplacmentPrescribed")
+    con_disp = ObjectsFem.makeConstraintDisplacement(doc, name="Displacement")
     con_disp.References = [(geom_obj, "Face2")]
-    con_disp.zFix = False
     con_disp.zFree = False
     con_disp.zDisplacement = -250.0
     analysis.addObject(con_disp)

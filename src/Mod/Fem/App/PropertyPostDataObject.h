@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 Stefan Tröger <stefantroeger@gmx.net>              *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef FEM_PROPERTYPOSTDATASET_H
-#define FEM_PROPERTYPOSTDATASET_H
+#pragma once
 
 #include <vtkDataObject.h>
 #include <vtkSmartPointer.h>
@@ -89,6 +90,3 @@ protected:
 };
 
 }  // namespace Fem
-
-
-#endif  // FEM_PROPERTYPOSTDATASET_H

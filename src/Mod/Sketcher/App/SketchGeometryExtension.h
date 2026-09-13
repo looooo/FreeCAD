@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2019 Abdullah Tahiri <abdullah.tahiri.yo@gmail.com>     *
  *                                                                         *
@@ -20,14 +22,14 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef SKETCHER_SKETCHGEOMETRYEXTENSION_H
-#define SKETCHER_SKETCHGEOMETRYEXTENSION_H
+#pragma once
 
 #include <array>
 #include <atomic>
 #include <bitset>
 
 #include <Mod/Part/App/Geometry.h>
+#include <Mod/Part/App/GeometryMigrationExtension.h>
 #include <Mod/Sketcher/SketcherGlobal.h>
 
 
@@ -52,7 +54,7 @@ enum InternalType
     ParabolaFocalAxis = 11,
     NumInternalGeometryType  // Must be the last
 };
-}
+}  // namespace InternalType
 
 namespace GeometryMode
 {
@@ -62,7 +64,7 @@ enum GeometryMode
     Construction = 1,
     NumGeometryMode  // Must be the last
 };
-}
+}  // namespace GeometryMode
 
 class ISketchGeometryExtension
 {
@@ -84,7 +86,7 @@ public:
     virtual void setGeometryLayerId(int geolayer) = 0;
 };
 
-class SketcherExport SketchGeometryExtension: public Part::GeometryPersistenceExtension,
+class SketcherExport SketchGeometryExtension: public Part::GeometryMigrationPersistenceExtension,
                                               private ISketchGeometryExtension
 {
     TYPESYSTEM_HEADER_WITH_OVERRIDE();
@@ -134,22 +136,24 @@ public:
         GeometryLayer = geolayer;
     }
 
-    constexpr static std::array<const char*, InternalType::NumInternalGeometryType>
-        internaltype2str {{"None",
-                           "EllipseMajorDiameter",
-                           "EllipseMinorDiameter",
-                           "EllipseFocus1",
-                           "EllipseFocus2",
-                           "HyperbolaMajor",
-                           "HyperbolaMinor",
-                           "HyperbolaFocus",
-                           "ParabolaFocus",
-                           "BSplineControlPoint",
-                           "BSplineKnotPoint",
-                           "ParabolaFocalAxis"}};
+    constexpr static std::array<const char*, InternalType::NumInternalGeometryType> internaltype2str {
+        {"None",
+         "EllipseMajorDiameter",
+         "EllipseMinorDiameter",
+         "EllipseFocus1",
+         "EllipseFocus2",
+         "HyperbolaMajor",
+         "HyperbolaMinor",
+         "HyperbolaFocus",
+         "ParabolaFocus",
+         "BSplineControlPoint",
+         "BSplineKnotPoint",
+         "ParabolaFocalAxis"}
+    };
 
     constexpr static std::array<const char*, GeometryMode::NumGeometryMode> geometrymode2str {
-        {"Blocked", "Construction"}};
+        {"Blocked", "Construction"}
+    };
 
     static bool getInternalTypeFromName(std::string str, InternalType::InternalType& type);
 
@@ -159,6 +163,8 @@ protected:
     void copyAttributes(Part::GeometryExtension* cpy) const override;
     void restoreAttributes(Base::XMLReader& reader) override;
     void saveAttributes(Base::Writer& writer) const override;
+    void preSave(Base::Writer& writer) const override;
+    void postSave(Base::Writer& writer) const override;
 
 private:
     SketchGeometryExtension(const SketchGeometryExtension&) = default;
@@ -175,6 +181,3 @@ private:
 };
 
 }  // namespace Sketcher
-
-
-#endif  // SKETCHER_SKETCHGEOMETRYEXTENSION_H

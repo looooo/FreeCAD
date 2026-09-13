@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2014 Nathan Miller <Nathan.A.Mill[at]gmail.com>         *
  *                                                                         *
@@ -20,8 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <string>
 
 #include <BRepBuilderAPI_MakeWire.hxx>
@@ -30,7 +30,6 @@
 #include <TopoDS.hxx>
 #include <TopoDS_Face.hxx>
 #include <gp_Pnt.hxx>
-#endif
 
 #include "FeatureFilling.h"
 
@@ -107,11 +106,13 @@ short Filling::mustExecute() const
     return 0;
 }
 
-void Filling::addConstraints(BRepFill_Filling& builder,
-                             const App::PropertyLinkSubList& edges,
-                             const App::PropertyStringList& faces,
-                             const App::PropertyIntegerList& orders,
-                             Standard_Boolean bnd)
+void Filling::addConstraints(
+    BRepFill_Filling& builder,
+    const App::PropertyLinkSubList& edges,
+    const App::PropertyStringList& faces,
+    const App::PropertyIntegerList& orders,
+    Standard_Boolean bnd
+)
 {
     auto edge_obj = edges.getValues();
     auto edge_sub = edges.getSubValues();
@@ -164,8 +165,9 @@ void Filling::addConstraints(BRepFill_Filling& builder,
                                 builder.Add(TopoDS::Edge(edge), cont, bnd);
                             }
                             else {
-                                Standard_Failure::Raise(
-                                    "Boundary edges must be added in a consecutive order");
+                                throw Standard_Failure(
+                                    "Boundary edges must be added in a consecutive order"
+                                );
                             }
                         }
                     }
@@ -183,31 +185,34 @@ void Filling::addConstraints(BRepFill_Filling& builder,
                                     builder.Add(TopoDS::Edge(edge), TopoDS::Face(face), cont, bnd);
                                 }
                                 else {
-                                    Standard_Failure::Raise(
-                                        "Boundary edges must be added in a consecutive order");
+                                    throw Standard_Failure(
+                                        "Boundary edges must be added in a consecutive order"
+                                    );
                                 }
                             }
                         }
                         else {
-                            Standard_Failure::Raise("Sub-shape is not a face");
+                            throw Standard_Failure("Sub-shape is not a face");
                         }
                     }
                 }
                 else {
-                    Standard_Failure::Raise("Sub-shape is not an edge");
+                    throw Standard_Failure("Sub-shape is not an edge");
                 }
             }
         }
     }
     else {
-        Standard_Failure::Raise("Number of links doesn't match with number of orders");
+        throw Standard_Failure("Number of links does not match with the number of orders");
     }
 }
 
 // Add free support faces with their continuities
-void Filling::addConstraints(BRepFill_Filling& builder,
-                             const App::PropertyLinkSubList& faces,
-                             const App::PropertyIntegerList& orders)
+void Filling::addConstraints(
+    BRepFill_Filling& builder,
+    const App::PropertyLinkSubList& faces,
+    const App::PropertyIntegerList& orders
+)
 {
     auto face_obj = faces.getValues();
     auto face_sub = faces.getSubValues();
@@ -225,13 +230,13 @@ void Filling::addConstraints(BRepFill_Filling& builder,
                     builder.Add(TopoDS::Face(face), cont);
                 }
                 else {
-                    Standard_Failure::Raise("Sub-shape is not a face");
+                    throw Standard_Failure("Sub-shape is not a face");
                 }
             }
         }
     }
     else {
-        Standard_Failure::Raise("Number of links doesn't match with number of orders");
+        throw Standard_Failure("Number of links does not match with the number of orders");
     }
 }
 
@@ -269,20 +274,11 @@ App::DocumentObjectExecReturn* Filling::execute()
     unsigned int maxseg = MaximumSegments.getValue();
 
     try {
-        BRepFill_Filling builder(degree,
-                                 ptsoncurve,
-                                 numIter,
-                                 anisotropy,
-                                 tol2d,
-                                 tol3d,
-                                 tolG1,
-                                 tolG2,
-                                 maxdeg,
-                                 maxseg);
+        BRepFill_Filling
+            builder(degree, ptsoncurve, numIter, anisotropy, tol2d, tol3d, tolG1, tolG2, maxdeg, maxseg);
 
         if ((BoundaryEdges.getSize()) < 1) {
-            return new App::DocumentObjectExecReturn(
-                "Border must have at least one curve defined.");
+            return new App::DocumentObjectExecReturn("Border must have at least one curve defined.");
         }
 
         // Load the initial surface if set
@@ -323,7 +319,7 @@ App::DocumentObjectExecReturn* Filling::execute()
             builder.Build();
         }
         if (!builder.IsDone()) {
-            Standard_Failure::Raise("Failed to create a face from constraints");
+            throw Standard_Failure("Failed to create a face from constraints");
         }
 
         // Return the face

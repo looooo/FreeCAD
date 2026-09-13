@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2009 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -22,14 +24,12 @@
 //this file originally part of Drawing workbench
 //migrated to TechDraw workbench 2022-01-26 by Wandererfan
 
-#include "PreCompiled.h"
 
-#ifndef _PreComp_
 # include <sstream>
 # include <BRep_Builder.hxx>
 # include <Standard_Failure.hxx>
 # include <TopoDS_Compound.hxx>
-#endif
+
 
 #include "FeatureProjection.h"
 #include "ProjectionAlgos.h"

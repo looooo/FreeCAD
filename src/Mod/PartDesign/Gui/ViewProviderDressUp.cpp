@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2012 Jan Rheinländer                                    *
  *                                   <jrheinlaender@users.sourceforge.net> *
@@ -22,27 +24,39 @@
  ***************************************************************************/
 
 
-#include "PreCompiled.h"
+#include <QMenu>
+#include <QAction>
+#include <QMessageBox>
+#include <TopTools_IndexedMapOfShape.hxx>
+#include <TopExp.hxx>
 
-#ifndef _PreComp_
-# include <QMenu>
-# include <QAction>
-# include <QMessageBox>
-# include <TopTools_IndexedMapOfShape.hxx>
-# include <TopExp.hxx>
-#endif
 
 #include <Gui/Application.h>
 #include <Mod/Part/Gui/ReferenceHighlighter.h>
 #include <Mod/PartDesign/App/FeatureDressUp.h>
 
 #include "ViewProviderDressUp.h"
+
+#include "StyleParameters.h"
 #include "TaskDressUpParameters.h"
+
+#include <Base/ServiceProvider.h>
+#include <Gui/Utilities.h>
 
 using namespace PartDesignGui;
 
-PROPERTY_SOURCE(PartDesignGui::ViewProviderDressUp,PartDesignGui::ViewProvider)
+PROPERTY_SOURCE(PartDesignGui::ViewProviderDressUp, PartDesignGui::ViewProvider)
 
+
+void ViewProviderDressUp::attach(App::DocumentObject* pcObject)
+{
+    ViewProvider::attach(pcObject);
+
+    auto* styleParameterManager = Base::provideService<Gui::StyleParameters::ParameterManager>();
+    PreviewColor.setValue(styleParameterManager->resolve(StyleParameters::PreviewDressUpColor));
+
+    setErrorState(false);
+}
 
 void ViewProviderDressUp::setupContextMenu(QMenu* menu, QObject* receiver, const char* member)
 {
@@ -51,7 +65,8 @@ void ViewProviderDressUp::setupContextMenu(QMenu* menu, QObject* receiver, const
     PartDesignGui::ViewProvider::setupContextMenu(menu, receiver, member);
 }
 
-const std::string & ViewProviderDressUp::featureName() const {
+const std::string& ViewProviderDressUp::featureName() const
+{
     static const std::string name = "Undefined";
     return name;
 }
@@ -62,69 +77,90 @@ std::string ViewProviderDressUp::featureIcon() const
 }
 
 
-bool ViewProviderDressUp::setEdit(int ModNum) {
-    if (ModNum == ViewProvider::Default ) {
+bool ViewProviderDressUp::setEdit(int ModNum)
+{
+    if (ModNum == ViewProvider::Default) {
         // Here we should prevent edit of a Feature with missing base
         // Otherwise it could call unhandled exception.
-        PartDesign::DressUp* dressUp = static_cast<PartDesign::DressUp*>(getObject());
-        assert (dressUp);
-        if (dressUp->getBaseObject (/*silent =*/ true)) {
+        PartDesign::DressUp* dressUp = getObject<PartDesign::DressUp>();
+        assert(dressUp);
+        if (dressUp->getBaseObject(/*silent =*/true)) {
             return ViewProvider::setEdit(ModNum);
-        } else {
-            QMessageBox::warning ( nullptr, QObject::tr("Feature error"),
-                    QObject::tr("%1 misses a base feature.\n"
-                           "This feature is broken and can't be edited.")
-                        .arg( QString::fromLatin1(dressUp->getNameInDocument()) )
-                );
+        }
+        else {
+            QMessageBox::warning(
+                nullptr,
+                QObject::tr("Feature error"),
+                QObject::tr(
+                    "%1 misses a base feature.\n"
+                    "This feature is broken and cannot be edited."
+                )
+                    .arg(QString::fromLatin1(dressUp->getNameInDocument()))
+            );
             return false;
         }
-
-    } else {
+    }
+    else {
         return ViewProvider::setEdit(ModNum);
     }
 }
 
-
 void ViewProviderDressUp::highlightReferences(const bool on)
 {
-    PartDesign::DressUp* pcDressUp = static_cast<PartDesign::DressUp*>(getObject());
-    Part::Feature* base = pcDressUp->getBaseObject (/*silent =*/ true);
-    if (!base)
+    PartDesign::DressUp* pcDressUp = getObject<PartDesign::DressUp>();
+    Part::Feature* base = pcDressUp->getBaseObject(/*silent =*/true);
+    if (!base) {
         return;
+    }
     PartGui::ViewProviderPart* vp = dynamic_cast<PartGui::ViewProviderPart*>(
-                Gui::Application::Instance->getViewProvider(base));
-    if (!vp)
+        Gui::Application::Instance->getViewProvider(base)
+    );
+    if (!vp) {
         return;
+    }
 
     std::vector<std::string> faces = pcDressUp->Base.getSubValuesStartsWith("Face");
     std::vector<std::string> edges = pcDressUp->Base.getSubValuesStartsWith("Edge");
 
     if (on) {
-        if (!faces.empty() && originalFaceColors.empty()) {
-            originalFaceColors = vp->DiffuseColor.getValues();
-            std::vector<App::Color> colors = originalFaceColors;
+        if (!faces.empty()) {
+            std::vector<App::Material> materials = vp->ShapeAppearance.getValues();
 
-            PartGui::ReferenceHighlighter highlighter(base->Shape.getValue(), ShapeColor.getValue());
-            highlighter.getFaceColors(faces, colors);
-            vp->DiffuseColor.setValues(colors);
+            PartGui::ReferenceHighlighter highlighter(
+                base->Shape.getValue(),
+                ShapeAppearance.getDiffuseColor()
+            );
+            highlighter.getFaceMaterials(faces, materials);
+
+            vp->setHighlightedFaces(materials);
         }
-        if (!edges.empty() && originalLineColors.empty()) {
-            originalLineColors = vp->LineColorArray.getValues();
-            std::vector<App::Color> colors = originalLineColors;
+        if (!edges.empty()) {
+            std::vector<Base::Color> colors = vp->LineColorArray.getValues();
 
             PartGui::ReferenceHighlighter highlighter(base->Shape.getValue(), LineColor.getValue());
             highlighter.getEdgeColors(edges, colors);
-            vp->LineColorArray.setValues(colors);
+
+            vp->setHighlightedEdges(colors);
         }
-    } else {
-        if (!faces.empty() && !originalFaceColors.empty()) {
-            vp->DiffuseColor.setValues(originalFaceColors);
-            originalFaceColors.clear();
-        }
-        if (!edges.empty() && !originalLineColors.empty()) {
-            vp->LineColorArray.setValues(originalLineColors);
-            originalLineColors.clear();
-        }
+    }
+    else {
+        vp->unsetHighlightedFaces();
+        vp->unsetHighlightedEdges();
     }
 }
 
+void ViewProviderDressUp::setErrorState(bool error)
+{
+    auto* styleParameterManager = Base::provideService<Gui::StyleParameters::ParameterManager>();
+
+    const float opacity = static_cast<float>(
+        styleParameterManager
+            ->resolve(error ? StyleParameters::PreviewErrorOpacity : StyleParameters::PreviewShapeOpacity)
+            .value
+    );
+
+    pcPreviewShape->transparency = 1.0F - opacity;
+    pcPreviewShape->color = error
+        ? styleParameterManager->resolve(StyleParameters::PreviewErrorColor).asValue<SbColor>()
+        : PreviewColor.getValue().asValue<SbColor>();
+}

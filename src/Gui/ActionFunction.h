@@ -21,8 +21,7 @@
  ***************************************************************************/
 
 
-#ifndef GUI_ACTIONFUNCTION_H
-#define GUI_ACTIONFUNCTION_H
+#pragma once
 
 #include <QObject>
 #include <QVariant>
@@ -46,13 +45,13 @@ class ActionFunctionPrivate;
     {
         Gui::ActionFunction* func = new Gui::ActionFunction(menu);
 
-        QAction* a1 = menu->addAction(QObject::tr("Menu item 1..."));
+        QAction* a1 = menu->addAction(QObject::tr("Menu item 1…"));
         func->triggered(a1, std::bind(&MyViewProvider::doItem1, this));
 
-        QAction* a2 = menu->addAction(QObject::tr("Menu item 2..."));
+        QAction* a2 = menu->addAction(QObject::tr("Menu item 2…"));
         func->triggered(a2, std::bind(&MyViewProvider::doItem2, this));
 
-        QAction* a3 = menu->addAction(QObject::tr("Menu item 3..."));
+        QAction* a3 = menu->addAction(QObject::tr("Menu item 3…"));
         func->triggered(a3, std::bind(&MyViewProvider::doItem3, this));
     }
   \endcode
@@ -61,7 +60,7 @@ class ActionFunctionPrivate;
 
   http://www.boost.org/doc/libs/1_57_0/libs/bind/bind.html#with_boost_function
 */
-class GuiExport ActionFunction : public QObject
+class GuiExport ActionFunction: public QObject
 {
     Q_OBJECT
 
@@ -90,7 +89,7 @@ private:
 
 class TimerFunctionPrivate;
 
-class GuiExport TimerFunction : public QObject
+class GuiExport TimerFunction: public QObject
 {
     Q_OBJECT
 
@@ -114,7 +113,4 @@ private:
     Q_DECLARE_PRIVATE(TimerFunction)
 };
 
-} //namespace Gui
-
-
-#endif // GUI_ACTIONFUNCTION_H
+}  // namespace Gui

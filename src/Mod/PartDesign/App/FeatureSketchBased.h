@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2010 Juergen Riegel <FreeCAD@juergen-riegel.net>        *
  *                                                                         *
@@ -21,8 +23,7 @@
  ***************************************************************************/
 
 
-#ifndef PARTDESIGN_SketchBased_H
-#define PARTDESIGN_SketchBased_H
+#pragma once
 
 #include <Mod/Part/App/Part2DObject.h>
 #include "FeatureAddSub.h"
@@ -32,16 +33,21 @@ class gp_Lin;
 class TopoDS_Face;
 class TopoDS_Shape;
 class TopoDS_Wire;
+class TopLoc_Location;
 
 namespace PartDesign
 {
 
-class PartDesignExport ProfileBased : public PartDesign::FeatureAddSub
+/// Normalize an angle in radians to [0, 2 pi), snapping a near-full turn to zero.
+PartDesignExport double normalizeAngleRadians(double angle);
+
+class PartDesignExport ProfileBased: public PartDesign::FeatureAddSub
 {
-    PROPERTY_HEADER_WITH_OVERRIDE(PartDesign::SketchBased);
+    PROPERTY_HEADER_WITH_OVERRIDE(PartDesign::ProfileBased);
 
 public:
-    enum class ForbiddenAxis {
+    enum class ForbiddenAxis
+    {
         NoCheck = 0,
         NotPerpendicularWithNormal = 1,
         NotParallelWithNormal = 2
@@ -52,11 +58,15 @@ public:
     /// Profile used to create this feature
     App::PropertyLinkSub Profile;
     /// Reverse extrusion direction
-    App::PropertyBool    Reversed;
+    App::PropertyBool Reversed;
     /// Make extrusion symmetric to sketch plane
-    App::PropertyBool    Midplane;
+    App::PropertyBool Midplane;
     /// Face to extrude up to
     App::PropertyLinkSub UpToFace;
+    App::PropertyLinkSub UpToFace2;
+    /// Shape to extrude up to
+    App::PropertyLinkSubList UpToShape;
+    App::PropertyLinkSubList UpToShape2;
 
     App::PropertyBool AllowMultiFace;
 
@@ -72,8 +82,8 @@ public:
 
     /** applies a transform on the Placement of the Sketch or its
      *  support if it has one
-      */
-    void transformPlacement(const Base::Placement &transform) override;
+     */
+    void transformPlacement(const Base::Placement& transform) override;
 
     /**
      * Verifies the linked Profile and returns it if it is a valid 2D object
@@ -81,7 +91,7 @@ public:
      *               silently returns nullptr, otherwise throw a Base::Exception.
      *               Default is false.
      */
-    Part::Part2DObject* getVerifiedSketch(bool silent=false) const;
+    Part::Part2DObject* getVerifiedSketch(bool silent = false) const;
 
     /**
      * Verifies the linked Profile and returns it if it is a valid object
@@ -89,7 +99,7 @@ public:
      *               silently returns nullptr, otherwise throw a Base::Exception.
      *               Default is false.
      */
-    Part::Feature* getVerifiedObject(bool silent=false) const;
+    Part::Feature* getVerifiedObject(bool silent = false) const;
 
     /**
      * Verifies the linked Object and returns the shape used as profile
@@ -97,75 +107,144 @@ public:
      *               silently returns nullptr, otherwise throw a Base::Exception.
      *               Default is false.
      */
+    // TODO: Toponaming April 2024 Deprecated in favor of TopoShape method.  Remove when possible.
     TopoDS_Shape getVerifiedFace(bool silent = false) const;
 
+    /**
+     * Verifies the linked Object and returns the shape used as profile
+     * @param silent: if profile property is malformed and the parameter is true
+     *                silently returns nullptr, otherwise throw a Base::Exception.
+     *                Default is false.
+     * @param allowOpen: Whether allow open wire
+     * @param profile: optional profile object, if not given then use 'Profile' property
+     * @param subs: optional profile sub-object names, if not given then use 'Profile' property
+     */
+    TopoShape getTopoShapeVerifiedFace(
+        bool silent = false,
+        bool allowOpen = false,
+        const App::DocumentObject* profile = nullptr,
+        const std::vector<std::string>& subs = {}
+    ) const;
+
     /// Returns the wires the sketch is composed of
+    // TODO: Toponaming April 2024 Deprecated in favor of TopoShape method.  Remove when possible.
     std::vector<TopoDS_Wire> getProfileWires() const;
+    std::vector<TopoShape> getTopoShapeProfileWires() const;
+
 
     /// Returns the face of the sketch support (if any)
     const TopoDS_Face getSupportFace() const;
+    // TODO: Toponaming April 2024 Deprecated in favor of TopoShape method.  Remove when possible.
+    TopoShape getTopoShapeSupportFace() const;
 
-    Base::Vector3d getProfileNormal() const;
+    virtual Base::Vector3d getProfileNormal() const;
 
-    Part::TopoShape getProfileShape() const;
+    // Use Part::ShapeOptions enum to pass flags
+    TopoShape getProfileShape(
+        Part::ShapeOptions subShapeOptions = Part::ShapeOption::NeedSubElement
+            | Part::ShapeOption::ResolveLink | Part::ShapeOption::Transform
+    ) const;
 
     /// retrieves the number of axes in the linked sketch (defined as construction lines)
     int getSketchAxisCount() const;
 
-    Part::Feature* getBaseObject(bool silent=false) const override;
+    Part::Feature* getBaseObject(bool silent = false) const override;
 
-    //backwards compatibility: profile property was renamed and has different type now
+    // backwards compatibility: profile property was renamed and has different type now
     void Restore(Base::XMLReader& reader) override;
-    void handleChangedPropertyName(Base::XMLReader &reader, const char * TypeName, const char *PropName) override;
+    void handleChangedPropertyName(
+        Base::XMLReader& reader,
+        const char* TypeName,
+        const char* PropName
+    ) override;
 
     // calculate the through all length
     double getThroughAllLength() const;
 
+    static const char* StartTypesEnums[];
+
 protected:
-    void remapSupportShape(const TopoDS_Shape&);
+    /// Set while onDocumentRestored() rewrites deprecated properties, so that the deprecation
+    /// notices in onChanged() stay quiet for the migration's own writes.
+    bool migratingDeprecatedProperties = false;
 
     TopoDS_Face getSupportFace(const Part::Part2DObject*) const;
     TopoDS_Face getSupportFace(const App::PropertyLinkSub& link) const;
 
     /// Extract a face from a given LinkSub
-    static void getFaceFromLinkSub(TopoDS_Face& upToFace,
-                                   const App::PropertyLinkSub& refFace);
+    static void getFaceFromLinkSub(TopoDS_Face& upToFace, const App::PropertyLinkSub& refFace);
+
+    /// Extract a face from a given LinkSub
+    static void getUpToFaceFromLinkSub(TopoShape& upToFace, const App::PropertyLinkSub& refFace);
+
+    double getStartReferenceOffset(
+        const TopoShape& profileShape,
+        const App::PropertyLinkSub& reference,
+        const gp_Dir& direction,
+        double offset,
+        const TopLoc_Location& invObjLoc
+    ) const;
+    static TopoShape moveProfileToStart(
+        const TopoShape& profileShape,
+        const gp_Dir& direction,
+        double offset,
+        bool copyProfile
+    );
+
+    /// Create a shape with shapes and faces from a given LinkSubList
+    /// return the face count or 2 if a unique full shape is selected
+    static int getUpToShapeFromLinkSubList(
+        TopoShape& upToShape,
+        const App::PropertyLinkSubList& refShape
+    );
 
     /// Find a valid face to extrude up to
-    static void getUpToFace(TopoDS_Face& upToFace,
-                            const TopoDS_Shape& support,
-                            const TopoDS_Shape& sketchshape,
-                            const std::string& method,
-                            const gp_Dir& dir);
+    static void getUpToFace(
+        TopoShape& upToFace,
+        const TopoShape& support,
+        const TopoShape& sketchshape,
+        const std::string& method,
+        gp_Dir& dir
+    );
+
+    /// Find a valid face to revolve up to
+    static void getUpToFace(
+        TopoShape& upToFace,
+        const TopoShape& support,
+        const TopoShape& sketchshape,
+        const std::string& method,
+        const gp_Ax1& axis
+    );
 
     /// Add an offset to the face
-    static void addOffsetToFace(TopoDS_Face& upToFace,
-                                const gp_Dir& dir,
-                                double offset);
+    static void addOffsetToFace(TopoShape& upToFace, const gp_Dir& dir, double offset);
 
     /// Check whether the wire after projection on the face is inside the face
-    static bool checkWireInsideFace(const TopoDS_Wire& wire,
-                                    const TopoDS_Face& face,
-                                    const gp_Dir& dir);
+    static bool checkWireInsideFace(const TopoDS_Wire& wire, const TopoDS_Face& face, const gp_Dir& dir);
 
     /// Check whether the line crosses the face (line and face must be on the same plane)
     static bool checkLineCrossesFace(const gp_Lin& line, const TopoDS_Face& face);
 
 
-    /// Used to suggest a value for Reversed flag so that material is always removed (Groove) or added (Revolution) from the support
+    /// Used to suggest a value for Reversed flag so that material is always removed (Groove) or
+    /// added (Revolution) from the support
     double getReversedAngle(const Base::Vector3d& b, const Base::Vector3d& v) const;
     /// get Axis from ReferenceAxis
-    void getAxis(const App::DocumentObject* pcReferenceAxis, const std::vector<std::string>& subReferenceAxis,
-                 Base::Vector3d& base, Base::Vector3d& dir, ForbiddenAxis checkAxis) const;
+    void getAxis(
+        const App::DocumentObject* pcReferenceAxis,
+        const std::vector<std::string>& subReferenceAxis,
+        Base::Vector3d& base,
+        Base::Vector3d& dir,
+        ForbiddenAxis checkAxis
+    ) const;
 
     void onChanged(const App::Property* prop) override;
+    void onBaseFeatureRerouted(App::DocumentObject* oldBase, App::DocumentObject* newBase) override;
+
 private:
     bool isParallelPlane(const TopoDS_Shape&, const TopoDS_Shape&) const;
     bool isEqualGeometry(const TopoDS_Shape&, const TopoDS_Shape&) const;
     bool isQuasiEqual(const TopoDS_Shape&, const TopoDS_Shape&) const;
 };
 
-} //namespace PartDesign
-
-
-#endif // PARTDESIGN_SketchBased_H
+}  // namespace PartDesign

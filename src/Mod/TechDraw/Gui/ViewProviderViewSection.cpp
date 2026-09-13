@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2004 Jürgen Riegel <juergen.riegel@web.de>              *
  *   Copyright (c) 2012 Luke Parry <l.parry@warwick.ac.uk>                 *
@@ -21,19 +23,16 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <FCConfig.h>
 
-#include "PreCompiled.h"
-
-#ifndef _PreComp_
 # ifdef FC_OS_WIN32
 #  include <windows.h>
 # endif
-#endif
 
 #include <App/DocumentObject.h>
 #include <Base/Parameter.h>
 #include <Gui/Control.h>
-#include <Gui/Selection.h>
+#include <Gui/Selection/Selection.h>
 
 #include <Mod/TechDraw/App/DrawComplexSection.h>
 #include <Mod/TechDraw/App/DrawGeomHatch.h>
@@ -61,7 +60,10 @@ ViewProviderViewSection::ViewProviderViewSection()
 {
     static const char *fgroup = "Faces";
     static const char *hgroup = "Surface Hatch";
+    static const char *lgroup = "Section Line";
     sPixmap = "TechDraw_TreeSection";
+
+    KeepLabel.setValue(true);
 
     ADD_PROPERTY_TYPE(CutSurfaceColor, (Preferences::getPreferenceGroup("Colors")->GetUnsigned("FaceColor", 0xFFFFFF)),
                       fgroup, App::Prop_None, "Set color of the cut surface");
@@ -79,6 +81,13 @@ ViewProviderViewSection::ViewProviderViewSection()
 
     ADD_PROPERTY_TYPE(WeightPattern, (0.1), hgroup, App::Prop_None, "GeomHatch pattern line thickness");
 
+    ADD_PROPERTY_TYPE(SectionLineFont, (Preferences::labelFont().c_str()),
+                      lgroup, App::Prop_None, "The name of the font to use for the section line");
+    ADD_PROPERTY_TYPE(SectionLineFontsize, (Preferences::dimFontSizeMM()),
+                      lgroup, App::Prop_None, "Section line text size in units");
+    ADD_PROPERTY_TYPE(SectionLineArrowsize, (Preferences::dimArrowSize()),
+                      lgroup, App::Prop_None, "Section line arrow size in units");
+
     getParameters();
 
 }
@@ -91,11 +100,13 @@ ViewProviderViewSection::~ViewProviderViewSection()
 void ViewProviderViewSection::onChanged(const App::Property* prop)
 {
     if (prop == &WeightPattern   ||
-//        prop == &HatchCutSurface ||
         prop == &HatchColor      ||
         prop == &GeomHatchColor      ||
         prop == &CutSurfaceColor ||
-        prop == &CutSurfaceTransparency) {
+        prop == &CutSurfaceTransparency ||
+        prop == &SectionLineFont ||
+        prop == &SectionLineFontsize ||
+        prop == &SectionLineArrowsize) {
         updateGraphic();
     }
 
@@ -153,11 +164,8 @@ bool ViewProviderViewSection::doubleClicked()
 
 void ViewProviderViewSection::getParameters()
 {
-    App::Color cutColor = App::Color((uint32_t) Preferences::getPreferenceGroup("Colors")->GetUnsigned("CutSurfaceColor", 0xD3D3D3FF));
+    Base::Color cutColor = Base::Color((uint32_t) Preferences::getPreferenceGroup("Colors")->GetUnsigned("CutSurfaceColor", 0xD3D3D3FF));
     CutSurfaceColor.setValue(cutColor);
-
-//    App::Color hatchColor = App::Color((uint32_t) hGrp->GetUnsigned("SectionHatchColor", 0x00000000));
-//    HatchColor.setValue(hatchColor);
 
     double lineWeight = Preferences::getPreferenceGroup("PAT")->GetFloat("GeomWeight", 0.1);
     WeightPattern.setValue(lineWeight);

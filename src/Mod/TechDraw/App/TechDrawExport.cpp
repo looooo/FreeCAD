@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2011 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -22,9 +24,7 @@
 //this file originally part of TechDraw workbench
 //migrated to TechDraw workbench 2022-01-26 by Wandererfan
 
-#include "PreCompiled.h"
 
-#ifndef _PreComp_
 # include <cmath>
 # include <sstream>
 # include <Approx_Curve3d.hxx>
@@ -32,6 +32,7 @@
 # include <BRepAdaptor_Curve.hxx>
 # include <BRepBuilderAPI_MakeEdge.hxx>
 # include <BRepLProp_CLProps.hxx>
+# include <GCPnts_UniformDeflection.hxx>
 # include <Geom_BezierCurve.hxx>
 # include <Geom_BSplineCurve.hxx>
 # include <GeomConvert_BSplineCurveKnotSplitting.hxx>
@@ -46,6 +47,7 @@
 # include <Standard_Failure.hxx>
 # include <Standard_Version.hxx>
 # include <TColStd_Array1OfReal.hxx>
+# include <TColgp_Array1OfPnt.hxx>
 # include <TopExp_Explorer.hxx>
 # include <TopoDS.hxx>
 # include <TopoDS_Edge.hxx>
@@ -53,7 +55,6 @@
 # if OCC_VERSION_HEX < 0x070600
 #  include <BRepAdaptor_HCurve.hxx>
 # endif
-#endif
 
 #include <Base/Tools.h>
 
@@ -220,7 +221,7 @@ void SVGOutput::printCircle(const BRepAdaptor_Curve& c, std::ostream& out)
     else {
         // See also https://developer.mozilla.org/en/SVG/Tutorial/Paths
         char xar = '0'; // x-axis-rotation
-        char las = (l-f > M_PI) ? '1' : '0'; // large-arc-flag
+        char las = (l-f > std::numbers::pi) ? '1' : '0'; // large-arc-flag
         char swp = (a < 0) ? '1' : '0'; // sweep-flag, i.e. clockwise (0) or counter-clockwise (1)
         out << "<path d=\"M" << s.X() <<  " " << s.Y()
             << " A" << r << " " << r << " "
@@ -267,7 +268,7 @@ void SVGOutput::printEllipse(const BRepAdaptor_Curve& c, int id, std::ostream& o
     }
     // arc of ellipse
     else {
-        char las = (l-f > M_PI) ? '1' : '0'; // large-arc-flag
+        char las = (l-f > std::numbers::pi) ? '1' : '0'; // large-arc-flag
         char swp = (a < 0) ? '1' : '0'; // sweep-flag, i.e. clockwise (0) or counter-clockwise (1)
         out << "<path d=\"M" << s.X() <<  " " << s.Y()
             << " A" << r1 << " " << r2 << " "
@@ -293,7 +294,7 @@ void SVGOutput::printBezier(const BRepAdaptor_Curve& c, int id, std::ostream& ou
                 printBSpline(spline, id, out);
             }
             else {
-                Standard_Failure::Raise("do it the generic way");
+                throw Standard_Failure("do it the generic way");
             }
 
             return;
@@ -304,7 +305,7 @@ void SVGOutput::printBezier(const BRepAdaptor_Curve& c, int id, std::ostream& ou
         str << p1.X() << ", " << p1.Y();
         if (bezier->Degree() == 3) {
             if (poles != 4)
-                Standard_Failure::Raise("do it the generic way");
+                throw Standard_Failure("do it the generic way");
             gp_Pnt p2 = bezier->Pole(2);
             gp_Pnt p3 = bezier->Pole(3);
             gp_Pnt p4 = bezier->Pole(4);
@@ -315,7 +316,7 @@ void SVGOutput::printBezier(const BRepAdaptor_Curve& c, int id, std::ostream& ou
         }
         else if (bezier->Degree() == 2) {
             if (poles != 3)
-                Standard_Failure::Raise("do it the generic way");
+                throw Standard_Failure("do it the generic way");
             gp_Pnt p2 = bezier->Pole(2);
             gp_Pnt p3 = bezier->Pole(3);
             str << " Q"
@@ -324,12 +325,12 @@ void SVGOutput::printBezier(const BRepAdaptor_Curve& c, int id, std::ostream& ou
         }
         else if (bezier->Degree() == 1) {
             if (poles != 2)
-                Standard_Failure::Raise("do it the generic way");
+                throw Standard_Failure("do it the generic way");
             gp_Pnt p2 = bezier->Pole(2);
             str << " L" << p2.X() << ", " << p2.Y() << " ";
         }
         else {
-            Standard_Failure::Raise("do it the generic way");
+            throw Standard_Failure("do it the generic way");
         }
 
         str << "\" />";
@@ -344,18 +345,27 @@ void SVGOutput::printBSpline(const BRepAdaptor_Curve& c, int id, std::ostream& o
 {
     try {
         std::stringstream str;
-        Handle(Geom_BSplineCurve) spline;
-        Standard_Real tol3D = 0.001;
-        Standard_Integer maxDegree = 3, maxSegment = 100;
-        Handle(BRepAdaptor_HCurve) hCurve = new BRepAdaptor_HCurve(c);
-        // approximate the curve using a tolerance
-        Approx_Curve3d approx(hCurve, tol3D, GeomAbs_C0, maxSegment, maxDegree);
-        if (approx.IsDone() && approx.HasResult()) {
-            // have the result
-            spline = approx.Curve();
+        Handle(Geom_BSplineCurve) spline = c.BSpline();
+
+        // Only re-approximate if degree > 3 or rational, since SVG only supports
+        // up to cubic Bezier curves. Using the original curve directly avoids
+        // approximation artifacts for curves that are already SVG-compatible.
+        if (spline->Degree() > 3 || spline->IsRational()) {
+            Standard_Real tol3D = 0.001;
+            Standard_Integer maxDegree = 3, maxSegment = 100;
+            Handle(BRepAdaptor_HCurve) hCurve = new BRepAdaptor_HCurve(c);
+            // approximate the curve using a tolerance
+            Approx_Curve3d approx(hCurve, tol3D, GeomAbs_C0, maxSegment, maxDegree);
+            if (approx.IsDone() && approx.HasResult()) {
+                // have the result
+                spline = approx.Curve();
+            } else {
+                printGeneric(c, id, out);
+                return;
+            }
         } else {
-            printGeneric(c, id, out);
-            return;
+            // Trim the B-spline copy to the edge's parameter range
+            spline->Segment(c.FirstParameter(), c.LastParameter());
         }
 
         GeomConvert_BSplineCurveToBezierCurve crt(spline);
@@ -370,7 +380,7 @@ void SVGOutput::printBSpline(const BRepAdaptor_Curve& c, int id, std::ostream& o
             }
             if (bezier->Degree() == 3) {
                 if (poles != 4)
-                    Standard_Failure::Raise("do it the generic way");
+                    throw Standard_Failure("do it the generic way");
                 gp_Pnt p2 = bezier->Pole(2);
                 gp_Pnt p3 = bezier->Pole(3);
                 gp_Pnt p4 = bezier->Pole(4);
@@ -381,7 +391,7 @@ void SVGOutput::printBSpline(const BRepAdaptor_Curve& c, int id, std::ostream& o
             }
             else if (bezier->Degree() == 2) {
                 if (poles != 3)
-                    Standard_Failure::Raise("do it the generic way");
+                    throw Standard_Failure("do it the generic way");
                 gp_Pnt p2 = bezier->Pole(2);
                 gp_Pnt p3 = bezier->Pole(3);
                 str << " Q"
@@ -390,12 +400,12 @@ void SVGOutput::printBSpline(const BRepAdaptor_Curve& c, int id, std::ostream& o
             }
             else if (bezier->Degree() == 1) {
                 if (poles != 2)
-                    Standard_Failure::Raise("do it the generic way");
+                    throw Standard_Failure("do it the generic way");
                 gp_Pnt p2 = bezier->Pole(2);
                 str << " L" << p2.X() << ", " << p2.Y() << " ";
             }
             else {
-                Standard_Failure::Raise("do it the generic way");
+                throw Standard_Failure("do it the generic way");
             }
         }
 
@@ -433,6 +443,18 @@ void SVGOutput::printGeneric(const BRepAdaptor_Curve& bac, int id, std::ostream&
         c = 'L';
         out << c << " " << e.X() << " " << e.Y()<< " " ;
         out << "\" />" << endl;
+    } else {
+        // Fallback: discretize the curve into a polyline when no polygon
+        // representation is available. This prevents silently dropping edges.
+        GCPnts_UniformDeflection discretizer(bac, 0.1);
+        if (discretizer.IsDone() && discretizer.NbPoints() > 0) {
+            out << "<path id= \"" << id << "\" d=\" ";
+            for (int i = 1; i <= discretizer.NbPoints(); i++) {
+                gp_Pnt p = bac.Value(discretizer.Parameter(i));
+                out << (i == 1 ? "M" : "L") << " " << p.X() << " " << p.Y() << " ";
+            }
+            out << "\" />" << endl;
+        }
     }
 }
 
@@ -521,7 +543,7 @@ void DXFOutput::printCircle(const BRepAdaptor_Curve& c, std::ostream& out)
     else {
         // See also https://developer.mozilla.org/en/SVG/Tutorial/Paths
         /*char xar = '0'; // x-axis-rotation
-        char las = (l-f > M_PI) ? '1' : '0'; // large-arc-flag
+        char las = (l-f > std::numbers::pi) ? '1' : '0'; // large-arc-flag
         char swp = (a < 0) ? '1' : '0'; // sweep-flag, i.e. clockwise (0) or counter-clockwise (1)
         out << "<path d=\"M" << s.X() <<  " " << s.Y()
             << " A" << r << " " << r << " "
@@ -532,8 +554,8 @@ void DXFOutput::printCircle(const BRepAdaptor_Curve& c, std::ostream& out)
 	double bx = e.X() - p.X();
 	double by = e.Y() - p.Y();
 
-	double start_angle = atan2(ay, ax) * 180 / M_PI;
-	double end_angle = atan2(by, bx) * 180 / M_PI;
+	double start_angle = Base::toDegrees(atan2(ay, ax));
+	double end_angle = Base::toDegrees(atan2(by, bx));
 
 	if (a > 0) {
 		double temp = start_angle;
@@ -583,7 +605,7 @@ void DXFOutput::printEllipse(const BRepAdaptor_Curve& c, int /*id*/, std::ostrea
         gp_Dir xaxis = ellp.XAxis().Direction();
         Standard_Real angle = xaxis.Angle(gp_Dir(1, 0,0));
         angle = Base::toDegrees<double>(angle);
-        char las = (l-f > D_PI) ? '1' : '0'; // large-arc-flag
+        char las = (l-f > std::numbers::pi) ? '1' : '0'; // large-arc-flag
         char swp = (a < 0) ? '1' : '0'; // sweep-flag, i.e. clockwise (0) or counter-clockwise (1)
         out << "<path d=\"M" << s.X() <<  " " << s.Y()
             << " A" << r1 << " " << r2 << " "

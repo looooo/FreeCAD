@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Jürgen Riegel <FreeCAD@juergen-riegel.net>         *
  *   Copyright (c) 2015 Qingfeng Xia  <FreeCAD@iesensor.com>               *
@@ -21,7 +23,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <App/DocumentObjectPy.h>
 #include <App/FeaturePythonPyImp.h>
@@ -35,7 +36,18 @@ using namespace App;
 PROPERTY_SOURCE(Fem::FemSolverObject, App::DocumentObject)
 
 
-FemSolverObject::FemSolverObject() = default;
+FemSolverObject::FemSolverObject()
+{
+    ADD_PROPERTY_TYPE(
+        Results,
+        (nullptr),
+        "Base",
+        App::PropertyType(App::Prop_ReadOnly | App::Prop_Output),
+        "Solver results list"
+    );
+
+    worker.initExtension(this);
+}
 
 FemSolverObject::~FemSolverObject() = default;
 

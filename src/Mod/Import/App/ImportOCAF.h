@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,10 +22,8 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef IMPORT_IMPORTOCAF_H
-#define IMPORT_IMPORTOCAF_H
+#pragma once
 
-#include <climits>
 #include <map>
 #include <set>
 #include <string>
@@ -65,23 +65,29 @@ public:
     void setMerge(bool);
 
 private:
-    void loadShapes(const TDF_Label& label,
-                    const TopLoc_Location&,
-                    const std::string& partname,
-                    const std::string& assembly,
-                    bool isRef,
-                    std::vector<App::DocumentObject*>&);
-    void createShape(const TDF_Label& label,
-                     const TopLoc_Location&,
-                     const std::string&,
-                     std::vector<App::DocumentObject*>&,
-                     bool);
-    void createShape(const TopoDS_Shape& label,
-                     const TopLoc_Location&,
-                     const std::string&,
-                     std::vector<App::DocumentObject*>&);
+    void loadShapes(
+        const TDF_Label& label,
+        const TopLoc_Location&,
+        const std::string& partname,
+        const std::string& assembly,
+        bool isRef,
+        std::vector<App::DocumentObject*>&
+    );
+    void createShape(
+        const TDF_Label& label,
+        const TopLoc_Location&,
+        const std::string&,
+        std::vector<App::DocumentObject*>&,
+        bool
+    );
+    void createShape(
+        const TopoDS_Shape& label,
+        const TopLoc_Location&,
+        const std::string&,
+        std::vector<App::DocumentObject*>&
+    );
     void loadColors(Part::Feature* part, const TopoDS_Shape& aShape);
-    virtual void applyColors(Part::Feature*, const std::vector<App::Color>&)
+    virtual void applyColors(Part::Feature*, const std::vector<Base::Color>&)
     {}
     static void tryPlacementFromLoc(App::GeoFeature*, const TopLoc_Location&);
     static void tryPlacementFromMatrix(App::GeoFeature*, const Base::Matrix4D&);
@@ -94,23 +100,22 @@ private:
     bool merge {true};
     std::string default_name;
     std::set<int> myRefShapes;
-    static const int HashUpper = INT_MAX;
 };
 
 class ImportExport ImportOCAFCmd: public ImportOCAF
 {
 public:
     ImportOCAFCmd(Handle(TDocStd_Document) h, App::Document* d, const std::string& name);
-    std::map<Part::Feature*, std::vector<App::Color>> getPartColorsMap() const
+    std::map<Part::Feature*, std::vector<Base::Color>> getPartColorsMap() const
     {
         return partColors;
     }
 
 private:
-    void applyColors(Part::Feature* part, const std::vector<App::Color>& colors) override;
+    void applyColors(Part::Feature* part, const std::vector<Base::Color>& colors) override;
 
 private:
-    std::map<Part::Feature*, std::vector<App::Color>> partColors;
+    std::map<Part::Feature*, std::vector<Base::Color>> partColors;
 };
 
 class ImportXCAF
@@ -123,7 +128,7 @@ public:
 private:
     void createShape(const TopoDS_Shape& shape, bool perface = false, bool setname = false) const;
     void loadShapes(const TDF_Label& label);
-    virtual void applyColors(Part::Feature*, const std::vector<App::Color>&)
+    virtual void applyColors(Part::Feature*, const std::vector<Base::Color>&)
     {}
 
 private:
@@ -141,5 +146,3 @@ private:
 };
 
 }  // namespace Import
-
-#endif  // IMPORT_IMPORTOCAF_H

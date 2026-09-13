@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /****************************************************************************
  *   Copyright (c) 2021 Wanderer Fan <wandererfan@gmail.com>                *
  *                                                                          *
@@ -19,8 +21,7 @@
  *   Suite 330, Boston, MA  02111-1307, USA                                 *
  *                                                                          *
  ****************************************************************************/
-#ifndef GUI_DLGPAGECHOOSER_H
-#define GUI_DLGPAGECHOOSER_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
@@ -29,13 +30,16 @@
 namespace TechDrawGui {
 
 class Ui_DlgPageChooser;
+
+//NOLINTBEGIN
 class TechDrawGuiExport DlgPageChooser : public QDialog
 {
     Q_OBJECT
+//NOLINTEND
 
 public:
-    DlgPageChooser(const std::vector<std::string> labels,
-                   const std::vector<std::string> names,
+    DlgPageChooser(const std::vector<std::string>& labels,
+                   const std::vector<std::string>& names,
                    QWidget* parent = nullptr, Qt::WindowFlags fl = Qt::WindowFlags());
     ~DlgPageChooser() override;
 
@@ -43,7 +47,8 @@ public:
     void accept() override;
     void reject() override;
 
-private Q_SLOTS:
+public Q_SLOTS:
+    void slotChangedSelection();
 
 private:
     void fillList(std::vector<std::string> labels, std::vector<std::string> names);
@@ -52,7 +57,3 @@ private:
 };
 
 } // namespace Gui
-
-
-#endif // GUI_DLGPAGECHOOSER_H
-

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2005 Imetric 3D GmbH                                    *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <cmath>
 
@@ -49,7 +50,7 @@ void MeshDefinitions::SetMinPointDistance(float fMin)
 {
     _fMinPointDistance = fMin;
     _fMinPointDistanceP2 = fMin * fMin;
-    _fMinPointDistanceD1 = float(sqrt((fMin * fMin) / 3.0f));
+    _fMinPointDistanceD1 = float(std::sqrt((fMin * fMin) / 3.0F));
 }
 
 }  // namespace MeshCore

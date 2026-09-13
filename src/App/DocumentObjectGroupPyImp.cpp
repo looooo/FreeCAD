@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2007 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -21,7 +23,6 @@
  ***************************************************************************/
 
 
-#include "PreCompiled.h"
 
 #include "DocumentObjectGroup.h"
 
@@ -37,7 +38,7 @@ std::string DocumentObjectGroupPy::representation() const
     return {"<group object>"};
 }
 
-PyObject *DocumentObjectGroupPy::getCustomAttributes(const char* /*attr*/) const
+PyObject* DocumentObjectGroupPy::getCustomAttributes(const char* /*attr*/) const
 {
     return nullptr;
 }
@@ -46,4 +47,3 @@ int DocumentObjectGroupPy::setCustomAttributes(const char* /*attr*/, PyObject* /
 {
     return 0;
 }
-

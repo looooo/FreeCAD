@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2011 Juergen Riegel <FreeCAD@juergen-riegel.net>        *
  *                                                                         *
@@ -21,45 +23,63 @@
  ***************************************************************************/
 
 
-#ifndef PARTDESIGN_FeatureAdditive_H
-#define PARTDESIGN_FeatureAdditive_H
+#pragma once
 
-#include "Feature.h"
+#include "FeatureRefine.h"
+
+#include <QCoreApplication>
 
 /// Base class of all additive features in PartDesign
 namespace PartDesign
 {
 
-class PartDesignExport FeatureAddSub : public PartDesign::Feature
+class PartDesignExport FeatureAddSub: public PartDesign::FeatureRefine
 {
+    Q_DECLARE_TR_FUNCTIONS(PartDesign::FeatureAddSub)
     PROPERTY_HEADER_WITH_OVERRIDE(PartDesign::FeatureAddSub);
 
 public:
-    enum Type {
+    enum class Type
+    {
         Additive = 0,
         Subtractive
     };
 
+    enum class BooleanOperation
+    {
+        Union = 0,
+        Subtraction,
+        Common
+    };
+
     FeatureAddSub();
 
+    void onChanged(const App::Property*) override;
+
     Type getAddSubType();
+    BooleanOperation getBooleanOperation();
+    const char* getBooleanMaker() const;
 
     short mustExecute() const override;
 
-    virtual void getAddSubShape(Part::TopoShape &addShape, Part::TopoShape &subShape);
+    virtual void getAddSubShape(Part::TopoShape& addShape, Part::TopoShape& subShape);
 
-    Part::PropertyPartShape   AddSubShape;
-    App::PropertyBool Refine;
+    void updatePreviewShape() override;
+
+    Part::PropertyPartShape AddSubShape;
+
+    App::PropertyEnumeration Operation;
 
 protected:
-    Type addSubType{Additive};
-
-    TopoDS_Shape refineShapeIfActive(const TopoDS_Shape&) const;
+    Type addSubType {Type::Additive};
+    BooleanOperation booleanOperation {BooleanOperation::Union};
+    void defineAdditive();
+    void defineSubtractive();
 };
 
 using FeatureAddSubPython = App::FeaturePythonT<FeatureAddSub>;
 
-class FeatureAdditivePython : public FeatureAddSubPython
+class FeatureAdditivePython: public FeatureAddSubPython
 {
     PROPERTY_HEADER_WITH_OVERRIDE(PartDesign::FeatureAdditivePython);
 
@@ -68,7 +88,7 @@ public:
     ~FeatureAdditivePython() override;
 };
 
-class FeatureSubtractivePython : public FeatureAddSubPython
+class FeatureSubtractivePython: public FeatureAddSubPython
 {
     PROPERTY_HEADER_WITH_OVERRIDE(PartDesign::FeatureSubtractivePython);
 
@@ -77,7 +97,4 @@ public:
     ~FeatureSubtractivePython() override;
 };
 
-} //namespace PartDesign
-
-
-#endif // PARTDESIGN_FeatureAdditive_H
+}  // namespace PartDesign

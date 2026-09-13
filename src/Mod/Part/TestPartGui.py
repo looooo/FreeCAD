@@ -1,4 +1,6 @@
-#**************************************************************************
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
+# **************************************************************************
 #   Copyright (c) 2011 Juergen Riegel <FreeCAD@juergen-riegel.net>        *
 #                                                                         *
 #   This file is part of the FreeCAD CAx development system.              *
@@ -18,7 +20,7 @@
 #   License along with FreeCAD; if not, write to the Free Software        *
 #   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  *
 #   USA                                                                   *
-#**************************************************************************
+# **************************************************************************
 
 import os
 import sys
@@ -27,10 +29,12 @@ import FreeCAD
 import FreeCADGui
 import Part
 import PartGui
+import Sketcher
 from PySide import QtWidgets
 
+
 def findDockWidget(name):
-    """ Get a dock widget by name """
+    """Get a dock widget by name"""
     mw = FreeCADGui.getMainWindow()
     dws = mw.findChildren(QtWidgets.QDockWidget)
     for dw in dws:
@@ -38,15 +42,18 @@ def findDockWidget(name):
             return dw
     return None
 
+
 """
 #---------------------------------------------------------------------------
 # define the test cases to test the FreeCAD Part module
 #---------------------------------------------------------------------------
 """
 from parttests.ColorPerFaceTest import ColorPerFaceTest
+from parttests.ColorTransparencyTest import ColorTransparencyTest
+from parttests.TaskFaceAppearancesTest import TaskFaceAppearancesGuiTest
 
 
-#class PartGuiTestCases(unittest.TestCase):
+# class PartGuiTestCases(unittest.TestCase):
 #    def setUp(self):
 #        self.Doc = FreeCAD.newDocument("PartGuiTest")
 #
@@ -76,8 +83,98 @@ class PartGuiViewProviderTestCases(unittest.TestCase):
             box.ViewObject.dropObject(box, 0)
 
     def tearDown(self):
-        #closing doc
+        # closing doc
         FreeCAD.closeDocument("PartGuiTest")
+
+
+class ProjectionOnSurfaceTestCases(unittest.TestCase):
+    def setUp(self):
+        self.Doc = FreeCAD.newDocument("ProjectionOnSurface")
+
+    def testSketchInternalFaceAsSupportFace(self):
+        sketch = self.Doc.addObject("Sketcher::SketchObject", "Sketch")
+        sketch.MakeInternals = True
+        sketch.addGeometry(
+            [
+                Part.LineSegment(FreeCAD.Vector(0, 0), FreeCAD.Vector(10, 0)),
+                Part.LineSegment(FreeCAD.Vector(10, 0), FreeCAD.Vector(10, 10)),
+                Part.LineSegment(FreeCAD.Vector(10, 10), FreeCAD.Vector(0, 10)),
+                Part.LineSegment(FreeCAD.Vector(0, 10), FreeCAD.Vector(0, 0)),
+            ],
+            False,
+        )
+        self.Doc.recompute()
+
+        FreeCADGui.activateWorkbench("PartWorkbench")
+        FreeCADGui.updateGui()
+        FreeCADGui.runCommand("Part_ProjectionOnSurface")
+        FreeCADGui.updateGui()
+
+        taskDialog = FreeCADGui.Control.activeTaskDialog()
+        self.assertIsNotNone(taskDialog)
+        supportButton = None
+        for widget in taskDialog.getDialogContent():
+            supportButton = widget.findChild(QtWidgets.QPushButton, "pushButtonAddProjFace")
+            if supportButton:
+                break
+        self.assertIsNotNone(supportButton)
+        supportButton.click()
+        FreeCADGui.Selection.addSelection(sketch, "InternalFace1")
+
+        projection = self.Doc.getObject("Projection")
+        self.assertIsNotNone(projection)
+        self.assertEqual(projection.SupportFace[0], sketch)
+        self.assertEqual(projection.SupportFace[1], ["InternalFace1"])
+
+    def tearDown(self):
+        FreeCADGui.Selection.clearSelection()
+        guiDocument = FreeCADGui.getDocument("ProjectionOnSurface")
+        if FreeCADGui.Control.activeDialog(guiDocument):
+            FreeCADGui.Control.closeDialog(guiDocument)
+        FreeCAD.closeDocument("ProjectionOnSurface")
+
+
+class PartMirrorGuiTestCases(unittest.TestCase):
+    def setUp(self):
+        self.Doc = FreeCAD.newDocument("PartMirrorGuiTest")
+
+    def tearDown(self):
+        if FreeCADGui.Control.activeDialog():
+            FreeCADGui.Control.closeDialog()
+        FreeCADGui.Selection.clearSelection()
+        FreeCAD.closeDocument(self.Doc.Name)
+
+    def mirrorBoxWithLabel(self, label):
+        if not FreeCAD.GuiUp:
+            self.skipTest("This test requires a graphical user interface (GUI).")
+
+        box = self.Doc.addObject("Part::Box", "Box")
+        box.Label = label
+        self.Doc.recompute()
+
+        FreeCADGui.Selection.clearSelection()
+        FreeCADGui.Selection.addSelection(self.Doc.Name, box.Name)
+        FreeCADGui.runCommand("Part_Mirror")
+        self.assertTrue(FreeCADGui.Control.activeDialog(), "Part Mirror task dialog did not open.")
+
+        FreeCADGui.Control.activeTaskDialog().accept()
+        QtWidgets.QApplication.processEvents()
+
+        mirrors = [obj for obj in self.Doc.Objects if obj.isDerivedFrom("Part::Mirroring")]
+        self.assertEqual(1, len(mirrors))
+        return mirrors[0].Label
+
+    def testMirrorLabelWithUnicodeIsNotDoubleEscaped(self):
+        self.assertEqual("caf\u00e9 (Mirror #1)", self.mirrorBoxWithLabel("caf\u00e9"))
+
+    def testMirrorLabelEscapesQuotesBeforePythonCommand(self):
+        label = 'a");print("Erasing your hard drive, please stand by....")'
+        self.assertEqual(f"{label} (Mirror #1)", self.mirrorBoxWithLabel(label))
+
+    def testMirrorLabelWithNewlinesIsNotMangled(self):
+        label = "a\nb\nc"
+        self.assertEqual(f"{label} (Mirror #1)", self.mirrorBoxWithLabel(label))
+
 
 class SectionCutTestCases(unittest.TestCase):
     def setUp(self):
@@ -95,10 +192,10 @@ class SectionCutTestCases(unittest.TestCase):
         dw = findDockWidget("Section Cutting")
         if dw:
             box = dw.findChild(QtWidgets.QDialogButtonBox)
-            button = box.button(box.Close)
+            button = box.button(QtWidgets.QDialogButtonBox.Close)
             button.click()
         else:
-            print ("No Section Cutting panel found")
+            print("No section cutting panel found")
 
     def tearDown(self):
         FreeCAD.closeDocument("SectionCut")

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2008 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -21,8 +23,7 @@
  ***************************************************************************/
 
 
-#ifndef APP_DOCUMENTOBJECTFILEINCLUDED_H
-#define APP_DOCUMENTOBJECTFILEINCLUDED_H
+#pragma once
 
 #include "DocumentObject.h"
 #include "PropertyFile.h"
@@ -31,7 +32,7 @@
 namespace App
 {
 
-class AppExport DocumentObjectFileIncluded : public DocumentObject
+class AppExport DocumentObjectFileIncluded: public DocumentObject
 {
     PROPERTY_HEADER_WITH_OVERRIDE(App::DocumentObjectFileIncluded);
 
@@ -42,16 +43,13 @@ public:
 
 
     /// returns the type name of the ViewProvider
-    const char* getViewProviderName() const override {
+    const char* getViewProviderName() const override
+    {
         return "Gui::ViewProviderDocumentObject";
     }
 
     /// Properties
     PropertyFileIncluded File;
-
 };
 
-} //namespace App
-
-
-#endif // APP_DOCUMENTOBJECTFILEINCLUDED_H
+}  // namespace App

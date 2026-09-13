@@ -22,12 +22,12 @@
  **************************************************************************/
 
 
-#ifndef PARTGUI_WORKBENCHMANIPULATOR_H
-#define PARTGUI_WORKBENCHMANIPULATOR_H
+#pragma once
 
 #include <Gui/WorkbenchManipulator.h>
 
-namespace PartGui {
+namespace PartGui
+{
 
 class WorkbenchManipulator: public Gui::WorkbenchManipulator
 {
@@ -35,15 +35,9 @@ protected:
     /*!
      * \brief modifyMenuBar
      * Method to manipulate the menu structure of a workbench.
-     * The default implementation doesn't change anything.SectionCut
-     */
-    void modifyMenuBar(Gui::MenuItem* menuBar) override;
-    /*!
-     * \brief modifyContextMenu
-     * Method to manipulate the contextmenu structure of a workbench.
      * The default implementation doesn't change anything.
      */
-    void modifyContextMenu(const char* recipient, Gui::MenuItem* menuBar) override;
+    void modifyMenuBar(Gui::MenuItem* menuBar) override;
     /*!
      * \brief modifyToolBars
      * Method to manipulate the toolbar structure of a workbench
@@ -58,12 +52,8 @@ protected:
     void modifyDockWindows([[maybe_unused]] Gui::DockWindowItems* dockWindow) override;
 
 private:
-    static void addSectionCut(Gui::MenuItem* menuBar);
     static void addSelectionFilter(Gui::ToolBarItem* toolBar);
-    static void addSelectionFilter(Gui::MenuItem* menuBar);
+    static void addDatums(Gui::ToolBarItem* toolBar);
 };
 
-} // namespace PartGui
-
-
-#endif // PARTGUI_WORKBENCHMANIPULATOR_H
+}  // namespace PartGui

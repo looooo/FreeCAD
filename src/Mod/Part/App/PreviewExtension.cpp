@@ -1,0 +1,114 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+/****************************************************************************
+ *                                                                          *
+ *   Copyright (c) 2025 Kacper Donat <kacper@kadet.net>                     *
+ *                                                                          *
+ *   This file is part of FreeCAD.                                          *
+ *                                                                          *
+ *   FreeCAD is free software: you can redistribute it and/or modify it     *
+ *   under the terms of the GNU Lesser General Public License as            *
+ *   published by the Free Software Foundation, either version 2.1 of the   *
+ *   License, or (at your option) any later version.                        *
+ *                                                                          *
+ *   FreeCAD is distributed in the hope that it will be useful, but         *
+ *   WITHOUT ANY WARRANTY; without even the implied warranty of             *
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU       *
+ *   Lesser General Public License for more details.                        *
+ *                                                                          *
+ *   You should have received a copy of the GNU Lesser General Public       *
+ *   License along with FreeCAD. If not, see                                *
+ *   <https://www.gnu.org/licenses/>.                                       *
+ *                                                                          *
+ ***************************************************************************/
+
+#include "PreviewExtension.h"
+#include "PreviewExtensionPy.h"
+
+#include <App/DocumentObject.h>
+#include <App/ExtensionPython.h>
+#include <Base/PyObjectBase.h>
+
+EXTENSION_PROPERTY_SOURCE(Part::PreviewExtension, App::DocumentObjectExtension)
+
+namespace Part
+{
+
+template<typename ExtensionT>
+App::DocumentObjectExecReturn* PreviewExtensionPythonT<ExtensionT>::recomputePreview()
+{
+    EXTENSION_PROXY_NOARG(recomputePreview)
+
+    if (!result.isNone()) {
+        return App::DocumentObject::StdReturn;
+    }
+
+    return ExtensionT::recomputePreview();
+}
+
+template<typename ExtensionT>
+bool PreviewExtensionPythonT<ExtensionT>::mustRecomputePreview()
+{
+    EXTENSION_PROXY_NOARG(mustRecomputePreview)
+
+    if (result.isBoolean()) {
+        return Py::Boolean(result);
+    }
+
+    return ExtensionT::mustRecomputePreview();
+}
+
+template class PartExport PreviewExtensionPythonT<PreviewExtension>;
+
+}  // namespace Part
+
+EXTENSION_PROPERTY_SOURCE_TEMPLATE(Part::PreviewExtensionPython, Part::PreviewExtension)
+template class PartExport App::ExtensionPythonT<Part::PreviewExtensionPythonT<Part::PreviewExtension>>;
+
+Part::PreviewExtension::PreviewExtension()
+{
+    initExtensionType(getExtensionClassTypeId());
+
+    EXTENSION_ADD_PROPERTY(PreviewShape, (TopoShape()));
+
+    PreviewShape.setStatus(App::Property::Output, true);
+    PreviewShape.setStatus(App::Property::Transient, true);
+    PreviewShape.setStatus(App::Property::Hidden, true);
+}
+
+void Part::PreviewExtension::updatePreview()
+{
+    if (_isPreviewFresh) {
+        return;
+    }
+
+    recomputePreview();
+
+    _isPreviewFresh = true;
+}
+
+void Part::PreviewExtension::invalidatePreview()
+{
+    _isPreviewFresh = false;
+}
+
+bool Part::PreviewExtension::mustRecomputePreview()
+{
+    return getExtendedObject()->mustRecompute();
+}
+
+PyObject* Part::PreviewExtension::getExtensionPyObject()
+{
+    if (ExtensionPythonObject.is(Py::_None())) {
+        ExtensionPythonObject = Py::Object(new PreviewExtensionPy(this), true);
+    }
+    return Py::new_reference_to(ExtensionPythonObject);
+}
+
+void Part::PreviewExtension::extensionOnChanged(const App::Property* prop)
+{
+    DocumentObjectExtension::extensionOnChanged(prop);
+
+    if (mustRecomputePreview()) {
+        _isPreviewFresh = false;
+    }
+}

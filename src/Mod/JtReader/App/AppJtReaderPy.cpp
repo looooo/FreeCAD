@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) Juergen Riegel         <juergen.riegel@web.de>          *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <App/Application.h>
 #include <App/Document.h>
@@ -50,18 +51,24 @@ public:
     Module()
         : Py::ExtensionModule<Module>("JtReader")
     {
-        add_varargs_method("read",
-                           &Module::read,
-                           "Read the mesh from a JT file and return a mesh object.");
-        add_varargs_method("open",
-                           &Module::open,
-                           "open(string)\n"
-                           "Create a new document and load the JT file into\n"
-                           "the document.");
-        add_varargs_method("insert",
-                           &Module::importer,
-                           "insert(string|mesh,[string])\n"
-                           "Load or insert a JT file into the given or active document.");
+        add_varargs_method(
+            "read",
+            &Module::read,
+            "Read the mesh from a JT file and return a mesh object."
+        );
+        add_varargs_method(
+            "open",
+            &Module::open,
+            "open(string)\n"
+            "Create a new document and load the JT file into\n"
+            "the document."
+        );
+        add_varargs_method(
+            "insert",
+            &Module::importer,
+            "insert(string|mesh,[string])\n"
+            "Load or insert a JT file into the given or active document."
+        );
         initialize("This module is the JtReader module.");
     }
 
@@ -89,7 +96,7 @@ private:
         PyMem_Free(Name);
 
 
-        // Base::Console().Log("Open in Mesh with %s",Name);
+        // Base::Console().log("Open in Mesh with %s",Name);
         Base::FileInfo file(EncodedName);
         if (file.hasExtension("jt")) {
             TestJtReader reader;
@@ -98,12 +105,40 @@ private:
 
 #ifdef JTREADER_HAVE_TKJT
             JtReaderNS::TKJtReader jtReader;
-            jtReader.open(EncodedName);
+            try {
+                jtReader.open(EncodedName);
+            }
+            catch (const Standard_Failure& e) {
+                Base::Console().warning(
+                    "JtReader: error reading '%s': %s\n",
+                    file.fileName().c_str(),
+                    e.GetMessageString()
+                );
+                return Py::None();
+            }
+            catch (const std::exception& e) {
+                Base::Console().warning(
+                    "JtReader: error reading '%s': %s\n",
+                    file.fileName().c_str(),
+                    e.what()
+                );
+                return Py::None();
+            }
+
+            if (jtReader.shapeCount() == 0) {
+                Base::Console().warning(
+                    "JtReader: no geometry could be imported from '%s'. "
+                    "The file may use unsupported features.\n",
+                    file.fileName().c_str()
+                );
+                return Py::None();
+            }
 
             App::Document* doc = App::GetApplication().newDocument();
             std::string objname = file.fileNamePure();
             auto iv = dynamic_cast<App::InventorObject*>(
-                doc->addObject("App::InventorObject", objname.c_str()));
+                doc->addObject("App::InventorObject", objname.c_str())
+            );
             iv->Buffer.setValue(jtReader.getOutput());
             iv->purgeTouched();
 #endif
@@ -135,11 +170,39 @@ private:
 
 #ifdef JTREADER_HAVE_TKJT
             JtReaderNS::TKJtReader jtReader;
-            jtReader.open(EncodedName);
+            try {
+                jtReader.open(EncodedName);
+            }
+            catch (const Standard_Failure& e) {
+                Base::Console().warning(
+                    "JtReader: error reading '%s': %s\n",
+                    file.fileName().c_str(),
+                    e.GetMessageString()
+                );
+                return Py::None();
+            }
+            catch (const std::exception& e) {
+                Base::Console().warning(
+                    "JtReader: error reading '%s': %s\n",
+                    file.fileName().c_str(),
+                    e.what()
+                );
+                return Py::None();
+            }
+
+            if (jtReader.shapeCount() == 0) {
+                Base::Console().warning(
+                    "JtReader: no geometry could be imported from '%s'. "
+                    "The file may use unsupported features.\n",
+                    file.fileName().c_str()
+                );
+                return Py::None();
+            }
 
             std::string objname = file.fileNamePure();
             auto iv = dynamic_cast<App::InventorObject*>(
-                doc->addObject("App::InventorObject", objname.c_str()));
+                doc->addObject("App::InventorObject", objname.c_str())
+            );
             iv->Buffer.setValue(jtReader.getOutput());
             iv->purgeTouched();
 #endif

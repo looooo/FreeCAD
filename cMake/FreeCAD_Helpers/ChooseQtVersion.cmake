@@ -41,7 +41,7 @@
 
 # If it is set to Auto(default), FreeCAD finds and uses the
 # version installed on the system. If both versions are
-# found, Qt5 is preferred.
+# found, Qt6 is preferred.
 
 # The output variable is FREECAD_QT_MAJOR_VERSION, which will be either 5 or 6
 
@@ -57,9 +57,22 @@ macro(ChooseQtVersion)
   endif()
 
   if(FREECAD_LIBPACK_USE)
-    if (NOT Qt5_DIR OR Qt5_DIR STREQUAL "Qt5_DIR-NOTFOUND")
+    find_file(FREECAD_LIBPACK_CHECKFILE_VERSION NAMES FREECAD_LIBPACK_VERSION PATHS ${FREECAD_LIBPACK_DIR} NO_DEFAULT_PATH)
+    if(FREECAD_LIBPACK_CHECKFILE_VERSION)
+      file(READ ${FREECAD_LIBPACK_CHECKFILE_VERSION} FREECAD_LIBPACK_VERSION)
+      message(STATUS "LibPack: read version file and got ${FREECAD_LIBPACK_VERSION}")
+      if(FREECAD_LIBPACK_VERSION VERSION_GREATER_EQUAL "3.0.0")
+        message(STATUS "Using Qt6 directory from LibPack in ${FREECAD_LIBPACK_DIR}/lib/cmake/Qt6")
+        set(Qt6_DIR ${FREECAD_LIBPACK_DIR}/lib/cmake/Qt6)
+        set(FREECAD_QT_VERSION 6)
+      else()
+        message(ERROR ": Unrecognized LibPack version ${FREECAD_LIBPACK_CHECKFILE_VERSION}")
+      endif()
+    else()
+      if (NOT Qt5_DIR OR Qt5_DIR STREQUAL "Qt5_DIR-NOTFOUND")
         message(STATUS "Using Qt5 directory from LibPack in ${FREECAD_LIBPACK_DIR}/lib/cmake/Qt5")
         set(Qt5_DIR ${FREECAD_LIBPACK_DIR}/lib/cmake/Qt5)
+      endif()
     endif()
   endif()
 
@@ -71,15 +84,15 @@ macro(ChooseQtVersion)
     endif ()
     set(_FREECAD_QT_VERSION "${FREECAD_QT_VERSION}")
   else ()
-    find_package(Qt5 QUIET COMPONENTS Core)
-    set(_FREECAD_QT_VERSION 5)
-    if (NOT Qt5_FOUND)
-      find_package(Qt6 QUIET COMPONENTS Core)
-      if (NOT Qt6_FOUND)
+    find_package(Qt6 QUIET COMPONENTS Core)
+    set(_FREECAD_QT_VERSION 6)
+    if (NOT Qt6_FOUND)
+      find_package(Qt5 QUIET COMPONENTS Core)
+      if (NOT Qt5_FOUND)
         message(FATAL_ERROR
           "Could not find a valid Qt installation. Consider setting Qt5_DIR or Qt6_DIR (as needed).")
       endif ()
-      set(_FREECAD_QT_VERSION 6)
+      set(_FREECAD_QT_VERSION 5)
     endif ()
   endif ()
   set(FREECAD_QT_MAJOR_VERSION "${_FREECAD_QT_VERSION}" CACHE INTERNAL

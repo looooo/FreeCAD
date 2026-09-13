@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2004 Jürgen Riegel <juergen.riegel@web.de>              *
  *   Copyright (c) 2012 Luke Parry <l.parry@warwick.ac.uk>                 *
@@ -21,8 +23,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_VIEWPROVIDERDIMENSION_H
-#define DRAWINGGUI_VIEWPROVIDERDIMENSION_H
+#pragma once
 
 #include <App/PropertyUnits.h>
 #include <Mod/TechDraw/TechDrawGlobal.h>
@@ -41,13 +42,15 @@ public:
     /// constructor
     ViewProviderDimension();
     /// destructor
-    ~ViewProviderDimension() override;
+    ~ViewProviderDimension() override = default;
 
     App::PropertyFont   Font;
     App::PropertyLength Fontsize;
     App::PropertyLength Arrowsize;
+    App::PropertyEnumeration  ArrowStyle;
     App::PropertyLength LineWidth;
     App::PropertyColor  Color;
+    App::PropertyBool   AllowSnap;
 
     static const int STD_STYLE_ISO_ORIENTED     = 0;
     static const int STD_STYLE_ISO_REFERENCING  = 1;
@@ -69,17 +72,20 @@ public:
     App::PropertyFloat GapFactorASME;
     App::PropertyFloat LineSpacingFactorISO;
 
-    void attach(App::DocumentObject *) override;
+    void attach(App::DocumentObject *pcFeat) override;
     bool useNewSelectionModel() const override {return false;}
-    void updateData(const App::Property*) override;
+    void updateData(const App::Property* prop) override;
     void onChanged(const App::Property* p) override;
-    void setupContextMenu(QMenu*, QObject*, const char*) override;
+    void setupContextMenu(QMenu* menu, QObject* receiver, const char* member) override;
     bool setEdit(int ModNum) override;
     bool doubleClicked() override;
+    bool onDelete(const std::vector<std::string> & parms) override;
+    void finishRestoring() override;
+
 
     TechDraw::DrawViewDimension* getViewObject() const override;
 
-    App::Color prefColor() const;
+    Base::Color prefColor() const;
     std::string prefFont() const;
     double prefFontSize() const;
     double prefArrowSize() const;
@@ -88,16 +94,18 @@ public:
     bool canDelete(App::DocumentObject* obj) const override;
     void setPixmapForType();
 
+    std::vector<App::DocumentObject*> claimChildren() const override;
+
+    void fixTextSize();
+    void fixArrowSize();
+
 protected:
     void handleChangedPropertyType(Base::XMLReader &reader, const char *TypeName, App::Property * prop) override;
 
 private:
-    static const char *StandardAndStyleEnums[];
-    static const char *RenderingExtentEnums[];
+    static const char *StandardAndStyleEnums[];  // NOLINT
+    static const char *RenderingExtentEnums[];   // NOLINT
 
 };
 
 } // namespace TechDrawGui
-
-
-#endif // DRAWINGGUI_VIEWPROVIDERDIMENSION_H

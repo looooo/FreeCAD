@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2004 Juergen Riegel <juergen.riegel@web.de>             *
  *                                                                         *
@@ -20,23 +22,25 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
-#ifndef _PreComp_
-# include <QObject>
-#endif
+#include <QObject>
+
 
 #include <App/Document.h>
 #include <Base/Console.h>
 #include <Base/Exception.h>
-#include <Gui/Command.h>
+#include <Gui/CommandT.h>
+#include <Gui/Inventor/Draggers/Gizmo.h>
+#include <Gui/View3DInventorViewer.h>
 
 #include "ViewProvider.h"
+
+#include <Base/Tools.h>
 
 
 using namespace PartGui;
 
-PROPERTY_SOURCE(PartGui::ViewProviderPart, PartGui::ViewProviderPartExt)
+PROPERTY_SOURCE(PartGui::ViewProviderPart, PartGui::ViewProviderPartExt)  // NOLINT
 
 
 ViewProviderPart::ViewProviderPart() = default;
@@ -47,50 +51,80 @@ bool ViewProviderPart::doubleClicked()
 {
     try {
         QString text = QObject::tr("Edit %1").arg(QString::fromUtf8(getObject()->Label.getValue()));
-        Gui::Command::openCommand(text.toUtf8());
-        FCMD_SET_EDIT(pcObject);
+        Gui::Command::openActiveDocumentCommand(text.toStdString());
+        Gui::cmdSetEdit(pcObject, Gui::Application::Instance->getUserEditMode());
         return true;
     }
     catch (const Base::Exception& e) {
-        Base::Console().Error("%s\n", e.what());
+        Base::Console().error("%s\n", e.what());
         return false;
     }
 }
 
-void ViewProviderPart::applyColor(const Part::ShapeHistory& hist,
-                                  const std::vector<App::Color>& colBase,
-                                  std::vector<App::Color>& colBool)
+void ViewProviderPart::applyColor(
+    const Part::ShapeHistory& hist,
+    const std::vector<Base::Color>& colBase,
+    std::vector<Base::Color>& colBool
+)
 {
-    std::map<int, std::vector<int> >::const_iterator jt;
     // apply color from modified faces
-    for (jt = hist.shapeMap.begin(); jt != hist.shapeMap.end(); ++jt) {
-        std::vector<int>::const_iterator kt;
-        for (kt = jt->second.begin(); kt != jt->second.end(); ++kt) {
-            colBool[*kt] = colBase[jt->first];
+    for (const auto& jt : hist.shapeMap) {
+        for (auto kt : jt.second) {
+            colBool.at(kt) = colBase.at(jt.first);
         }
     }
 }
 
-void ViewProviderPart::applyTransparency(const float& transparency,
-                                  std::vector<App::Color>& colors)
+void ViewProviderPart::applyMaterial(
+    const Part::ShapeHistory& hist,
+    const std::vector<App::Material>& colBase,
+    std::vector<App::Material>& colBool
+)
+{
+    // apply color from modified faces
+    for (const auto& jt : hist.shapeMap) {
+        for (auto kt : jt.second) {
+            colBool.at(kt) = colBase.at(jt.first);
+        }
+    }
+}
+
+void ViewProviderPart::applyTransparency(float transparency, std::vector<Base::Color>& colors)
 {
     if (transparency != 0.0) {
         // transparency has been set object-wide
-        std::vector<App::Color>::iterator j;
-        for (j = colors.begin(); j != colors.end(); ++j) {
+        for (auto& j : colors) {
             // transparency hasn't been set for this face
-            if (j->a == 0.0)
-                j->a = transparency/100.0; // transparency comes in percent
+            if (j.a == 0.0) {
+                j.setTransparency(Base::fromPercent(transparency));  // transparency comes in percent
+            }
+        }
+    }
+}
+
+void ViewProviderPart::applyTransparency(float transparency, std::vector<App::Material>& colors)
+{
+    if (transparency != 0.0) {
+        // transparency has been set object-wide
+        for (auto& j : colors) {
+            // transparency hasn't been set for this face
+            if (j.transparency == 0.0) {
+                j.transparency = Base::fromPercent(transparency);  // transparency comes in percent
+            }
         }
     }
 }
 
 // ----------------------------------------------------------------------------
 
-void ViewProviderShapeBuilder::buildNodes(const App::Property* , std::vector<SoNode*>& ) const
+void ViewProviderShapeBuilder::buildNodes(const App::Property* prop, std::vector<SoNode*>& nodes) const
 {
+    Q_UNUSED(prop)
+    Q_UNUSED(nodes)
 }
 
-void ViewProviderShapeBuilder::createShape(const App::Property* , SoSeparator* ) const
+void ViewProviderShapeBuilder::createShape(const App::Property* prop, SoSeparator* node) const
 {
+    Q_UNUSED(prop)
+    Q_UNUSED(node)
 }

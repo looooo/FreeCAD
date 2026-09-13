@@ -1,4 +1,6 @@
-﻿/***************************************************************************
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
+/***************************************************************************
  *   Copyright (c) 2022 edi                                                *
  *                                                                         *
  *   This file is part of the FreeCAD CAx development system.              *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TECHDRAWGUI_TASKSURFACEFINISHSYMBOLS_H
-#define TECHDRAWGUI_TASKSURFACEFINISHSYMBOLS_H
+#pragma once
 
 #include <Gui/TaskView/TaskDialog.h>
 #include <Gui/TaskView/TaskView.h>
@@ -78,7 +79,7 @@ class TaskSurfaceFinishSymbols : public QWidget
     Q_OBJECT
 
 public:
-    explicit TaskSurfaceFinishSymbols(TechDraw::DrawViewPart* view);
+    explicit TaskSurfaceFinishSymbols(const std::string &ownerName);
     ~TaskSurfaceFinishSymbols() override = default;
 
     virtual bool accept();
@@ -89,21 +90,32 @@ protected:
     void changeEvent(QEvent *event) override;
     void setUiEdit();
 
+    App::DocumentObject *owner;
+    Base::Vector3d placement;
+
 private:
-    enum symbolType {anyMethod=0, removeProhibit, removeRequired,
-                     anyMethodAll, removeProhibitAll, removeRequiredAll};
-    QPixmap baseSymbol(symbolType type);
+    enum class SymbolType {
+        AnyMethod=0,
+        RemoveProhibit,
+        RemoveRequired,
+        AnyMethodAll,
+        RemoveProhibitAll,
+        RemoveRequiredAll
+    };
+
+    QPixmap baseSymbol(SymbolType type);
     std::string completeSymbol();
-    TechDraw::DrawViewPart* selectedView;
     QGraphicsScene* symbolScene;     //note this is not QGSPage, but another scene only used to
                                      //display symbols in this task's ui
     std::vector<std::string> raValues, laySymbols, roughGrades;
     QGraphicsProxyWidget *proxyRA, *proxySamLength, *proxyMinRough, *proxyMaxRough;
     QLineEdit *leMethod, *leSamLength, *leAddition;
     QComboBox *cbRA, *cbMinRought, *cbMaxRought, *cbLay;
-    symbolType activeIcon;
+    SymbolType activeIcon;
     bool isISO;
+    QGraphicsPixmapItem* currentIcon;
     std::unique_ptr<Ui_TaskSurfaceFinishSymbols> ui;
+    QColor getPenColor();
 
 private Q_SLOTS:
     void onIconChanged();
@@ -117,7 +129,7 @@ class TaskDlgSurfaceFinishSymbols : public Gui::TaskView::TaskDialog
     Q_OBJECT
 
 public:
-    explicit TaskDlgSurfaceFinishSymbols(TechDraw::DrawViewPart* view);
+    explicit TaskDlgSurfaceFinishSymbols(const std::string &ownerName);
     ~TaskDlgSurfaceFinishSymbols() override;
 
     /// is called the TaskView when the dialog is opened
@@ -139,5 +151,3 @@ private:
 }; // class TaskDlgSurfaceFinishSymbols
 
 } // namespace TechDrawGui
-
-#endif // #ifndef TECHDRAWGUI_TASKSURFACEFINISHSYMBOLS_H

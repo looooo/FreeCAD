@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2010 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <Base/Console.h>
 #include <Base/Reader.h>
@@ -104,22 +105,23 @@ PyObject *PropertyGeomFormatList::getPyObject()
 void PropertyGeomFormatList::setPyObject(PyObject *value)
 {
     // check container of this property to notify about changes
-//    Part2DObject* part2d = dynamic_cast<Part2DObject*>(this->getContainer());
+//    Part2DObject* part2d = freecad_cast<Part2DObject*>(this->getContainer());
 
     if (PySequence_Check(value)) {
-        Py_ssize_t nSize = PySequence_Size(value);
+        Py::Sequence sequence(value);
+        Py_ssize_t nSize = sequence.size();
         std::vector<GeomFormat*> values;
         values.resize(nSize);
 
         for (Py_ssize_t i=0; i < nSize; ++i) {
-            PyObject* item = PySequence_GetItem(value, i);
-            if (!PyObject_TypeCheck(item, &(GeomFormatPy::Type))) {
+            Py::Object item = sequence.getItem(i);
+            if (!PyObject_TypeCheck(item.ptr(), &(GeomFormatPy::Type))) {
                 std::string error = std::string("types in list must be 'GeomFormat', not ");
-                error += item->ob_type->tp_name;
+                error += item.ptr()->ob_type->tp_name;
                 throw Base::TypeError(error);
             }
 
-            values[i] = static_cast<GeomFormatPy*>(item)->getGeomFormatPtr();
+            values[i] = static_cast<GeomFormatPy*>(item.ptr())->getGeomFormatPtr();
         }
 
         setValues(values);
@@ -160,17 +162,17 @@ void PropertyGeomFormatList::Restore(Base::XMLReader &reader)
     reader.clearPartialRestoreObject();
     reader.readElement("GeomFormatList");
     // get the value of my attribute
-    int count = reader.getAttributeAsInteger("count");
+    int count = reader.getAttribute<long>("count");
     std::vector<GeomFormat*> values;
     values.reserve(count);
     for (int i = 0; i < count; i++) {
         reader.readElement("GeomFormat");
-        const char* TypeName = reader.getAttribute("type");
+        const char* TypeName = reader.getAttribute<const char*>("type");
         GeomFormat *newG = static_cast<GeomFormat *>(Base::Type::fromName(TypeName).createInstance());
         newG->Restore(reader);
 
         if(reader.testStatus(Base::XMLReader::ReaderStatus::PartialRestoreInObject)) {
-            Base::Console().Error("GeomFormat \"%s\" within a PropertyGeomFormatList was subject to a partial restore.\n", reader.localName());
+            Base::Console().error("GeomFormat \"%s\" within a PropertyGeomFormatList was subject to a partial restore.\n", reader.localName());
             if(isOrderRelevant()) {
                 // Pushes the best try by the GeomFormat class
                 values.push_back(newG);

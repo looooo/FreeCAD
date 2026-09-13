@@ -98,7 +98,7 @@
    <item>
     <widget class="QLabel" name="label">
      <property name="text">
-      <string>Attachment mode:</string>
+      <string>Attachment Mode</string>
      </property>
     </widget>
    </item>
@@ -121,11 +121,11 @@
       <string/>
      </property>
      <property name="title">
-      <string>Attachment Offset (in local coordinates):</string>
+      <string>Attachment Offset in its Local Coordinate System</string>
      </property>
      <layout class="QGridLayout" name="gridLayout">
       <item row="1" column="0">
-       <widget class="QLabel" name="labelOffset">
+       <widget class="QLabel" name="labelOffsetX">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
           <horstretch>0</horstretch>
@@ -133,10 +133,7 @@
          </sizepolicy>
         </property>
         <property name="text">
-         <string>In x-direction:</string>
-        </property>
-        <property name="buddy">
-         <cstring>labelOffset</cstring>
+         <string>In X-direction</string>
         </property>
        </widget>
       </item>
@@ -155,8 +152,8 @@
          </size>
         </property>
         <property name="toolTip">
-         <string>Note: The placement is expressed in local coordinate system
-of object being attached.</string>
+         <string>The offset is expressed in the local coordinate system
+of the object being attached</string>
         </property>
         <property name="keyboardTracking">
          <bool>false</bool>
@@ -164,7 +161,7 @@ of object being attached.</string>
        </widget>
       </item>
       <item row="2" column="0">
-       <widget class="QLabel" name="labelOffset2">
+       <widget class="QLabel" name="labelOffsetY">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
           <horstretch>0</horstretch>
@@ -172,7 +169,7 @@ of object being attached.</string>
          </sizepolicy>
         </property>
         <property name="text">
-         <string>In y-direction:</string>
+         <string>In Y-direction</string>
         </property>
        </widget>
       </item>
@@ -191,8 +188,8 @@ of object being attached.</string>
          </size>
         </property>
         <property name="toolTip">
-         <string>Note: The placement is expressed in local coordinate system
-of object being attached.</string>
+         <string>The offset is expressed in the local coordinate system
+of the object being attached</string>
         </property>
         <property name="keyboardTracking">
          <bool>false</bool>
@@ -200,7 +197,7 @@ of object being attached.</string>
        </widget>
       </item>
       <item row="3" column="0">
-       <widget class="QLabel" name="labelOffset3">
+       <widget class="QLabel" name="labelOffsetZ">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
           <horstretch>0</horstretch>
@@ -208,7 +205,7 @@ of object being attached.</string>
          </sizepolicy>
         </property>
         <property name="text">
-         <string>In z-direction:</string>
+         <string>In Z-direction</string>
         </property>
        </widget>
       </item>
@@ -227,8 +224,8 @@ of object being attached.</string>
          </size>
         </property>
         <property name="toolTip">
-         <string>Note: The placement is expressed in local coordinate system
-of object being attached.</string>
+         <string>The offset is expressed in the local coordinate system
+of the object being attached</string>
         </property>
         <property name="keyboardTracking">
          <bool>false</bool>
@@ -236,7 +233,7 @@ of object being attached.</string>
        </widget>
       </item>
       <item row="4" column="0">
-       <widget class="QLabel" name="labelYaw">
+       <widget class="QLabel" name="labelRoll">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
           <horstretch>0</horstretch>
@@ -244,7 +241,7 @@ of object being attached.</string>
          </sizepolicy>
         </property>
         <property name="text">
-         <string>Around x-axis:</string>
+         <string>Around X-axis</string>
         </property>
        </widget>
       </item>
@@ -257,9 +254,8 @@ of object being attached.</string>
          </sizepolicy>
         </property>
         <property name="toolTip">
-         <string>Rotation around the x-axis
-Note: The placement is expressed in local coordinate system
-of object being attached.</string>
+         <string>Rotation around the local X-axis. The offset is expressed in the local coordinate system
+of the object being attached.</string>
         </property>
         <property name="keyboardTracking">
          <bool>false</bool>
@@ -284,7 +280,7 @@ of object being attached.</string>
          </sizepolicy>
         </property>
         <property name="text">
-         <string>Around y-axis:</string>
+         <string>Around Y-axis</string>
         </property>
        </widget>
       </item>
@@ -297,9 +293,8 @@ of object being attached.</string>
          </sizepolicy>
         </property>
         <property name="toolTip">
-         <string>Rotation around the y-axis
-Note: The placement is expressed in local coordinate system
-of object being attached.</string>
+         <string>Rotation around the local Y-axis. The offset is expressed in the local coordinate system
+of the object being attached.</string>
         </property>
         <property name="keyboardTracking">
          <bool>false</bool>
@@ -316,7 +311,7 @@ of object being attached.</string>
        </widget>
       </item>
       <item row="6" column="0">
-       <widget class="QLabel" name="labelRoll">
+       <widget class="QLabel" name="labelYaw">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
           <horstretch>0</horstretch>
@@ -324,7 +319,7 @@ of object being attached.</string>
          </sizepolicy>
         </property>
         <property name="text">
-         <string>Around z-axis:</string>
+         <string>Around Z-axis</string>
         </property>
        </widget>
       </item>
@@ -337,9 +332,8 @@ of object being attached.</string>
          </sizepolicy>
         </property>
         <property name="toolTip">
-         <string>Rotation around the z-axis
-Note: The placement is expressed in local coordinate system
-of object being attached.</string>
+         <string>Rotation around the local Z-axis. The offset is expressed in the local coordinate system
+of the object being attached.</string>
         </property>
         <property name="keyboardTracking">
          <bool>false</bool>

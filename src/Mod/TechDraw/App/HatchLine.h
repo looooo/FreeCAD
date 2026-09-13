@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2017 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -22,8 +24,7 @@
 
 //! HatchLine - Classes related to processing PAT files
 
-#ifndef TechDraw_HATCHLINE_H_
-#define TechDraw_HATCHLINE_H_
+#pragma once
 
 #include <string>
 #include <vector>
@@ -157,5 +158,3 @@ private:
 
 
 } //end namespace
-
-#endif

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2014 Luke Parry <l.parry@warwick.ac.uk>                 *
  *                                                                         *
@@ -20,11 +22,9 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
  #include <QMessageBox>
  #include <QTextStream>
-#endif
+
 
 #include <App/DocumentObject.h>
 #include <Gui/Control.h>
@@ -32,7 +32,9 @@
 
 #include <Mod/TechDraw/App/DrawProjGroup.h>
 #include <Mod/TechDraw/App/DrawProjGroupItem.h>
+#include <Mod/TechDraw/App/DrawViewPart.h>
 
+#include "QGIView.h"
 #include "ViewProviderProjGroupItem.h"
 
 using namespace TechDrawGui;
@@ -53,18 +55,26 @@ ViewProviderProjGroupItem::~ViewProviderProjGroupItem()
 
 void ViewProviderProjGroupItem::updateData(const App::Property* prop)
 {
-    Gui::ViewProviderDocumentObject::updateData(prop);
+    ViewProviderViewPart::updateData(prop);
+
+    //TODO: Once we know that ProjType is valid, sPixMap = "Proj" + projType
+
+    updateIcon();
+ }
+
+void ViewProviderProjGroupItem::updateIcon()
+{
     TechDraw::DrawProjGroupItem* proj = getObject();
-    if(!proj) {
+    if (!proj) {
         return;
     }
 
     // Set the icon pixmap depending on the orientation
     std::string projType = proj->Type.getValueAsString();
 
-    //TODO: Once we know that ProjType is valid, sPixMap = "Proj" + projType
-
-    if(strcmp(projType.c_str(), "Front") == 0) {
+    if (!getObject()->getPGroup()) {
+        sPixmap = "TechDraw_TreeView";
+    } else  if(strcmp(projType.c_str(), "Front") == 0) {
         sPixmap = "TechDraw_ProjFront";
     } else if(strcmp(projType.c_str(), "Rear") == 0) {
         sPixmap = "TechDraw_ProjRear";
@@ -94,13 +104,14 @@ void ViewProviderProjGroupItem::setupContextMenu(QMenu* menu, QObject* receiver,
     Q_UNUSED(receiver);
     Q_UNUSED(member);
     //QAction* act;
-    //act = menu->addAction(QObject::tr("Show drawing"), receiver, member);
+    //act = menu->addAction(QObject::tr("Show Drawing"), receiver, member);
 }
 
 bool ViewProviderProjGroupItem::setEdit(int ModNum)
 {
-    Q_UNUSED(ModNum);
-    doubleClicked();
+    if (!getObject()->getPGroup()) {
+        return ViewProviderViewPart::setEdit(ModNum);
+    }
     return true;
 }
 
@@ -112,11 +123,22 @@ void ViewProviderProjGroupItem::unsetEdit(int ModNum)
 
 bool ViewProviderProjGroupItem::doubleClicked()
 {
+    setEdit(ViewProvider::Default);
     return true;
 }
 
-bool ViewProviderProjGroupItem::onDelete(const std::vector<std::string> &)
+bool ViewProviderProjGroupItem::onDelete(const std::vector<std::string>& subNames)
 {
+    // If cosmetic sub-elements are selected, delete only those and veto object deletion.
+    if (!subNames.empty()) {
+        if (TechDraw::DrawViewPart* dvp = getViewObject()) {
+            dvp->deleteCosmeticElements(subNames);
+            dvp->refreshAllCosmetic();
+            dvp->requestPaint();
+            return false;
+        }
+    }
+
     // we cannot delete the anchor view, thus check if the item is the front item
     // we also cannot delete if the item has a section or detail view
 
@@ -125,19 +147,16 @@ bool ViewProviderProjGroupItem::onDelete(const std::vector<std::string> &)
     bool isAnchor = false;
 
     // get the item and group
-    TechDraw::DrawProjGroupItem* dpgi = static_cast<TechDraw::DrawProjGroupItem*>(getViewObject());
+    TechDraw::DrawProjGroupItem* dpgi = getObject();
     TechDraw::DrawProjGroup* dpg = dpgi->getPGroup();
-    // get the projection
-    TechDraw::DrawProjGroupItem* proj = getObject();
     // check if it is the anchor projection
-    if (dpg && (dpg->hasProjection(proj->Type.getValueAsString()))
-        && (dpg->getAnchor() == dpgi))
+    if (dpg && (dpg->getAnchor() == dpgi))
         isAnchor = true;
 
     // get child views
-    auto viewSection = getObject()->getSectionRefs();
-    auto viewDetail = getObject()->getDetailRefs();
-    auto viewLeader = getObject()->getLeaders();
+    auto viewSection = dpgi->getSectionRefs();
+    auto viewDetail = dpgi->getDetailRefs();
+    auto viewLeader = dpgi->getLeaders();
 
    if (isAnchor)
    {
@@ -147,7 +166,7 @@ bool ViewProviderProjGroupItem::onDelete(const std::vector<std::string> &)
         QMessageBox::warning(Gui::getMainWindow(),
             qApp->translate("Std_Delete", "Object dependencies"), bodyMessage,
             QMessageBox::Ok);
-        // don't allow to delete
+        // don't allow one to delete
         return false;
    }
    else if (!viewSection.empty()) {

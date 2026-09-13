@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2008 Werner Mayer <werner.wm.mayer@gmx.de>              *
  *                                                                         *
@@ -21,8 +23,7 @@
  ***************************************************************************/
 
 
-#ifndef FEM_WORKBENCH_H
-#define FEM_WORKBENCH_H
+#pragma once
 
 #include <Gui/Workbench.h>
 #include <Mod/Fem/FemGlobal.h>
@@ -48,6 +49,3 @@ protected:
 };
 
 }  // namespace FemGui
-
-
-#endif  // FEM_WORKBENCH_H

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2012 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,10 +22,8 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
+#include <limits>
 #include <sstream>
-#endif
 
 #include <App/Application.h>
 #include <App/Document.h>
@@ -44,18 +44,19 @@ Segmentation::Segmentation(Mesh::Feature* mesh, QWidget* parent, Qt::WindowFlags
     , ui(new Ui_Segmentation)
     , myMesh(mesh)
 {
+    constexpr int max = std::numeric_limits<int>::max();
     ui->setupUi(this);
-    ui->numPln->setRange(1, INT_MAX);
+    ui->numPln->setRange(1, max);
     ui->numPln->setValue(100);
-    ui->crvCyl->setRange(0, INT_MAX);
-    ui->numCyl->setRange(1, INT_MAX);
+    ui->crvCyl->setRange(0, max);
+    ui->numCyl->setRange(1, max);
     ui->numCyl->setValue(100);
-    ui->crvSph->setRange(0, INT_MAX);
-    ui->numSph->setRange(1, INT_MAX);
+    ui->crvSph->setRange(0, max);
+    ui->numSph->setRange(1, max);
     ui->numSph->setValue(100);
-    ui->crv1Free->setRange(-INT_MAX, INT_MAX);
-    ui->crv2Free->setRange(-INT_MAX, INT_MAX);
-    ui->numFree->setRange(1, INT_MAX);
+    ui->crv1Free->setRange(-max, max);
+    ui->crv2Free->setRange(-max, max);
+    ui->numFree->setRange(1, max);
     ui->numFree->setValue(100);
 
     ui->checkBoxSmooth->setChecked(false);
@@ -85,33 +86,45 @@ void Segmentation::accept()
     std::vector<MeshCore::MeshSurfaceSegmentPtr> segm;
     if (ui->groupBoxFree->isChecked()) {
         segm.emplace_back(
-            std::make_shared<MeshCore::MeshCurvatureFreeformSegment>(meshCurv.GetCurvature(),
-                                                                     ui->numFree->value(),
-                                                                     ui->tol1Free->value(),
-                                                                     ui->tol2Free->value(),
-                                                                     ui->crv1Free->value(),
-                                                                     ui->crv2Free->value()));
+            std::make_shared<MeshCore::MeshCurvatureFreeformSegment>(
+                meshCurv.GetCurvature(),
+                ui->numFree->value(),
+                ui->tol1Free->value(),
+                ui->tol2Free->value(),
+                ui->crv1Free->value(),
+                ui->crv2Free->value()
+            )
+        );
     }
     if (ui->groupBoxCyl->isChecked()) {
         segm.emplace_back(
-            std::make_shared<MeshCore::MeshCurvatureCylindricalSegment>(meshCurv.GetCurvature(),
-                                                                        ui->numCyl->value(),
-                                                                        ui->tol1Cyl->value(),
-                                                                        ui->tol2Cyl->value(),
-                                                                        ui->crvCyl->value()));
+            std::make_shared<MeshCore::MeshCurvatureCylindricalSegment>(
+                meshCurv.GetCurvature(),
+                ui->numCyl->value(),
+                ui->tol1Cyl->value(),
+                ui->tol2Cyl->value(),
+                ui->crvCyl->value()
+            )
+        );
     }
     if (ui->groupBoxSph->isChecked()) {
         segm.emplace_back(
-            std::make_shared<MeshCore::MeshCurvatureSphericalSegment>(meshCurv.GetCurvature(),
-                                                                      ui->numSph->value(),
-                                                                      ui->tolSph->value(),
-                                                                      ui->crvSph->value()));
+            std::make_shared<MeshCore::MeshCurvatureSphericalSegment>(
+                meshCurv.GetCurvature(),
+                ui->numSph->value(),
+                ui->tolSph->value(),
+                ui->crvSph->value()
+            )
+        );
     }
     if (ui->groupBoxPln->isChecked()) {
         segm.emplace_back(
-            std::make_shared<MeshCore::MeshCurvaturePlanarSegment>(meshCurv.GetCurvature(),
-                                                                   ui->numPln->value(),
-                                                                   ui->tolPln->value()));
+            std::make_shared<MeshCore::MeshCurvaturePlanarSegment>(
+                meshCurv.GetCurvature(),
+                ui->numPln->value(),
+                ui->tolPln->value()
+            )
+        );
     }
     finder.FindSegments(segm);
 
@@ -120,8 +133,7 @@ void Segmentation::accept()
 
     std::string internalname = "Segments_";
     internalname += myMesh->getNameInDocument();
-    App::DocumentObjectGroup* group = static_cast<App::DocumentObjectGroup*>(
-        document->addObject("App::DocumentObjectGroup", internalname.c_str()));
+    auto* group = document->addObject<App::DocumentObjectGroup>(internalname.c_str());
     std::string labelname = "Segments ";
     labelname += myMesh->Label.getValue();
     group->Label.setValue(labelname);
@@ -129,8 +141,7 @@ void Segmentation::accept()
         const std::vector<MeshCore::MeshSegment>& data = it->GetSegments();
         for (const auto& jt : data) {
             Mesh::MeshObject* segment = mesh->meshFromSegment(jt);
-            Mesh::Feature* feaSegm =
-                static_cast<Mesh::Feature*>(group->addObject("Mesh::Feature", "Segment"));
+            auto* feaSegm = group->addObject<Mesh::Feature>("Segment");
             Mesh::MeshObject* feaMesh = feaSegm->Mesh.startEditing();
             feaMesh->swap(*segment);
             feaSegm->Mesh.finishEditing();
@@ -159,9 +170,7 @@ void Segmentation::changeEvent(QEvent* e)
 TaskSegmentation::TaskSegmentation(Mesh::Feature* mesh)
 {
     widget = new Segmentation(mesh);  // NOLINT
-    taskbox = new Gui::TaskView::TaskBox(QPixmap(), widget->windowTitle(), false, nullptr);
-    taskbox->groupLayout()->addWidget(widget);
-    Content.push_back(taskbox);
+    addTaskBox(widget, false);
 }
 
 bool TaskSegmentation::accept()

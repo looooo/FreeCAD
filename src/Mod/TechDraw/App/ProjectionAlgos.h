@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2009 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -22,8 +24,7 @@
 //this file originally part of Drawing workbench
 //migrated to TechDraw workbench 2022-01-26 by Wandererfan
 
-#ifndef TechDrawProjectionAlgos_h_
-#define TechDrawProjectionAlgos_h_
+#pragma once
 
 #include <map>
 #include <string>
@@ -85,6 +86,3 @@ public:
 };
 
 } //namespace TechDraw
-
-
-#endif

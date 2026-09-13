@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2011 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,15 +22,14 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <Inventor/events/SoButtonEvent.h>
-#endif
+
 
 #include <App/Document.h>
 #include <Gui/Application.h>
 #include <Gui/BitmapFactory.h>
 #include <Gui/Command.h>
+#include <Gui/Control.h>
 #include <Gui/Document.h>
 #include <Gui/MainWindow.h>
 #include <Gui/View3DInventor.h>
@@ -46,16 +47,16 @@ CmdVisualInspection::CmdVisualInspection()
 {
     sAppModule = "Inspection";
     sGroup = QT_TR_NOOP("Inspection");
-    sMenuText = QT_TR_NOOP("Visual inspection...");
-    sToolTipText = QT_TR_NOOP("Visual inspection");
-    sStatusTip = QT_TR_NOOP("Visual inspection");
+    sMenuText = QT_TR_NOOP("Visual Inspection");
+    sToolTipText = QT_TR_NOOP("Inspects the objects visually");
+    sStatusTip = sToolTipText;
     sWhatsThis = "Inspection_VisualInspection";
+    sPixmap = "InspectionWorkbench";
 }
 
 void CmdVisualInspection::activated(int)
 {
-    InspectionGui::VisualInspection dlg(Gui::getMainWindow());
-    dlg.exec();
+    Gui::Control().showDialog(new InspectionGui::TaskVisualInspection());
 }
 
 bool CmdVisualInspection::isActive()
@@ -72,8 +73,8 @@ CmdInspectElement::CmdInspectElement()
 {
     sAppModule = "Inspection";
     sGroup = QT_TR_NOOP("Inspection");
-    sMenuText = QT_TR_NOOP("Inspection...");
-    sToolTipText = QT_TR_NOOP("Get distance information");
+    sMenuText = QT_TR_NOOP("Inspection…");
+    sToolTipText = QT_TR_NOOP("Inspects distance information");
     sWhatsThis = "Inspection_InspectElement";
     sStatusTip = sToolTipText;
     sPixmap = "inspect_pipette";
@@ -90,21 +91,24 @@ void CmdInspectElement::activated(int)
         viewer->setRedirectToSceneGraph(true);
         viewer->setSelectionEnabled(false);
         viewer->setEditingCursor(
-            QCursor(Gui::BitmapFactory().pixmapFromSvg("inspect_pipette", QSize(32, 32)), 4, 29));
-        viewer->addEventCallback(SoButtonEvent::getClassTypeId(),
-                                 InspectionGui::ViewProviderInspection::inspectCallback);
+            QCursor(Gui::BitmapFactory().pixmapFromSvg("inspect_pipette", QSize(32, 32)), 4, 29)
+        );
+        viewer->addEventCallback(
+            SoButtonEvent::getClassTypeId(),
+            InspectionGui::ViewProviderInspection::inspectCallback
+        );
     }
 }
 
 bool CmdInspectElement::isActive()
 {
     App::Document* doc = App::GetApplication().getActiveDocument();
-    if (!doc || doc->countObjectsOfType(Inspection::Feature::getClassTypeId()) == 0) {
+    if (!doc || doc->countObjectsOfType<Inspection::Feature>() == 0) {
         return false;
     }
 
     Gui::MDIView* view = Gui::getMainWindow()->activeWindow();
-    if (view && view->isDerivedFrom(Gui::View3DInventor::getClassTypeId())) {
+    if (view && view->isDerivedFrom<Gui::View3DInventor>()) {
         Gui::View3DInventorViewer* viewer = static_cast<Gui::View3DInventor*>(view)->getViewer();
         return !viewer->isEditing();
     }

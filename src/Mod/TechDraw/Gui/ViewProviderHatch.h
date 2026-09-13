@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2004 Jürgen Riegel <juergen.riegel@web.de>              *
  *   Copyright (c) 2015 WandererFan <wandererfan@gmail.com>                *
@@ -22,8 +24,7 @@
  ***************************************************************************/
 
 
-#ifndef DRAWINGGUI_VIEWPROVIDERHATCH_H
-#define DRAWINGGUI_VIEWPROVIDERHATCH_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 #include <App/PropertyGeo.h>
@@ -69,6 +70,3 @@ private:
 };
 
 } // namespace TechDrawGui
-
-
-#endif // DRAWINGGUI_VIEWPROVIDERHATCH_H

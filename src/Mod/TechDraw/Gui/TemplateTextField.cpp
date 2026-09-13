@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 Ian Rees <ian.rees@gmail.com>                      *
  *                                                                         *
@@ -20,39 +22,49 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
-#ifndef _PreComp_
   #include <QGraphicsSceneMouseEvent>
   #include <QInputDialog>
   #include <QLineEdit>
   #include <QTextDocument>
-#endif // #ifndef _PreCmp_
 
 #include <Base/Console.h>
+#include <App/Application.h>
+#include <Gui/MainWindow.h>
+
 #include <Mod/TechDraw/App/DrawTemplate.h>
+#include <Mod/TechDraw/App/DrawSVGTemplate.h>
 
 #include "DlgTemplateField.h"
 #include "TemplateTextField.h"
 
 using namespace TechDrawGui;
+using namespace TechDraw;
 
 TemplateTextField::TemplateTextField(QGraphicsItem *parent,
                                      TechDraw::DrawTemplate *myTmplte,
                                      const std::string &myFieldName)
     : QGraphicsItemGroup(parent),
       tmplte(myTmplte),
-      fieldNameStr(myFieldName)
+      fieldName(myFieldName),
+      m_rect(new QGraphicsRectItem()),
+      m_line(new QGraphicsPathItem()),
+      m_isShortText(false)
 {
-    setToolTip(QObject::tr("Click to update text"));
-    m_rect = new QGraphicsRectItem();
+    setFlag(QGraphicsItem::ItemIsFocusable, true);
+    setAcceptHoverEvents(true);
+    setFiltersChildEvents(true);
+
+    setToolTip(QObject::tr("Updates the text"));
+
     addToGroup(m_rect);
     QPen rectPen(Qt::transparent);
     QBrush rectBrush(Qt::NoBrush);
     m_rect->setPen(rectPen);
     m_rect->setBrush(rectBrush);
+    m_rect->setAcceptHoverEvents(true);
 
-    m_line = new QGraphicsPathItem();
+    m_line->hide();
     addToGroup(m_line);
  }
 
@@ -70,22 +82,26 @@ void TemplateTextField::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
     if ( tmplte && m_rect->rect().contains(event->pos()) ) {
         event->accept();
 
-        DlgTemplateField ui;
+        DlgTemplateField ui(Gui::getMainWindow());
+        ui.setTemplate(tmplte);
 
-        ui.setFieldName(fieldNameStr);
-        ui.setFieldContent(tmplte->EditableTexts[fieldNameStr]);
+        ui.setFieldName(QString::fromStdString(fieldName));
+        ui.setFieldContent(QString::fromStdString(tmplte->EditableTexts.getValue(fieldName)));
+        ui.setAutofillContent(QString::fromStdString(tmplte->getAutofillValue(autofillId)));
+
+        std::ostringstream ss;
+        ss << "Edit field " << fieldName << " in " << tmplte->Label.getValue();
+        App::GetApplication().setActiveTransaction({ ss.str(), false });
 
         if (ui.exec() == QDialog::Accepted) {
-        //WF: why is this escaped?
-        //    "<" is converted elsewhere and no other characters cause problems.
-        //    escaping causes "&" to appear as "&amp;" etc
-//            QString qsClean = ui.getFieldContent().toHtmlEscaped();
-            QString qsClean = ui.getFieldContent();
-            std::string utf8Content = qsClean.toUtf8().constData();
-            tmplte->EditableTexts.setValue(fieldNameStr, utf8Content);
+            tmplte->EditableTexts.setValue(fieldName, ui.getFieldContent().toStdString());
+            App::GetApplication().closeActiveTransaction(App::TransactionCloseMode::Commit);
         }
-
-    } else {
+        else {
+            App::GetApplication().closeActiveTransaction(App::TransactionCloseMode::Abort);
+        }
+    }
+    else {
         QGraphicsItemGroup::mouseReleaseEvent(event);
     }
 }
@@ -105,6 +121,36 @@ void TemplateTextField::setLine(QPointF from, QPointF to)
 void TemplateTextField::setLineColor(QColor color)
 {
     QPen pen(color);
-    pen.setWidth(5);
+    constexpr int LineWidth{5};
+    pen.setWidth(LineWidth);
     m_line->setPen(pen);
 }
+
+void TemplateTextField::hoverEnterEvent(QGraphicsSceneHoverEvent *event)
+{
+    showLine();
+    QGraphicsItemGroup::hoverEnterEvent(event);
+}
+
+void TemplateTextField::hoverLeaveEvent(QGraphicsSceneHoverEvent *event)
+{
+    hideLine();
+    QGraphicsItemGroup::hoverLeaveEvent(event);
+}
+
+
+void TemplateTextField::hideLine()
+{
+    if (!tmplte) {
+        return;
+    }
+
+    // like template's isShort
+    if (isShortText()) {
+        return;
+    }
+
+    m_line->hide();
+}
+
+

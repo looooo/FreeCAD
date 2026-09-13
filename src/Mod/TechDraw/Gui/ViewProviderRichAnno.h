@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2004 Jürgen Riegel <juergen.riegel@web.de>              *
  *   Copyright (c) 2019 Wanderer Fan <wandererfan@gmail.com>               *
@@ -21,8 +23,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TECHDRAWGUI_VIEWPROVIDERRICHANNO_H
-#define TECHDRAWGUI_VIEWPROVIDERRICHANNO_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
@@ -46,25 +47,31 @@ public:
     /// constructor
     ViewProviderRichAnno();
     /// destructor
-    ~ViewProviderRichAnno() override;
+    ~ViewProviderRichAnno() override = default;
 
     App::PropertyLength      LineWidth;
     App::PropertyEnumeration LineStyle;
     App::PropertyColor       LineColor;
 
     bool useNewSelectionModel() const override {return false;}
-    void updateData(const App::Property*) override;
-    void onChanged(const App::Property* p) override;
+    void updateData(const App::Property* prop) override;
+    void onChanged(const App::Property* prop) override;
+    bool onDelete(const std::vector<std::string>&) override;
     bool doubleClicked() override;
     bool canDelete(App::DocumentObject* obj) const override;
+    bool setEdit(int ModNum) override;
 
     static const char* LineStyleEnums[];
 
     TechDraw::DrawRichAnno* getViewObject() const override;
     TechDraw::DrawRichAnno* getFeature()  const;
 
+    /// Claim any views that have this as a parent
+    std::vector<App::DocumentObject*> claimChildren() const override;
+
+
 protected:
-    App::Color getDefLineColor();
+    Base::Color getDefLineColor();
     std::string getDefFont();
     double getDefFontSize();
     double getDefLineWeight();
@@ -78,5 +85,3 @@ private:
 };
 
 } // namespace TechDrawGui
-
-#endif // TECHDRAWGUI_VIEWPROVIDERRICHANNO_H

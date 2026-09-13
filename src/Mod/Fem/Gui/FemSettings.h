@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2022 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -21,8 +23,7 @@
  ***************************************************************************/
 
 
-#ifndef FEMGUI_SETTINGS_H
-#define FEMGUI_SETTINGS_H
+#pragma once
 
 #include <Base/Parameter.h>
 
@@ -41,5 +42,3 @@ private:
 };
 
 }  // namespace FemGui
-
-#endif  // FEMGUI_SETTINGS_H

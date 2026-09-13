@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2002 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -21,7 +23,6 @@
  ***************************************************************************/
 
 
-#include "PreCompiled.h"
 
 #include <Base/Placement.h>
 
@@ -42,16 +43,14 @@ Placement::Placement() = default;
 Placement::~Placement() = default;
 
 
-
 // Python feature ---------------------------------------------------------
-namespace App {
+namespace App
+{
 PROPERTY_SOURCE_TEMPLATE(App::PlacementPython, App::Placement)
-template<> const char* App::PlacementPython::getViewProviderName() const {
-   return "Gui::ViewProviderPlacementPython";
+template<>
+const char* App::PlacementPython::getViewProviderName() const
+{
+    return "Gui::ViewProviderPlacementPython";
 }
 template class AppExport FeaturePythonT<App::Placement>;
-}
-
-
-
-
+}  // namespace App

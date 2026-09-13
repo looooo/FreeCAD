@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2010 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -21,18 +23,14 @@
  ***************************************************************************/
 
 
-#ifndef MESHGUI_VIEWPROVIDERPYTHON_H
-#define MESHGUI_VIEWPROVIDERPYTHON_H
+#pragma once
 
-#include <Gui/ViewProviderPythonFeature.h>
+#include <Gui/ViewProviderFeaturePython.h>
 #include <Mod/Mesh/Gui/ViewProviderMeshFaceSet.h>
 
 namespace MeshGui
 {
 
-using ViewProviderPython = Gui::ViewProviderPythonFeatureT<ViewProviderMeshFaceSet>;
+using ViewProviderPython = Gui::ViewProviderFeaturePythonT<ViewProviderMeshFaceSet>;
 
 }  // namespace MeshGui
-
-
-#endif  // MESHGUI_VIEWPROVIDERPYTHON_H

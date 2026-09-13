@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2022 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include "Core/Iterator.h"
 #include <Base/Builder3D.h>
@@ -41,7 +42,7 @@ public:
         return !out || out.bad();
     }
 
-    WriterInventorImp(Base::InventorBuilder& builder)
+    explicit WriterInventorImp(Base::InventorBuilder& builder)
         : builder(builder)
     {}
 
@@ -62,7 +63,7 @@ public:
         std::stringstream str;
         str << "Triangle mesh contains " << kernel.CountPoints() << " vertices and "
             << kernel.CountFacets() << " faces";
-        Base::LabelItem label {str.str().c_str()};
+        Base::LabelItem label {str.str()};
         builder.addNode(label);
     }
 
@@ -122,15 +123,15 @@ public:
             return;
         }
 
-        auto transformColors = [](const std::vector<App::Color>& input) {
+        auto transformColors = [](const std::vector<Base::Color>& input) {
             std::vector<Base::ColorRGB> output;
             output.reserve(input.size());
-            std::transform(input.cbegin(),
-                           input.cend(),
-                           std::back_inserter(output),
-                           [](const App::Color& col) {
-                               return Base::ColorRGB {col.r, col.g, col.b};
-                           });
+            std::transform(
+                input.cbegin(),
+                input.cend(),
+                std::back_inserter(output),
+                [](const Base::Color& col) { return Base::ColorRGB {col.r, col.g, col.b}; }
+            );
 
             return output;
         };

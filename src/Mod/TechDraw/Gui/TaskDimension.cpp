@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2021 Uwe Stöhr <uwestoehr@lyx.org>                      *
  *                                                                         *
@@ -20,19 +22,19 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 # include <cmath>
+# include <limits>
 # include <QMessageBox>
-#endif // #ifndef _PreComp_
+# include <regex>
 
 #include <App/Document.h>
+#include <Base/Tools.h>
 #include <Gui/BitmapFactory.h>
 #include <Gui/Command.h>
 #include <Gui/Document.h>
 #include <Gui/MainWindow.h>
-#include <Gui/Selection.h>
-#include <Gui/SelectionObject.h>
+#include <Gui/Selection/Selection.h>
+#include <Gui/Selection/SelectionObject.h>
 #include <Mod/TechDraw/App/DrawUtil.h>
 #include <Mod/TechDraw/App/DrawViewPart.h>
 
@@ -47,16 +49,40 @@ using namespace TechDraw;
 using namespace TechDrawGui;
 
 TaskDimension::TaskDimension(QGIViewDimension *parent, ViewProviderDimension *dimensionVP) :
-    ui(new Ui_TaskDimension)
+    ui(new Ui_TaskDimension),
+    m_parent(parent),
+    m_dimensionVP(dimensionVP)
 {
-    m_parent = parent;
-    m_dimensionVP = dimensionVP;
-
     ui->setupUi(this);
+
+    // Number of Decimals
+    std::string currentFormat = parent->getDimFeat()->FormatSpec.getStrValue();
+    std::smatch match;
+    std::regex specRegex("%\\.([0-9]+)([fFrRgGwWeE])");
+
+    if (std::regex_search(currentFormat, match, specRegex) && match.size() > 2) {
+        int numDecimals = std::stoi(match[1].str());
+        m_originalFormatChar = match[2].str();
+        m_formatPrefix = match.prefix().str();
+        m_formatSuffix = match.suffix().str();
+        ui->sbNumDecimals->setValue(numDecimals);
+    } else {
+        // Handle the case where no format specifier is found
+        ui->sbNumDecimals->setValue(2);
+        m_originalFormatChar = "w";
+        // If no specifier, the whole string is the prefix
+        m_formatPrefix = currentFormat;
+        m_formatSuffix = "";
+    }
+    connect(ui->sbNumDecimals, qOverload<int>(&QSpinBox::valueChanged), this, &TaskDimension::onNumDecChanged);
 
     // Tolerancing
     ui->cbTheoreticallyExact->setChecked(parent->getDimFeat()->TheoreticalExact.getValue());
+#if QT_VERSION >= QT_VERSION_CHECK(6,7,0)
+    connect(ui->cbTheoreticallyExact, &QCheckBox::checkStateChanged, this, &TaskDimension::onTheoreticallyExactChanged);
+#else
     connect(ui->cbTheoreticallyExact, &QCheckBox::stateChanged, this, &TaskDimension::onTheoreticallyExactChanged);
+#endif
     // if TheoreticalExact disable tolerances
     if (parent->getDimFeat()->TheoreticalExact.getValue()) {
         ui->cbEqualTolerance->setDisabled(true);
@@ -66,7 +92,11 @@ TaskDimension::TaskDimension(QGIViewDimension *parent, ViewProviderDimension *di
         ui->leFormatSpecifierUnderTolerance->setDisabled(true);
     }
     ui->cbEqualTolerance->setChecked(parent->getDimFeat()->EqualTolerance.getValue());
+#if QT_VERSION >= QT_VERSION_CHECK(6,7,0)
+    connect(ui->cbEqualTolerance, &QCheckBox::checkStateChanged, this, &TaskDimension::onEqualToleranceChanged);
+#else
     connect(ui->cbEqualTolerance, &QCheckBox::stateChanged, this, &TaskDimension::onEqualToleranceChanged);
+#endif
     // if EqualTolerance overtolernace must not be negative
     if (parent->getDimFeat()->EqualTolerance.getValue())
         ui->qsbOvertolerance->setMinimum(0.0);
@@ -95,7 +125,11 @@ TaskDimension::TaskDimension(QGIViewDimension *parent, ViewProviderDimension *di
     ui->leFormatSpecifier->setText(qs);
     connect(ui->leFormatSpecifier, &QLineEdit::textChanged, this, &TaskDimension::onFormatSpecifierChanged);
     ui->cbArbitrary->setChecked(parent->getDimFeat()->Arbitrary.getValue());
+#if QT_VERSION >= QT_VERSION_CHECK(6,7,0)
+    connect(ui->cbArbitrary, &QCheckBox::checkStateChanged, this, &TaskDimension::onArbitraryChanged);
+#else
     connect(ui->cbArbitrary, &QCheckBox::stateChanged, this, &TaskDimension::onArbitraryChanged);
+#endif
     StringValue = parent->getDimFeat()->FormatSpecOverTolerance.getValue();
     qs = QString::fromUtf8(StringValue.data(), StringValue.size());
     ui->leFormatSpecifierOverTolerance->setText(qs);
@@ -105,12 +139,30 @@ TaskDimension::TaskDimension(QGIViewDimension *parent, ViewProviderDimension *di
     connect(ui->leFormatSpecifierOverTolerance, &QLineEdit::textChanged, this, &TaskDimension::onFormatSpecifierOverToleranceChanged);
     connect(ui->leFormatSpecifierUnderTolerance, &QLineEdit::textChanged, this, &TaskDimension::onFormatSpecifierUnderToleranceChanged);
     ui->cbArbitraryTolerances->setChecked(parent->getDimFeat()->ArbitraryTolerances.getValue());
+#if QT_VERSION >= QT_VERSION_CHECK(6,7,0)
+    connect(ui->cbArbitraryTolerances, &QCheckBox::checkStateChanged, this, &TaskDimension::onArbitraryTolerancesChanged);
+#else
     connect(ui->cbArbitraryTolerances, &QCheckBox::stateChanged, this, &TaskDimension::onArbitraryTolerancesChanged);
+#endif
+
+    // Reference
+    std::regex refRegex("\\(%\\.([0-9]+)([fFrRgGwWeE])\\)");
+    const bool hasReference = std::regex_search(currentFormat, refRegex);
+    ui->cbReference->setChecked(hasReference);
+#if QT_VERSION >= QT_VERSION_CHECK(6,7,0)
+    connect(ui->cbReference, &QCheckBox::checkStateChanged, this, &TaskDimension::onReferenceChanged);
+#else
+    connect(ui->cbReference, &QCheckBox::stateChanged, this, &TaskDimension::onReferenceChanged);
+#endif
 
     // Display Style
     if (dimensionVP) {
         ui->cbArrowheads->setChecked(dimensionVP->FlipArrowheads.getValue());
+#if QT_VERSION >= QT_VERSION_CHECK(6,7,0)
+        connect(ui->cbArrowheads, &QCheckBox::checkStateChanged, this, &TaskDimension::onFlipArrowheadsChanged);
+#else
         connect(ui->cbArrowheads, &QCheckBox::stateChanged, this, &TaskDimension::onFlipArrowheadsChanged);
+#endif
         ui->dimensionColor->setColor(dimensionVP->Color.getValue().asValue<QColor>());
         connect(ui->dimensionColor, &ColorButton::changed, this, &TaskDimension::onColorChanged);
         ui->qsbFontSize->setValue(dimensionVP->Fontsize.getValue());
@@ -122,8 +174,8 @@ TaskDimension::TaskDimension(QGIViewDimension *parent, ViewProviderDimension *di
     }
 
     // Lines
-    ui->rbOverride->setChecked(parent->getDimFeat()->AngleOverride.getValue());
-    connect(ui->rbOverride, &QRadioButton::toggled, this, &TaskDimension::onOverrideToggled);
+    ui->gbLines->setChecked(parent->getDimFeat()->AngleOverride.getValue());
+    connect(ui->gbLines, &QGroupBox::toggled, this, &TaskDimension::onOverrideToggled);
     ui->dsbDimAngle->setValue(parent->getDimFeat()->LineAngle.getValue());
     connect(ui->dsbDimAngle, qOverload<double>(&QDoubleSpinBox::valueChanged), this, &TaskDimension::onDimAngleChanged);
     ui->dsbExtAngle->setValue(parent->getDimFeat()->ExtensionAngle.getValue());
@@ -143,6 +195,11 @@ TaskDimension::~TaskDimension()
 
 bool TaskDimension::accept()
 {
+    if (m_dimensionVP.expired()) {
+        QMessageBox::warning(Gui::getMainWindow(), QObject::tr("Missing Dimension"),
+                                               QObject::tr("Dimension not found. Was it deleted? Cannot continue."));
+        return true;
+    }
     Gui::Document* doc = m_dimensionVP->getDocument();
     m_dimensionVP->getObject()->purgeTouched();
     doc->commitCommand();
@@ -153,6 +210,11 @@ bool TaskDimension::accept()
 
 bool TaskDimension::reject()
 {
+    if (m_dimensionVP.expired()) {
+        QMessageBox::warning(Gui::getMainWindow(), QObject::tr("Missing Dimension"),
+                                               QObject::tr("Dimension not found. Was it deleted? Cannot continue."));
+        return true;
+    }
     Gui::Document* doc = m_dimensionVP->getDocument();
     doc->abortCommand();
     recomputeFeature();
@@ -165,9 +227,71 @@ bool TaskDimension::reject()
 
 void TaskDimension::recomputeFeature()
 {
+    if (m_dimensionVP.expired()) {
+        // guard against deletion while this dialog is running
+        return;
+    }
     App::DocumentObject* objVP = m_dimensionVP->getObject();
     assert(objVP);
-    objVP->getDocument()->recomputeFeature(objVP);
+    objVP->recomputeFeature();
+}
+
+void TaskDimension::onNumDecChanged(int decimals)
+{
+    std::string currentFormat = ui->leFormatSpecifier->text().toUtf8().constData();
+
+    std::smatch match;
+    std::regex specRegex("%\\.([0-9]+)([fFrRgGwWeE])");
+
+    // Re-parse the current string
+    if (std::regex_search(currentFormat, match, specRegex) && match.size() > 2) {
+        m_originalFormatChar = match[2].str();
+        m_formatPrefix = match.prefix().str();
+        m_formatSuffix = match.suffix().str();
+    } else {
+        // if the user deleted the specifier, assume the whole string
+        // is a prefix and insert the specifier.
+        m_formatPrefix = currentFormat;
+        m_formatSuffix = "";
+        m_originalFormatChar = "w"; // Default fallback format char
+    }
+
+    // Rebuild the string
+    std::string newFormatSpec = m_formatPrefix
+                              + "%." + std::to_string(decimals) + m_originalFormatChar
+                              + m_formatSuffix;
+
+    // Update the UI
+    ui->leFormatSpecifier->blockSignals(true);
+    ui->leFormatSpecifier->setText(QString::fromStdString(newFormatSpec));
+    ui->leFormatSpecifier->blockSignals(false);
+
+    onFormatSpecifierChanged();
+}
+
+void TaskDimension::onReferenceChanged()
+{
+    std::string currentFormat = ui->leFormatSpecifier->text().toUtf8().constData();
+    std::string newFormat = currentFormat;
+    bool isChecked = ui->cbReference->isChecked();
+
+    // Find a format specifier
+    std::regex specRegex("%\\.([0-9]+)([fFrRgGwWeE])");
+    // Find a reference format specifier
+    std::regex refRegex("\\((%\\.([0-9]+)([fFrRgGwWeE]))\\)");
+
+    if (isChecked) {
+        newFormat = std::regex_replace(currentFormat, specRegex, "($&)");
+    } else {
+        newFormat = std::regex_replace(currentFormat, refRegex, "$1");
+    }
+
+    // Update UI
+    ui->leFormatSpecifier->blockSignals(true);
+    ui->leFormatSpecifier->setText(QString::fromStdString(newFormat));
+    ui->leFormatSpecifier->blockSignals(false);
+
+    onFormatSpecifierChanged();
 }
 
 void TaskDimension::onTheoreticallyExactChanged()
@@ -214,7 +338,7 @@ void TaskDimension::onEqualToleranceChanged()
         ui->leFormatSpecifierUnderTolerance->setDisabled(true);
     }
     else {
-        ui->qsbOvertolerance->setMinimum(-DBL_MAX);
+        ui->qsbOvertolerance->setMinimum(-std::numeric_limits<double>::max());
         if (!ui->cbTheoreticallyExact->isChecked()) {
             ui->qsbUndertolerance->setDisabled(false);
             ui->leFormatSpecifierUnderTolerance->setDisabled(false);
@@ -254,7 +378,7 @@ void TaskDimension::onArbitraryChanged()
 
 void TaskDimension::onFormatSpecifierOverToleranceChanged()
 {
-//    Base::Console().Message("TD::onFormatSpecifierOverToleranceChanged()\n");
+//    Base::Console().message("TD::onFormatSpecifierOverToleranceChanged()\n");
     // if (m_blockToleranceLoop) { return; }
     m_parent->getDimFeat()->FormatSpecOverTolerance.setValue(ui->leFormatSpecifierOverTolerance->text().toUtf8().constData());
     if (ui->cbArbitraryTolerances->isChecked() ) {
@@ -273,7 +397,7 @@ void TaskDimension::onFormatSpecifierOverToleranceChanged()
 
 void TaskDimension::onFormatSpecifierUnderToleranceChanged()
 {
-//    Base::Console().Message("TD::onFormatSpecifierUnderToleranceChanged()\n");
+//    Base::Console().message("TD::onFormatSpecifierUnderToleranceChanged()\n");
     m_parent->getDimFeat()->FormatSpecUnderTolerance.setValue(ui->leFormatSpecifierUnderTolerance->text().toUtf8().constData());
     if (ui->cbArbitraryTolerances->isChecked() ) {
         // Don't do anything else if tolerance is Arbitrary
@@ -297,13 +421,19 @@ void TaskDimension::onArbitraryTolerancesChanged()
 
 void TaskDimension::onFlipArrowheadsChanged()
 {
+    if (m_dimensionVP.expired()) {
+        return;
+    }
     m_dimensionVP->FlipArrowheads.setValue(ui->cbArrowheads->isChecked());
     recomputeFeature();
 }
 
 void TaskDimension::onColorChanged()
 {
-    App::Color ac;
+    if (m_dimensionVP.expired()) {
+        return;
+    }
+    Base::Color ac;
     ac.setValue<QColor>(ui->dimensionColor->color());
     m_dimensionVP->Color.setValue(ac);
     recomputeFeature();
@@ -311,19 +441,25 @@ void TaskDimension::onColorChanged()
 
 void TaskDimension::onFontsizeChanged()
 {
+    if (m_dimensionVP.expired()) {
+        return;
+    }
     m_dimensionVP->Fontsize.setValue(ui->qsbFontSize->value().getValue());
     recomputeFeature();
 }
 
 void TaskDimension::onDrawingStyleChanged()
 {
+    if (m_dimensionVP.expired()) {
+        return;
+    }
     m_dimensionVP->StandardAndStyle.setValue(ui->comboDrawingStyle->currentIndex());
     recomputeFeature();
 }
 
 void TaskDimension::onOverrideToggled()
 {
-    m_parent->getDimFeat()->AngleOverride.setValue(ui->rbOverride->isChecked());
+    m_parent->getDimFeat()->AngleOverride.setValue(ui->gbLines->isChecked());
     recomputeFeature();
 
 }
@@ -347,14 +483,14 @@ void TaskDimension::onDimUseDefaultClicked()
     Base::Vector2d first2(points.first().x, -points.first().y);
     Base::Vector2d second2(points.second().x, -points.second().y);
     double lineAngle = (second2 - first2).Angle();
-    ui->dsbDimAngle->setValue(lineAngle * 180.0 / M_PI);
+    ui->dsbDimAngle->setValue(Base::toDegrees(lineAngle));
 }
 
 void TaskDimension::onDimUseSelectionClicked()
 {
     std::pair<double, bool> result = getAngleFromSelection();
     if (result.second) {
-        ui->dsbDimAngle->setValue(result.first * 180.0 / M_PI);
+        ui->dsbDimAngle->setValue(Base::toDegrees(result.first));
     }
 }
 
@@ -367,13 +503,13 @@ void TaskDimension::onExtUseDefaultClicked()
     Base::Vector2d lineDirection = second2 - first2;
     Base::Vector2d extensionDirection(-lineDirection.y, lineDirection.x);
     double extensionAngle = extensionDirection.Angle();
-    ui->dsbExtAngle->setValue(extensionAngle * 180.0 / M_PI);
+    ui->dsbExtAngle->setValue(Base::toDegrees(extensionAngle));
 }
 void TaskDimension::onExtUseSelectionClicked()
 {
     std::pair<double, bool> result = getAngleFromSelection();
     if (result.second) {
-        ui->dsbExtAngle->setValue(result.first * 180.0 / M_PI);
+        ui->dsbExtAngle->setValue(Base::toDegrees(result.first));
     }
 }
 
@@ -415,7 +551,7 @@ std::pair<double, bool> TaskDimension::getAngleFromSelection()
     }
 
     QMessageBox::warning(Gui::getMainWindow(), QObject::tr("Incorrect Selection"),
-                                               QObject::tr("Select 2 Vertexes or 1 Edge"));
+                                               QObject::tr("Select 2 vertices or 1 edge"));
     result.second = false;
     return result;
 }

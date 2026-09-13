@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,12 +22,12 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_QGRAPHICSITEMVIEWIMAGE_H
-#define DRAWINGGUI_QGRAPHICSITEMVIEWIMAGE_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
 #include "QGIView.h"
+#include "QGIUserTypes.h"
 
 namespace TechDraw {
 class DrawViewImage;
@@ -42,7 +44,7 @@ public:
     QGIViewImage();
     ~QGIViewImage() override;
 
-    enum {Type = QGraphicsItem::UserType + 200};
+    enum {Type = UserType::QGIViewImage};
     int type() const override { return Type;}
 
     void updateView(bool update = false) override;
@@ -59,4 +61,3 @@ protected:
 };
 
 } // namespace
-#endif // DRAWINGGUI_QGRAPHICSITEMVIEWIMAGE_H

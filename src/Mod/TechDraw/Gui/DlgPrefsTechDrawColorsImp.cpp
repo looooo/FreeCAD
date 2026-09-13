@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2020 FreeCAD Developers                                 *
  *   Author: Uwe Stöhr <uwestoehr@lyx.org>                                 *
@@ -22,7 +24,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include "DlgPrefsTechDrawColorsImp.h"
 #include "ui_DlgPrefsTechDrawColors.h"
@@ -66,6 +67,7 @@ void DlgPrefsTechDrawColorsImp::saveSettings()
     ui->pcbMonochrome->onSave();
     ui->pcbLightTextColor->onSave();
     ui->pcbUnderline->onSave();
+    ui->pcb_Breakline->onSave();
 }
 
 void DlgPrefsTechDrawColorsImp::loadSettings()
@@ -92,6 +94,7 @@ void DlgPrefsTechDrawColorsImp::loadSettings()
     ui->pcbMonochrome->onRestore();
     ui->pcbLightTextColor->onRestore();
     ui->pcbUnderline->onRestore();
+    ui->pcb_Breakline->onRestore();
 }
 
 /**
@@ -100,9 +103,7 @@ void DlgPrefsTechDrawColorsImp::loadSettings()
 void DlgPrefsTechDrawColorsImp::changeEvent(QEvent *e)
 {
     if (e->type() == QEvent::LanguageChange) {
-        saveSettings();
         ui->retranslateUi(this);
-        loadSettings();
     }
     else {
         QWidget::changeEvent(e);

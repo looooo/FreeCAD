@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2002 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,25 +22,14 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include "kdl_cp/chain.hpp"
-#endif
+
 
 #include <Base/Reader.h>
 #include <Base/Writer.h>
 
 #include "Waypoint.h"
 
-
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#define M_PI 3.14159265358979323846 /* pi */
-#endif
-
-#ifndef M_PI_2
-#define M_PI_2 1.57079632679489661923 /* pi/2 */
-#endif
 
 using namespace Robot;
 using namespace Base;
@@ -47,14 +38,16 @@ using namespace KDL;
 
 TYPESYSTEM_SOURCE(Robot::Waypoint, Base::Persistence)
 
-Waypoint::Waypoint(const char* name,
-                   const Base::Placement& endPos,
-                   WaypointType type,
-                   float velocity,
-                   float acceleration,
-                   bool cont,
-                   unsigned int tool,
-                   unsigned int base)
+Waypoint::Waypoint(
+    const char* name,
+    const Base::Placement& endPos,
+    WaypointType type,
+    float velocity,
+    float acceleration,
+    bool cont,
+    unsigned int tool,
+    unsigned int base
+)
 
     : Name(name)
     , Type(type)
@@ -120,23 +113,29 @@ void Waypoint::Restore(XMLReader& reader)
 {
     // read my Element
     reader.readElement("Waypoint");
-    Name = reader.getAttribute("name");
+    Name = reader.getAttribute<const char*>("name");
     // get the value of the placement
-    EndPos = Base::Placement(Base::Vector3d(reader.getAttributeAsFloat("Px"),
-                                            reader.getAttributeAsFloat("Py"),
-                                            reader.getAttributeAsFloat("Pz")),
-                             Base::Rotation(reader.getAttributeAsFloat("Q0"),
-                                            reader.getAttributeAsFloat("Q1"),
-                                            reader.getAttributeAsFloat("Q2"),
-                                            reader.getAttributeAsFloat("Q3")));
+    EndPos = Base::Placement(
+        Base::Vector3d(
+            reader.getAttribute<double>("Px"),
+            reader.getAttribute<double>("Py"),
+            reader.getAttribute<double>("Pz")
+        ),
+        Base::Rotation(
+            reader.getAttribute<double>("Q0"),
+            reader.getAttribute<double>("Q1"),
+            reader.getAttribute<double>("Q2"),
+            reader.getAttribute<double>("Q3")
+        )
+    );
 
-    Velocity = (float)reader.getAttributeAsFloat("vel");
-    Acceleration = (float)reader.getAttributeAsFloat("acc");
-    Cont = (reader.getAttributeAsInteger("cont") != 0) ? true : false;
-    Tool = reader.getAttributeAsInteger("tool");
-    Base = reader.getAttributeAsInteger("base");
+    Velocity = (float)reader.getAttribute<double>("vel");
+    Acceleration = (float)reader.getAttribute<double>("acc");
+    Cont = reader.getAttribute<bool>("cont");
+    Tool = reader.getAttribute<long>("tool");
+    Base = reader.getAttribute<long>("base");
 
-    std::string type = reader.getAttribute("type");
+    std::string type = reader.getAttribute<const char*>("type");
     if (type == "PTP") {
         Type = Waypoint::PTP;
     }

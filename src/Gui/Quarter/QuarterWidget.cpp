@@ -1,34 +1,25 @@
-/**************************************************************************\
- * Copyright (c) Kongsberg Oil & Gas Technologies AS
- * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- * 
- * Redistributions of source code must retain the above copyright notice,
- * this list of conditions and the following disclaimer.
- * 
- * Redistributions in binary form must reproduce the above copyright
- * notice, this list of conditions and the following disclaimer in the
- * documentation and/or other materials provided with the distribution.
- * 
- * Neither the name of the copyright holder nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- * 
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-\**************************************************************************/
+// SPDX-License-Identifier: BSD-3-Clause AND LGPL-2.1-or-later
+// SPDX-FileCopyrightText: Kongsberg Oil & Gas Technologies AS
+// SPDX-FileCopyrightText: 2026 Joao Matos
+// SPDX-FileNotice: Part of the FreeCAD project.
+
+/******************************************************************************
+ *                                                                            *
+ *   FreeCAD is free software: you can redistribute it and/or modify          *
+ *   it under the terms of the GNU Lesser General Public License as           *
+ *   published by the Free Software Foundation, either version 2.1 of the     *
+ *   License, or (at your option) any later version.                          *
+ *                                                                            *
+ *   FreeCAD is distributed in the hope that it will be useful, but           *
+ *   WITHOUT ANY WARRANTY; without even the implied warranty of               *
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the            *
+ *   GNU Lesser General Public License for more details.                      *
+ *                                                                            *
+ *   You should have received a copy of the GNU Lesser General Public         *
+ *   License along with FreeCAD.  If not, see                                *
+ *   <https://www.gnu.org/licenses/>.                                         *
+ *                                                                            *
+ ******************************************************************************/
 
 /*!
   \class SIM::Coin3D::Quarter::QuarterWidget QuarterWidget.h Quarter/QuarterWidget.h
@@ -70,14 +61,14 @@
 #include <QMetaObject>
 #include <QOpenGLDebugLogger>
 #include <QOpenGLDebugMessage>
+#include <QOpenGLFunctions>
+#include <QOpenGLWidget>
 #include <QPaintEvent>
 #include <QResizeEvent>
 #include <QWindow>
 
 #include <Inventor/C/basic.h>
-#if COIN_MAJOR_VERSION >= 4
 #include <Inventor/SbByteBuffer.h>
-#endif
 
 #include <Inventor/SbColor.h>
 #include <Inventor/SbViewportRegion.h>
@@ -91,6 +82,8 @@
 #include <Inventor/nodes/SoSeparator.h>
 #include <Inventor/scxml/ScXML.h>
 #include <Inventor/scxml/SoScXMLStateMachine.h>
+
+#include <Base/Profiler.h>
 
 #include "QuarterWidget.h"
 #include "InteractionMode.h"
@@ -138,10 +131,6 @@ using namespace SIM::Coin3D::Quarter;
 
 #define PRIVATE(obj) obj->pimpl
 
-#ifndef GL_MULTISAMPLE_BIT_EXT
-#define GL_MULTISAMPLE_BIT_EXT 0x20000000
-#endif
-
 //We need to avoid buffer swapping when initializing a QPainter on this widget
 class CustomGLWidget : public QOpenGLWidget {
 public:
@@ -159,18 +148,26 @@ public:
         //surfaceFormat.setMajorVersion(3);
         //surfaceFormat.setMinorVersion(2);
         //surfaceFormat.setProfile(QSurfaceFormat::CoreProfile);
+
+        // On Wayland, we typically get a core profile unless we explicitly
+        // request a compatibility profile. On llvmpipe, this still seems to
+        // "just work" even if out of spec; on proprietary Nvidia drivers, it
+        // does not.
+        surfaceFormat.setRenderableType(QSurfaceFormat::OpenGL);
+        surfaceFormat.setProfile(QSurfaceFormat::CompatibilityProfile);
+        surfaceFormat.setOption(QSurfaceFormat::DeprecatedFunctions, true);
+
 #if defined (_DEBUG) && 0
         surfaceFormat.setOption(QSurfaceFormat::DebugContext);
 #endif
         setFormat(surfaceFormat);
     }
-    ~CustomGLWidget() override
-    {
-    }
+    ~CustomGLWidget() override = default;
+
     void initializeGL() override
     {
-        QOpenGLContext *context = QOpenGLContext::currentContext();
 #if defined (_DEBUG) && 0
+        QOpenGLContext *context = QOpenGLContext::currentContext();
         if (context && context->hasExtension(QByteArrayLiteral("GL_KHR_debug"))) {
             QOpenGLDebugLogger *logger = new QOpenGLDebugLogger(this);
             connect(logger, &QOpenGLDebugLogger::messageLogged, this, &CustomGLWidget::handleLoggedMessage);
@@ -179,10 +176,7 @@ public:
                 logger->startLogging(QOpenGLDebugLogger::SynchronousLogging);
         }
 #endif
-        if (context) {
-            connect(context, &QOpenGLContext::aboutToBeDestroyed,
-                this, &CustomGLWidget::aboutToDestroyGLContext, Qt::DirectConnection);
-        }
+
         connect(this, &CustomGLWidget::resized, this, &CustomGLWidget::slotResized);
     }
     // paintGL() is invoked when e.g. using the method grabFramebuffer of this class
@@ -200,17 +194,7 @@ public:
             qw->redraw();
         }
     }
-    void aboutToDestroyGLContext()
-    {
-        // With Qt 5.9 a signal is emitted while the QuarterWidget is being destroyed.
-        // At this state its type is a QWidget, not a QuarterWidget any more.
-        QuarterWidget* qw = qobject_cast<QuarterWidget*>(parent());
-        if (!qw)
-            return;
-        QMetaObject::invokeMethod(parent(), "aboutToDestroyGLContext",
-            Qt::DirectConnection,
-            QGenericReturnArgument());
-    }
+
     bool event(QEvent *e) override
     {
         // If a debug logger is activated then Qt's default implementation
@@ -244,7 +228,7 @@ public:
 };
 
 /*! constructor */
-QuarterWidget::QuarterWidget(const QtGLFormat & format, QWidget * parent, const QtGLWidget * sharewidget, Qt::WindowFlags f)
+QuarterWidget::QuarterWidget(const QSurfaceFormat & format, QWidget * parent, const QOpenGLWidget * sharewidget, Qt::WindowFlags f)
   : inherited(parent)
 {
   Q_UNUSED(f); 
@@ -252,15 +236,15 @@ QuarterWidget::QuarterWidget(const QtGLFormat & format, QWidget * parent, const 
 }
 
 /*! constructor */
-QuarterWidget::QuarterWidget(QWidget * parent, const QtGLWidget * sharewidget, Qt::WindowFlags f)
+QuarterWidget::QuarterWidget(QWidget * parent, const QOpenGLWidget * sharewidget, Qt::WindowFlags f)
   : inherited(parent)
 {
   Q_UNUSED(f); 
-  this->constructor(QtGLFormat(), sharewidget);
+  this->constructor(QSurfaceFormat(), sharewidget);
 }
 
 /*! constructor */
-QuarterWidget::QuarterWidget(QtGLContext * context, QWidget * parent, const QtGLWidget * sharewidget, Qt::WindowFlags f)
+QuarterWidget::QuarterWidget(QOpenGLContext * context, QWidget * parent, const QOpenGLWidget * sharewidget, Qt::WindowFlags f)
   : inherited(parent)
 {
   Q_UNUSED(f); 
@@ -268,7 +252,7 @@ QuarterWidget::QuarterWidget(QtGLContext * context, QWidget * parent, const QtGL
 }
 
 void
-QuarterWidget::constructor(const QtGLFormat & format, const QtGLWidget * sharewidget)
+QuarterWidget::constructor(const QSurfaceFormat & format, const QOpenGLWidget * sharewidget)
 {
   QGraphicsScene* scene = new QGraphicsScene(this);
   setScene(scene);
@@ -332,11 +316,6 @@ QuarterWidget::replaceViewport()
 
   setAutoFillBackground(false);
   viewport()->setAutoFillBackground(false);
-}
-
-void
-QuarterWidget::aboutToDestroyGLContext()
-{
 }
 
 /*! destructor */
@@ -795,7 +774,7 @@ QuarterWidget::viewAll()
 }
 
 /*!
-  Sets the current camera in seekmode, if supported by the underlying navigation system.
+  Sets the current camera in seek mode, if supported by the underlying navigation system.
   Camera typically seeks towards what the mouse is pointing at.
 */
 void
@@ -857,6 +836,8 @@ void QuarterWidget::resizeEvent(QResizeEvent* event)
 */
 void QuarterWidget::paintEvent(QPaintEvent* event)
 {
+    ZoneScoped;
+
     if (updateDevicePixelRatio()) {
         qreal dev_pix_ratio = devicePixelRatio();
         int width = static_cast<int>(dev_pix_ratio * this->width());
@@ -873,9 +854,7 @@ void QuarterWidget::paintEvent(QPaintEvent* event)
 
     getSoRenderManager()->activate();
 
-    glMatrixMode(GL_PROJECTION);
-
-    QtGLWidget* w = static_cast<QtGLWidget*>(this->viewport());
+    QOpenGLWidget* w = static_cast<QOpenGLWidget*>(this->viewport());
     if (!w->isValid()) {
         qWarning() << "No valid GL context found!";
         return;
@@ -909,14 +888,26 @@ void QuarterWidget::paintEvent(QPaintEvent* event)
     //glDrawBuffer(w->format().swapBehavior() == QSurfaceFormat::DoubleBuffer ? GL_BACK : GL_FRONT);
 
     w->makeCurrent();
+    PRIVATE(this)->timesincelastframe.restart();
     this->actualRedraw();
+
+    QOpenGLFunctions* functions = w->context() ? w->context()->functions() : nullptr;
+    const bool multisampleEnabled = functions && functions->glIsEnabled(GL_MULTISAMPLE) == GL_TRUE;
 
     //start the standard graphics view processing for all widgets and graphic items. As 
     //QGraphicsView initaliizes a QPainter which changes the Opengl context in an unpredictable 
     //manner we need to store the context and recreate it after Qt is done.
-    glPushAttrib(GL_MULTISAMPLE_BIT_EXT);
     inherited::paintEvent(event);
-    glPopAttrib();
+    w->makeCurrent();
+
+    if (functions) {
+        if (multisampleEnabled) {
+            functions->glEnable(GL_MULTISAMPLE);
+        }
+        else {
+            functions->glDisable(GL_MULTISAMPLE);
+        }
+    }
 
     // Causes an OpenGL error on resize
     //if (w->format().swapBehavior() == QSurfaceFormat::DoubleBuffer)
@@ -927,6 +918,11 @@ void QuarterWidget::paintEvent(QPaintEvent* event)
     // process the delay queue the next time we enter this function,
     // unless we get here after a call to redraw().
     PRIVATE(this)->processdelayqueue = true;
+
+    // Nothing above can have asked for another frame, so any request that is
+    // still outstanding has been satisfied by the render we just did. The
+    // frame is timed from before actualRedraw(), not from here.
+    PRIVATE(this)->frameRendered();
 }
 
 bool QuarterWidget::viewportEvent(QEvent* event)
@@ -955,11 +951,7 @@ bool QuarterWidget::viewportEvent(QEvent* event)
     }
     else if (event->type() == QEvent::Wheel) {
         auto wheel = static_cast<QWheelEvent*>(event);
-#if QT_VERSION < QT_VERSION_CHECK(5, 15, 0)
-        QPoint pos = wheel->pos();
-#else
         QPoint pos = wheel->position().toPoint();
-#endif
         QGraphicsItem* item = itemAt(pos);
         if (!item) {
             QGraphicsView::viewportEvent(event);
@@ -981,10 +973,9 @@ bool QuarterWidget::viewportEvent(QEvent* event)
 void
 QuarterWidget::redraw()
 {
-  // we're triggering the next paintGL(). Set a flag to remember this
-  // to avoid that we process the delay queue in paintGL()
-  PRIVATE(this)->processdelayqueue = false;
-
+  // The request may be deferred to honor the frame rate limit, but it is
+  // never dropped, so every caller still gets its frame.
+  //
   // When stylesheet is used, there is recursive repaint warning caused by
   // repaint() here. It happens when switching active documents. Based on call
   // stacks, it happens like this, the repaint event first triggers a series
@@ -996,10 +987,35 @@ QuarterWidget::redraw()
   // back to the first QuarterWidget, at which time the "Recursive repaint
   // detected" Qt warning message will be printed.
   //
-  // Note that, the recursive repaint is not infinite due to setting
-  // 'processdelayqueue = false' above. However, it does cause annoying
-  // flickering, and actually crash on Windows.
-  this->viewport()->update();
+  // Note that the recursive repaint is not infinite due to setting
+  // 'processdelayqueue = false' in issueRedraw(). However, it does cause
+  // annoying flickering, and actually crash on Windows.
+  PRIVATE(this)->requestRedraw();
+}
+
+/*!
+  Returns the upper limit on how often the scene is rendered. A negative value
+  follows the refresh rate of the screen the widget is shown on, zero renders
+  as fast as the driver allows and a positive value is a limit in frames per
+  second.
+*/
+int
+QuarterWidget::maxFrameRate() const
+{
+  return PRIVATE(this)->maxframerate;
+}
+
+/*!
+  Sets the upper limit on how often the scene is rendered. Rendering faster
+  than the display can show only wastes GPU work, so the default is to follow
+  the refresh rate of the screen.
+
+  \sa maxFrameRate()
+*/
+void
+QuarterWidget::setMaxFrameRate(int fps)
+{
+  PRIVATE(this)->setMaxFrameRate(fps);
 }
 
 /*!
@@ -1008,13 +1024,14 @@ QuarterWidget::redraw()
 void
 QuarterWidget::actualRedraw()
 {
+  ZoneScoped;
   PRIVATE(this)->sorendermanager->render(PRIVATE(this)->clearwindow,
                                          PRIVATE(this)->clearzbuffer);
 }
 
 
 /*!
-  Passes an event to the eventmanager.
+  Passes an event to the event manager.
 
   \param[in] event to pass
   \retval Returns true if the event was successfully processed
@@ -1034,10 +1051,10 @@ QuarterWidget::processSoEvent(const SoEvent * event)
 */
 
 /*!
-  Set backgroundcolor to a given QColor
+  Set background color to a given QColor
 
   Remember that QColors are given in integers between 0 and 255, as
-  opposed to SbColor4f which is in [0 ,1]. The default alpha value for
+  opposed to SbColor4f which is in [0, 1]. The default alpha value for
   a QColor is 255, but you'll probably want to set it to zero before
   using it as an OpenGL clear color.
  */
@@ -1093,7 +1110,7 @@ QuarterWidget::contextMenuEnabled() const
 */
 
 /*!
-  Controls the display of the contextmenu
+  Controls the display of the context menu
 
   \param[in] yes Context menu on?
 */
@@ -1122,7 +1139,7 @@ QuarterWidget::addStateMachine(SoScXMLStateMachine * statemachine)
 }
 
 /*!
-  Convenience method that removes a state machine to the current
+  Convenience method that removes a state machine from the current
   SoEventManager.
 
   \sa addStateMachine
@@ -1185,8 +1202,8 @@ QuarterWidget::renderModeActions() const
   that defines the possible states for the Coin navigation system
 
   Supports:
-  \li \b coin for internal coinresources
-  \li \b file for filesystem path to resources
+  \li \b coin for internal Coin resources
+  \li \b file for file system path to resources
 
   \sa scxml
 */
@@ -1199,10 +1216,25 @@ QuarterWidget::resetNavigationModeFile() {
   this->setNavigationModeFile(QUrl());
 }
 
+/**
+ * Sets up the default cursors for the widget.
+ */
+void QuarterWidget::setupDefaultCursors()
+{
+    this->setStateCursor("interact", Qt::ArrowCursor);
+    this->setStateCursor("idle", Qt::OpenHandCursor);
+    this->setStateCursor("rotate", Qt::ClosedHandCursor);
+    this->setStateCursor("pan", Qt::SizeAllCursor);
+    this->setStateCursor("zoom", Qt::SizeVerCursor);
+    this->setStateCursor("dolly", Qt::SizeVerCursor);
+    this->setStateCursor("seek", Qt::CrossCursor);
+    this->setStateCursor("spin", Qt::OpenHandCursor);
+}
+
 /*!
   Sets a navigation mode file. Supports the schemes "coin" and "file"
 
-  \param[in] url Url to the resource
+  \param[in] url URL to the resource
 */
 void
 QuarterWidget::setNavigationModeFile(const QUrl & url)
@@ -1247,11 +1279,7 @@ QuarterWidget::setNavigationModeFile(const QUrl & url)
     QFile file(filenametmp);
     if (file.open(QIODevice::ReadOnly)){
       QByteArray fileContents = file.readAll();
-#if COIN_MAJOR_VERSION >= 4
       stateMachine = ScXML::readBuffer(SbByteBuffer(fileContents.size(), fileContents.constData()));
-#else
-      stateMachine = ScXML::readBuffer(fileContents.constData());
-#endif
       file.close();
     }
   }
@@ -1269,8 +1297,8 @@ QuarterWidget::setNavigationModeFile(const QUrl & url)
     PRIVATE(this)->currentStateMachine = newsm;
   }
   else {
-    if (stateMachine)
-      delete stateMachine;
+    delete stateMachine;
+    stateMachine = nullptr;
     qDebug()<<filename;
     qDebug()<<"Unable to load"<<url;
     return;
@@ -1285,19 +1313,12 @@ QuarterWidget::setNavigationModeFile(const QUrl & url)
     // set up default cursors for the examiner navigation states
     //FIXME: It may be overly restrictive to not do this for arbitrary
     //navigation systems? - BFG 20090117
-    this->setStateCursor("interact", Qt::ArrowCursor);
-    this->setStateCursor("idle", Qt::OpenHandCursor);
-    this->setStateCursor("rotate", Qt::ClosedHandCursor);
-    this->setStateCursor("pan", Qt::SizeAllCursor);
-    this->setStateCursor("zoom", Qt::SizeVerCursor);
-    this->setStateCursor("dolly", Qt::SizeVerCursor);
-    this->setStateCursor("seek", Qt::CrossCursor);
-    this->setStateCursor("spin", Qt::OpenHandCursor);
+    setupDefaultCursors();
   }
 }
 
 /*!
-  \retval The current navigationModeFile
+  \retval The current navigation mode file
 */
 const QUrl &
 QuarterWidget::navigationModeFile() const

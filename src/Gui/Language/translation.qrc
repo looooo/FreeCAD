@@ -8,7 +8,7 @@
         <file>qt_pl.qm</file>
         <file>qt_pt-BR.qm</file>
         <file>qt_ru.qm</file>
-        <file>qt_sv-SE.qm</file>
+        <file>qt_sv.qm</file>
         <file>qt_uk.qm</file>
         <file>qt_zh-CN.qm</file>
         <file>qtbase_ar.qm</file>
@@ -64,13 +64,5 @@
         <file>qtmultimedia_uk.qm</file>
         <file>qtmultimedia_zh_CN.qm</file>
         <file>qtmultimedia_zh_TW.qm</file>
-        <file>qtwebengine_ca.qm</file>
-        <file>qtwebengine_de.qm</file>
-        <file>qtwebengine_es.qm</file>
-        <file>qtwebengine_ko.qm</file>
-        <file>qtwebengine_pl.qm</file>
-        <file>qtwebengine_ru.qm</file>
-        <file>qtwebengine_uk.qm</file>
-        <file>qtwebengine_zh_CN.qm</file>
     </qresource>
 </RCC>

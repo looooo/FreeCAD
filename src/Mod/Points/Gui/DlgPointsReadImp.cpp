@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2002 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include "DlgPointsReadImp.h"
 #include "ui_DlgPointsRead.h"
@@ -31,9 +32,9 @@ using namespace PointsGui;
 DlgPointsReadImp::DlgPointsReadImp(const char* FileName, QWidget* parent, Qt::WindowFlags fl)
     : QDialog(parent, fl)
     , ui(new Ui_DlgPointsRead)
+    , _FileName(FileName)
 {
     ui->setupUi(this);
-    _FileName = FileName;
 }
 
 /*

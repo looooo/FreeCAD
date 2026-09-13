@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2022 Abdullah Tahiri <abdullah.tahiri.yo@gmail.com>     *
  *                                                                         *
@@ -20,13 +22,12 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef SKETCHERGUI_DrawSketchHandlerCarbonCopy_H
-#define SKETCHERGUI_DrawSketchHandlerCarbonCopy_H
+#pragma once
 
 #include <QApplication>
 
 #include <Gui/Notifications.h>
-#include <Gui/SelectionFilter.h>
+#include <Gui/Selection/SelectionFilter.h>
 #include <Gui/Command.h>
 #include <Gui/CommandT.h>
 #include <Gui/MDIView.h>
@@ -36,15 +37,13 @@
 #include <Mod/Sketcher/App/SketchObject.h>
 
 #include "DrawSketchHandler.h"
-#include "GeometryCreationMode.h"
 #include "Utils.h"
 #include "ViewProviderSketch.h"
+#include "SnapManager.h"
 
 
 namespace SketcherGui
 {
-
-extern GeometryCreationMode geometryCreationMode;  // defined in CommandCreateGeo.cpp
 
 class CarbonCopySelection: public Gui::SelectionFilterGate
 {
@@ -61,11 +60,13 @@ public:
         Q_UNUSED(sSubName);
 
         Sketcher::SketchObject* sketch = static_cast<Sketcher::SketchObject*>(object);
-        sketch->setAllowOtherBody(QApplication::keyboardModifiers() == Qt::ControlModifier
-                                  || QApplication::keyboardModifiers()
-                                      == (Qt::ControlModifier | Qt::AltModifier));
-        sketch->setAllowUnaligned(QApplication::keyboardModifiers()
-                                  == (Qt::ControlModifier | Qt::AltModifier));
+        sketch->setAllowOtherBody(
+            QApplication::keyboardModifiers() == Qt::ControlModifier
+            || QApplication::keyboardModifiers() == (Qt::ControlModifier | Qt::AltModifier)
+        );
+        sketch->setAllowUnaligned(
+            QApplication::keyboardModifiers() == (Qt::ControlModifier | Qt::AltModifier)
+        );
 
         this->notAllowedReason = "";
         Sketcher::SketchObject::eReasonList msg;
@@ -74,38 +75,45 @@ public:
         if (!sketch->isCarbonCopyAllowed(pDoc, pObj, xinv, yinv, &msg)) {
             switch (msg) {
                 case Sketcher::SketchObject::rlCircularReference:
-                    this->notAllowedReason =
-                        QT_TR_NOOP("Carbon copy would cause a circular dependency.");
+                    this->notAllowedReason = QT_TR_NOOP(
+                        "Carbon copy would cause a circular dependency."
+                    );
                     break;
                 case Sketcher::SketchObject::rlOtherDoc:
                     this->notAllowedReason = QT_TR_NOOP("This object is in another document.");
                     break;
                 case Sketcher::SketchObject::rlOtherBody:
-                    this->notAllowedReason = QT_TR_NOOP("This object belongs to another body. Hold "
-                                                        "Ctrl to allow cross-references.");
+                    this->notAllowedReason = QT_TR_NOOP(
+                        "This object belongs to another body. Hold "
+                        "Ctrl to allow cross-references."
+                    );
                     break;
                 case Sketcher::SketchObject::rlOtherBodyWithLinks:
-                    this->notAllowedReason =
-                        QT_TR_NOOP("This object belongs to another body and it contains external "
-                                   "geometry. Cross-reference not allowed.");
+                    this->notAllowedReason = QT_TR_NOOP(
+                        "This object belongs to another body and it contains external "
+                        "geometry. Cross-reference not allowed."
+                    );
                     break;
                 case Sketcher::SketchObject::rlOtherPart:
                     this->notAllowedReason = QT_TR_NOOP("This object belongs to another part.");
                     break;
                 case Sketcher::SketchObject::rlNonParallel:
-                    this->notAllowedReason =
-                        QT_TR_NOOP("The selected sketch is not parallel to this sketch. Hold "
-                                   "Ctrl+Alt to allow non-parallel sketches.");
+                    this->notAllowedReason = QT_TR_NOOP(
+                        "The selected sketch is not parallel to this sketch. Hold "
+                        "Ctrl+Alt to allow non-parallel sketches."
+                    );
                     break;
                 case Sketcher::SketchObject::rlAxesMisaligned:
-                    this->notAllowedReason =
-                        QT_TR_NOOP("The XY axes of the selected sketch do not have the same "
-                                   "direction as this sketch. Hold Ctrl+Alt to disregard it.");
+                    this->notAllowedReason = QT_TR_NOOP(
+                        "The XY axes of the selected sketch do not have the same "
+                        "direction as this sketch. Hold Ctrl+Alt to disregard it."
+                    );
                     break;
                 case Sketcher::SketchObject::rlOriginsMisaligned:
-                    this->notAllowedReason =
-                        QT_TR_NOOP("The origin of the selected sketch is not aligned with the "
-                                   "origin of this sketch. Hold Ctrl+Alt to disregard it.");
+                    this->notAllowedReason = QT_TR_NOOP(
+                        "The origin of the selected sketch is not aligned with the "
+                        "origin of this sketch. Hold Ctrl+Alt to disregard it."
+                    );
                     break;
                 default:
                     break;
@@ -120,6 +128,8 @@ public:
 
 class DrawSketchHandlerCarbonCopy: public DrawSketchHandler
 {
+    Q_DECLARE_TR_FUNCTIONS(SketcherGui::DrawSketchHandlerCarbonCopy)
+
 public:
     DrawSketchHandlerCarbonCopy() = default;
     ~DrawSketchHandlerCarbonCopy() override
@@ -127,9 +137,9 @@ public:
         Gui::Selection().rmvSelectionGate();
     }
 
-    void mouseMove(Base::Vector2d onSketchPos) override
+    void mouseMove(SnapManager::SnapHandle snapHandle) override
     {
-        Q_UNUSED(onSketchPos);
+        Q_UNUSED(snapHandle);
         if (Gui::Selection().getPreselection().pObjectName) {
             applyCursor();
         }
@@ -154,25 +164,29 @@ public:
     bool onSelectionChanged(const Gui::SelectionChanges& msg) override
     {
         if (msg.Type == Gui::SelectionChanges::AddSelection) {
-            App::DocumentObject* obj =
-                sketchgui->getObject()->getDocument()->getObject(msg.pObjectName);
+            App::DocumentObject* obj = sketchgui->getObject()->getDocument()->getObject(
+                msg.pObjectName
+            );
             if (!obj) {
                 throw Base::ValueError("Sketcher: Carbon Copy: Invalid object in selection");
             }
 
-            if (obj->is<Sketcher::SketchObject>()) {
+            std::string sketchArchType("Sketcher::SketchObjectPython");
+
+            if (obj->is<Sketcher::SketchObject>() || sketchArchType == obj->getTypeId().getName()) {
 
                 try {
-                    Gui::Command::openCommand(QT_TRANSLATE_NOOP("Command", "Create a carbon copy"));
-                    Gui::cmdAppObjectArgs(sketchgui->getObject(),
-                                          "carbonCopy(\"%s\",%s)",
-                                          msg.pObjectName,
-                                          constructionModeAsBooleanText());
+                    openCommand(QT_TRANSLATE_NOOP("Command", "Create a carbon copy"));
+                    Gui::cmdAppObjectArgs(
+                        sketchgui->getObject(),
+                        "carbonCopy(\"%s\",%s)",
+                        msg.pObjectName,
+                        constructionModeAsBooleanText()
+                    );
 
-                    Gui::Command::commitCommand();
+                    commitCommand();
 
-                    tryAutoRecomputeIfNotSolve(
-                        static_cast<Sketcher::SketchObject*>(sketchgui->getObject()));
+                    tryAutoRecomputeIfNotSolve(sketchgui->getObject<Sketcher::SketchObject>());
 
                     Gui::Selection().clearSelection();
                     /* this is ok not to call to purgeHandler
@@ -184,12 +198,14 @@ public:
                     Gui::NotifyError(
                         sketchgui,
                         QT_TRANSLATE_NOOP("Notifications", "Error"),
-                        QT_TRANSLATE_NOOP("Notifications", "Failed to add carbon copy"));
-                    Gui::Command::abortCommand();
+                        QT_TRANSLATE_NOOP("Notifications", "Failed to add carbon copy")
+                    );
+                    abortCommand();
                 }
                 return true;
             }
         }
+        updateHint();
         return false;
     }
 
@@ -209,7 +225,7 @@ private:
 
     QString getCrosshairCursorSVGName() const override
     {
-        return QString::fromLatin1("Sketcher_Pointer_CarbonCopy");
+        return QStringLiteral("Sketcher_Pointer_CarbonCopy");
     }
 
     void deactivated() override
@@ -217,9 +233,15 @@ private:
         Q_UNUSED(sketchgui);
         setAxisPickStyle(true);
     }
+
+public:
+    std::list<Gui::InputHint> getToolHints() const override
+    {
+        return {
+            {tr("%1 pick sketch to copy", "Sketcher CarbonCopy: hint"),
+             {Gui::InputHint::UserInput::MouseLeft}},
+        };
+    }
 };
 
 }  // namespace SketcherGui
-
-
-#endif  // SKETCHERGUI_DrawSketchHandlerCarbonCopy_H

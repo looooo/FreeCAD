@@ -4,99 +4,115 @@
   <context>
     <name>NavigationIndicator</name>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="70"/>
+      <location filename="../../NavigationIndicatorGui.py" line="86"/>
       <source>Select</source>
       <translation>Selecionar</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="71"/>
+      <location filename="../../NavigationIndicatorGui.py" line="87"/>
       <source>Zoom</source>
       <translation>Zoom</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="72"/>
+      <location filename="../../NavigationIndicatorGui.py" line="88"/>
       <source>Rotate</source>
       <translation>Rodar</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="73"/>
+      <location filename="../../NavigationIndicatorGui.py" line="89"/>
       <source>Pan</source>
       <translation>Arrastar vista (pan)</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="74"/>
+      <location filename="../../NavigationIndicatorGui.py" line="90"/>
       <source>Tilt</source>
       <translation>Inclinação</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="75"/>
+      <location filename="../../NavigationIndicatorGui.py" line="91"/>
       <source>Navigation style</source>
       <translation>Estilo de navegação</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="76"/>
+      <location filename="../../NavigationIndicatorGui.py" line="92"/>
       <source>Page Up or Page Down key.</source>
       <translation>Tecla Page Up ou Page Down.</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="77"/>
+      <location filename="../../NavigationIndicatorGui.py" line="93"/>
       <source>Rotation focus</source>
       <translation>Foco de rotação</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="78"/>
+      <location filename="../../NavigationIndicatorGui.py" line="94"/>
       <source>Middle mouse button or H key.</source>
       <translation>Botão do meio do rato ou a tecla H.</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="80"/>
+      <location filename="../../NavigationIndicatorGui.py" line="96"/>
       <source>Middle mouse button.</source>
       <translation>Botão do meio do rato.</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="83"/>
+      <location filename="../../NavigationIndicatorGui.py" line="99"/>
       <source>Navigation style not recognized.</source>
       <translation>Estilo de navegação não reconhecido.</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="550"/>
+      <location filename="../../NavigationIndicatorGui.py" line="608"/>
       <source>Settings</source>
       <translation>Ajustes</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="551"/>
+      <location filename="../../NavigationIndicatorGui.py" line="609"/>
       <source>Orbit style</source>
       <translation>Estilo da Órbita</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="552"/>
+      <location filename="../../NavigationIndicatorGui.py" line="610"/>
       <source>Compact</source>
       <translation>Compacto</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="553"/>
+      <location filename="../../NavigationIndicatorGui.py" line="611"/>
       <source>Tooltip</source>
       <translation>Sugestão</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="554"/>
+      <location filename="../../NavigationIndicatorGui.py" line="612"/>
       <source>Turntable</source>
       <translation>Plataforma giratória</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="555"/>
+      <location filename="../../NavigationIndicatorGui.py" line="613"/>
       <source>Free Turntable</source>
-      <translation type="unfinished">Free Turntable</translation>
+      <translation>Plataforma giratória livre</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="556"/>
+      <location filename="../../NavigationIndicatorGui.py" line="614"/>
       <source>Trackball</source>
       <translation>Trackball</translation>
     </message>
     <message>
-      <location filename="../../NavigationIndicatorGui.py" line="557"/>
+      <location filename="../../NavigationIndicatorGui.py" line="615"/>
+      <source>Trackball Classic</source>
+      <translation type="unfinished">Trackball Classic</translation>
+    </message>
+    <message>
+      <location filename="../../NavigationIndicatorGui.py" line="616"/>
+      <source>Rounded Arcball</source>
+      <translation type="unfinished">Rounded Arcball</translation>
+    </message>
+    <message>
+      <location filename="../../NavigationIndicatorGui.py" line="617"/>
       <source>Undefined</source>
       <translation>Indefinido</translation>
+    </message>
+    <message>
+      <location filename="../../NavigationIndicatorGui.py" line="629"/>
+      <source>Navigation indicator</source>
+      <comment>A context menu action used to show or hide the &apos;Navigation indicator&apos; toolbar widget</comment>
+      <translation type="unfinished">Navigation indicator</translation>
     </message>
   </context>
 </TS>

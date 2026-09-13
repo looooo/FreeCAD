@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,9 +22,9 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DrawUtil_h_
-#define DrawUtil_h_
+#pragma once
 
+#include <limits>
 #include <string>
 
 #include <QByteArray>
@@ -44,19 +46,22 @@
 #include <gp_Vec.hxx>
 
 #include <Base/Vector3D.h>
+#include <Base/Converter.h>
 #include <Mod/Part/App/PartFeature.h>
+#include <Mod/Part/App/Tools.h>
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
 
-#ifndef M_2PI
-#define M_2PI ((M_PI)*2.0)
-#endif
+constexpr double DegreesHalfCircle{180.0};
 
 #define VERTEXTOLERANCE (2.0 * Precision::Confusion())
 #define VECTORTOLERANCE (Precision::Confusion())
 
 #define SVG_NS_URI "http://www.w3.org/2000/svg"
 #define FREECAD_SVG_NS_URI "https://www.freecad.org/wiki/index.php?title=Svg_Namespace"
+
+#define FREECAD_ATTR_EDITABLE "freecad:editable"
+#define FREECAD_ATTR_AUTOFILL "freecad:autofill"
 
 //some shapes are being passed in where edges that should be connected are in fact
 //separated by more than 2*Precision::Confusion (expected tolerance for 2 TopoDS_Vertex)
@@ -86,7 +91,9 @@ class TechDrawExport DrawUtil
 {
 public:
     static int getIndexFromName(const std::string& geomName);
+    static std::vector<int> getIndexFromName(const std::vector<std::string>& geomNames);
     static std::string getGeomTypeFromName(const std::string& geomName);
+    static bool isGeomTypeConsistent(const std::vector<std::string>& geomNames);
     static std::string makeGeomName(const std::string& geomType, int index);
     static bool isSamePoint(TopoDS_Vertex v1, TopoDS_Vertex v2, double tolerance = VERTEXTOLERANCE);
     static bool isZeroEdge(TopoDS_Edge e, double tolerance = VERTEXTOLERANCE);
@@ -99,7 +106,8 @@ public:
 
     static bool isFirstVert(TopoDS_Edge e, TopoDS_Vertex v, double tolerance = VERTEXTOLERANCE);
     static bool isLastVert(TopoDS_Edge e, TopoDS_Vertex v, double tolerance = VERTEXTOLERANCE);
-    static bool fpCompare(const double& d1, const double& d2, double tolerance = FLT_EPSILON);
+    static bool fpCompare(const double& d1, const double& d2,
+                          double tolerance = std::numeric_limits<float>::epsilon());
     static std::pair<Base::Vector3d, Base::Vector3d>
     boxIntersect2d(Base::Vector3d point, Base::Vector3d dir, double xRange, double yRange);
     static bool apparentIntersection(const Handle(Geom_Curve) curve1,
@@ -111,12 +119,12 @@ public:
 
     static Base::Vector3d vertex2Vector(const TopoDS_Vertex& v);
 
+    template <typename T>
+    static std::string formatVector(const T& v)
+    {
+        return formatVector(Base::convertTo<Base::Vector3d>(v));
+    }
     static std::string formatVector(const Base::Vector3d& v);
-    static std::string formatVector(const gp_Dir& v);
-    static std::string formatVector(const gp_Dir2d& v);
-    static std::string formatVector(const gp_Vec& v);
-    static std::string formatVector(const gp_Pnt& v);
-    static std::string formatVector(const gp_Pnt2d& v);
     static std::string formatVector(const QPointF& v);
 
     static bool vectorLess(const Base::Vector3d& v1, const Base::Vector3d& v2);
@@ -138,7 +146,7 @@ public:
 
     static Base::Vector3d toR3(const gp_Ax2& fromSystem, const Base::Vector3d& fromPoint);
     static bool checkParallel(const Base::Vector3d v1, const Base::Vector3d v2,
-                              double tolerance = FLT_EPSILON);
+                              double tolerance = std::numeric_limits<float>::epsilon());
     //! rotate vector by angle radians around axis through org
     static Base::Vector3d vecRotate(Base::Vector3d vec, double angle, Base::Vector3d axis,
                                     Base::Vector3d org = Base::Vector3d(0.0, 0.0, 0.0));
@@ -147,8 +155,12 @@ public:
     static gp_Vec closestBasis(gp_Vec inVec);
     static Base::Vector3d closestBasis(Base::Vector3d vDir, gp_Ax2 coordSys);
     static Base::Vector3d closestBasis(gp_Dir gDir, gp_Ax2 coordSys);
+    static Base::Vector3d closestBasisOriented(Base::Vector3d v);
 
     static double getWidthInDirection(gp_Dir direction, TopoDS_Shape& shape);
+    static gp_Vec maskDirection(gp_Vec inVec, gp_Dir directionToMask);
+    static Base::Vector3d maskDirection(Base::Vector3d inVec, Base::Vector3d directionToMask);
+    static double coordinateForDirection(Base::Vector3d inPoint,  Base::Vector3d cardinal);
 
     static double getDefaultLineWeight(std::string s);
     //! is pt between end1 and end2?
@@ -160,36 +172,13 @@ public:
     static Base::Vector2d Intersect2d(Base::Vector2d p1, Base::Vector2d d1, Base::Vector2d p2,
                                       Base::Vector2d d2);
 
-    static Base::Vector3d toVector3d(const gp_Pnt gp)
+
+    static Base::Vector3d toVector3d(const QPointF& v)
     {
-        return Base::Vector3d(gp.X(), gp.Y(), gp.Z());
-    }
-    static Base::Vector3d toVector3d(const gp_Dir gp)
-    {
-        return Base::Vector3d(gp.X(), gp.Y(), gp.Z());
-    }
-    static Base::Vector3d toVector3d(const gp_Vec gp)
-    {
-        return Base::Vector3d(gp.X(), gp.Y(), gp.Z());
-    }
-    static Base::Vector3d toVector3d(const QPointF gp)
-    {
-        return Base::Vector3d(gp.x(), gp.y(), 0.0);
+        return Base::Vector3d(v.x(), v.y(), 0);
     }
 
-    static gp_Pnt togp_Pnt(const Base::Vector3d v)
-    {
-        return gp_Pnt(v.x, v.y, v.z);
-    }
-    static gp_Dir togp_Dir(const Base::Vector3d v)
-    {
-        return gp_Dir(v.x, v.y, v.z);
-    }
-    static gp_Vec togp_Vec(const Base::Vector3d v)
-    {
-        return gp_Vec(v.x, v.y, v.z);
-    }
-    static QPointF toQPointF(const Base::Vector3d v)
+    static QPointF toQPointF(const Base::Vector3d &v)
     {
         return QPointF(v.x, v.y);
     }
@@ -201,8 +190,8 @@ public:
     static std::vector<std::string> split(std::string csvLine);
     static std::vector<std::string> tokenize(std::string csvLine,
                                              std::string delimiter = ", $$$, ");
-    static App::Color pyTupleToColor(PyObject* pColor);
-    static PyObject* colorToPyTuple(App::Color color);
+    static Base::Color pyTupleToColor(PyObject* pColor);
+    static PyObject* colorToPyTuple(Base::Color color);
     static bool isCrazy(TopoDS_Edge e);
     static Base::Vector3d getFaceCenter(TopoDS_Face f);
     static bool circulation(Base::Vector3d A, Base::Vector3d B, Base::Vector3d C);
@@ -217,6 +206,7 @@ public:
     static void angleNormalize(double& fi);
     static double angleComposition(double fi, double delta);
     static double angleDifference(double fi1, double fi2, bool reflex = false);
+    static std::pair<int, int> nearestFraction(double val, int maxDenom = 999);
 
     // Interval marking functions
     static unsigned int intervalMerge(std::vector<std::pair<double, bool>>& marking,
@@ -258,12 +248,14 @@ public:
 
     static std::string translateArbitrary(std::string context, std::string baseName, std::string uniqueName);
 
-    static bool isCosmeticVertex(App::DocumentObject* owner, std::string element);
-    static bool isCosmeticEdge(App::DocumentObject* owner, std::string element);
-    static bool isCenterLine(App::DocumentObject* owner, std::string element);
-
     static Base::Vector3d  toAppSpace(const DrawViewPart& dvp, const Base::Vector3d& inPoint);
     static Base::Vector3d  toAppSpace(const DrawViewPart& dvp, const QPointF& inPoint);
+
+    static bool isWithinRange(double actualAngleIn, double targetAngleIn, double allowableError);
+
+    static std::string cleanFilespecBackslash(const std::string& filespec);
+
+    static bool isGuiUp();
 
     //debugging routines
     static void dumpVertexes(const char* text, const TopoDS_Shape& s);
@@ -279,5 +271,8 @@ public:
     static void dumpEdges(const char* text, const TopoDS_Shape& s);
 };
 
+
+// GCC BUG 85282, wanting this to be outside class body. This is only the declaration, the definition .cpp
+//template<> std::string DrawUtil::formatVector<Base::Vector3d>(const Base::Vector3d &v);
+
 }//end namespace TechDraw
-#endif

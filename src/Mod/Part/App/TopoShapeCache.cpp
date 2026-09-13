@@ -22,7 +22,6 @@
  *                                                                          *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 #include "TopoShapeCache.h"
 
 using namespace Part;
@@ -42,9 +41,14 @@ bool ShapeRelationKey::operator<(const ShapeRelationKey& other) const
 
 TopoShape TopoShapeCache::Ancestry::_getTopoShape(const TopoShape& parent, int index)
 {
-    auto& ts = topoShapes[index - 1];
+    TopoShape ts;
+
+    if (int(topoShapes.size()) >= index) {
+        ts = topoShapes[index - 1];
+    }
+
     if (ts.isNull()) {
-        ts.setShape(shapes.FindKey(index), true);
+        ts = shapes.FindKey(index);
         ts.initCache();
         ts._cache->subLocation = ts._Shape.Location();
     }
@@ -79,13 +83,19 @@ TopoShape TopoShapeCache::Ancestry::_getTopoShape(const TopoShape& parent, int i
         // in the direct parent shape, while TopoShape::_subLocation is
         // used to accumulate locations in higher ancestors. We
         // separate these two to avoid invalidating cache.
-
         res._subLocation = parent._subLocation * parent._cache->subLocation;
         res._parentCache = parent._parentCache;
     }
     else {
         res._parentCache = owner->shared_from_this();
     }
+
+    // the subelement doesn't have an element map, lets find it by mapping the parent shape onto the
+    // subelement.
+    if (res.elementMap(false) == 0 && res._parentCache->cachedElementMap) {
+        res.flushElementMap();
+    }
+
     return res;
 }
 
@@ -117,8 +127,7 @@ std::vector<TopoShape> TopoShapeCache::Ancestry::getTopoShapes(const TopoShape& 
     return res;
 }
 
-TopoDS_Shape TopoShapeCache::Ancestry::stripLocation(const TopoDS_Shape& parent,
-                                                     const TopoDS_Shape& child)
+TopoDS_Shape TopoShapeCache::Ancestry::stripLocation(const TopoDS_Shape& parent, const TopoDS_Shape& child)
 {
     if (parent.Location() != owner->location) {
         owner->location = parent.Location();
@@ -151,13 +160,16 @@ int TopoShapeCache::Ancestry::count() const
     return shapes.Extent();
 }
 
+bool TopoShapeCache::Ancestry::empty() const
+{
+    return shapes.IsEmpty();
+}
 
 TopoShapeCache::TopoShapeCache(const TopoDS_Shape& tds)
     : shape(tds.Located(TopLoc_Location()))
 {}
 
-void TopoShapeCache::insertRelation(const ShapeRelationKey& key,
-                                    const QVector<Data::MappedElement>& value)
+void TopoShapeCache::insertRelation(const ShapeRelationKey& key, const QVector<Data::MappedElement>& value)
 {
     auto [insertedItr, newKeyInserted] = relations.insert({key, value});
     if (newKeyInserted) {
@@ -216,10 +228,12 @@ TopoDS_Shape TopoShapeCache::findShape(const TopoDS_Shape& parent, TopAbs_ShapeE
     return {};
 }
 
-TopoDS_Shape TopoShapeCache::findAncestor(const TopoDS_Shape& parent,
-                                          const TopoDS_Shape& subShape,
-                                          TopAbs_ShapeEnum type,
-                                          std::vector<TopoDS_Shape>* ancestors)
+TopoDS_Shape TopoShapeCache::findAncestor(
+    const TopoDS_Shape& parent,
+    const TopoDS_Shape& subShape,
+    TopAbs_ShapeEnum type,
+    std::vector<TopoDS_Shape>* ancestors
+)
 {
     TopoDS_Shape nullShape;
     if (shape.IsNull() || subShape.IsNull() || type == TopAbs_SHAPE) {

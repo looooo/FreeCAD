@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2002 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -21,129 +23,24 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
+#include <FCConfig.h>
 
-#ifndef _PreComp_
 #if defined(FC_OS_WIN32)
-#include <windows.h>
+# include <windows.h>
 #elif defined(FC_OS_LINUX) || defined(FC_OS_MACOSX)
-#include <unistd.h>
+# include <unistd.h>
 #endif
 #include <cstring>
 #include <functional>
-#endif
 
 #include "Console.h"
-#include "Exception.h"
 #include "PyObjectBase.h"
-#include <QCoreApplication>
 
 
 using namespace Base;
 
 
 //=========================================================================
-
-namespace Base
-{
-
-class ConsoleEvent: public QEvent
-{
-public:
-    ConsoleSingleton::FreeCAD_ConsoleMsgType msgtype;
-    IntendedRecipient recipient;
-    ContentType content;
-    std::string notifier;
-    std::string msg;
-
-    ConsoleEvent(ConsoleSingleton::FreeCAD_ConsoleMsgType type,
-                 IntendedRecipient recipient,
-                 ContentType content,
-                 const std::string& notifier,
-                 const std::string& msg)
-        : QEvent(QEvent::User)
-        , msgtype(type)
-        , recipient(recipient)
-        , content(content)
-        , notifier(notifier)
-        , msg(msg)
-    {}
-};
-
-class ConsoleOutput: public QObject  // clazy:exclude=missing-qobject-macro
-{
-public:
-    static ConsoleOutput* getInstance()
-    {
-        if (!instance) {
-            instance = new ConsoleOutput;
-        }
-        return instance;
-    }
-    static void destruct()
-    {
-        delete instance;
-        instance = nullptr;
-    }
-
-    void customEvent(QEvent* ev) override
-    {
-        if (ev->type() == QEvent::User) {
-            ConsoleEvent* ce = static_cast<ConsoleEvent*>(ev);
-            switch (ce->msgtype) {
-                case ConsoleSingleton::MsgType_Txt:
-                    Console().notifyPrivate(LogStyle::Message,
-                                            ce->recipient,
-                                            ce->content,
-                                            ce->notifier,
-                                            ce->msg);
-                    break;
-                case ConsoleSingleton::MsgType_Log:
-                    Console().notifyPrivate(LogStyle::Log,
-                                            ce->recipient,
-                                            ce->content,
-                                            ce->notifier,
-                                            ce->msg);
-                    break;
-                case ConsoleSingleton::MsgType_Wrn:
-                    Console().notifyPrivate(LogStyle::Warning,
-                                            ce->recipient,
-                                            ce->content,
-                                            ce->notifier,
-                                            ce->msg);
-                    break;
-                case ConsoleSingleton::MsgType_Err:
-                    Console().notifyPrivate(LogStyle::Error,
-                                            ce->recipient,
-                                            ce->content,
-                                            ce->notifier,
-                                            ce->msg);
-                    break;
-                case ConsoleSingleton::MsgType_Critical:
-                    Console().notifyPrivate(LogStyle::Critical,
-                                            ce->recipient,
-                                            ce->content,
-                                            ce->notifier,
-                                            ce->msg);
-                    break;
-                case ConsoleSingleton::MsgType_Notification:
-                    Console().notifyPrivate(LogStyle::Notification,
-                                            ce->recipient,
-                                            ce->content,
-                                            ce->notifier,
-                                            ce->msg);
-                    break;
-            }
-        }
-    }
-
-private:
-    static ConsoleOutput* instance;  // NOLINT
-};
-
-ConsoleOutput* ConsoleOutput::instance = nullptr;  // NOLINT
-
-}  // namespace Base
 
 //**************************************************************************
 // Construction destruction
@@ -159,8 +56,7 @@ ConsoleSingleton::ConsoleSingleton()
 
 ConsoleSingleton::~ConsoleSingleton()
 {
-    ConsoleOutput::destruct();
-    for (ILogger* Iter : _aclObservers) {
+    for (ILogger* Iter : _aclObservers) {  // NOLINT
         delete Iter;
     }
 }
@@ -168,26 +64,6 @@ ConsoleSingleton::~ConsoleSingleton()
 
 //**************************************************************************
 // methods
-
-/**
- *  sets the console in a special mode
- */
-void ConsoleSingleton::SetConsoleMode(ConsoleMode mode)
-{
-    if (mode & Verbose) {
-        _bVerbose = true;
-    }
-}
-
-/**
- *  unsets the console from a special mode
- */
-void ConsoleSingleton::UnsetConsoleMode(ConsoleMode mode)
-{
-    if (mode & Verbose) {
-        _bVerbose = false;
-    }
-}
 
 /**
  * \a type can be OR'ed with any of the FreeCAD_ConsoleMsgType flags to enable -- if \a b is true --
@@ -207,10 +83,13 @@ void ConsoleSingleton::UnsetConsoleMode(ConsoleMode mode)
  * switches off warnings and error messages and restore the state before the modification.
  * If the observer \a sObs doesn't exist then nothing happens.
  */
-ConsoleMsgFlags ConsoleSingleton::SetEnabledMsgType(const char* sObs, ConsoleMsgFlags type, bool on)
+ConsoleMsgFlags ConsoleSingleton::setEnabledMsgType(
+    const char* sObs,
+    const ConsoleMsgFlags type,
+    const bool on
+) const
 {
-    ILogger* pObs = Get(sObs);
-    if (pObs) {
+    if (ILogger* pObs = get(sObs)) {
         ConsoleMsgFlags flags = 0;
 
         if (type & MsgType_Err) {
@@ -256,10 +135,9 @@ ConsoleMsgFlags ConsoleSingleton::SetEnabledMsgType(const char* sObs, ConsoleMsg
     return 0;
 }
 
-bool ConsoleSingleton::IsMsgTypeEnabled(const char* sObs, FreeCAD_ConsoleMsgType type) const
+bool ConsoleSingleton::isMsgTypeEnabled(const char* sObs, const FreeCAD_ConsoleMsgType type) const
 {
-    ILogger* pObs = Get(sObs);
-    if (pObs) {
+    if (const ILogger* pObs = get(sObs)) {
         switch (type) {
             case MsgType_Txt:
                 return pObs->bMsg;
@@ -281,14 +159,20 @@ bool ConsoleSingleton::IsMsgTypeEnabled(const char* sObs, FreeCAD_ConsoleMsgType
     return false;
 }
 
-void ConsoleSingleton::SetConnectionMode(ConnectionMode mode)
+void ConsoleSingleton::setConnectionMode(const ConnectionMode mode)
 {
     connectionMode = mode;
+}
 
-    // make sure this method gets called from the main thread
-    if (connectionMode == Queued) {
-        ConsoleOutput::getInstance();
-    }
+void ConsoleSingleton::notify(
+    const LogStyle category,
+    const IntendedRecipient recipient,
+    const ContentType content,
+    const std::string& notifiername,
+    const std::string& msg
+)
+{
+    notifyPrivate(category, recipient, content, notifiername, msg);
 }
 
 //**************************************************************************
@@ -300,10 +184,10 @@ void ConsoleSingleton::SetConnectionMode(ConnectionMode mode)
  *  be forwarded to it.
  *  @see ILogger
  */
-void ConsoleSingleton::AttachObserver(ILogger* pcObserver)
+void ConsoleSingleton::attachObserver(ILogger* pcObserver)
 {
     // double insert !!
-    assert(_aclObservers.find(pcObserver) == _aclObservers.end());
+    assert(!_aclObservers.contains(pcObserver));
 
     _aclObservers.insert(pcObserver);
 }
@@ -313,43 +197,88 @@ void ConsoleSingleton::AttachObserver(ILogger* pcObserver)
  *  After detaching you can destruct the Observer or reinsert it later.
  *  @see ILogger
  */
-void ConsoleSingleton::DetachObserver(ILogger* pcObserver)
+void ConsoleSingleton::detachObserver(ILogger* pcObserver)
 {
     _aclObservers.erase(pcObserver);
 }
 
-void Base::ConsoleSingleton::notifyPrivate(LogStyle category,
-                                           IntendedRecipient recipient,
-                                           ContentType content,
-                                           const std::string& notifiername,
-                                           const std::string& msg)
+void ConsoleSingleton::notifyPrivate(
+    const LogStyle category,
+    const IntendedRecipient recipient,
+    const ContentType content,
+    const std::string& notifiername,
+    const std::string& msg
+) const
 {
     for (ILogger* Iter : _aclObservers) {
         if (Iter->isActive(category)) {
-            Iter->SendLog(notifiername,
-                          msg,
-                          category,
-                          recipient,
-                          content);  // send string to the listener
+            Iter->sendLog(
+                notifiername,
+                msg,
+                category,
+                recipient,
+                content
+            );  // send string to the listener
         }
     }
 }
 
-void ConsoleSingleton::postEvent(ConsoleSingleton::FreeCAD_ConsoleMsgType type,
-                                 IntendedRecipient recipient,
-                                 ContentType content,
-                                 const std::string& notifiername,
-                                 const std::string& msg)
+void ConsoleSingleton::postEvent(
+    const FreeCAD_ConsoleMsgType type,
+    const IntendedRecipient recipient,
+    const ContentType content,
+    const std::string& notifiername,
+    const std::string& msg
+)
 {
-    QCoreApplication::postEvent(ConsoleOutput::getInstance(),
-                                new ConsoleEvent(type, recipient, content, notifiername, msg));
+    PostEventHandler handler;
+    {
+        std::lock_guard<std::mutex> lock(_handlerMutex);
+        handler = _postEventHandler;
+    }
+
+    if (handler) {
+        handler(type, recipient, content, notifiername, msg);
+        return;
+    }
+
+    if (const Bridge* bridge = getBridge()) {
+        bridge->postEvent(type, recipient, content, notifiername, msg);
+        return;
+    }
+
+    LogStyle category {};
+    switch (type) {
+        case MsgType_Txt:
+            category = LogStyle::Message;
+            break;
+        case MsgType_Log:
+            category = LogStyle::Log;
+            break;
+        case MsgType_Wrn:
+            category = LogStyle::Warning;
+            break;
+        case MsgType_Err:
+            category = LogStyle::Error;
+            break;
+        case MsgType_Critical:
+            category = LogStyle::Critical;
+            break;
+        case MsgType_Notification:
+            category = LogStyle::Notification;
+            break;
+        default:
+            return;
+    }
+
+    notifyPrivate(category, recipient, content, notifiername, msg);
 }
 
-ILogger* ConsoleSingleton::Get(const char* Name) const
+ILogger* ConsoleSingleton::get(const char* Name) const
 {
     const char* OName {};
     for (ILogger* Iter : _aclObservers) {
-        OName = Iter->Name();  // get the name
+        OName = Iter->name();  // get the name
         if (OName && strcmp(OName, Name) == 0) {
             return Iter;
         }
@@ -357,12 +286,12 @@ ILogger* ConsoleSingleton::Get(const char* Name) const
     return nullptr;
 }
 
-int* ConsoleSingleton::GetLogLevel(const char* tag, bool create)
+int* ConsoleSingleton::getLogLevel(const char* tag, const bool create)
 {
     if (!tag) {
         tag = "";
     }
-    if (_logLevels.find(tag) != _logLevels.end()) {
+    if (_logLevels.contains(tag)) {
         return &_logLevels[tag];
     }
     if (!create) {
@@ -373,16 +302,50 @@ int* ConsoleSingleton::GetLogLevel(const char* tag, bool create)
     return &ret;
 }
 
-void ConsoleSingleton::Refresh()
+void ConsoleSingleton::refresh() const
 {
     if (_bCanRefresh) {
-        qApp->processEvents(QEventLoop::ExcludeUserInputEvents);
+        RefreshHandler handler;
+        {
+            std::lock_guard<std::mutex> lock(_handlerMutex);
+            handler = _refreshHandler;
+        }
+        if (handler) {
+            handler();
+            return;
+        }
+
+        if (const Bridge* bridge = getBridge()) {
+            bridge->refresh();
+        }
     }
 }
 
-void ConsoleSingleton::EnableRefresh(bool enable)
+void ConsoleSingleton::enableRefresh(const bool enable)
 {
     _bCanRefresh = enable;
+}
+
+void ConsoleSingleton::setBridge(const Bridge* bridge)
+{
+    _bridge.store(bridge, std::memory_order_release);
+}
+
+const ConsoleSingleton::Bridge* ConsoleSingleton::getBridge() const
+{
+    return _bridge.load(std::memory_order_acquire);
+}
+
+void ConsoleSingleton::setPostEventHandler(PostEventHandler handler)
+{
+    std::lock_guard<std::mutex> lock(_handlerMutex);
+    _postEventHandler = std::move(handler);
+}
+
+void ConsoleSingleton::setRefreshHandler(RefreshHandler handler)
+{
+    std::lock_guard<std::mutex> lock(_handlerMutex);
+    _refreshHandler = std::move(handler);
 }
 
 //**************************************************************************
@@ -398,7 +361,7 @@ void ConsoleSingleton::Destruct()
     _pcSingleton = nullptr;
 }
 
-ConsoleSingleton& ConsoleSingleton::Instance()
+ConsoleSingleton& ConsoleSingleton::instance()
 {
     // not initialized?
     if (!_pcSingleton) {
@@ -410,110 +373,6 @@ ConsoleSingleton& ConsoleSingleton::Instance()
 //**************************************************************************
 // Python stuff
 
-// ConsoleSingleton Methods structure
-PyMethodDef ConsoleSingleton::Methods[] = {
-    {"PrintMessage",
-     ConsoleSingleton::sPyMessage,
-     METH_VARARGS,
-     "PrintMessage(obj) -> None\n\n"
-     "Print a message to the output.\n\n"
-     "obj : object\n    The string representation is printed."},
-    {"PrintLog",
-     ConsoleSingleton::sPyLog,
-     METH_VARARGS,
-     "PrintLog(obj) -> None\n\n"
-     "Print a log message to the output.\n\n"
-     "obj : object\n    The string representation is printed."},
-    {"PrintError",
-     ConsoleSingleton::sPyError,
-     METH_VARARGS,
-     "PrintError(obj) -> None\n\n"
-     "Print an error message to the output.\n\n"
-     "obj : object\n    The string representation is printed."},
-    {"PrintDeveloperError",
-     ConsoleSingleton::sPyDeveloperError,
-     METH_VARARGS,
-     "PrintDeveloperError(obj) -> None\n\n"
-     "Print an error message intended only for Developers to the output.\n\n"
-     "obj : object\n    The string representation is printed."},
-    {"PrintUserError",
-     ConsoleSingleton::sPyUserError,
-     METH_VARARGS,
-     "PrintUserError(obj) -> None\n\n"
-     "Print an error message intended only for the User to the output.\n\n"
-     "obj : object\n    The string representation is printed."},
-    {"PrintTranslatedUserError",
-     ConsoleSingleton::sPyTranslatedUserError,
-     METH_VARARGS,
-     "PrintTranslatedUserError(obj) -> None\n\n"
-     "Print an already translated error message intended only for the User to the output.\n\n"
-     "obj : object\n    The string representation is printed."},
-    {"PrintWarning",
-     ConsoleSingleton::sPyWarning,
-     METH_VARARGS,
-     "PrintWarning(obj) -> None\n\n"
-     "Print a warning message to the output.\n\n"
-     "obj : object\n    The string representation is printed."},
-    {"PrintDeveloperWarning",
-     ConsoleSingleton::sPyDeveloperWarning,
-     METH_VARARGS,
-     "PrintDeveloperWarning(obj) -> None\n\n"
-     "Print an warning message intended only for Developers to the output.\n\n"
-     "obj : object\n    The string representation is printed."},
-    {"PrintUserWarning",
-     ConsoleSingleton::sPyUserWarning,
-     METH_VARARGS,
-     "PrintUserWarning(obj) -> None\n\n"
-     "Print a warning message intended only for the User to the output.\n\n"
-     "obj : object\n    The string representation is printed."},
-    {"PrintTranslatedUserWarning",
-     ConsoleSingleton::sPyTranslatedUserWarning,
-     METH_VARARGS,
-     "PrintTranslatedUserWarning(obj) -> None\n\n"
-     "Print an already translated warning message intended only for the User to the output.\n\n"
-     "obj : object\n    The string representation is printed."},
-    {"PrintCritical",
-     ConsoleSingleton::sPyCritical,
-     METH_VARARGS,
-     "PrintCritical(obj) -> None\n\n"
-     "Print a critical message to the output.\n\n"
-     "obj : object\n    The string representation is printed."},
-    {"PrintNotification",
-     ConsoleSingleton::sPyNotification,
-     METH_VARARGS,
-     "PrintNotification(obj) -> None\n\n"
-     "Print a user notification to the output.\n\n"
-     "obj : object\n    The string representation is printed."},
-    {"PrintTranslatedNotification",
-     ConsoleSingleton::sPyTranslatedNotification,
-     METH_VARARGS,
-     "PrintTranslatedNotification(obj) -> None\n\n"
-     "Print an already translated notification to the output.\n\n"
-     "obj : object\n    The string representation is printed."},
-    {"SetStatus",
-     ConsoleSingleton::sPySetStatus,
-     METH_VARARGS,
-     "SetStatus(observer, type, status) -> None\n\n"
-     "Set the status for either 'Log', 'Msg', 'Wrn' or 'Error' for an observer.\n\n"
-     "observer : str\n    Logging interface name.\n"
-     "type : str\n    Message type.\n"
-     "status : bool"},
-    {"GetStatus",
-     ConsoleSingleton::sPyGetStatus,
-     METH_VARARGS,
-     "GetStatus(observer, type) -> bool or None\n\n"
-     "Get the status for either 'Log', 'Msg', 'Wrn' or 'Error' for an observer.\n"
-     "Returns None if the specified observer doesn't exist.\n\n"
-     "observer : str\n    Logging interface name.\n"
-     "type : str\n    Message type."},
-    {"GetObservers",
-     ConsoleSingleton::sPyGetObservers,
-     METH_VARARGS,
-     "GetObservers() -> list of str\n\n"
-     "Get the names of the current logging interfaces."},
-    {nullptr, nullptr, 0, nullptr} /* Sentinel */
-};
-
 namespace
 {
 PyObject* FC_PYCONSOLE_MSG(std::function<void(const char*, const char*)> func, PyObject* args)
@@ -521,7 +380,7 @@ PyObject* FC_PYCONSOLE_MSG(std::function<void(const char*, const char*)> func, P
     PyObject* output {};
     PyObject* notifier {};
 
-    const char* notifierStr = "";
+    auto notifierStr = "";
 
     auto retrieveString = [](PyObject* pystr) {
         PyObject* unicode = nullptr;
@@ -560,9 +419,8 @@ PyObject* FC_PYCONSOLE_MSG(std::function<void(const char*, const char*)> func, P
 
     PY_TRY
     {
-        const char* string = retrieveString(output);
 
-        if (string) {
+        if (const char* string = retrieveString(output)) {
             func(notifierStr, string); /*process message*/
         }
     }
@@ -571,160 +429,183 @@ PyObject* FC_PYCONSOLE_MSG(std::function<void(const char*, const char*)> func, P
 }
 }  // namespace
 
-PyObject* ConsoleSingleton::sPyMessage(PyObject* /*self*/, PyObject* args)
+PyObject* ConsoleSingleton::sPrintMessage(PyObject* /*self*/, PyObject* args)
 {
     return FC_PYCONSOLE_MSG(
         [](const std::string& notifier, const char* msg) {
-            Instance()
-                .Send<Base::LogStyle::Message,
-                      Base::IntendedRecipient::Developer,
-                      Base::ContentType::Untranslatable>(notifier, "%s", msg);
+            instance().send<LogStyle::Message, IntendedRecipient::Developer, ContentType::Untranslatable>(
+                notifier,
+                "%s",
+                msg
+            );
         },
-        args);
+        args
+    );
 }
 
-PyObject* ConsoleSingleton::sPyWarning(PyObject* /*self*/, PyObject* args)
+PyObject* ConsoleSingleton::sPrintWarning(PyObject* /*self*/, PyObject* args)
+{
+    return FC_PYCONSOLE_MSG(
+        [](const std::string& notifier, const char* msg) { instance().warning(notifier, "%s", msg); },
+        args
+    );
+}
+
+PyObject* ConsoleSingleton::sPrintDeveloperWarning(PyObject* /*self*/, PyObject* args)
 {
     return FC_PYCONSOLE_MSG(
         [](const std::string& notifier, const char* msg) {
-            Instance().Warning(notifier, "%s", msg);
+            instance().send<LogStyle::Warning, IntendedRecipient::Developer, ContentType::Untranslatable>(
+                notifier,
+                "%s",
+                msg
+            );
         },
-        args);
+        args
+    );
 }
 
-PyObject* ConsoleSingleton::sPyDeveloperWarning(PyObject* /*self*/, PyObject* args)
+PyObject* ConsoleSingleton::sPrintUserWarning(PyObject* /*self*/, PyObject* args)
 {
     return FC_PYCONSOLE_MSG(
         [](const std::string& notifier, const char* msg) {
-            Instance()
-                .Send<Base::LogStyle::Warning,
-                      Base::IntendedRecipient::Developer,
-                      Base::ContentType::Untranslatable>(notifier, "%s", msg);
+            instance().send<LogStyle::Warning, IntendedRecipient::User, ContentType::Untranslated>(
+                notifier,
+                "%s",
+                msg
+            );
         },
-        args);
+        args
+    );
 }
 
-PyObject* ConsoleSingleton::sPyUserWarning(PyObject* /*self*/, PyObject* args)
+PyObject* ConsoleSingleton::sPrintTranslatedUserWarning(PyObject* /*self*/, PyObject* args)
 {
     return FC_PYCONSOLE_MSG(
         [](const std::string& notifier, const char* msg) {
-            Instance()
-                .Send<Base::LogStyle::Warning,
-                      Base::IntendedRecipient::User,
-                      Base::ContentType::Untranslated>(notifier, "%s", msg);
+            instance().send<LogStyle::Warning, IntendedRecipient::User, ContentType::Translated>(
+                notifier,
+                "%s",
+                msg
+            );
         },
-        args);
+        args
+    );
 }
 
-PyObject* ConsoleSingleton::sPyTranslatedUserWarning(PyObject* /*self*/, PyObject* args)
+PyObject* ConsoleSingleton::sPrintError(PyObject* /*self*/, PyObject* args)
 {
     return FC_PYCONSOLE_MSG(
         [](const std::string& notifier, const char* msg) {
-            Instance()
-                .Send<Base::LogStyle::Warning,
-                      Base::IntendedRecipient::User,
-                      Base::ContentType::Translated>(notifier, "%s", msg);
+            instance().send<LogStyle::Error, IntendedRecipient::All, ContentType::Untranslated>(
+                notifier,
+                "%s",
+                msg
+            );
         },
-        args);
+        args
+    );
 }
 
-PyObject* ConsoleSingleton::sPyError(PyObject* /*self*/, PyObject* args)
+PyObject* ConsoleSingleton::sPrintDeveloperError(PyObject* /*self*/, PyObject* args)
 {
     return FC_PYCONSOLE_MSG(
         [](const std::string& notifier, const char* msg) {
-            Instance()
-                .Send<Base::LogStyle::Error,
-                      Base::IntendedRecipient::All,
-                      Base::ContentType::Untranslated>(notifier, "%s", msg);
+            instance().send<LogStyle::Error, IntendedRecipient::Developer, ContentType::Untranslatable>(
+                notifier,
+                "%s",
+                msg
+            );
         },
-        args);
+        args
+    );
 }
 
-PyObject* ConsoleSingleton::sPyDeveloperError(PyObject* /*self*/, PyObject* args)
+PyObject* ConsoleSingleton::sPrintUserError(PyObject* /*self*/, PyObject* args)
 {
     return FC_PYCONSOLE_MSG(
         [](const std::string& notifier, const char* msg) {
-            Instance()
-                .Send<Base::LogStyle::Error,
-                      Base::IntendedRecipient::Developer,
-                      Base::ContentType::Untranslatable>(notifier, "%s", msg);
+            instance().send<LogStyle::Error, IntendedRecipient::User, ContentType::Untranslated>(
+                notifier,
+                "%s",
+                msg
+            );
         },
-        args);
+        args
+    );
 }
 
-PyObject* ConsoleSingleton::sPyUserError(PyObject* /*self*/, PyObject* args)
+PyObject* ConsoleSingleton::sPrintTranslatedUserError(PyObject* /*self*/, PyObject* args)
 {
     return FC_PYCONSOLE_MSG(
         [](const std::string& notifier, const char* msg) {
-            Instance()
-                .Send<Base::LogStyle::Error,
-                      Base::IntendedRecipient::User,
-                      Base::ContentType::Untranslated>(notifier, "%s", msg);
+            instance().send<LogStyle::Error, IntendedRecipient::User, ContentType::Translated>(
+                notifier,
+                "%s",
+                msg
+            );
         },
-        args);
+        args
+    );
 }
 
-PyObject* ConsoleSingleton::sPyTranslatedUserError(PyObject* /*self*/, PyObject* args)
+PyObject* ConsoleSingleton::sPrintLog(PyObject* /*self*/, PyObject* args)
 {
     return FC_PYCONSOLE_MSG(
         [](const std::string& notifier, const char* msg) {
-            Instance()
-                .Send<Base::LogStyle::Error,
-                      Base::IntendedRecipient::User,
-                      Base::ContentType::Translated>(notifier, "%s", msg);
+            instance().send<LogStyle::Log, IntendedRecipient::Developer, ContentType::Untranslatable>(
+                notifier,
+                "%s",
+                msg
+            );
         },
-        args);
+        args
+    );
 }
 
-PyObject* ConsoleSingleton::sPyLog(PyObject* /*self*/, PyObject* args)
+PyObject* ConsoleSingleton::sPrintCritical(PyObject* /*self*/, PyObject* args)
 {
     return FC_PYCONSOLE_MSG(
         [](const std::string& notifier, const char* msg) {
-            Instance()
-                .Send<Base::LogStyle::Log,
-                      Base::IntendedRecipient::Developer,
-                      Base::ContentType::Untranslatable>(notifier, "%s", msg);
+            instance().send<LogStyle::Critical, IntendedRecipient::All, ContentType::Untranslated>(
+                notifier,
+                "%s",
+                msg
+            );
         },
-        args);
+        args
+    );
 }
 
-PyObject* ConsoleSingleton::sPyCritical(PyObject* /*self*/, PyObject* args)
+PyObject* ConsoleSingleton::sPrintNotification(PyObject* /*self*/, PyObject* args)
 {
     return FC_PYCONSOLE_MSG(
         [](const std::string& notifier, const char* msg) {
-            Instance()
-                .Send<Base::LogStyle::Critical,
-                      Base::IntendedRecipient::All,
-                      Base::ContentType::Untranslated>(notifier, "%s", msg);
+            instance().send<LogStyle::Notification, IntendedRecipient::User, ContentType::Untranslated>(
+                notifier,
+                "%s",
+                msg
+            );
         },
-        args);
+        args
+    );
 }
 
-PyObject* ConsoleSingleton::sPyNotification(PyObject* /*self*/, PyObject* args)
+PyObject* ConsoleSingleton::sPrintTranslatedNotification(PyObject* /*self*/, PyObject* args)
 {
     return FC_PYCONSOLE_MSG(
         [](const std::string& notifier, const char* msg) {
-            Instance()
-                .Send<Base::LogStyle::Notification,
-                      Base::IntendedRecipient::User,
-                      Base::ContentType::Untranslated>(notifier, "%s", msg);
+            instance().send<LogStyle::Notification, IntendedRecipient::User, ContentType::Translated>(
+                notifier,
+                "%s",
+                msg
+            );
         },
-        args);
+        args
+    );
 }
 
-PyObject* ConsoleSingleton::sPyTranslatedNotification(PyObject* /*self*/, PyObject* args)
-{
-    return FC_PYCONSOLE_MSG(
-        [](const std::string& notifier, const char* msg) {
-            Instance()
-                .Send<Base::LogStyle::Notification,
-                      Base::IntendedRecipient::User,
-                      Base::ContentType::Translated>(notifier, "%s", msg);
-        },
-        args);
-}
-
-PyObject* ConsoleSingleton::sPyGetStatus(PyObject* /*self*/, PyObject* args)
+PyObject* ConsoleSingleton::sGetStatus(PyObject* /*self*/, PyObject* args)
 {
     char* pstr1 {};
     char* pstr2 {};
@@ -735,7 +616,7 @@ PyObject* ConsoleSingleton::sPyGetStatus(PyObject* /*self*/, PyObject* args)
     PY_TRY
     {
         bool b = false;
-        ILogger* pObs = Instance().Get(pstr1);
+        const ILogger* pObs = instance().get(pstr1);
         if (!pObs) {
             Py_Return;
         }
@@ -759,9 +640,11 @@ PyObject* ConsoleSingleton::sPyGetStatus(PyObject* /*self*/, PyObject* args)
             b = pObs->bNotification;
         }
         else {
-            Py_Error(Base::PyExc_FC_GeneralError,
-                     "Unknown message type (use 'Log', 'Err', 'Wrn', 'Msg', 'Critical' or "
-                     "'Notification')");
+            Py_Error(
+                Base::PyExc_FC_GeneralError,
+                "Unknown message type (use 'Log', 'Err', 'Wrn', 'Msg', 'Critical' or "
+                "'Notification')"
+            );
         }
 
         return PyBool_FromLong(b ? 1 : 0);
@@ -769,7 +652,7 @@ PyObject* ConsoleSingleton::sPyGetStatus(PyObject* /*self*/, PyObject* args)
     PY_CATCH;
 }
 
-PyObject* ConsoleSingleton::sPySetStatus(PyObject* /*self*/, PyObject* args)
+PyObject* ConsoleSingleton::sSetStatus(PyObject* /*self*/, PyObject* args)
 {
     char* pstr1 {};
     char* pstr2 {};
@@ -780,9 +663,8 @@ PyObject* ConsoleSingleton::sPySetStatus(PyObject* /*self*/, PyObject* args)
 
     PY_TRY
     {
-        bool status = asBoolean(pyStatus);
-        ILogger* pObs = Instance().Get(pstr1);
-        if (pObs) {
+        const bool status = asBoolean(pyStatus);
+        if (ILogger* pObs = instance().get(pstr1)) {
             if (strcmp(pstr2, "Log") == 0) {
                 pObs->bLog = status;
             }
@@ -802,9 +684,11 @@ PyObject* ConsoleSingleton::sPySetStatus(PyObject* /*self*/, PyObject* args)
                 pObs->bNotification = status;
             }
             else {
-                Py_Error(Base::PyExc_FC_GeneralError,
-                         "Unknown message type (use 'Log', 'Err', 'Wrn', 'Msg', 'Critical' or "
-                         "'Notification')");
+                Py_Error(
+                    Base::PyExc_FC_GeneralError,
+                    "Unknown message type (use 'Log', 'Err', 'Wrn', 'Msg', 'Critical' or "
+                    "'Notification')"
+                );
             }
 
             Py_Return;
@@ -815,7 +699,7 @@ PyObject* ConsoleSingleton::sPySetStatus(PyObject* /*self*/, PyObject* args)
     PY_CATCH;
 }
 
-PyObject* ConsoleSingleton::sPyGetObservers(PyObject* /*self*/, PyObject* args)
+PyObject* ConsoleSingleton::sGetObservers(PyObject* /*self*/, PyObject* args)
 {
     if (!PyArg_ParseTuple(args, "")) {
         return nullptr;
@@ -824,13 +708,13 @@ PyObject* ConsoleSingleton::sPyGetObservers(PyObject* /*self*/, PyObject* args)
     PY_TRY
     {
         Py::List list;
-        for (auto i : Instance()._aclObservers) {
-            list.append(Py::String(i->Name() ? i->Name() : ""));
+        for (const auto i : instance()._aclObservers) {
+            list.append(Py::String(i->name() ? i->name() : ""));
         }
 
-        return Py::new_reference_to(list);
+        return new_reference_to(list);
     }
     PY_CATCH
 }
 
-Base::ILogger::~ILogger() = default;
+ILogger::~ILogger() = default;

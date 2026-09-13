@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Jürgen Riegel <FreeCAD@juergen-riegel.net>         *
  *                                                                         *
@@ -21,8 +23,7 @@
  ***************************************************************************/
 
 
-#ifndef Fem_FemSetNodesObject_H
-#define Fem_FemSetNodesObject_H
+#pragma once
 
 #include "FemSetObject.h"
 #include <App/DocumentObject.h>
@@ -56,6 +57,3 @@ public:
 };
 
 }  // namespace Fem
-
-
-#endif  // Fem_FemSetNodesObject_H

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2005 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <Base/Matrix.h>
 
@@ -42,7 +43,7 @@ Transform::Transform()
 App::DocumentObjectExecReturn* Transform::execute()
 {
     /*
-        Feature* pcFirst = dynamic_cast<Feature*>(Source.getValue());
+        Feature* pcFirst = freecad_cast<Feature*>(Source.getValue());
         if (!pcFirst || pcFirst->isError())
             return new App::DocumentObjectExecReturn("Unknown Error");
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
  /**************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,17 +22,32 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_DLGTEMPLATEFIELD_H
-#define DRAWINGGUI_DLGTEMPLATEFIELD_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
+#include <Mod/TechDraw/App/DrawTemplate.h>
 
 #include <memory>
 #include <QDialog>
+#include <QLineEdit>
 #include <QString>
 
 
 namespace TechDrawGui {
+
+class LineEditFrame : public QLineEdit
+{
+    Q_OBJECT
+
+public:
+    explicit LineEditFrame(QWidget* parent = nullptr ) : QLineEdit(parent), focused(false) { }
+    void drawFocused(bool focused) { this->focused = focused; };
+
+protected:
+    void paintEvent(QPaintEvent* e) override;
+
+    bool focused;
+};
 
 class Ui_dlgTemplateField;
 class DlgTemplateField : public QDialog
@@ -41,21 +58,25 @@ public:
     explicit DlgTemplateField( QWidget *parent = nullptr );
     ~DlgTemplateField() override = default;
 
-    void setFieldName(std::string name);
-    void setFieldContent(std::string content);
+    void setTemplate(TechDraw::DrawTemplate* tmplte);
+    void setFieldName(QString name);
+    void setFieldContent(QString content);
+    void setAutofillContent(QString autofill);
+
     QString getFieldContent();
 
 public Q_SLOTS:
-    void accept() override;
-    void reject() override;
+    int exec() override;
+    void autofillClicked(bool checked);
 
 protected:
     void changeEvent(QEvent *e) override;
+    void focusChanged(QWidget* old, QWidget* now);
+
+    TechDraw::DrawTemplate* templateObj;
 
 private:
     std::shared_ptr<Ui_dlgTemplateField> ui;
 };
 
 } // namespace TechDrawGui
-
-#endif // DRAWINGGUI_DLGTEMPLATEFIELD_H

@@ -1,5 +1,4 @@
-#ifndef QUARTER_FOCUSHANDLER_H
-#define QUARTER_FOCUSHANDLER_H
+#pragma once
 
 /**************************************************************************\
  * Copyright (c) Kongsberg Oil & Gas Technologies AS
@@ -33,7 +32,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 \**************************************************************************/
 
-#include <QtCore/QObject>
+#include <QObject>
 #include <Inventor/SbName.h>
 
 class QEvent;
@@ -57,5 +56,3 @@ private:
 };
 
 }}} // namespace
-
-#endif // QUARTER_FOCUSHANDLER_H

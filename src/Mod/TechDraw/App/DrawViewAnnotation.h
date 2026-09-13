@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2012 Yorik van Havre <yorik@uncreated.net>              *
  *   Copyright (c) 2013 Luke Parry <l.parry@warwick.ac.uk>                 *
@@ -21,8 +23,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DrawViewAnnotation_h_
-#define DrawViewAnnotation_h_
+#pragma once
 
 #include <App/DocumentObject.h>
 #include <App/FeaturePython.h>
@@ -51,6 +52,7 @@ public:
     App::PropertyInteger      LineSpace;
     App::PropertyEnumeration  TextStyle; // Plain, Bold, Italic, Bold-Italic
     App::PropertyFloat        MaxWidth;
+    App::PropertyLink         Owner;
 
     QRectF getRect() const override;
 
@@ -65,6 +67,11 @@ public:
         return "TechDrawGui::ViewProviderAnnotation";
     }
 
+    short mustExecute() const override;
+
+    bool checkFit() const override {return true;}
+    App::PropertyLink *getOwnerProperty() override { return &Owner; }
+
 protected:
     void onChanged(const App::Property* prop) override;
     void handleChangedPropertyType(Base::XMLReader &reader, const char *TypeName, App::Property * prop) override;
@@ -77,6 +84,3 @@ using DrawViewAnnotationPython = App::FeaturePythonT<DrawViewAnnotation>;
 
 
 } //namespace TechDraw
-
-
-#endif

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,9 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-
-#include "PreCompiled.h"
-
 // inclusion of the generated files (generated out of GeoFeaturePy.xml)
 #include "GeoFeaturePy.h"
 #include "GeoFeaturePy.cpp"
@@ -37,16 +36,18 @@ std::string GeoFeaturePy::representation() const
     return {"<GeoFeature object>"};
 }
 
-PyObject* GeoFeaturePy::getPaths(PyObject * /*args*/)
+PyObject* GeoFeaturePy::getPaths(PyObject* /*args*/)
 {
     PyErr_SetString(PyExc_NotImplementedError, "Not yet implemented");
     return nullptr;
 }
 
-PyObject* GeoFeaturePy::getGlobalPlacement(PyObject * args) {
+PyObject* GeoFeaturePy::getGlobalPlacement(PyObject* args)
+{
 
-    if (!PyArg_ParseTuple(args, ""))
+    if (!PyArg_ParseTuple(args, "")) {
         return nullptr;
+    }
 
     try {
         Base::Placement p = static_cast<GeoFeature*>(getDocumentObjectPtr())->globalPlacement();
@@ -57,10 +58,38 @@ PyObject* GeoFeaturePy::getGlobalPlacement(PyObject * args) {
     }
 }
 
-PyObject* GeoFeaturePy::getPropertyNameOfGeometry(PyObject * args)
+PyObject* GeoFeaturePy::getGlobalPlacementOf(PyObject* args)
 {
-    if (!PyArg_ParseTuple(args, ""))
+
+    PyObject* pyTargetObj {nullptr};
+    PyObject* pyRootObj {nullptr};
+    char* pname {nullptr};
+
+    if (!PyArg_ParseTuple(args, "O!O!s",
+                          &DocumentObjectPy::Type,
+                          &pyTargetObj,
+                          &DocumentObjectPy::Type,
+                          &pyRootObj,
+                          &pname)) {
         return nullptr;
+    }
+    auto* targetObj = static_cast<App::DocumentObjectPy*>(pyTargetObj)->getDocumentObjectPtr();
+    auto* rootObj = static_cast<App::DocumentObjectPy*>(pyRootObj)->getDocumentObjectPtr();
+
+    try {
+        Base::Placement p = GeoFeature::getGlobalPlacement(targetObj, rootObj, pname);
+        return new Base::PlacementPy(new Base::Placement(p));
+    }
+    catch (const Base::Exception& e) {
+        throw Py::RuntimeError(e.what());
+    }
+}
+
+PyObject* GeoFeaturePy::getPropertyNameOfGeometry(PyObject* args)
+{
+    if (!PyArg_ParseTuple(args, "")) {
+        return nullptr;
+    }
 
     GeoFeature* object = this->getGeoFeaturePtr();
     const PropertyComplexGeoData* prop = object->getPropertyOfGeometry();
@@ -71,10 +100,11 @@ PyObject* GeoFeaturePy::getPropertyNameOfGeometry(PyObject * args)
     return Py::new_reference_to(Py::None());
 }
 
-PyObject* GeoFeaturePy::getPropertyOfGeometry(PyObject * args)
+PyObject* GeoFeaturePy::getPropertyOfGeometry(PyObject* args)
 {
-    if (!PyArg_ParseTuple(args, ""))
+    if (!PyArg_ParseTuple(args, "")) {
         return nullptr;
+    }
 
     GeoFeature* object = this->getGeoFeaturePtr();
     const PropertyComplexGeoData* prop = object->getPropertyOfGeometry();
@@ -84,7 +114,7 @@ PyObject* GeoFeaturePy::getPropertyOfGeometry(PyObject * args)
     return Py::new_reference_to(Py::None());
 }
 
-PyObject *GeoFeaturePy::getCustomAttributes(const char* /*attr*/) const
+PyObject* GeoFeaturePy::getCustomAttributes(const char* /*attr*/) const
 {
     return nullptr;
 }
@@ -92,4 +122,10 @@ PyObject *GeoFeaturePy::getCustomAttributes(const char* /*attr*/) const
 int GeoFeaturePy::setCustomAttributes(const char* /*attr*/, PyObject* /*obj*/)
 {
     return 0;
+}
+
+Py::String GeoFeaturePy::getElementMapVersion() const
+{
+    return Py::String(
+        getGeoFeaturePtr()->getElementMapVersion(getGeoFeaturePtr()->getPropertyOfGeometry()));
 }

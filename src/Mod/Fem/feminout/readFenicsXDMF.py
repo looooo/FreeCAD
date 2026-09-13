@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # ***************************************************************************
 # *   Copyright (c) 2017-2023 Johannes Hartung <j.hartung@gmx.net>          *
 # *                                                                         *
@@ -48,5 +50,5 @@ def read_fenics_mesh_xdmf(xdmffilename):
         "Tria6Elem": {},
         "Quad4Elem": {},
         "Quad8Elem": {},
-        "Seg2Elem": {}
+        "Seg2Elem": {},
     }

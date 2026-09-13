@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2010 Juergen Riegel <FreeCAD@juergen-riegel.net>        *
  *                                                                         *
@@ -20,68 +22,122 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
-# include <Bnd_Box.hxx>
-# include <BRep_Builder.hxx>
-# include <BRep_Tool.hxx>
-# include <BRepAdaptor_Curve.hxx>
-# include <BRepAdaptor_Surface.hxx>
-# include <BRepBndLib.hxx>
-# include <BRepBuilderAPI_Copy.hxx>
-# include <BRepBuilderAPI_MakeEdge.hxx>
-# include <BRepBuilderAPI_MakeFace.hxx>
-# include <BRepExtrema_DistShapeShape.hxx>
-# include <BRepGProp.hxx>
-# include <BRepGProp_Face.hxx>
-# include <BRepLProp_SLProps.hxx>
-# include <BRepProj_Projection.hxx>
-# include <Extrema_ExtCC.hxx>
-# include <Extrema_POnCurv.hxx>
-# include <gp_Circ.hxx>
-# include <gp_Pln.hxx>
-# include <GProp_GProps.hxx>
-# include <ShapeAnalysis.hxx>
-# include <Standard_Version.hxx>
-# include <TopExp.hxx>
-# include <TopExp_Explorer.hxx>
-# include <TopoDS_Face.hxx>
-# include <TopoDS_Vertex.hxx>
-# include <TopoDS_Wire.hxx>
-# include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
-# include <TopTools_IndexedMapOfShape.hxx>
-#endif
+#include <algorithm>
+#include <cmath>
+#include <numbers>
+#include <optional>
+#include <ranges>
+#include <Bnd_Box.hxx>
+#include <BRep_Builder.hxx>
+#include <BRep_Tool.hxx>
+#include <BRepAdaptor_Curve.hxx>
+#include <BRepAdaptor_Surface.hxx>
+#include <BRepBndLib.hxx>
+#include <BRepBuilderAPI_Copy.hxx>
+#include <BRepBuilderAPI_MakeEdge.hxx>
+#include <BRepBuilderAPI_MakeFace.hxx>
+#include <BRepExtrema_DistShapeShape.hxx>
+#include <BRepGProp.hxx>
+#include <BRepGProp_Face.hxx>
+#include <BRepLProp_SLProps.hxx>
+#include <BRepProj_Projection.hxx>
+#include <Extrema_ExtCC.hxx>
+#include <Extrema_POnCurv.hxx>
+#include <gp_Circ.hxx>
+#include <gp_Pln.hxx>
+#include <gp_Trsf.hxx>
+#include <GProp_GProps.hxx>
+#include <Precision.hxx>
+#include <ShapeAnalysis.hxx>
+#include <Standard_Version.hxx>
+#include <TopExp.hxx>
+#include <TopExp_Explorer.hxx>
+#include <TopoDS_Face.hxx>
+#include <TopoDS.hxx>
+#include <TopoDS_Vertex.hxx>
+#include <TopoDS_Wire.hxx>
+#include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
+#include <TopTools_IndexedMapOfShape.hxx>
+
 
 #include <App/Document.h>
-#include <App/OriginFeature.h>
+#include <App/Datums.h>
+#include <Base/Converter.h>
 #include <Base/Reader.h>
+#include <Base/Tools.h>
 #include <Mod/Part/App/FaceMakerCheese.h>
+#include <Mod/Part/App/Tools.h>
 
+#include "Body.h"
 #include "FeatureSketchBased.h"
 #include "DatumLine.h"
 #include "DatumPlane.h"
+#include "Mod/Part/App/Geometry.h"
 
+
+FC_LOG_LEVEL_INIT("PartDesign", true, true);
 
 using namespace PartDesign;
 
+double PartDesign::normalizeAngleRadians(double angle)
+{
+    constexpr double fullRotation = 2.0 * std::numbers::pi;
+    angle = Base::fmod(angle, fullRotation);
+    return fullRotation - angle < Precision::Angular() ? 0.0 : angle;
+}
+
 PROPERTY_SOURCE(PartDesign::ProfileBased, PartDesign::FeatureAddSub)
+
+const char* ProfileBased::StartTypesEnums[] = {"Profile plane", "Offset", "Reference", nullptr};
 
 ProfileBased::ProfileBased()
 {
     ADD_PROPERTY_TYPE(Profile, (nullptr), "SketchBased", App::Prop_None, "Reference to sketch");
     ADD_PROPERTY_TYPE(Midplane, (0), "SketchBased", App::Prop_None, "Extrude symmetric to sketch face");
     ADD_PROPERTY_TYPE(Reversed, (0), "SketchBased", App::Prop_None, "Reverse extrusion direction");
-    ADD_PROPERTY_TYPE(UpToFace, (nullptr), "SketchBased", (App::PropertyType)(App::Prop_None), "Face where feature will end");
-    ADD_PROPERTY_TYPE(AllowMultiFace, (false), "SketchBased", App::Prop_None, "Allow multiple faces in profile");
+    ADD_PROPERTY_TYPE(
+        UpToFace,
+        (nullptr),
+        "Side1",
+        (App::PropertyType)(App::Prop_None),
+        "Face where feature will end"
+    );
+    ADD_PROPERTY_TYPE(
+        UpToShape,
+        (nullptr),
+        "Side1",
+        (App::PropertyType)(App::Prop_None),
+        "Shape where feature will end"
+    );
+    ADD_PROPERTY_TYPE(
+        UpToFace2,
+        (nullptr),
+        "Side2",
+        (App::PropertyType)(App::Prop_None),
+        "Face where feature will end"
+    );
+    ADD_PROPERTY_TYPE(
+        UpToShape2,
+        (nullptr),
+        "Side2",
+        (App::PropertyType)(App::Prop_None),
+        "Shape where feature will end"
+    );
+    ADD_PROPERTY_TYPE(
+        AllowMultiFace,
+        (false),
+        "SketchBased",
+        App::Prop_None,
+        "Allow multiple faces in profile"
+    );
 }
 
 short ProfileBased::mustExecute() const
 {
-    if (Profile.isTouched() ||
-        Midplane.isTouched() ||
-        Reversed.isTouched() ||
-        UpToFace.isTouched())
+    if (Profile.isTouched() || Midplane.isTouched() || Reversed.isTouched() || UpToFace.isTouched()
+        || UpToFace2.isTouched() || UpToShape.isTouched() || UpToShape2.isTouched()) {
         return 1;
+    }
     return PartDesign::FeatureAddSub::mustExecute();
 }
 
@@ -97,10 +153,10 @@ void ProfileBased::positionByPrevious()
         this->Placement.setValue(feat->Placement.getValue());
     }
     else {
-        //no base. Use either Sketch support's placement, or sketch's placement itself.
+        // no base. Use either Sketch support's placement, or sketch's placement itself.
         Part::Part2DObject* sketch = getVerifiedSketch();
-        App::DocumentObject* support = sketch->Support.getValue();
-        if (support && support->isDerivedFrom(App::GeoFeature::getClassTypeId())) {
+        App::DocumentObject* support = sketch->AttachmentSupport.getValue();
+        if (support && support->isDerivedFrom<App::GeoFeature>()) {
             this->Placement.setValue(static_cast<App::GeoFeature*>(support)->Placement.getValue());
         }
         else {
@@ -122,7 +178,8 @@ void ProfileBased::transformPlacement(const Base::Placement& transform)
     positionByPrevious();
 }
 
-Part::Part2DObject* ProfileBased::getVerifiedSketch(bool silent) const {
+Part::Part2DObject* ProfileBased::getVerifiedSketch(bool silent) const
+{
     App::DocumentObject* result = Profile.getValue();
     const char* err = nullptr;
 
@@ -143,7 +200,8 @@ Part::Part2DObject* ProfileBased::getVerifiedSketch(bool silent) const {
     return static_cast<Part::Part2DObject*>(result);
 }
 
-Part::Feature* ProfileBased::getVerifiedObject(bool silent) const {
+Part::Feature* ProfileBased::getVerifiedObject(bool silent) const
+{
 
     App::DocumentObject* result = Profile.getValue();
     const char* err = nullptr;
@@ -152,8 +210,9 @@ Part::Feature* ProfileBased::getVerifiedObject(bool silent) const {
         err = "No object linked";
     }
     else {
-        if (!result->isDerivedFrom<Part::Feature>())
+        if (!result->isDerivedFrom<Part::Feature>()) {
             err = "Linked object is not a Sketch, Part2DObject or Feature";
+        }
     }
 
     if (!silent && err) {
@@ -162,20 +221,176 @@ Part::Feature* ProfileBased::getVerifiedObject(bool silent) const {
 
     return static_cast<Part::Feature*>(result);
 }
-
-Part::TopoShape ProfileBased::getProfileShape() const
+TopoShape ProfileBased::getTopoShapeVerifiedFace(
+    bool silent,
+    bool allowOpen,
+    const App::DocumentObject* profile,
+    const std::vector<std::string>& _subs
+) const
 {
-    auto shape = getTopoShape(Profile.getValue());
-    if (!shape.isNull() && !Profile.getSubValues().empty()) {
-        std::vector<Part::TopoShape> shapes;
-        for (auto& sub : Profile.getSubValues(true))
-            shapes.emplace_back(shape.getSubShape(sub.c_str()));
-        shape = Part::TopoShape().makeCompound(shapes);
+    auto obj = profile ? profile : Profile.getValue();
+    if (!obj || !obj->getNameInDocument()) {
+        if (silent) {
+            return TopoShape();
+        }
+        throw Base::ValueError("No profile linked");
     }
-    return shape;
+    const auto& subs = profile ? _subs : Profile.getSubValues();
+    try {
+        TopoShape shape;
+        if (AllowMultiFace.getValue()) {
+            if (subs.empty()) {
+                shape = Part::Feature::getTopoShape(
+                    obj,
+                    Part::ShapeOption::ResolveLink | Part::ShapeOption::Transform
+                );
+            }
+            else {
+                std::vector<TopoShape> shapes;
+                for (auto& sub : subs) {
+                    auto subshape = Part::Feature::getTopoShape(
+                        obj,
+                        Part::ShapeOption::NeedSubElement | Part::ShapeOption::ResolveLink
+                            | Part::ShapeOption::Transform,
+                        sub.c_str()
+                    );
+
+
+                    if (subshape.isNull()) {
+                        if (silent) {
+                            return {};
+                        }
+                        FC_THROWM(
+                            Base::CADKernelError,
+                            "Sub shape not found: " << obj->getFullName() << "." << sub
+                        );
+                    }
+                    shapes.push_back(subshape);
+                }
+                shape.makeElementCompound(shapes);
+            }
+        }
+        else {
+            std::string sub;
+            if (!obj->isDerivedFrom<Part::Part2DObject>()) {
+                if (!subs.empty()) {
+                    sub = subs[0];
+                }
+            }
+            shape = Part::Feature::getTopoShape(
+                obj,
+                (sub.empty() ? Part::ShapeOption::NoFlag : Part::ShapeOption::NeedSubElement)
+                    | Part::ShapeOption::ResolveLink | Part::ShapeOption::Transform,
+                sub.c_str()
+            );
+        }
+        if (shape.isNull()) {
+            if (silent) {
+                return shape;
+            }
+            throw Base::CADKernelError("Linked shape object is empty");
+        }
+        TopoShape openshape;
+        if (!shape.hasSubShape(TopAbs_FACE)) {
+            try {
+                if (!shape.hasSubShape(TopAbs_WIRE)) {
+                    shape = shape.makeElementWires();
+                }
+                if (shape.hasSubShape(TopAbs_WIRE)) {
+                    shape.Hasher = getDocument()->getStringHasher();
+                    if (allowOpen) {
+                        std::vector<TopoShape> openwires;
+                        std::vector<TopoShape> wires;
+                        for (auto& wire : shape.getSubTopoShapes(TopAbs_WIRE)) {
+                            if (!wire.isClosed()) {
+                                openwires.push_back(wire);
+                            }
+                            else {
+                                wires.push_back(wire);
+                            }
+                        }
+                        if (openwires.size()) {
+                            openshape.makeElementCompound(
+                                openwires,
+                                nullptr,
+                                TopoShape::SingleShapeCompoundCreationPolicy::returnShape
+                            );
+                            if (wires.empty()) {
+                                shape = TopoShape();
+                            }
+                            else {
+                                shape.makeElementCompound(
+                                    wires,
+                                    nullptr,
+                                    TopoShape::SingleShapeCompoundCreationPolicy::returnShape
+                                );
+                            }
+                        }
+                    }
+                    if (!shape.isNull()) {
+                        if (AllowMultiFace.getValue()) {
+                            shape = shape.makeElementFace();  // default to use FaceMakerBullseye
+                        }
+                        else {
+                            shape = shape.makeElementFace(nullptr, "Part::FaceMakerCheese");
+                        }
+                    }
+                }
+            }
+            catch (const Base::Exception&) {
+                if (silent) {
+                    return TopoShape();
+                }
+                throw;
+            }
+            catch (const Standard_Failure&) {
+                if (silent) {
+                    return TopoShape();
+                }
+                throw;
+            }
+        }
+        int count = shape.countSubShapes(TopAbs_FACE);
+        if (!count && !allowOpen) {
+            if (silent) {
+                return TopoShape();
+            }
+            throw Base::CADKernelError("Cannot make face from profile");
+        }
+
+        if (!openshape.isNull()) {
+            if (shape.isNull()) {
+                shape = openshape;
+            }
+            else {
+                shape.makeElementCompound({shape, openshape});
+            }
+        }
+        if (count > 1) {
+            if (AllowMultiFace.getValue() || obj->isDerivedFrom<Part::Part2DObject>()) {
+                return shape;
+            }
+            FC_WARN("Found more than one face from profile");
+        }
+        if (!openshape.isNull()) {
+            return shape;
+        }
+        if (count) {
+            return shape.getSubTopoShape(TopAbs_FACE, 1);
+        }
+        return shape;
+    }
+    catch (Standard_Failure&) {
+        if (silent) {
+            return TopoShape();
+        }
+        throw;
+    }
 }
 
-TopoDS_Shape ProfileBased::getVerifiedFace(bool silent) const {
+// TODO: Toponaming April 2024 Deprecated in favor of TopoShape method.  Remove when possible.
+TopoDS_Shape ProfileBased::getVerifiedFace(bool silent) const
+{
 
     App::DocumentObject* result = Profile.getValue();
     const char* err = nullptr;
@@ -187,25 +402,32 @@ TopoDS_Shape ProfileBased::getVerifiedFace(bool silent) const {
     else if (AllowMultiFace.getValue()) {
         try {
             auto shape = getProfileShape();
-            if (shape.isNull())
+            if (shape.isNull()) {
                 err = "Linked shape object is empty";
+            }
             else {
                 auto faces = shape.getSubTopoShapes(TopAbs_FACE);
                 if (faces.empty()) {
-                    if (!shape.hasSubShape(TopAbs_WIRE))
+                    if (!shape.hasSubShape(TopAbs_WIRE)) {
                         shape = shape.makeWires();
-                    if (shape.hasSubShape(TopAbs_WIRE))
+                    }
+                    if (shape.hasSubShape(TopAbs_WIRE)) {
                         shape = shape.makeFace(nullptr, "Part::FaceMakerBullseye");
-                    else
+                    }
+                    else {
                         err = "Cannot make face from profile";
+                    }
                 }
-                else if (faces.size() == 1)
+                else if (faces.size() == 1) {
                     shape = faces.front();
-                else
+                }
+                else {
                     shape = TopoShape().makeCompound(faces);
+                }
             }
-            if (!err)
+            if (!err) {
                 return shape.getShape();
+            }
         }
         catch (Standard_Failure& e) {
             _err = e.GetMessageString();
@@ -219,31 +441,36 @@ TopoDS_Shape ProfileBased::getVerifiedFace(bool silent) const {
             return Part::FaceMakerCheese::makeFace(wires);
         }
         else if (result->isDerivedFrom<Part::Feature>()) {
-            if (Profile.getSubValues().empty())
+            if (Profile.getSubValues().empty()) {
                 err = "Linked object has no subshape specified";
+            }
             else {
 
                 const Part::TopoShape& shape = Profile.getValue<Part::Feature*>()->Shape.getShape();
                 TopoDS_Shape sub = shape.getSubShape(Profile.getSubValues()[0].c_str());
-                if (sub.ShapeType() == TopAbs_FACE)
+                if (sub.ShapeType() == TopAbs_FACE) {
                     return TopoDS::Face(sub);
+                }
                 else if (sub.ShapeType() == TopAbs_WIRE) {
 
                     auto wire = TopoDS::Wire(sub);
-                    if (!wire.Closed())
+                    if (!wire.Closed()) {
                         err = "Linked wire is not closed";
+                    }
                     else {
                         BRepBuilderAPI_MakeFace mk(wire);
                         mk.Build();
                         return TopoDS::Face(mk.Shape());
                     }
                 }
-                else
+                else {
                     err = "Linked Subshape cannot be used";
+                }
             }
         }
-        else
+        else {
             err = "Linked object is neither Sketch, Part2DObject or Part::Feature";
+        }
     }
 
     if (!silent && err) {
@@ -253,25 +480,57 @@ TopoDS_Shape ProfileBased::getVerifiedFace(bool silent) const {
     return TopoDS_Face();
 }
 
+TopoShape ProfileBased::getProfileShape(Part::ShapeOptions subShapeOptions) const
+{
+    TopoShape shape;
+    const auto& subs = Profile.getSubValues();
+    auto profile = Profile.getValue();
+    if (subs.empty()) {
+        shape = Part::Feature::getTopoShape(
+            profile,
+            Part::ShapeOption::ResolveLink | Part::ShapeOption::Transform
+        );
+    }
+    else {
+        std::vector<TopoShape> shapes;
+        for (auto& sub : subs) {
+            shapes.push_back(Part::Feature::getTopoShape(profile, subShapeOptions, sub.c_str()));
+        }
+        shape = TopoShape(shape.Tag).makeElementCompound(shapes);
+    }
+    if (shape.isNull()) {
+        throw Part::NullShapeException("Linked shape object is empty");
+    }
+    return shape;
+}
 
-std::vector<TopoDS_Wire> ProfileBased::getProfileWires() const {
+
+// TODO: Toponaming April 2024 Deprecated in favor of TopoShape method.  Remove when possible.
+std::vector<TopoDS_Wire> ProfileBased::getProfileWires() const
+{
     std::vector<TopoDS_Wire> result;
 
-    if (!Profile.getValue() || !Profile.getValue()->isDerivedFrom(Part::Feature::getClassTypeId()))
+    if (!Profile.getValue() || !Profile.getValue()->isDerivedFrom<Part::Feature>()) {
         throw Base::TypeError("No valid profile linked");
-
-    TopoDS_Shape shape;
-    if (Profile.getValue()->isDerivedFrom(Part::Part2DObject::getClassTypeId()))
-        shape = Profile.getValue<Part::Part2DObject*>()->Shape.getValue();
-    else {
-        if (Profile.getSubValues().empty())
-            throw Base::ValueError("No valid subelement linked in Part::Feature");
-
-        shape = Profile.getValue<Part::Feature*>()->Shape.getShape().getSubShape(Profile.getSubValues().front().c_str());
     }
 
-    if (shape.IsNull())
+    TopoDS_Shape shape;
+    if (Profile.getValue()->isDerivedFrom<Part::Part2DObject>()) {
+        shape = Profile.getValue<Part::Part2DObject*>()->Shape.getValue();
+    }
+    else {
+        if (Profile.getSubValues().empty()) {
+            throw Base::ValueError("No valid subelement linked in Part::Feature");
+        }
+
+        shape = Profile.getValue<Part::Feature*>()->Shape.getShape().getSubShape(
+            Profile.getSubValues().front().c_str()
+        );
+    }
+
+    if (shape.IsNull()) {
         throw Base::ValueError("Linked shape object is empty");
+    }
 
     // this is a workaround for an obscure OCC bug which leads to empty tessellations
     // for some faces. Making an explicit copy of the linked shape seems to fix it.
@@ -279,22 +538,44 @@ std::vector<TopoDS_Wire> ProfileBased::getProfileWires() const {
     // first time
     BRepBuilderAPI_Copy copy(shape);
     shape = copy.Shape();
-    if (shape.IsNull())
+    if (shape.IsNull()) {
         throw Base::ValueError("Linked shape object is empty");
+    }
 
     TopExp_Explorer ex;
     for (ex.Init(shape, TopAbs_WIRE); ex.More(); ex.Next()) {
         result.push_back(TopoDS::Wire(ex.Current()));
     }
-    if (result.empty()) // there can be several wires
+    if (result.empty()) {  // there can be several wires
         throw Base::ValueError("Linked shape object is not a wire");
+    }
 
     return result;
+}
+
+std::vector<TopoShape> ProfileBased::getTopoShapeProfileWires() const
+{
+    // shape copy is a workaround for an obscure OCC bug which leads to empty
+    // tessellations for some faces. Making an explicit copy of the linked
+    // shape seems to fix it.  The error mostly happens when re-computing the
+    // shape but sometimes also for the first time
+    auto shape = getProfileShape().makeElementCopy();
+
+    if (shape.hasSubShape(TopAbs_WIRE)) {
+        return shape.getSubTopoShapes(TopAbs_WIRE);
+    }
+
+    auto wires = shape.makeElementWires().getSubTopoShapes(TopAbs_WIRE);
+    if (wires.empty()) {
+        throw Part::NullShapeException("Linked shape object is not a wire");
+    }
+    return wires;
 }
 
 // Note: We cannot return a reference, because it will become Null.
 // Not clear where, because we check for IsNull() here, but as soon as it is passed out of
 // this method, it becomes null!
+// TODO: Toponaming April 2024 Deprecated in favor of TopoShape method.  Remove when possible.
 const TopoDS_Face ProfileBased::getSupportFace() const
 {
     const Part::Part2DObject* sketch = getVerifiedSketch(true);
@@ -307,13 +588,14 @@ const TopoDS_Face ProfileBased::getSupportFace() const
 
 TopoDS_Face ProfileBased::getSupportFace(const Part::Part2DObject* sketch) const
 {
-    if (sketch && sketch->MapMode.getValue() == Attacher::mmFlatFace && sketch->Support.getValue()) {
-        const auto& Support = sketch->Support;
-        App::DocumentObject* ref = Support.getValue();
+    if (sketch && sketch->MapMode.getValue() == Attacher::mmFlatFace
+        && sketch->AttachmentSupport.getValue()) {
+        const auto& AttachmentSupport = sketch->AttachmentSupport;
+        App::DocumentObject* ref = AttachmentSupport.getValue();
 
         Part::Feature* part = dynamic_cast<Part::Feature*>(ref);
         if (part) {
-            const std::vector<std::string>& sub = Support.getSubValues();
+            const std::vector<std::string>& sub = AttachmentSupport.getSubValues();
             assert(sub.size() == 1);
 
             if (sub.at(0).empty()) {
@@ -323,20 +605,24 @@ TopoDS_Face ProfileBased::getSupportFace(const Part::Part2DObject* sketch) const
 
             // get the selected sub shape (a Face)
             const Part::TopoShape& shape = part->Shape.getShape();
-            if (shape.getShape().IsNull())
+            if (shape.getShape().IsNull()) {
                 throw Base::ValueError("Sketch support shape is empty!");
+            }
 
             TopoDS_Shape sh = shape.getSubShape(sub[0].c_str());
-            if (sh.IsNull())
+            if (sh.IsNull()) {
                 throw Base::ValueError("Null shape in SketchBased::getSupportFace()!");
+            }
 
             const TopoDS_Face face = TopoDS::Face(sh);
-            if (face.IsNull())
+            if (face.IsNull()) {
                 throw Base::ValueError("Null face in SketchBased::getSupportFace()!");
+            }
 
             BRepAdaptor_Surface adapt(face);
-            if (adapt.GetType() != GeomAbs_Plane)
+            if (adapt.GetType() != GeomAbs_Plane) {
                 throw Base::TypeError("No planar face in SketchBased::getSupportFace()!");
+            }
 
             return face;
         }
@@ -356,11 +642,51 @@ TopoDS_Face ProfileBased::getSupportFace(const App::PropertyLinkSub& link) const
     return face;
 }
 
+TopoShape ProfileBased::getTopoShapeSupportFace() const
+{
+    TopoShape shape;
+    const Part::Part2DObject* sketch = getVerifiedSketch(true);
+    if (!sketch) {
+        shape = getTopoShapeVerifiedFace(true);
+    }
+    else if (
+        sketch->MapMode.getValue() == Attacher::mmFlatFace && sketch->AttachmentSupport.getValue()
+    ) {
+        const auto& Support = sketch->AttachmentSupport;
+        App::DocumentObject* ref = Support.getValue();
+        shape = Part::Feature::getTopoShape(
+            ref,
+            Part::ShapeOption::NeedSubElement | Part::ShapeOption::ResolveLink
+                | Part::ShapeOption::Transform,
+            Support.getSubValues().empty() ? "" : Support.getSubValues()[0].c_str()
+        );
+    }
+    if (!shape.isNull()) {
+        if (shape.shapeType(true) != TopAbs_FACE) {
+            if (!shape.hasSubShape(TopAbs_FACE)) {
+                throw Base::ValueError("Null face in SketchBased::getSupportFace()!");
+            }
+            shape = shape.getSubTopoShape(TopAbs_FACE, 1);
+        }
+        gp_Pln pln;
+        if (!shape.findPlane(pln)) {
+            throw Base::TypeError("No planar face in SketchBased::getSupportFace()!");
+        }
+
+        return shape;
+    }
+    if (!sketch) {
+        throw Base::RuntimeError("No planar support");
+    }
+    return Feature::makeShapeFromPlane(sketch);
+}
+
 int ProfileBased::getSketchAxisCount() const
 {
     Part::Part2DObject* sketch = static_cast<Part::Part2DObject*>(Profile.getValue());
-    if (!sketch)
-        return -1; // the link to the sketch is lost
+    if (!sketch) {
+        return -1;  // the link to the sketch is lost
+    }
     return sketch->getAxisCount();
 }
 
@@ -375,19 +701,25 @@ Part::Feature* ProfileBased::getBaseObject(bool silent) const
     // getVerifiedObject() may throw it's own exception if fail
     Part::Feature* obj = getVerifiedObject(silent);
 
-    if (!obj)
+    if (!obj) {
         return nullptr;
+    }
 
-    if (!obj->isDerivedFrom(Part::Part2DObject::getClassTypeId()))
+    if (!obj->isDerivedFrom<Part::Part2DObject>()) {
         return obj;
+    }
 
-    //due to former test we know we have a 2d object
+    // due to former test we know we have a 2d object
     Part::Part2DObject* sketch = getVerifiedSketch(silent);
     const char* err = nullptr;
-
-    App::DocumentObject* spt = sketch->Support.getValue();
+    App::DocumentObject* spt = sketch->AttachmentSupport.getValue();
     if (spt) {
-        if (spt->isDerivedFrom(Part::Feature::getClassTypeId())) {
+        // Attaching to a Body positions the profile but must not import its complete tip shape.
+        // Feature supports remain implicit bases for compatibility with legacy files.
+        if (spt->isDerivedFrom<PartDesign::Body>()) {
+            return Feature::getBaseObject(silent);
+        }
+        if (spt->isDerivedFrom<Part::Feature>()) {
             rv = static_cast<Part::Feature*>(spt);
         }
         else {
@@ -415,14 +747,225 @@ void ProfileBased::onChanged(const App::Property* prop)
     FeatureAddSub::onChanged(prop);
 }
 
+void ProfileBased::onBaseFeatureRerouted(App::DocumentObject* oldBase, App::DocumentObject* newBase)
+{
+    // Sketches are independent objects with their own attachment; leave them
+    // alone. Only redirect when Profile references the deleted base directly.
+    if (Profile.getValue() && !Profile.getValue()->isDerivedFrom<Part::Part2DObject>()) {
+        relinkToMatchingSubelements(Profile, oldBase, newBase);
+    }
+}
+
+void ProfileBased::getUpToFaceFromLinkSub(TopoShape& upToFace, const App::PropertyLinkSub& refFace)
+{
+    App::DocumentObject* ref = refFace.getValue();
+
+    if (!ref) {
+        throw Base::ValueError("SketchBased: No face selected");
+    }
+
+    if (ref->isDerivedFrom<App::Plane>()) {
+        upToFace = makeShapeFromPlane(ref);
+        return;
+    }
+
+    const auto& subs = refFace.getSubValues();
+    upToFace = Part::Feature::getTopoShape(
+        ref,
+        Part::ShapeOption::NeedSubElement | Part::ShapeOption::ResolveLink
+            | Part::ShapeOption::Transform,
+        subs.empty() ? nullptr : subs[0].c_str()
+    );
+
+    if (!upToFace.hasSubShape(TopAbs_FACE)) {
+        throw Base::ValueError("SketchBased: Up to face: Failed to extract face");
+    }
+}
+
+namespace
+{
+std::optional<double> getPlanarStartReferenceDistance(
+    const TopoShape& profileShape,
+    const TopoShape& referenceShape,
+    const gp_Dir& direction
+)
+{
+    TopoShape referenceFace = referenceShape;
+    if (referenceFace.shapeType(true) != TopAbs_FACE) {
+        referenceFace = referenceFace.getSubTopoShape(TopAbs_FACE, 1);
+    }
+
+    BRepAdaptor_Surface surface(TopoDS::Face(referenceFace.getShape()));
+    if (surface.GetType() != GeomAbs_Plane) {
+        return std::nullopt;
+    }
+
+    Base::Vector3d profileCenter;
+    if (!profileShape.getCenterOfGravity(profileCenter)) {
+        return std::nullopt;
+    }
+
+    const gp_Dir normal = surface.Plane().Axis().Direction();
+    const double denominator = gp_Vec(direction).Dot(gp_Vec(normal));
+    if (std::fabs(denominator) <= Precision::Confusion()) {
+        return std::nullopt;
+    }
+
+    const gp_Vec profileToReference(Base::convertTo<gp_Pnt>(profileCenter), surface.Plane().Location());
+    return profileToReference.Dot(gp_Vec(normal)) / denominator;
+}
+}  // namespace
+
+double ProfileBased::getStartReferenceOffset(
+    const TopoShape& profileShape,
+    const App::PropertyLinkSub& reference,
+    const gp_Dir& direction,
+    double offset,
+    const TopLoc_Location& invObjLoc
+) const
+{
+    if (!reference.getValue()) {
+        return 0.0;
+    }
+
+    TopoShape referenceShape;
+    const auto& subValues = reference.getSubValues();
+    if (reference.getValue()->isDerivedFrom<Part::Part2DObject>()) {
+        if (!subValues.empty()) {
+            const Part::ShapeOptions options = Part::ShapeOption::NeedSubElement
+                | Part::ShapeOption::ResolveLink | Part::ShapeOption::Transform;
+            referenceShape = Part::Feature::getTopoShape(
+                reference.getValue(),
+                options,
+                subValues.front().c_str()
+            );
+        }
+        if (!referenceShape.hasSubShape(TopAbs_FACE)) {
+            referenceShape = getTopoShapeVerifiedFace(false, false, reference.getValue(), subValues);
+        }
+    }
+    else {
+        getUpToFaceFromLinkSub(referenceShape, reference);
+    }
+    referenceShape.move(invObjLoc);
+
+    if (const auto distance = getPlanarStartReferenceDistance(profileShape, referenceShape, direction)) {
+        return *distance + offset;
+    }
+
+    auto faces = Part::findAllFacesCutBy(referenceShape, profileShape, direction);
+    double directionFactor = 1.0;
+    if (faces.empty()) {
+        gp_Dir oppositeDirection = direction;
+        oppositeDirection.Reverse();
+        faces = Part::findAllFacesCutBy(referenceShape, profileShape, oppositeDirection);
+        directionFactor = -1.0;
+    }
+
+    if (faces.empty()) {
+        throw Base::ValueError("SketchBased: Start reference does not intersect the profile direction");
+    }
+
+    const auto nearest = std::ranges::min_element(faces, {}, &Part::cutTopoShapeFaces::distsq);
+    return directionFactor * std::sqrt(nearest->distsq) + offset;
+}
+
+TopoShape ProfileBased::moveProfileToStart(
+    const TopoShape& profileShape,
+    const gp_Dir& direction,
+    double offset,
+    bool copyProfile
+)
+{
+    if (std::fabs(offset) < Precision::Confusion()) {
+        return profileShape;
+    }
+
+    TopoShape result = copyProfile ? profileShape.makeElementCopy() : profileShape;
+    gp_Trsf transform;
+    transform.SetTranslation(gp_Vec(direction) * offset);
+    result.move(transform);
+    return result;
+}
+
+int ProfileBased::getUpToShapeFromLinkSubList(
+    TopoShape& upToShape,
+    const App::PropertyLinkSubList& refShape
+)
+{
+    auto subSets = refShape.getSubListValues();
+
+    // early returns if only one full shape is selected
+    if (subSets.size() == 1 && (subSets[0].second.empty() || subSets[0].second[0].empty())) {
+        upToShape = Part::Feature::getTopoShape(subSets[0].first, Part::ShapeOption::ResolveLink);
+        return 2;  // 0 and 1 have special treatment but true face count isn't relevant
+    }
+
+    int ret = 0;
+    std::vector<TopoShape> faceList;
+    for (auto& subSet : subSets) {
+        auto ref = subSet.first;
+        if (ref->isDerivedFrom<App::Plane>()) {
+            faceList.push_back(makeTopoShapeFromPlane(ref));
+            ret++;
+        }
+        else {
+            if (!ref->isDerivedFrom<Part::Feature>()) {
+                throw Base::TypeError("SketchBased: Must be face of a feature");
+            }
+
+            auto subStrings = subSet.second;
+            if (subStrings.empty() || subStrings[0].empty()) {
+                TopoShape baseShape = Part::Feature::getTopoShape(
+                    ref,
+                    Part::ShapeOption::NeedSubElement | Part::ShapeOption::ResolveLink
+                        | Part::ShapeOption::Transform
+                );
+
+                for (const auto& face : baseShape.getSubTopoShapes(TopAbs_FACE)) {
+                    faceList.push_back(face);
+                    ret++;
+                }
+            }
+            else {
+                for (auto& subString : subStrings) {
+                    TopoShape face = Part::Feature::getTopoShape(
+                        ref,
+                        Part::ShapeOption::NeedSubElement | Part::ShapeOption::ResolveLink
+                            | Part::ShapeOption::Transform,
+                        subString.c_str()
+                    );
+                    face = face.makeElementFace();
+                    if (face.isNull()) {
+                        throw Base::ValueError("SketchBased: Failed to extract face");
+                    }
+                    faceList.push_back(face);
+                    ret++;
+                }
+            }
+        }
+    }
+    if (ret == 0) {
+        return 0;
+    }
+    if (ret == 1) {
+        upToShape = faceList[0];
+        return 1;
+    }
+
+    // create a unique shell with all selected faces
+    upToShape = upToShape.makeElementCompound(faceList);
+    return ret;
+}
 
 void ProfileBased::getFaceFromLinkSub(TopoDS_Face& upToFace, const App::PropertyLinkSub& refFace)
 {
     App::DocumentObject* ref = refFace.getValue();
     std::vector<std::string> subStrings = refFace.getSubValues();
 
-    if (!ref)
+    if (!ref) {
         throw Base::ValueError("SketchBased: No face selected");
+    }
 
     if (ref->isDerivedFrom<App::Plane>()) {
         upToFace = TopoDS::Face(makeShapeFromPlane(ref));
@@ -434,145 +977,149 @@ void ProfileBased::getFaceFromLinkSub(TopoDS_Face& upToFace, const App::Property
         return;
     }
 
-    if (!ref->isDerivedFrom<Part::Feature>())
+    if (!ref->isDerivedFrom<Part::Feature>()) {
         throw Base::TypeError("SketchBased: Must be face of a feature");
+    }
     Part::TopoShape baseShape = static_cast<Part::Feature*>(ref)->Shape.getShape();
 
-    if (subStrings.empty() || subStrings[0].empty())
+    // Allow an empty sub here - example is a sketch reference (no sub) that creates a face.
+    if (subStrings.empty()) {
         throw Base::ValueError("SketchBased: No face selected");
+    }
     // TODO: Check for multiple UpToFaces?
 
     upToFace = TopoDS::Face(baseShape.getSubShape(subStrings[0].c_str()));
-    if (upToFace.IsNull())
+    if (upToFace.IsNull()) {
         throw Base::ValueError("SketchBased: Failed to extract face");
+    }
 }
 
-void ProfileBased::getUpToFace(TopoDS_Face& upToFace,
-                              const TopoDS_Shape& support,
-                              const TopoDS_Shape& sketchshape,
-                              const std::string& method,
-                              const gp_Dir& dir)
+
+void ProfileBased::getUpToFace(
+    TopoShape& upToFace,
+    const TopoShape& support,
+    const TopoShape& sketchshape,
+    const std::string& method,
+    gp_Dir& dir
+)
 {
-
     if ((method == "UpToLast") || (method == "UpToFirst")) {
-        // Check for valid support object
-        if (support.IsNull())
-            throw Base::ValueError("SketchBased: Up to face: No support in Sketch and no base feature!");
-
-        std::vector<Part::cutFaces> cfaces = Part::findAllFacesCutBy(support, sketchshape, dir);
-        if (cfaces.empty())
+        std::vector<Part::cutTopoShapeFaces> cfaces
+            = Part::findAllFacesCutBy(support, sketchshape, dir);
+        if (cfaces.empty()) {
             throw Base::ValueError("SketchBased: No faces found in this direction");
+        }
 
         // Find nearest/furthest face
-        std::vector<Part::cutFaces>::const_iterator it, it_near, it_far;
+        std::vector<Part::cutTopoShapeFaces>::const_iterator it, it_near, it_far;
         it_near = it_far = cfaces.begin();
-        for (it = cfaces.begin(); it != cfaces.end(); it++)
-            if (it->distsq > it_far->distsq)
+        for (it = cfaces.begin(); it != cfaces.end(); it++) {
+            if (it->distsq > it_far->distsq) {
                 it_far = it;
-            else if (it->distsq < it_near->distsq)
+            }
+            else if (it->distsq < it_near->distsq) {
                 it_near = it;
+            }
+        }
         upToFace = (method == "UpToLast" ? it_far->face : it_near->face);
     }
+    else if (Part::findAllFacesCutBy(upToFace, sketchshape, dir).empty()) {
+        dir = -dir;
+    }
 
-    // Check whether the face has limits or not. Unlimited faces have no wire
-    // Note: Datum planes are always unlimited
-    TopExp_Explorer Ex(upToFace, TopAbs_WIRE);
-    if (Ex.More()) {
-        // Remove the limits of the upToFace so that the extrusion works even if sketchshape is larger
-        // than the upToFace
-        bool remove_limits = false;
-        for (Ex.Init(sketchshape, TopAbs_FACE); Ex.More(); Ex.Next()) {
-            // Get outermost wire of sketch face
-            TopoDS_Face sketchface = TopoDS::Face(Ex.Current());
-            TopoDS_Wire outerWire = ShapeAnalysis::OuterWire(sketchface);
-            if (!checkWireInsideFace(outerWire, upToFace, dir)) {
-                remove_limits = true;
-                break;
-            }
+    if (upToFace.shapeType(true) != TopAbs_FACE) {
+        if (!upToFace.hasSubShape(TopAbs_FACE)) {
+            throw Base::ValueError("SketchBased: Up to face: No face found");
         }
+        upToFace = upToFace.getSubTopoShape(TopAbs_FACE, 1);
+    }
 
-        // It must also be checked that all projected inner wires of the upToFace
-        // lie outside the sketch shape. If this is not the case then the sketch
-        // shape is not completely covered by the upToFace. See #0003141
-        if (!remove_limits) {
-            TopoDS_Wire outerWire = ShapeAnalysis::OuterWire(upToFace);
-            for (Ex.Init(upToFace, TopAbs_WIRE); Ex.More(); Ex.Next()) {
-                if (!outerWire.IsSame(Ex.Current())) {
-                    BRepProj_Projection proj(TopoDS::Wire(Ex.Current()), sketchshape, -dir);
-                    if (proj.More()) {
-                        remove_limits = true;
-                        break;
-                    }
-                }
-            }
-        }
+    TopoDS_Face face = TopoDS::Face(upToFace.getShape());
 
-        if (remove_limits) {
-            // Note: Using an unlimited face every time gives unnecessary failures for concave faces
-            TopLoc_Location loc = upToFace.Location();
-            BRepAdaptor_Surface adapt(upToFace, Standard_False);
-            // use the placement of the adapter, not of the upToFace
-            loc = TopLoc_Location(adapt.Trsf());
-            BRepBuilderAPI_MakeFace mkFace(adapt.Surface().Surface(), Precision::Confusion());
-            if (!mkFace.IsDone())
-                throw Base::ValueError("SketchBased: Up To Face: Failed to create unlimited face");
-            upToFace = TopoDS::Face(mkFace.Shape());
-            upToFace.Location(loc);
+    // Check that the upToFace does not intersect the sketch face and
+    // is not parallel to the extrusion direction
+    BRepAdaptor_Surface adapt(face);
+
+    if (adapt.GetType() == GeomAbs_Plane) {
+        if (dir.IsNormal(adapt.Plane().Axis().Direction(), Precision::Confusion())) {
+            throw Base::ValueError(
+                "SketchBased: Up to face: Must not be parallel to extrusion direction!"
+            );
         }
     }
 
-    // Check that the upToFace is either not parallel to the extrusion direction
-    // and that upToFace is not too near
-    if (upToFace.IsNull())
-        throw Base::ValueError("SketchBased: The UpTo-Face is null!");
-    BRepAdaptor_Surface upToFaceSurface(TopoDS::Face(upToFace));
-    BRepExtrema_DistShapeShape distSS(sketchshape, upToFace);
-    if (upToFaceSurface.GetType() == GeomAbs_Plane) {
-        // Check that the upToFace is not parallel to the extrusion direction
-        if (dir.IsNormal(upToFaceSurface.Plane().Axis().Direction(), Precision::Confusion()))
-            throw Base::ValueError(
-                "SketchBased: The UpTo-Face must not be parallel to the extrusion direction!");
-
-        // Check the distance if the upToFace is normal to the extrusion direction
-        if (dir.IsParallel(upToFaceSurface.Plane().Axis().Direction(), Precision::Confusion()))
-            if (distSS.Value() < Precision::Confusion())
-                throw Base::ValueError("SketchBased: The UpTo-Face is too close to the sketch");
+    // We must measure from sketchshape, not supportface, here
+    BRepExtrema_DistShapeShape distSS(sketchshape.getShape(), face);
+    if (distSS.Value() < Precision::Confusion()) {
+        throw Base::ValueError("SketchBased: Up to face: Must not intersect sketch!");
     }
 }
 
-void ProfileBased::addOffsetToFace(TopoDS_Face& upToFace, const gp_Dir& dir, double offset)
+void ProfileBased::getUpToFace(
+    TopoShape& upToFace,
+    const TopoShape& support,
+    const TopoShape& sketchshape,
+    const std::string& method,
+    const gp_Ax1& axis
+)
+{
+    if ((method == "UpToLast") || (method == "UpToFirst")) {
+        std::vector<Part::cutTopoShapeFaces> cfaces
+            = Part::findAllFacesCutBy(support, sketchshape, axis);
+        if (cfaces.empty()) {
+            throw Base::ValueError("SketchBased: No faces found in this direction");
+        }
+
+        // Find nearest/furthest face
+        std::sort(cfaces.begin(), cfaces.end(), [](const auto& it1, const auto& it2) {
+            return it1.distsq < it2.distsq;
+        });
+        upToFace = (method == "UpToLast" ? cfaces.back().face : cfaces.front().face);
+    }
+
+    if (upToFace.shapeType(true) != TopAbs_FACE) {
+        if (!upToFace.hasSubShape(TopAbs_FACE)) {
+            throw Base::ValueError("SketchBased: Up to face: No face found");
+        }
+        upToFace = upToFace.getSubTopoShape(TopAbs_FACE, 1);
+    }
+
+    TopoDS_Face face = TopoDS::Face(upToFace.getShape());
+
+    // Check that the upToFace does not intersect the sketch face and
+    // is not normal to the rotation axis
+    BRepAdaptor_Surface adapt(face);
+    if (adapt.GetType() == GeomAbs_Plane) {
+        if (axis.Direction().IsParallel(adapt.Plane().Axis().Direction(), Precision::Confusion())) {
+            throw Base::ValueError("SketchBased: Up to face: Must not be normal to rotation axis!");
+        }
+    }
+}
+
+void ProfileBased::addOffsetToFace(TopoShape& upToFace, const gp_Dir& dir, double offset)
 {
     // Move the face in the extrusion direction
     // TODO: For non-planar faces, we could consider offsetting the surface
     if (fabs(offset) > Precision::Confusion()) {
-        BRepAdaptor_Surface upToFaceSurface(TopoDS::Face(upToFace));
-        if (upToFaceSurface.GetType() == GeomAbs_Plane) {
-            gp_Trsf mov;
-            mov.SetTranslation(offset * gp_Vec(dir));
-            TopLoc_Location loc(mov);
-            upToFace.Move(loc);
-
-            // When using the face with BRepFeat_MakePrism::Perform(const TopoDS_Shape& Until)
-            // then the algorithm expects that the 'NaturalRestriction' flag is set in order
-            // to work as expected (see generatePrism())
-            BRep_Builder builder;
-            builder.NaturalRestriction(upToFace, Standard_True);
-        }
-        else {
-            throw Base::TypeError("SketchBased: Up to Face: Offset not supported yet for non-planar faces");
-        }
+        gp_Trsf mov;
+        mov.SetTranslation(offset * gp_Vec(dir));
+        TopLoc_Location loc(mov);
+        upToFace.move(loc);
     }
 }
 
 double ProfileBased::getThroughAllLength() const
 {
-    TopoDS_Shape profileshape;
-    TopoDS_Shape base;
-    profileshape = getVerifiedFace();
-    base = getBaseShape();
+    TopoShape profileshape;
+    TopoShape base;
+    profileshape = getTopoShapeVerifiedFace(true);
+    base = getBaseTopoShape();
     Bnd_Box box;
-    BRepBndLib::Add(base, box);
-    BRepBndLib::Add(profileshape, box);
+    BRepBndLib::Add(base.getShape(), box);
+
+    if (!profileshape.isNull()) {
+        BRepBndLib::Add(profileshape.getShape(), box);
+    }
     box.SetGap(0.0);
     // The diagonal of the bounding box, plus 1%  extra to eliminate risk of
     // co-planar issues, gives a length that is guaranteed to go through all.
@@ -580,33 +1127,34 @@ double ProfileBased::getThroughAllLength() const
     return 2.02 * sqrt(box.SquareExtent());
 }
 
-bool ProfileBased::checkWireInsideFace(const TopoDS_Wire& wire, const TopoDS_Face& face,
-                                       const gp_Dir& dir) {
+bool ProfileBased::checkWireInsideFace(const TopoDS_Wire& wire, const TopoDS_Face& face, const gp_Dir& dir)
+{
     // Project wire onto the face (face, not surface! So limits of face apply)
-    // FIXME: The results of BRepProj_Projection do not seem to be very stable. Sometimes they return no result
-    // even in the simplest projection case.
-    // FIXME: Checking for Closed() is wrong because this has nothing to do with the wire itself being closed
-    // But ShapeAnalysis_Wire::CheckClosed() doesn't give correct results either.
+    // FIXME: The results of BRepProj_Projection do not seem to be very stable. Sometimes they
+    // return no result even in the simplest projection case.
+    // FIXME: Checking for Closed() is wrong because this has nothing to do with the wire itself
+    // being closed But ShapeAnalysis_Wire::CheckClosed() doesn't give correct results either.
     BRepProj_Projection proj(wire, face, dir);
     return (proj.More() && proj.Current().Closed());
 }
 
 bool ProfileBased::checkLineCrossesFace(const gp_Lin& line, const TopoDS_Face& face)
 {
-#if 1
     BRepBuilderAPI_MakeEdge mkEdge(line);
     TopoDS_Wire wire = ShapeAnalysis::OuterWire(face);
     BRepExtrema_DistShapeShape distss(wire, mkEdge.Shape(), Precision::Confusion());
     if (distss.IsDone()) {
-        if (distss.Value() > Precision::Confusion())
+        if (distss.Value() > Precision::Confusion()) {
             return false;
+        }
         // build up map vertex->edge
         TopTools_IndexedDataMapOfShapeListOfShape vertex2Edge;
         TopExp::MapShapesAndAncestors(wire, TopAbs_VERTEX, TopAbs_EDGE, vertex2Edge);
 
         for (Standard_Integer i = 1; i <= distss.NbSolution(); i++) {
-            if (distss.PointOnShape1(i).Distance(distss.PointOnShape2(i)) > Precision::Confusion())
+            if (distss.PointOnShape1(i).Distance(distss.PointOnShape2(i)) > Precision::Confusion()) {
                 continue;
+            }
             BRepExtrema_SupportType type = distss.SupportTypeShape1(i);
             if (type == BRepExtrema_IsOnEdge) {
                 TopoDS_Edge edge = TopoDS::Edge(distss.SupportOnShape1(i));
@@ -619,17 +1167,22 @@ bool ProfileBased::checkLineCrossesFace(const gp_Lin& line, const TopoDS_Face& f
 
                 Standard_Real t;
                 distss.ParOnEdgeS1(i, t);
-                gp_Pnt p_eps1 = adapt.Value(std::max<double>(adapt.FirstParameter(), t - 10 * Precision::Confusion()));
-                gp_Pnt p_eps2 = adapt.Value(std::min<double>(adapt.LastParameter(), t + 10 * Precision::Confusion()));
+                gp_Pnt p_eps1 = adapt.Value(
+                    std::max<double>(adapt.FirstParameter(), t - 10 * Precision::Confusion())
+                );
+                gp_Pnt p_eps2 = adapt.Value(
+                    std::min<double>(adapt.LastParameter(), t + 10 * Precision::Confusion())
+                );
 
                 // now check if we get a change in the sign of the distances
                 Standard_Real dist_p_eps1_pnt = gp_Vec(p_eps1, pnt).Dot(gp_Vec(dir));
                 Standard_Real dist_p_eps2_pnt = gp_Vec(p_eps2, pnt).Dot(gp_Vec(dir));
                 // distance to the plane must be noticeable
-                if (fabs(dist_p_eps1_pnt) > 5 * Precision::Confusion() &&
-                    fabs(dist_p_eps2_pnt) > 5 * Precision::Confusion()) {
-                    if (dist_p_eps1_pnt * dist_p_eps2_pnt < 0)
+                if (fabs(dist_p_eps1_pnt) > 5 * Precision::Confusion()
+                    && fabs(dist_p_eps2_pnt) > 5 * Precision::Confusion()) {
+                    if (dist_p_eps1_pnt * dist_p_eps2_pnt < 0) {
                         return true;
+                    }
                 }
             }
             else if (type == BRepExtrema_IsVertex) {
@@ -637,8 +1190,8 @@ bool ProfileBased::checkLineCrossesFace(const gp_Lin& line, const TopoDS_Face& f
                 TopoDS_Vertex vertex = TopoDS::Vertex(distss.SupportOnShape1(i));
                 const TopTools_ListOfShape& edges = vertex2Edge.FindFromKey(vertex);
                 if (edges.Extent() == 2) {
-                    // create a plane (pnt,dir) that goes through the intersection point and is built of
-                    // the vectors of the sketch normal and the rotation axis
+                    // create a plane (pnt,dir) that goes through the intersection point and is
+                    // built of the vectors of the sketch normal and the rotation axis
                     BRepAdaptor_Surface adapt(face);
                     gp_Dir normal = adapt.Plane().Axis().Direction();
                     gp_Dir dir = line.Direction().Crossed(normal);
@@ -650,10 +1203,12 @@ bool ProfileBased::checkLineCrossesFace(const gp_Lin& line, const TopoDS_Face& f
                     Standard_Real dist1 = adapt1.Value(adapt1.FirstParameter()).SquareDistance(pnt);
                     Standard_Real dist2 = adapt1.Value(adapt1.LastParameter()).SquareDistance(pnt);
                     gp_Pnt p_eps1;
-                    if (dist1 < dist2)
+                    if (dist1 < dist2) {
                         p_eps1 = adapt1.Value(adapt1.FirstParameter() + 2 * Precision::Confusion());
-                    else
+                    }
+                    else {
                         p_eps1 = adapt1.Value(adapt1.LastParameter() - 2 * Precision::Confusion());
+                    }
 
                     // from the second edge get a point next to the intersection point
                     const TopoDS_Edge& edge2 = TopoDS::Edge(edges.Last());
@@ -661,19 +1216,22 @@ bool ProfileBased::checkLineCrossesFace(const gp_Lin& line, const TopoDS_Face& f
                     Standard_Real dist3 = adapt2.Value(adapt2.FirstParameter()).SquareDistance(pnt);
                     Standard_Real dist4 = adapt2.Value(adapt2.LastParameter()).SquareDistance(pnt);
                     gp_Pnt p_eps2;
-                    if (dist3 < dist4)
+                    if (dist3 < dist4) {
                         p_eps2 = adapt2.Value(adapt2.FirstParameter() + 2 * Precision::Confusion());
-                    else
+                    }
+                    else {
                         p_eps2 = adapt2.Value(adapt2.LastParameter() - 2 * Precision::Confusion());
+                    }
 
                     // now check if we get a change in the sign of the distances
                     Standard_Real dist_p_eps1_pnt = gp_Vec(p_eps1, pnt).Dot(gp_Vec(dir));
                     Standard_Real dist_p_eps2_pnt = gp_Vec(p_eps2, pnt).Dot(gp_Vec(dir));
                     // distance to the plane must be noticeable
-                    if (fabs(dist_p_eps1_pnt) > Precision::Confusion() &&
-                        fabs(dist_p_eps2_pnt) > Precision::Confusion()) {
-                        if (dist_p_eps1_pnt * dist_p_eps2_pnt < 0)
+                    if (fabs(dist_p_eps1_pnt) > Precision::Confusion()
+                        && fabs(dist_p_eps2_pnt) > Precision::Confusion()) {
+                        if (dist_p_eps1_pnt * dist_p_eps2_pnt < 0) {
                             return true;
+                        }
                     }
                 }
             }
@@ -681,183 +1239,39 @@ bool ProfileBased::checkLineCrossesFace(const gp_Lin& line, const TopoDS_Face& f
     }
 
     return false;
-#else
-    // This is not as easy as it looks, because a distance of zero might be OK if
-    // the axis touches the sketchshape in a linear edge or a vertex
-    // Note: This algorithm doesn't catch cases where the sketchshape touches the
-    // axis in two or more points
-    // Note: And it only works on closed outer wires
-    TopoDS_Wire outerWire = ShapeAnalysis::OuterWire(face);
-    BRepBuilderAPI_MakeEdge mkEdge(line);
-    if (!mkEdge.IsDone())
-        throw Base::RuntimeError("Revolve: Unexpected OCE failure");
-    BRepAdaptor_Curve axis(TopoDS::Edge(mkEdge.Shape()));
-
-    TopExp_Explorer ex;
-    int intersections = 0;
-    std::vector<gp_Pnt> intersectionpoints;
-
-    // Note: We need to look at every edge separately to catch coincident lines
-    for (ex.Init(outerWire, TopAbs_EDGE); ex.More(); ex.Next()) {
-        BRepAdaptor_Curve edge(TopoDS::Edge(ex.Current()));
-        Extrema_ExtCC intersector(axis, edge);
-
-        if (intersector.IsDone()) {
-            for (int i = 1; i <= intersector.NbExt(); i++) {
-
-                if (intersector.SquareDistance(i) < Precision::Confusion()) {
-                    if (intersector.IsParallel()) {
-                        // A line that is coincident with the axis produces three intersections
-                        // 1 with the line itself and 2 with the adjacent edges
-                        intersections -= 2;
-                    }
-                    else {
-                        Extrema_POnCurv p1, p2;
-                        intersector.Points(i, p1, p2);
-                        intersectionpoints.push_back(p1.Value());
-                        intersections++;
-                    }
-                }
-            }
-        }
-    }
-
-    // Note: We might check this inside the loop but then we have to rely on TopExp_Explorer
-    // returning the wire's edges in adjacent order (because of the coincident line checking)
-    if (intersections > 1) {
-        // Check that we don't touch the sketchface just in two identical vertices
-        if ((intersectionpoints.size() == 2) &&
-            (intersectionpoints[0].IsEqual(intersectionpoints[1], Precision::Confusion())))
-            return false;
-        else
-            return true;
-    }
-
-    return false;
-#endif
 }
 
-void ProfileBased::remapSupportShape(const TopoDS_Shape & newShape)
+namespace PartDesign
 {
-    TopTools_IndexedMapOfShape faceMap;
-    TopExp::MapShapes(newShape, TopAbs_FACE, faceMap);
-
-    // here we must reset the placement otherwise the geometric matching doesn't work
-    Part::TopoShape shape = this->Shape.getValue();
-    TopoDS_Shape sh = shape.getShape();
-    sh.Location(TopLoc_Location());
-    shape.setShape(sh);
-
-    std::vector<App::DocumentObject*> refs = this->getInList();
-    for (auto ref : refs) {
-        std::vector<App::Property*> props;
-        ref->getPropertyList(props);
-        for (auto prop : props) {
-            if (!prop->isDerivedFrom(App::PropertyLinkSub::getClassTypeId()))
-                continue;
-            App::PropertyLinkSub* link = static_cast<App::PropertyLinkSub*>(prop);
-            if (link->getValue() != this)
-                continue;
-            std::vector<std::string> subValues = link->getSubValues();
-            std::vector<std::string> newSubValues;
-
-            for (auto & subValue : subValues) {
-                std::string shapetype;
-                if (subValue.compare(0, 4, "Face") == 0) {
-                    shapetype = "Face";
-                }
-                else if (subValue.compare(0, 4, "Edge") == 0) {
-                    shapetype = "Edge";
-                }
-                else if (subValue.compare(0, 6, "Vertex") == 0) {
-                    shapetype = "Vertex";
-                }
-                else {
-                    newSubValues.push_back(subValue);
-                    continue;
-                }
-
-                bool success = false;
-                TopoDS_Shape element;
-                try {
-                    element = shape.getSubShape(subValue.c_str());
-                }
-                catch (Standard_Failure&) {
-                    // This shape doesn't even exist, so no chance to do some tests
-                    newSubValues.push_back(subValue);
-                    continue;
-                }
-                try {
-                    // as very first test check if old face and new face are parallel planes
-                    TopoDS_Shape newElement = Part::TopoShape(newShape).getSubShape(subValue.c_str());
-                    if (isParallelPlane(element, newElement)) {
-                        newSubValues.push_back(subValue);
-                        success = true;
-                    }
-                }
-                catch (Standard_Failure&) {
-                }
-                // try an exact matching
-                if (!success) {
-                    for (int i = 1; i < faceMap.Extent(); i++) {
-                        if (isQuasiEqual(element, faceMap.FindKey(i))) {
-                            std::stringstream str;
-                            str << shapetype << i;
-                            newSubValues.push_back(str.str());
-                            success = true;
-                            break;
-                        }
-                    }
-                }
-                // if an exact matching fails then try to compare only the geometries
-                if (!success) {
-                    for (int i = 1; i < faceMap.Extent(); i++) {
-                        if (isEqualGeometry(element, faceMap.FindKey(i))) {
-                            std::stringstream str;
-                            str << shapetype << i;
-                            newSubValues.push_back(str.str());
-                            success = true;
-                            break;
-                        }
-                    }
-                }
-
-                // the new shape couldn't be found so keep the old sub-name
-                if (!success)
-                    newSubValues.push_back(subValue);
-            }
-
-            link->setValue(this, newSubValues);
-        }
-    }
-}
-
-namespace PartDesign {
-    struct gp_Pnt_Less
+struct gp_Pnt_Less
+{
+    bool operator()(const gp_Pnt& p1, const gp_Pnt& p2) const
     {
-        bool operator()(const gp_Pnt& p1,
-            const gp_Pnt& p2) const
-        {
-            if (fabs(p1.X() - p2.X()) > Precision::Confusion())
-                return p1.X() < p2.X();
-            if (fabs(p1.Y() - p2.Y()) > Precision::Confusion())
-                return p1.Y() < p2.Y();
-            if (fabs(p1.Z() - p2.Z()) > Precision::Confusion())
-                return p1.Z() < p2.Z();
-            return false; // points are considered to be equal
+        if (fabs(p1.X() - p2.X()) > Precision::Confusion()) {
+            return p1.X() < p2.X();
         }
-    };
-}
+        if (fabs(p1.Y() - p2.Y()) > Precision::Confusion()) {
+            return p1.Y() < p2.Y();
+        }
+        if (fabs(p1.Z() - p2.Z()) > Precision::Confusion()) {
+            return p1.Z() < p2.Z();
+        }
+        return false;  // points are considered to be equal
+    }
+};
+}  // namespace PartDesign
 
-bool ProfileBased::isQuasiEqual(const TopoDS_Shape & s1, const TopoDS_Shape & s2) const
+bool ProfileBased::isQuasiEqual(const TopoDS_Shape& s1, const TopoDS_Shape& s2) const
 {
-    if (s1.ShapeType() != s2.ShapeType())
+    if (s1.ShapeType() != s2.ShapeType()) {
         return false;
+    }
     TopTools_IndexedMapOfShape map1, map2;
     TopExp::MapShapes(s1, TopAbs_VERTEX, map1);
     TopExp::MapShapes(s2, TopAbs_VERTEX, map2);
-    if (map1.Extent() != map2.Extent())
+    if (map1.Extent() != map2.Extent()) {
         return false;
+    }
 
     std::vector<gp_Pnt> p1;
     for (int i = 1; i <= map1.Extent(); i++) {
@@ -873,19 +1287,21 @@ bool ProfileBased::isQuasiEqual(const TopoDS_Shape & s1, const TopoDS_Shape & s2
     std::sort(p1.begin(), p1.end(), gp_Pnt_Less());
     std::sort(p2.begin(), p2.end(), gp_Pnt_Less());
 
-    if (p1.size() != p2.size())
+    if (p1.size() != p2.size()) {
         return false;
+    }
 
     std::vector<gp_Pnt>::iterator it = p1.begin(), jt = p2.begin();
     for (; it != p1.end(); ++it, ++jt) {
-        if (!(*it).IsEqual(*jt, Precision::Confusion()))
+        if (!(*it).IsEqual(*jt, Precision::Confusion())) {
             return false;
+        }
     }
 
     return true;
 }
 
-bool ProfileBased::isEqualGeometry(const TopoDS_Shape & s1, const TopoDS_Shape & s2) const
+bool ProfileBased::isEqualGeometry(const TopoDS_Shape& s1, const TopoDS_Shape& s2) const
 {
     if (s1.ShapeType() == TopAbs_FACE && s2.ShapeType() == TopAbs_FACE) {
         BRepAdaptor_Surface a1(TopoDS::Face(s1));
@@ -896,8 +1312,9 @@ bool ProfileBased::isEqualGeometry(const TopoDS_Shape & s1, const TopoDS_Shape &
             if (p1.Distance(p2.Location()) < Precision::Confusion()) {
                 const gp_Dir& d1 = p1.Axis().Direction();
                 const gp_Dir& d2 = p2.Axis().Direction();
-                if (d1.IsParallel(d2, Precision::Confusion()))
+                if (d1.IsParallel(d2, Precision::Confusion())) {
                     return true;
+                }
             }
         }
     }
@@ -913,7 +1330,7 @@ bool ProfileBased::isEqualGeometry(const TopoDS_Shape & s1, const TopoDS_Shape &
     return false;
 }
 
-bool ProfileBased::isParallelPlane(const TopoDS_Shape & s1, const TopoDS_Shape & s2) const
+bool ProfileBased::isParallelPlane(const TopoDS_Shape& s1, const TopoDS_Shape& s2) const
 {
     if (s1.ShapeType() == TopAbs_FACE && s2.ShapeType() == TopAbs_FACE) {
         BRepAdaptor_Surface a1(TopoDS::Face(s1));
@@ -923,23 +1340,24 @@ bool ProfileBased::isParallelPlane(const TopoDS_Shape & s1, const TopoDS_Shape &
             gp_Pln p2 = a2.Plane();
             const gp_Dir& d1 = p1.Axis().Direction();
             const gp_Dir& d2 = p2.Axis().Direction();
-            if (d1.IsParallel(d2, Precision::Confusion()))
+            if (d1.IsParallel(d2, Precision::Confusion())) {
                 return true;
+            }
         }
     }
 
     return false;
 }
 
-double ProfileBased::getReversedAngle(const Base::Vector3d & b, const Base::Vector3d & v) const
+double ProfileBased::getReversedAngle(const Base::Vector3d& b, const Base::Vector3d& v) const
 {
     try {
         Part::Feature* obj = getVerifiedObject();
-        TopoDS_Shape sketchshape = getVerifiedFace();
+        TopoShape sketchshape = getTopoShapeVerifiedFace();
 
         // get centre of gravity of the sketch face
         GProp_GProps props;
-        BRepGProp::SurfaceProperties(sketchshape, props);
+        BRepGProp::SurfaceProperties(sketchshape.getShape(), props);
         gp_Pnt cog = props.CentreOfMass();
         Base::Vector3d p_cog(cog.X(), cog.Y(), cog.Z());
         // get direction to cog from its projection on the revolve axis
@@ -959,29 +1377,38 @@ double ProfileBased::getReversedAngle(const Base::Vector3d & b, const Base::Vect
     }
 }
 
-void ProfileBased::getAxis(const App::DocumentObject * pcReferenceAxis, const std::vector<std::string> &subReferenceAxis,
-                           Base::Vector3d& base, Base::Vector3d& dir, ProfileBased::ForbiddenAxis checkAxis) const
+void ProfileBased::getAxis(
+    const App::DocumentObject* pcReferenceAxis,
+    const std::vector<std::string>& subReferenceAxis,
+    Base::Vector3d& base,
+    Base::Vector3d& dir,
+    ProfileBased::ForbiddenAxis checkAxis
+) const
 {
-    auto verifyAxisFunc = [](ProfileBased::ForbiddenAxis checkAxis, const gp_Pln& sketchplane, const gp_Dir& dir) {
-        switch (checkAxis) {
-        case ForbiddenAxis::NotPerpendicularWithNormal:
-            // If perpendicular to the normal then it's parallel to the plane
-            if (sketchplane.Axis().Direction().IsNormal(dir, Precision::Angular()))
-                throw Base::ValueError("Axis must not be parallel to the sketch plane");
-            break;
-        case ForbiddenAxis::NotParallelWithNormal:
-            // If parallel with the normal then it's perpendicular to the plane
-            if (sketchplane.Axis().Direction().IsParallel(dir, Precision::Angular()))
-                throw Base::ValueError("Axis must not be perpendicular to the sketch plane");
-            break;
-        default:
-            break;
-        }
-    };
+    auto verifyAxisFunc =
+        [](ProfileBased::ForbiddenAxis checkAxis, const gp_Pln& sketchplane, const gp_Dir& dir) {
+            switch (checkAxis) {
+                case ForbiddenAxis::NotPerpendicularWithNormal:
+                    // If perpendicular to the normal then it's parallel to the plane
+                    if (sketchplane.Axis().Direction().IsNormal(dir, Precision::Angular())) {
+                        throw Base::ValueError("Axis must not be parallel to the sketch plane");
+                    }
+                    break;
+                case ForbiddenAxis::NotParallelWithNormal:
+                    // If parallel with the normal then it's perpendicular to the plane
+                    if (sketchplane.Axis().Direction().IsParallel(dir, Precision::Angular())) {
+                        throw Base::ValueError("Axis must not be perpendicular to the sketch plane");
+                    }
+                    break;
+                default:
+                    break;
+            }
+        };
 
     auto getAxisFromEdge = [](const TopoDS_Edge& refEdge, Base::Vector3d& base, Base::Vector3d& dir) {
-        if (refEdge.IsNull())
+        if (refEdge.IsNull()) {
             throw Base::ValueError("Failed to extract rotation edge");
+        }
         BRepAdaptor_Curve adapt(refEdge);
         gp_Pnt b;
         gp_Dir d;
@@ -1001,9 +1428,10 @@ void ProfileBased::getAxis(const App::DocumentObject * pcReferenceAxis, const st
         dir = Base::Vector3d(d.X(), d.Y(), d.Z());
     };
 
-    dir = Base::Vector3d(0, 0, 0); // If unchanged signals that no valid axis was found
-    if (!pcReferenceAxis)
+    dir = Base::Vector3d(0, 0, 0);  // If unchanged signals that no valid axis was found
+    if (!pcReferenceAxis || subReferenceAxis.empty()) {
         return;
+    }
 
     App::DocumentObject* profile = Profile.getValue();
     gp_Pln sketchplane;
@@ -1015,7 +1443,10 @@ void ProfileBased::getAxis(const App::DocumentObject * pcReferenceAxis, const st
         Base::Rotation SketchOrientation = SketchPlm.getRotation();
         SketchOrientation.multVec(SketchVector, SketchVector);
         Base::Vector3d SketchPos = SketchPlm.getPosition();
-        sketchplane = gp_Pln(gp_Pnt(SketchPos.x, SketchPos.y, SketchPos.z), gp_Dir(SketchVector.x, SketchVector.y, SketchVector.z));
+        sketchplane = gp_Pln(
+            gp_Pnt(SketchPos.x, SketchPos.y, SketchPos.z),
+            gp_Dir(SketchVector.x, SketchVector.y, SketchVector.z)
+        );
 
         if (pcReferenceAxis == profile) {
             bool hasValidAxis = false;
@@ -1044,15 +1475,17 @@ void ProfileBased::getAxis(const App::DocumentObject * pcReferenceAxis, const st
                 base = axis.getBase();
                 dir = axis.getDirection();
                 return;
-            } //else - an edge of the sketch was selected as an axis
+            }  // else - an edge of the sketch was selected as an axis
         }
-
     }
     else if (profile->isDerivedFrom<Part::Feature>()) {
         Base::Placement SketchPlm = getVerifiedObject()->Placement.getValue();
         Base::Vector3d SketchVector = getProfileNormal();
         Base::Vector3d SketchPos = SketchPlm.getPosition();
-        sketchplane = gp_Pln(gp_Pnt(SketchPos.x, SketchPos.y, SketchPos.z), gp_Dir(SketchVector.x, SketchVector.y, SketchVector.z));
+        sketchplane = gp_Pln(
+            gp_Pnt(SketchPos.x, SketchPos.y, SketchPos.z),
+            gp_Dir(SketchVector.x, SketchVector.y, SketchVector.z)
+        );
     }
 
     // get reference axis
@@ -1066,17 +1499,18 @@ void ProfileBased::getAxis(const App::DocumentObject * pcReferenceAxis, const st
     }
 
     if (pcReferenceAxis->isDerivedFrom<App::Line>()) {
-        const App::Line* line = static_cast<const App::Line*>(pcReferenceAxis);
-        base = Base::Vector3d(0, 0, 0);
-        line->Placement.getValue().multVec(Base::Vector3d(1, 0, 0), dir);
+        auto* line = static_cast<const App::Line*>(pcReferenceAxis);
+        base = line->getBasePoint();
+        dir = line->getDirection();
 
         verifyAxisFunc(checkAxis, sketchplane, gp_Dir(dir.x, dir.y, dir.z));
         return;
     }
 
     if (pcReferenceAxis->isDerivedFrom<Part::Feature>()) {
-        if (subReferenceAxis.empty())
+        if (subReferenceAxis.empty()) {
             throw Base::ValueError("No rotation axis reference specified");
+        }
         const Part::Feature* refFeature = static_cast<const Part::Feature*>(pcReferenceAxis);
         Part::TopoShape refShape = refFeature->Shape.getShape();
         TopoDS_Shape ref;
@@ -1098,59 +1532,121 @@ void ProfileBased::getAxis(const App::DocumentObject * pcReferenceAxis, const st
     throw Base::TypeError("Unsupported geometry type to get reference axis");
 }
 
-Base::Vector3d ProfileBased::getProfileNormal() const {
+Base::Vector3d ProfileBased::getProfileNormal() const
+{
 
     Base::Vector3d SketchVector(0, 0, 1);
     auto obj = getVerifiedObject(true);
-    if (!obj)
+    if (!obj) {
         return SketchVector;
+    }
 
     // get the Sketch plane
-    if (obj->isDerivedFrom(Part::Part2DObject::getClassTypeId())) {
+    if (obj->isDerivedFrom<Part::Part2DObject>()) {
         Base::Placement SketchPos = obj->Placement.getValue();
         Base::Rotation SketchOrientation = SketchPos.getRotation();
         SketchOrientation.multVec(SketchVector, SketchVector);
+        return SketchVector;
     }
-    else {
-        TopoDS_Shape shape = getVerifiedFace(true);
-        if (shape.IsNull())
-            return SketchVector;
 
-        // the shape can be a single face or a compound of faces, only consider the first face
-        TopExp_Explorer ex(shape, TopAbs_FACE);
-        if (ex.More()) {
-            TopoDS_Face face = TopoDS::Face(ex.Current());
-            BRepAdaptor_Surface adapt(face);
-            double u = adapt.FirstUParameter() + (adapt.LastUParameter() - adapt.FirstUParameter()) / 2.;
-            double v = adapt.FirstVParameter() + (adapt.LastVParameter() - adapt.FirstVParameter()) / 2.;
-            BRepLProp_SLProps prop(adapt, u, v, 2, Precision::Confusion());
-            if (prop.IsNormalDefined()) {
-                gp_Pnt pnt; gp_Vec vec;
-                // handles the orientation state of the shape
-                BRepGProp_Face(face).Normal(u, v, pnt, vec);
-                SketchVector = Base::Vector3d(vec.X(), vec.Y(), vec.Z());
+    TopoShape shape = getTopoShapeVerifiedFace(true, true);
+    if (shape.isNull()) {
+        return SketchVector;
+    }
+
+    gp_Pln pln;
+    if (shape.findPlane(pln)) {
+        gp_Dir dir = pln.Axis().Direction();
+        return Base::Vector3d(dir.X(), dir.Y(), dir.Z());
+    }
+
+    if (shape.hasSubShape(TopAbs_EDGE)) {
+        // Find the first planar face that contains the edge, and return the plane normal
+        TopoShape objShape = Part::Feature::getTopoShape(
+            obj,
+            Part::ShapeOption::ResolveLink | Part::ShapeOption::Transform
+        );
+        for (int idx : objShape.findAncestors(shape.getSubShape(TopAbs_EDGE, 1), TopAbs_FACE)) {
+            if (objShape.getSubTopoShape(TopAbs_FACE, idx).findPlane(pln)) {
+                gp_Dir dir = pln.Axis().Direction();
+                return Base::Vector3d(dir.X(), dir.Y(), dir.Z());
             }
         }
     }
 
+    // If no planar face, try to use the normal of the center of the first face.
+    if (shape.hasSubShape(TopAbs_FACE)) {
+        TopoDS_Face face = TopoDS::Face(shape.getSubShape(TopAbs_FACE, 1));
+        BRepAdaptor_Surface adapt(face);
+        double u = adapt.FirstUParameter() + (adapt.LastUParameter() - adapt.FirstUParameter()) / 2.;
+        double v = adapt.FirstVParameter() + (adapt.LastVParameter() - adapt.FirstVParameter()) / 2.;
+        BRepLProp_SLProps prop(adapt, u, v, 2, Precision::Confusion());
+        if (prop.IsNormalDefined()) {
+            gp_Pnt pnt;
+            gp_Vec vec;
+            // handles the orientation state of the shape
+            BRepGProp_Face(face).Normal(u, v, pnt, vec);
+            return Base::Vector3d(vec.X(), vec.Y(), vec.Z());
+        }
+    }
+
+    if (!shape.hasSubShape(TopAbs_EDGE)) {
+        return SketchVector;
+    }
+
+    // If the shape is a line, then return an arbitrary direction that is perpendicular to the line
+    auto geom = Part::Geometry::fromShape(shape.getSubShape(TopAbs_EDGE, 1), true);
+    auto geomLine = freecad_cast<Part::GeomLine*>(geom.get());
+    if (geomLine) {
+        Base::Vector3d dir = geomLine->getDir();
+        double x = std::fabs(dir.x);
+        double y = std::fabs(dir.y);
+        double z = std::fabs(dir.z);
+        if (x > y && x > z && x > 1e-7) {
+            if (y + z < 1e-7) {
+                return Base::Vector3d(0, 0, 1);
+            }
+            dir.x = -(dir.z + dir.y) / dir.x;
+        }
+        else if (y > x && y > z && y > 1e-7) {
+            if (x + z < 1e-7) {
+                return Base::Vector3d(0, 0, 1);
+            }
+            dir.y = -(dir.z + dir.x) / dir.y;
+        }
+        else if (z > 1e-7) {
+            if (x + y < 1e-7) {
+                return Base::Vector3d(1, 0, 0);
+            }
+            dir.z = -(dir.x + dir.y) / dir.z;
+        }
+        else {
+            return SketchVector;
+        }
+        return dir.Normalize();
+    }
     return SketchVector;
 }
 
-void ProfileBased::Restore(Base::XMLReader & reader)
+void ProfileBased::Restore(Base::XMLReader& reader)
 {
     PartDesign::FeatureAddSub::Restore(reader);
 }
 
-void ProfileBased::handleChangedPropertyName(Base::XMLReader & reader, const char* TypeName, const char* PropName)
+void ProfileBased::handleChangedPropertyName(
+    Base::XMLReader& reader,
+    const char* TypeName,
+    const char* PropName
+)
 {
-    //check if we load the old sketch property
+    // check if we load the old sketch property
     if ((strcmp("Sketch", PropName) == 0) && (strcmp("App::PropertyLink", TypeName) == 0)) {
 
         std::vector<std::string> vec;
         // read my element
         reader.readElement("Link");
         // get the value of my attribute
-        std::string name = reader.getAttribute("value");
+        std::string name = reader.getAttribute<const char*>("value");
 
         if (!name.empty()) {
             App::Document* document = getDocument();

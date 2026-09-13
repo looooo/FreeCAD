@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *   Copyright (c) 2019 Franck Jullien <franck.jullien@gmail.com>          *
@@ -21,10 +23,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 # include <cmath>
-#endif // #ifndef _PreComp_
 
 #include <App/Document.h>
 #include <Base/Console.h>
@@ -74,6 +73,7 @@ TaskBalloon::TaskBalloon(QGIViewBalloon *parent, ViewProviderBalloon *balloonVP)
     ui->comboEndSymbol->setCurrentIndex(i);
     connect(ui->comboEndSymbol, qOverload<int>(&QComboBox::currentIndexChanged), this, &TaskBalloon::onEndSymbolChanged);
 
+    DrawGuiUtil::loadBalloonShapeBox(ui->comboBubbleShape);
     i = parent->getBalloonFeat()->BubbleShape.getValue();
     ui->comboBubbleShape->setCurrentIndex(i);
     connect(ui->comboBubbleShape, qOverload<int>(&QComboBox::currentIndexChanged), this, &TaskBalloon::onBubbleShapeChanged);
@@ -85,6 +85,8 @@ TaskBalloon::TaskBalloon(QGIViewBalloon *parent, ViewProviderBalloon *balloonVP)
     ui->qsbLineWidth->setSingleStep(0.100);
     ui->qsbLineWidth->setMinimum(0);
 
+    ui->gbLeader->setChecked(balloonVP->LineVisible.getValue() != 0);
+
     // negative kink length is allowed, thus no minimum
     ui->qsbKinkLength->setUnit(Base::Unit::Length);
 
@@ -92,17 +94,17 @@ TaskBalloon::TaskBalloon(QGIViewBalloon *parent, ViewProviderBalloon *balloonVP)
         ui->textColor->setColor(balloonVP->Color.getValue().asValue<QColor>());
         connect(ui->textColor, &ColorButton::changed, this, &TaskBalloon::onColorChanged);
         ui->qsbFontSize->setValue(balloonVP->Fontsize.getValue());
-        ui->comboLineVisible->setCurrentIndex(balloonVP->LineVisible.getValue());
         ui->qsbLineWidth->setValue(balloonVP->LineWidth.getValue());
     }
     // new balloons have already the preferences BalloonKink length
     ui->qsbKinkLength->setValue(parent->getBalloonFeat()->KinkLength.getValue());
 
     connect(ui->qsbFontSize, qOverload<double>(&QuantitySpinBox::valueChanged), this, &TaskBalloon::onFontsizeChanged);
-    connect(ui->comboLineVisible, qOverload<int>(&QComboBox::currentIndexChanged), this, &TaskBalloon::onLineVisibleChanged);
+    connect(ui->gbLeader,&QGroupBox::toggled, this, &TaskBalloon::onLineVisibleChanged);
     connect(ui->qsbLineWidth, qOverload<double>(&QuantitySpinBox::valueChanged), this, &TaskBalloon::onLineWidthChanged);
     connect(ui->qsbKinkLength, qOverload<double>(&QuantitySpinBox::valueChanged), this, &TaskBalloon::onKinkLengthChanged);
 
+    onLineVisibleChanged(ui->gbLeader->isChecked());
 }
 
 TaskBalloon::~TaskBalloon()
@@ -122,7 +124,7 @@ bool TaskBalloon::accept()
         m_guiDocument->commitCommand();
     } else {
         // see comment in reject(). this may not do what we want.
-        Gui::Command::abortCommand();
+        m_guiDocument->abortCommand();
     }
 
     m_guiDocument->resetEdit();
@@ -157,7 +159,7 @@ void TaskBalloon::recomputeFeature()
 {
     App::DocumentObject* objVP = m_balloonVP->getObject();
     assert(objVP);
-    objVP->getDocument()->recomputeFeature(objVP);
+    objVP->recomputeFeature();
 }
 
 void TaskBalloon::onTextChanged()
@@ -168,7 +170,7 @@ void TaskBalloon::onTextChanged()
 
 void TaskBalloon::onColorChanged()
 {
-    App::Color ac;
+    Base::Color ac;
     ac.setValue<QColor>(ui->textColor->color());
     m_balloonVP->Color.setValue(ac);
     recomputeFeature();
@@ -204,9 +206,9 @@ void TaskBalloon::onEndSymbolScaleChanged()
     recomputeFeature();
 }
 
-void TaskBalloon::onLineVisibleChanged()
+void TaskBalloon::onLineVisibleChanged(bool isVisible)
 {
-    m_balloonVP->LineVisible.setValue(ui->comboLineVisible->currentIndex());
+    m_balloonVP->LineVisible.setValue(isVisible ? 1 : 0);
     recomputeFeature();
 }
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2008 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <Gui/MenuManager.h>
 #include <Gui/ToolBarManager.h>
@@ -32,6 +33,10 @@ using namespace ReverseEngineeringGui;
 
 #if 0  // needed for Qt's lupdate utility
     qApp->translate("Workbench", "Reverse Engineering");
+    qApp->translate("Workbench", "&Reverse Engineering");
+    qApp->translate("Workbench", "Surface Reconstruction");
+    qApp->translate("Workbench", "Segmentation");
+    qApp->translate("Workbench", "Approximation");
 #endif
 
 /// @namespace ReverseEngineeringGui @class Workbench
@@ -50,7 +55,7 @@ Gui::MenuItem* Workbench::setupMenuBar() const
     reen->setCommand("&Reverse Engineering");
 
     Gui::MenuItem* reconstruct = new Gui::MenuItem();
-    reconstruct->setCommand("Surface reconstruction");
+    reconstruct->setCommand("Surface Reconstruction");
     *reconstruct << "Reen_PoissonReconstruction"
                  << "Reen_ViewTriangulation";
     *reen << reconstruct;
@@ -74,7 +79,8 @@ Gui::MenuItem* Workbench::setupMenuBar() const
             << "Reen_ApproxSphere"
             << "Reen_ApproxPolynomial"
             << "Separator"
-            << "Reen_ApproxSurface";
+            << "Reen_ApproxSurface"
+            << "Reen_ApproxCurve";
     *reen << approx;
 
     return root;

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 project(ThumbnailProvider)
 
 cmake_minimum_required(VERSION 2.6.0 FATAL_ERROR)
@@ -18,6 +20,10 @@ find_package(ZLIB REQUIRED)
 include_directories(
     .
     ../../../
+)
+
+include_directories(
+    SYSTEM
     ${ZLIB_INCLUDE_DIR}
 )
 

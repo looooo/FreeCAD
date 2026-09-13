@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
  /**************************************************************************
  *   Copyright (c) 2015 FreeCAD Developers                                 *
  *   Author: WandererFan <wandererfan@gmail.com>                           *
@@ -21,8 +23,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_DLGPREFSTECHDRAWIMPADVANCED_H
-#define DRAWINGGUI_DLGPREFSTECHDRAWIMPADVANCED_H
+#pragma once
 
 #include <Gui/PropertyPage.h>
 #include <Mod/TechDraw/TechDrawGlobal.h>
@@ -44,12 +45,22 @@ public:
 protected:
     void saveSettings() override;
     void loadSettings() override;
-    void changeEvent(QEvent *e) override;
+    void changeEvent(QEvent *event) override;
+
+    void loadBalloonOverride();
+    void saveBalloonOverride();
+
+    void clearBalloonOptions();
+
+    static bool flagsContainValue(uint flags, uint value);
+
+    void makeBalloonBoxConnections();
+    void slotBalloonBoxChecked();
+    void enableBalloonOptions(bool newState);
+
 
 private:
     std::unique_ptr<Ui_DlgPrefsTechDrawAdvancedImp> ui;
 };
 
 } // namespace TechDrawGui
-
-#endif // DRAWINGGUI_DLGPREFSTECHDRAWIMPADVANCED_H

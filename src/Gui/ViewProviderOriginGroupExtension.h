@@ -21,8 +21,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef GUI_VIEWPROVIDERORIGINGROUPEXTENSION_H
-#define GUI_VIEWPROVIDERORIGINGROUPEXTENSION_H
+#pragma once
 
 #include "ViewProviderGeoFeatureGroup.h"
 
@@ -30,7 +29,7 @@
 namespace Gui
 {
 
-class GuiExport ViewProviderOriginGroupExtension : public ViewProviderGeoFeatureGroupExtension
+class GuiExport ViewProviderOriginGroupExtension: public ViewProviderGeoFeatureGroupExtension
 {
     EXTENSION_PROPERTY_HEADER_WITH_OVERRIDE(Gui::ViewProviderOriginGroupExtension);
 
@@ -39,28 +38,16 @@ public:
     ViewProviderOriginGroupExtension();
     ~ViewProviderOriginGroupExtension() override;
 
-    std::vector<App::DocumentObject*> extensionClaimChildren()const override;
-    std::vector<App::DocumentObject*> extensionClaimChildren3D()const override;
-
-    void extensionAttach(App::DocumentObject *pcObject) override;
-    void extensionUpdateData(const App::Property* prop) override;
-
-    void updateOriginSize();
-
-protected:
-    void slotChangedObjectApp ( const App::DocumentObject& obj );
-    void slotChangedObjectGui ( const Gui::ViewProviderDocumentObject& obj );
+    std::vector<App::DocumentObject*> extensionClaimChildren() const override;
+    std::vector<App::DocumentObject*> extensionClaimChildren3D() const override;
 
 private:
-    std::vector<App::DocumentObject*> constructChildren (
-            const std::vector<App::DocumentObject*> &children ) const;
-
-    boost::signals2::connection connectChangedObjectApp;
-    boost::signals2::connection connectChangedObjectGui;
+    std::vector<App::DocumentObject*> constructChildren(
+        const std::vector<App::DocumentObject*>& children
+    ) const;
 };
 
-using ViewProviderOriginGroupExtensionPython = ViewProviderExtensionPythonT<Gui::ViewProviderOriginGroupExtension>;
+using ViewProviderOriginGroupExtensionPython
+    = ViewProviderExtensionPythonT<Gui::ViewProviderOriginGroupExtension>;
 
-} //namespace Gui
-
-#endif // GUI_VIEWPROVIDERORIGINGROUPEXTENSION_H
+}  // namespace Gui

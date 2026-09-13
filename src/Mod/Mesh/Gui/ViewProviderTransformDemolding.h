@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2004 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef MESGUI_VIEWPROVIDERMESHTRANSFORMDEMOLDING_H
-#define MESGUI_VIEWPROVIDERMESHTRANSFORMDEMOLDING_H
+#pragma once
 
 #include "ViewProvider.h"
 
@@ -63,7 +64,7 @@ public:
      * Extracts the mesh data from the feature \a pcFeature and creates
      * an Inventor node \a SoNode with these data.
      */
-    void attach(App::DocumentObject*) override;
+    void attach(App::DocumentObject* obj) override;
 
     /// set the viewing mode
     void setDisplayMode(const char* ModeName) override;
@@ -73,6 +74,7 @@ public:
     std::vector<std::string> getDisplayModes() const override;
 
 protected:
+    void setCenterPoint();
     void calcMaterialIndex(const SbRotation& rot);
     void calcNormalVector();
 
@@ -88,9 +90,8 @@ private:
     SoMaterial* pcColorMat;
     std::vector<SbVec3f> normalVector;
     Base::Vector3f center;
+
+    FC_DISABLE_COPY_MOVE(ViewProviderMeshTransformDemolding)
 };
 
 }  // namespace MeshGui
-
-
-#endif  // MESGUI_VIEWPROVIDERMESHTRANSFORMDEMOLDING_H

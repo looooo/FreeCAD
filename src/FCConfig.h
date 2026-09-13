@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 /***************************************************************************
  *   Copyright (c) 2004 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -26,11 +27,8 @@
  *  This file keeps the makefiles and project files cleaner.
  */
 
-
-#ifndef FC_CONFIG_H
-#define FC_CONFIG_H
-
-
+#pragma once
+ 
 
 //**************************************************************************
 // switching the operating systems
@@ -43,7 +41,7 @@
 #   ifndef FC_OS_WIN64
 #   define FC_OS_WIN64
 #   endif
-#elif defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
+#elif defined(WIN32) || defined(_WIN32) || defined(__WIN32__)
 #   ifndef FC_OS_WIN32
 #   define FC_OS_WIN32
 #   endif
@@ -52,10 +50,6 @@
 #   include <config.h>
 #   endif // HAVE_CONFIG_H
 
-#   endif
-#elif defined(__MWERKS__) && defined(__INTEL__)
-#   ifndef FC_OS_WIN32
-#   define FC_OS_WIN32
 #   endif
 #elif defined(__APPLE__)
 #   ifndef FC_OS_MACOSX
@@ -99,7 +93,7 @@
 // Standard types for Windows
 
 #if defined(__MINGW32__)
-// nothing specific here
+// Do not remove this line!
 #elif defined (FC_OS_WIN64) || defined (FC_OS_WIN32)
 
 #ifndef HAVE_INT8_T
@@ -200,16 +194,11 @@ typedef unsigned __int64    uint64_t;
 //**************************************************************************
 // Qt
 
-// Make sure to explicitly use the correct conversion
-#ifndef QT_NO_CAST_FROM_ASCII
-# define QT_NO_CAST_FROM_ASCII
-#endif
-
 #ifndef QT_NO_KEYWORDS
 # define QT_NO_KEYWORDS
 #endif
 
-#if defined (FC_OS_WIN32) || defined(FC_OS_CYGWIN)
+#if defined (FC_OS_WIN32)
 # ifndef QT_DLL
 #  define QT_DLL
 # endif
@@ -226,7 +215,7 @@ typedef unsigned __int64    uint64_t;
 
 //**************************************************************************
 // Coin3D
-#if defined (FC_OS_WIN32) || defined(FC_OS_CYGWIN)
+#if defined (FC_OS_WIN32)
 # ifndef FCGui //COIN_DLL is defined in the FreeCADGui target
 #  ifndef COIN_DLL
 #    define COIN_DLL
@@ -236,7 +225,7 @@ typedef unsigned __int64    uint64_t;
 
 //**************************************************************************
 // Quarter
-#if defined (FC_OS_WIN32) || defined(FC_OS_CYGWIN)
+#if defined (FC_OS_WIN32)
 # ifndef QUARTER_INTERNAL
 #  ifndef QUARTER_DLL
 #   define QUARTER_DLL
@@ -274,13 +263,10 @@ typedef unsigned __int64    uint64_t;
 //**************************************************************************
 // point at which warnings of overly long specifiers disabled (needed for VC6)
 #ifdef _MSC_VER
-#   pragma warning( disable : 4251 )
-#   pragma warning( disable : 4996 )  // suppress deprecated warning for e.g. open()
+#   pragma warning( disable : 4251 )  // Member that is not marked for DLL export
 #if defined(WIN64) || defined(_WIN64) || defined(__WIN64__)
-#   pragma warning( disable : 4244 )
-#   pragma warning( disable : 4267 )
+#   pragma warning( disable : 4244 )  // Narrowing conversion
+#   pragma warning( disable : 4267 )  // Implicit conversion from size_t to a smaller integer type
 #endif
 
 #endif
-
-#endif //FC_CONFIG_H

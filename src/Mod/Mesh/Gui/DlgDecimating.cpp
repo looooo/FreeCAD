@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2020 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,10 +22,9 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
-#include <Gui/Command.h>
-#include <Gui/Selection.h>
+#include <Gui/CommandT.h>
+#include <Gui/Selection/Selection.h>
 #include <Gui/WaitCursor.h>
 #include <Mod/Mesh/App/MeshFeature.h>
 
@@ -40,10 +41,12 @@ DlgDecimating::DlgDecimating(QWidget* parent, Qt::WindowFlags fl)
     , ui(new Ui_DlgDecimating)
 {
     ui->setupUi(this);
-    connect(ui->checkAbsoluteNumber,
-            &QCheckBox::toggled,
-            this,
-            &DlgDecimating::onCheckAbsoluteNumberToggled);
+    connect(
+        ui->checkAbsoluteNumber,
+        &QCheckBox::toggled,
+        this,
+        &DlgDecimating::onCheckAbsoluteNumberToggled
+    );
     ui->spinBoxReduction->setMinimumWidth(60);
     ui->checkAbsoluteNumber->setEnabled(false);
     onCheckAbsoluteNumberToggled(false);
@@ -61,9 +64,8 @@ int DlgDecimating::targetNumberOfTriangles() const
     if (ui->checkAbsoluteNumber->isChecked()) {
         return ui->spinBoxReduction->value();
     }
-    else {
-        return numberOfTriangles * (1.0 - reduction());
-    }
+
+    return int(numberOfTriangles * (1.0 - reduction()));
 }
 
 void DlgDecimating::setNumberOfTriangles(int num)
@@ -81,33 +83,40 @@ void DlgDecimating::onCheckAbsoluteNumberToggled(bool on)
     ui->groupBoxTolerance->setDisabled(on);
 
     if (on) {
-        disconnect(ui->sliderReduction,
-                   qOverload<int>(&QSlider::valueChanged),
-                   ui->spinBoxReduction,
-                   &QSpinBox::setValue);
-        disconnect(ui->spinBoxReduction,
-                   qOverload<int>(&QSpinBox::valueChanged),
-                   ui->sliderReduction,
-                   &QSlider::setValue);
+        disconnect(
+            ui->sliderReduction,
+            qOverload<int>(&QSlider::valueChanged),
+            ui->spinBoxReduction,
+            &QSpinBox::setValue
+        );
+        disconnect(
+            ui->spinBoxReduction,
+            qOverload<int>(&QSpinBox::valueChanged),
+            ui->sliderReduction,
+            &QSlider::setValue
+        );
         ui->spinBoxReduction->setRange(1, numberOfTriangles);
-        ui->spinBoxReduction->setValue(numberOfTriangles * (1.0 - reduction()));
+        ui->spinBoxReduction->setValue(int(numberOfTriangles * (1.0 - reduction())));
         ui->spinBoxReduction->setSuffix(QString());
-        ui->checkAbsoluteNumber->setText(
-            tr("Absolute number (Maximum: %1)").arg(numberOfTriangles));
+        ui->checkAbsoluteNumber->setText(tr("Absolute number (Maximum: %1)").arg(numberOfTriangles));
     }
     else {
         ui->spinBoxReduction->setRange(0, 100);
         ui->spinBoxReduction->setValue(ui->sliderReduction->value());
-        ui->spinBoxReduction->setSuffix(QString::fromLatin1("%"));
+        ui->spinBoxReduction->setSuffix(QStringLiteral("%"));
         ui->checkAbsoluteNumber->setText(tr("Absolute number"));
-        connect(ui->sliderReduction,
-                qOverload<int>(&QSlider::valueChanged),
-                ui->spinBoxReduction,
-                &QSpinBox::setValue);
-        connect(ui->spinBoxReduction,
-                qOverload<int>(&QSpinBox::valueChanged),
-                ui->sliderReduction,
-                &QSlider::setValue);
+        connect(
+            ui->sliderReduction,
+            qOverload<int>(&QSlider::valueChanged),
+            ui->spinBoxReduction,
+            &QSpinBox::setValue
+        );
+        connect(
+            ui->spinBoxReduction,
+            qOverload<int>(&QSpinBox::valueChanged),
+            ui->sliderReduction,
+            &QSlider::setValue
+        );
     }
 }
 
@@ -135,10 +144,7 @@ double DlgDecimating::reduction() const
 TaskDecimating::TaskDecimating()
 {
     widget = new DlgDecimating();  // NOLINT
-    Gui::TaskView::TaskBox* taskbox =
-        new Gui::TaskView::TaskBox(QPixmap(), widget->windowTitle(), false, nullptr);
-    taskbox->groupLayout()->addWidget(widget);
-    Content.push_back(taskbox);
+    addTaskBox(widget, false, nullptr);
 
     std::vector<Mesh::Feature*> meshes = Gui::Selection().getObjectsOfType<Mesh::Feature>();
     if (meshes.size() == 1) {
@@ -157,27 +163,31 @@ bool TaskDecimating::accept()
     Gui::Selection().clearSelection();
 
     Gui::WaitCursor wc;
-    Gui::Command::openCommand(QT_TRANSLATE_NOOP("Command", "Mesh Decimating"));
 
-    float tolerance = widget->tolerance();
-    float reduction = widget->reduction();
+
+    float tolerance = float(widget->tolerance());
+    float reduction = float(widget->reduction());
     bool absolute = widget->isAbsoluteNumber();
     int targetSize = 0;
     if (absolute) {
         targetSize = widget->targetNumberOfTriangles();
     }
+
+    // Here we assume that all meshes are in the same document
+    // if it turns out to not be the case then the transaction can be
+    // opened in the loop with the tid as an argument - theo-vt
+    int tid = meshes[0]->getDocument()->openTransaction(
+        QT_TRANSLATE_NOOP("Command", "Mesh Decimating")
+    );
     for (auto mesh : meshes) {
-        Mesh::MeshObject* mm = mesh->Mesh.startEditing();
         if (absolute) {
-            mm->decimate(targetSize);
+            Gui::cmdAppObjectArgs(mesh, "decimate(%i)", targetSize);
         }
         else {
-            mm->decimate(tolerance, reduction);
+            Gui::cmdAppObjectArgs(mesh, "decimate(%f, %f)", tolerance, reduction);
         }
-        mesh->Mesh.finishEditing();
     }
-
-    Gui::Command::commitCommand();
+    App::GetApplication().commitTransaction(tid);
     return true;
 }
 

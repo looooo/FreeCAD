@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2017 Ian Rees <ian.rees@gmail.com>                      *
  *                                                                         *
@@ -20,13 +22,11 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <algorithm>
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/core/ignore_unused.hpp>
 #include <vector>
-#endif
+
 
 #include <App/Application.h>
 #include <App/ComplexGeoData.h>
@@ -38,6 +38,7 @@
 #include <Base/Sequencer.h>
 #include <Base/Stream.h>
 #include <Base/Tools.h>
+#include <Base/XMLTools.h>
 #include "Core/Iterator.h"
 #include "Core/IO/Writer3MF.h"
 #include <zipios++/zipoutputstream.h>
@@ -51,7 +52,8 @@ using namespace MeshCore;
 static std::vector<std::string> expandSubObjectNames(
     const App::DocumentObject* obj,
     std::map<const App::DocumentObject*, std::vector<std::string>>& subObjectNameCache,
-    int depth)
+    int depth
+)
 {
     if (!App::GetApplication().checkLinkDepth(depth)) {
         return {};
@@ -90,17 +92,6 @@ static std::vector<std::string> expandSubObjectNames(
 Exporter::Exporter() = default;
 
 // static
-std::string Exporter::xmlEscape(const std::string& input)
-{
-    std::string out(input);
-    boost::replace_all(out, "&", "&amp;");
-    boost::replace_all(out, "\"", "&quot;");
-    boost::replace_all(out, "'", "&apos;");
-    boost::replace_all(out, "<", "&lt;");
-    boost::replace_all(out, ">", "&gt;");
-    return out;
-}
-
 int Exporter::addObject(App::DocumentObject* obj, float tol)
 {
     int count = 0;
@@ -110,9 +101,8 @@ int Exporter::addObject(App::DocumentObject* obj, float tol)
         auto linked = sobj->getLinkedObject(true, &matrix, false);
         auto it = meshCache.find(linked);
         if (it == meshCache.end()) {
-            if (linked->isDerivedFrom(Mesh::Feature::getClassTypeId())) {
-                it = meshCache.emplace(linked, static_cast<Mesh::Feature*>(linked)->Mesh.getValue())
-                         .first;
+            if (linked->isDerivedFrom<Mesh::Feature>()) {
+                it = meshCache.emplace(linked, static_cast<Mesh::Feature*>(linked)->Mesh.getValue()).first;
                 it->second.setTransform(matrix);
             }
             else {
@@ -125,8 +115,7 @@ int Exporter::addObject(App::DocumentObject* obj, float tol)
                 if (PyObject_TypeCheck(pyobj, &Data::ComplexGeoDataPy::Type)) {
                     std::vector<Base::Vector3d> aPoints;
                     std::vector<Data::ComplexGeoData::Facet> aTopo;
-                    auto geoData =
-                        static_cast<Data::ComplexGeoDataPy*>(pyobj)->getComplexGeoDataPtr();
+                    auto geoData = static_cast<Data::ComplexGeoDataPy*>(pyobj)->getComplexGeoDataPtr();
                     geoData->getFaces(aPoints, aTopo, tol);
                     it = meshCache.emplace(linked, MeshObject()).first;
                     it->second.setFacets(aTopo, aPoints);
@@ -155,7 +144,7 @@ void Exporter::throwIfNoPermission(const std::string& filename)
     Base::FileInfo fi(filename);
     Base::FileInfo di(fi.dirPath());
     if ((fi.exists() && !fi.isWritable()) || !di.exists() || !di.isWritable()) {
-        throw Base::FileException("No write permission for file", fi);
+        throw Base::FileWritePermissionException(fi);
     }
 }
 
@@ -289,7 +278,22 @@ public:
         , ext(std::move(ext))
     {}
     MeshCore::Writer3MF writer3mf;
+    MeshObject meshObject;
     std::vector<Extension3MFPtr> ext;
+    bool hasMesh = false;
+    void addMesh(const MeshObject& mesh)
+    {
+        auto kernel = mesh.getKernel();
+        kernel.Transform(mesh.getTransform());
+        auto countFacets(meshObject.countFacets());
+        if (countFacets == 0) {
+            meshObject.setKernel(kernel);
+        }
+        else {
+            meshObject.addMesh(kernel);
+        }
+        hasMesh = true;
+    }
 };
 
 Exporter3MF::Exporter3MF(std::string fileName, const std::vector<Extension3MFPtr>& ext)
@@ -300,19 +304,28 @@ Exporter3MF::Exporter3MF(std::string fileName, const std::vector<Extension3MFPtr
 
 Exporter3MF::~Exporter3MF()
 {
+    if (d->hasMesh) {
+        try {
+            for (const auto& it : d->ext) {
+                d->writer3mf.AddResource(it->addMesh(d->meshObject));
+            }
+        }
+        catch (const Base::Exception& e) {
+            std::cerr << "Adding 3MF resources failed: " << e.what() << std::endl;
+        }
+        catch (...) {
+            std::cerr << "Adding 3MF resources failed" << std::endl;
+        }
+    }
     write();
 }
 
 bool Exporter3MF::addMesh(const char* name, const MeshObject& mesh)
 {
-    boost::ignore_unused(name);
-    bool ok = d->writer3mf.AddMesh(mesh.getKernel(), mesh.getTransform());
+    bool ok = d->writer3mf.AddMesh(mesh.getKernel(), mesh.getTransform(), name);
     if (ok) {
-        for (const auto& it : d->ext) {
-            d->writer3mf.AddResource(it->addMesh(mesh));
-        }
+        d->addMesh(mesh);
     }
-
     return ok;
 }
 
@@ -328,9 +341,7 @@ void Exporter3MF::write()
 
 // ----------------------------------------------------------------------------
 
-ExporterAMF::ExporterAMF(std::string fileName,
-                         const std::map<std::string, std::string>& meta,
-                         bool compress)
+ExporterAMF::ExporterAMF(std::string fileName, const std::map<std::string, std::string>& meta, bool compress)
 {
     // ask for write permission
     throwIfNoPermission(fileName);
@@ -393,17 +404,14 @@ public:
                 if (a.z == b.z) {
                     return false;
                 }
-                else {
-                    return a.z < b.z;
-                }
+
+                return a.z < b.z;
             }
-            else {
-                return a.y < b.y;
-            }
+
+            return a.y < b.y;
         }
-        else {
-            return a.x < b.x;
-        }
+
+        return a.x < b.x;
     }
 };
 
@@ -427,7 +435,8 @@ bool ExporterAMF::addMesh(const char* name, const MeshObject& mesh)
     Base::SequencerLauncher seq("Saving...", 2 * numFacets + 1);
 
     *outputStreamPtr << "\t<object id=\"" << nextObjectIndex << "\">\n";
-    *outputStreamPtr << "\t\t<metadata type=\"name\">" << xmlEscape(name) << "</metadata>\n";
+    *outputStreamPtr << "\t\t<metadata type=\"name\">" << XMLTools::escapeXml(name)
+                     << "</metadata>\n";
     *outputStreamPtr << "\t\t<mesh>\n"
                      << "\t\t\t<vertices>\n";
 
@@ -473,7 +482,7 @@ bool ExporterAMF::addMesh(const char* name, const MeshObject& mesh)
             }
         }
 
-        seq.next(true);  // allow to cancel
+        seq.next(true);  // allow one to cancel
     }
 
     *outputStreamPtr << "\t\t\t</vertices>\n"
@@ -487,7 +496,7 @@ bool ExporterAMF::addMesh(const char* name, const MeshObject& mesh)
             *outputStreamPtr << "\t\t\t\t\t<v" << i << '>' << *(triItr++) << "</v" << i << ">\n";
         }
         *outputStreamPtr << "\t\t\t\t</triangle>\n";
-        seq.next(true);  // allow to cancel
+        seq.next(true);  // allow one to cancel
     }
 
     *outputStreamPtr << "\t\t\t</volume>\n"

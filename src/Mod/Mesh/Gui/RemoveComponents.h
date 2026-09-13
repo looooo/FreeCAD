@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2009 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -21,8 +23,7 @@
  ***************************************************************************/
 
 
-#ifndef MESHGUI_REMOVECOMPONENTS_H
-#define MESHGUI_REMOVECOMPONENTS_H
+#pragma once
 
 #include <QDialog>
 #include <Gui/TaskView/TaskDialog.h>
@@ -73,6 +74,8 @@ private:
 private:
     Ui_RemoveComponents* ui;
     MeshSelection meshSel;
+
+    Q_DISABLE_COPY_MOVE(RemoveComponents)
 };
 
 /**
@@ -83,8 +86,7 @@ class MeshGuiExport RemoveComponentsDialog: public QDialog
     Q_OBJECT
 
 public:
-    explicit RemoveComponentsDialog(QWidget* parent = nullptr,
-                                    Qt::WindowFlags fl = Qt::WindowFlags());
+    explicit RemoveComponentsDialog(QWidget* parent = nullptr, Qt::WindowFlags fl = Qt::WindowFlags());
     ~RemoveComponentsDialog() override;
     void reject() override;
 
@@ -93,6 +95,8 @@ private Q_SLOTS:
 
 private:
     RemoveComponents* widget;
+
+    Q_DISABLE_COPY_MOVE(RemoveComponentsDialog)
 };
 
 /**
@@ -121,9 +125,6 @@ public:
 
 private:
     RemoveComponents* widget;
-    Gui::TaskView::TaskBox* taskbox;
 };
 
 }  // namespace MeshGui
-
-#endif  // MESHGUI_REMOVECOMPONENTS_H

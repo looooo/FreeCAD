@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 Victor Titov (DeepSOIC) <vv.titov@gmail.com>       *
  *                                                                         *
@@ -20,19 +22,23 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef PART_FACEMAKER_H
-#define PART_FACEMAKER_H
+#pragma once
 
 #include <BRepBuilderAPI_MakeShape.hxx>
+#include <BRepAlgoAPI_BuilderAlgo.hxx>
+#include <BRepTools_History.hxx>
 #include <Standard_Version.hxx>
 #include <TopoDS_Compound.hxx>
 #include <TopoDS_Face.hxx>
 #include <TopoDS_Wire.hxx>
+#include <QCoreApplication>
 
 #include <memory>
 #include <Base/BaseClass.h>
 #include <Mod/Part/PartGlobal.h>
 
+#include <App/StringHasher.h>
+#include "TopoShape.h"
 
 namespace Part
 {
@@ -47,11 +53,19 @@ namespace Part
  */
 class PartExport FaceMaker: public BRepBuilderAPI_MakeShape, public Base::BaseClass
 {
+    Q_DECLARE_TR_FUNCTIONS(FaceMaker)
     TYPESYSTEM_HEADER_WITH_OVERRIDE();
 
 public:
-    FaceMaker() = default;
-    ~FaceMaker() override = default;
+    FaceMaker()
+    {}
+    ~FaceMaker() override
+    {}
+
+    void addTopoShape(const TopoShape& s);
+    void useTopoCompound(const TopoShape& comp);
+    const TopoShape& getTopoShape() const;
+    const TopoShape& TopoFace() const;
 
     virtual void addWire(const TopoDS_Wire& w);
     /**
@@ -67,7 +81,10 @@ public:
      * is NOT expanded recursively.
      * @param comp
      */
-    virtual void useCompound(const TopoDS_Compound &comp);
+    virtual void useCompound(const TopoDS_Compound& comp);
+
+    virtual void setPlane(const gp_Pln&)
+    {}
 
     /**
      * @brief Face: returns the face (result). If result is not a single face,
@@ -82,19 +99,31 @@ public:
     void Build() override;
 #endif
 
-    //fails to compile, huh!
-    //virtual const TopTools_ListOfShape& Generated(const TopoDS_Shape &S) override {throwNotImplemented();}
-    //virtual const TopTools_ListOfShape& Modified(const TopoDS_Shape &S) override {throwNotImplemented();}
-    //virtual Standard_Boolean IsDeleted(const TopoDS_Shape &S) override {throwNotImplemented();}
+    // fails to compile, huh!
+    // virtual const TopTools_ListOfShape& Generated(const TopoDS_Shape &S) override
+    // {throwNotImplemented();} virtual const TopTools_ListOfShape& Modified(const TopoDS_Shape &S)
+    // override {throwNotImplemented();} virtual Standard_Boolean IsDeleted(const TopoDS_Shape &S)
+    // override {throwNotImplemented();}
 
     static std::unique_ptr<FaceMaker> ConstructFromType(const char* className);
     static std::unique_ptr<FaceMaker> ConstructFromType(Base::Type type);
 
+    const char* MyOp = 0;
+    App::StringHasherRef MyHasher;
+    ElementMapPolicy MyElementMapPolicy = ElementMapPolicy::Propagate;
+
 protected:
-    std::vector<TopoDS_Shape> mySourceShapes; //wire or compound
-    std::vector<TopoDS_Wire> myWires; //wires from mySourceShapes
-    std::vector<TopoDS_Compound> myCompounds; //compounds, for recursive processing
+    std::vector<TopoShape> mySourceShapes;  // wire or compound
+    std::vector<TopoDS_Wire> myWires;       // wires from mySourceShapes
+    std::vector<TopoShape> myTopoWires;
+    std::vector<TopoDS_Compound> myCompounds;  // compounds, for recursive processing
     std::vector<TopoDS_Shape> myShapesToReturn;
+    std::vector<TopoDS_Shape> myInputFaces;
+    BRepAlgoAPI_BuilderAlgo mySplitter;
+    Handle(BRepTools_History) myPreSplitHistory;
+    TopoDS_Compound myPreSplitCompound;
+    TopoShape myTopoShape;
+    int minElementNames = 1;
 
     /**
      * @brief Build_Essence: build routine that can assume there is no nesting.
@@ -106,21 +135,23 @@ protected:
      * whole Build().
      */
     virtual void Build_Essence() = 0;
+    void postBuild();
 
     static void throwNotImplemented();
 };
 
 /**
- * @brief The FaceMakerPublic class: derive from it if you want the face maker to be listed in tools that allow choosing one.
+ * @brief The FaceMakerPublic class: derive from it if you want the face maker to be listed in tools
+ * that allow choosing one.
  */
-class PartExport FaceMakerPublic : public FaceMaker
+class PartExport FaceMakerPublic: public FaceMaker
 {
     TYPESYSTEM_HEADER_WITH_OVERRIDE();
+
 public:
     virtual std::string getUserFriendlyName() const = 0;
     virtual std::string getBriefExplanation() const = 0;
 };
-
 
 
 /**
@@ -137,16 +168,17 @@ public:
  * for BOPs, but the faces themselves are valid, provided that the source wires
  * are valid.
  */
-class PartExport FaceMakerSimple : public FaceMakerPublic
+class PartExport FaceMakerSimple: public FaceMakerPublic
 {
     TYPESYSTEM_HEADER_WITH_OVERRIDE();
+
 public:
     std::string getUserFriendlyName() const override;
     std::string getBriefExplanation() const override;
+
 protected:
     void Build_Essence() override;
 };
 
 
-}//namespace Part
-#endif // PART_FACEMAKER_H
+}  // namespace Part

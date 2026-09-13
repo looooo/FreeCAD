@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # ***************************************************************************
 # *   Copyright (c) 2020 Bernd Hahnebach <bernd@bimstatik.org>              *
 # *                                                                         *
@@ -23,7 +25,6 @@
 
 # Gui Unit tests for the FEM module
 from femtest.gui.test_open import TestObjectOpen as FemGuiTest01
-
 
 # dummy usage to get flake8 and lgtm quiet
 False if FemGuiTest01.__name__ else True

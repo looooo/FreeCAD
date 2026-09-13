@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef REENGUI_POISSON_H
-#define REENGUI_POISSON_H
+#pragma once
 
 #include <Gui/TaskView/TaskDialog.h>
 #include <Gui/TaskView/TaskView.h>
@@ -67,9 +68,6 @@ public:
 
 private:
     PoissonWidget* widget;
-    Gui::TaskView::TaskBox* taskbox;
 };
 
 }  // namespace ReenGui
-
-#endif  // REENGUI_POISSON_H

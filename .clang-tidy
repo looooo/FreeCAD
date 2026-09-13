@@ -1,11 +1,13 @@
 ---
-Checks:          'clang-diagnostic-*,clang-analyzer-*,boost-*,bugprone-*,
+Checks:          'clang-diagnostic-*,clang-analyzer-*,boost-use-to-string,bugprone-*,
 performance-*,readability-*,portability-*,modernize-*,cppcoreguidelines-*,google-explicit-constructor,
-concurrency-*,-modernize-use-trailing-return-type, -modernize-use-nodiscard,
--readability-redundant-access-specifiers,-readability-qualified-auto'
+concurrency-*,-modernize-use-trailing-return-type, -modernize-use-nodiscard,-readability-identifier-length,
+-readability-redundant-access-specifiers,-readability-qualified-auto,-readability-implicit-bool-conversion,
+-cppcoreguidelines-avoid-non-const-global-variables,-cppcoreguidelines-owning-memory,-cppcoreguidelines-avoid-do-while,
+-readability-convert-member-functions-to-static,-bugprone-easily-swappable-parameters,
+-cppcoreguidelines-pro-type-static-cast-downcast'
 WarningsAsErrors: ''
 HeaderFilterRegex: ''
-AnalyzeTemporaryDtors: false
 FormatStyle:     file
 User:            florians
 CheckOptions:
@@ -147,8 +149,6 @@ CheckOptions:
     value:           '0'
   - key:             concurrency-mt-unsafe.FunctionSet
     value:           any
-  - key:             readability-identifier-length.IgnoredExceptionVariableNames
-    value:           '^[e]$'
   - key:             google-readability-braces-around-statements.ShortStatementLines
     value:           '1'
   - key:             bugprone-reserved-identifier.AllowedIdentifiers
@@ -203,8 +203,6 @@ CheckOptions:
     value:           '4294967295'
   - key:             bugprone-suspicious-missing-comma.RatioThreshold
     value:           '0.200000'
-  - key:             readability-implicit-bool-conversion.AllowIntegerConditions
-    value:           'false'
   - key:             readability-identifier-length.IgnoredParameterNames
     value:           '^[n]$'
   - key:             readability-function-size.StatementThreshold

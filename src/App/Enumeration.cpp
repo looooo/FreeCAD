@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 Ian Rees <ian.rees@gmail.com>                      *
  *                                                                         *
@@ -20,11 +22,8 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
-# include <cassert>
-# include <cstring>
-#endif
+#include <cassert>
+#include <cstring>
 
 #include <Base/Exception.h>
 #include "Enumeration.h"
@@ -32,17 +31,23 @@
 
 using namespace App;
 
-namespace {
-struct StringCopy : public Enumeration::Object {
-    explicit StringCopy(const char* str) : d(str) {
-    }
-    const char* data() const override {
+namespace
+{
+struct StringCopy: public Enumeration::Object
+{
+    explicit StringCopy(const char* str)
+        : d(str)
+    {}
+    const char* data() const override
+    {
         return d.data();
     }
-    bool isEqual(const char* str) const override {
+    bool isEqual(const char* str) const override
+    {
         return d == str;
     }
-    bool isCustom() const override {
+    bool isCustom() const override
+    {
         return true;
     }
 
@@ -50,43 +55,47 @@ private:
     std::string d;
 };
 
-struct StringView : public Enumeration::Object {
-    explicit StringView(const char* str) : d(str) {
-    }
-    const char* data() const override {
+struct StringView: public Enumeration::Object
+{
+    explicit StringView(const char* str)
+        : d(str)
+    {}
+    const char* data() const override
+    {
         return d.data();
     }
-    bool isEqual(const char* str) const override {
+    bool isEqual(const char* str) const override
+    {
         return d == str;
     }
-    bool isCustom() const override {
+    bool isCustom() const override
+    {
         return false;
     }
 
 private:
     std::string_view d;
 };
-}
+}  // namespace
 
 Enumeration::Enumeration()
     : _index(0)
-{
-}
+{}
 
-Enumeration::Enumeration(const Enumeration &other)
+Enumeration::Enumeration(const Enumeration& other)
 {
     enumArray = other.enumArray;
     _index = other._index;
 }
 
-Enumeration::Enumeration(const char *valStr)
+Enumeration::Enumeration(const char* valStr)
     : _index(0)
 {
     enumArray.push_back(std::make_shared<StringCopy>(valStr));
     setValue(valStr);
 }
 
-Enumeration::Enumeration(const char **list, const char *valStr)
+Enumeration::Enumeration(const char** list, const char* valStr)
     : _index(0)
 {
     while (list && *list) {
@@ -101,14 +110,15 @@ Enumeration::~Enumeration()
     enumArray.clear();
 }
 
-void Enumeration::setEnums(const char **plEnums)
+void Enumeration::setEnums(const char** plEnums)
 {
     std::string oldValue;
     bool preserve = (isValid() && plEnums != nullptr);
     if (preserve) {
         const char* str = getCStr();
-        if (str)
+        if (str) {
             oldValue = str;
+        }
     }
 
     enumArray.clear();
@@ -118,14 +128,15 @@ void Enumeration::setEnums(const char **plEnums)
     }
 
     // set _index
-    if (_index < 0)
+    if (_index < 0) {
         _index = 0;
+    }
     if (preserve) {
         setValue(oldValue);
     }
 }
 
-void Enumeration::setEnums(const std::vector<std::string> &values)
+void Enumeration::setEnums(const std::vector<std::string>& values)
 {
     if (values.empty()) {
         setEnums(nullptr);
@@ -136,24 +147,26 @@ void Enumeration::setEnums(const std::vector<std::string> &values)
     bool preserve = isValid();
     if (preserve) {
         const char* str = getCStr();
-        if (str)
+        if (str) {
             oldValue = str;
+        }
     }
 
     enumArray.clear();
-    for (const auto & it : values) {
+    for (const auto& it : values) {
         enumArray.push_back(std::make_shared<StringCopy>(it.c_str()));
     }
 
     // set _index
-    if (_index < 0)
+    if (_index < 0) {
         _index = 0;
+    }
     if (preserve) {
         setValue(oldValue);
     }
 }
 
-void Enumeration::setValue(const char *value)
+void Enumeration::setValue(const char* value)
 {
     _index = 0;
     for (std::size_t i = 0; i < enumArray.size(); i++) {
@@ -168,41 +181,45 @@ void Enumeration::setValue(long value, bool checkRange)
 {
     if (value >= 0 && value < countItems()) {
         _index = value;
-    } else {
+    }
+    else {
         if (checkRange) {
             throw Base::ValueError("Out of range");
-        } else {
+        }
+        else {
             _index = value;
         }
     }
 }
 
-bool Enumeration::isValue(const char *value) const
+bool Enumeration::isValue(const char* value) const
 {
     int i = getInt();
 
     if (i == -1) {
         return false;
-    } else {
+    }
+    else {
         return enumArray[i]->isEqual(value);
     }
 }
 
-bool Enumeration::contains(const char *value) const
+bool Enumeration::contains(const char* value) const
 {
     if (!isValid()) {
         return false;
     }
 
     for (const auto& it : enumArray) {
-        if (it->isEqual(value))
+        if (it->isEqual(value)) {
             return true;
+        }
     }
 
     return false;
 }
 
-const char * Enumeration::getCStr() const
+const char* Enumeration::getCStr() const
 {
     if (!isValid() || _index < 0 || _index >= countItems()) {
         return nullptr;
@@ -223,8 +240,9 @@ int Enumeration::getInt() const
 std::vector<std::string> Enumeration::getEnumVector() const
 {
     std::vector<std::string> list;
-    for (const auto& it : enumArray)
+    for (const auto& it : enumArray) {
         list.emplace_back(it->data());
+    }
     return list;
 }
 
@@ -241,24 +259,27 @@ bool Enumeration::isValid() const
 int Enumeration::maxValue() const
 {
     int num = -1;
-    if (!enumArray.empty())
+    if (!enumArray.empty()) {
         num = static_cast<int>(enumArray.size()) - 1;
+    }
     return num;
 }
 
 bool Enumeration::isCustom() const
 {
     for (const auto& it : enumArray) {
-        if (it->isCustom())
+        if (it->isCustom()) {
             return true;
+        }
     }
     return false;
 }
 
-Enumeration & Enumeration::operator=(const Enumeration &other)
+Enumeration& Enumeration::operator=(const Enumeration& other)
 {
-    if (this == &other)
+    if (this == &other) {
         return *this;
+    }
 
     enumArray = other.enumArray;
     _index = other._index;
@@ -266,23 +287,26 @@ Enumeration & Enumeration::operator=(const Enumeration &other)
     return *this;
 }
 
-bool Enumeration::operator==(const Enumeration &other) const
+bool Enumeration::operator==(const Enumeration& other) const
 {
     if (_index != other._index || enumArray.size() != other.enumArray.size()) {
         return false;
     }
     for (size_t i = 0; i < enumArray.size(); ++i) {
-        if (enumArray[i]->data() == other.enumArray[i]->data())
+        if (enumArray[i]->data() == other.enumArray[i]->data()) {
             continue;
-        if (!enumArray[i]->data() || !other.enumArray[i]->data())
+        }
+        if (!enumArray[i]->data() || !other.enumArray[i]->data()) {
             return false;
-        if (!enumArray[i]->isEqual(other.enumArray[i]->data()))
+        }
+        if (!enumArray[i]->isEqual(other.enumArray[i]->data())) {
             return false;
+        }
     }
     return true;
 }
 
-bool Enumeration::operator==(const char *other) const
+bool Enumeration::operator==(const char* other) const
 {
     if (!getCStr()) {
         return false;

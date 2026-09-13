@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2002 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -21,20 +23,19 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
+#include <FCConfig.h>
 
-#ifndef _PreComp_
 #ifdef FC_OS_WIN32
-#include <windows.h>
+# include <windows.h>
 #endif
 #include <cstring>
 #include <Python.h>
-#endif
 
 #include <frameobject.h>
 
 #include "ConsoleObserver.h"
 #include "Interpreter.h"
+#include "Tools.h"
 
 
 using namespace Base;
@@ -47,7 +48,7 @@ ConsoleObserverFile::ConsoleObserverFile(const char* sFileName)
     : cFileStream(Base::FileInfo(sFileName))  // can be in UTF8
 {
     if (!cFileStream.is_open()) {
-        Console().Warning("Cannot open log file '%s'.\n", sFileName);
+        Console().warning("Cannot open log file '%s'.\n", sFileName);
     }
     // mark the file as a UTF-8 encoded file
     unsigned char bom[3] = {0xef, 0xbb, 0xbf};
@@ -59,11 +60,13 @@ ConsoleObserverFile::~ConsoleObserverFile()
     cFileStream.close();
 }
 
-void ConsoleObserverFile::SendLog(const std::string& notifiername,
-                                  const std::string& msg,
-                                  LogStyle level,
-                                  IntendedRecipient recipient,
-                                  ContentType content)
+void ConsoleObserverFile::sendLog(
+    const std::string& notifiername,
+    const std::string& msg,
+    LogStyle level,
+    IntendedRecipient recipient,
+    ContentType content
+)
 {
     (void)notifiername;
 
@@ -112,11 +115,13 @@ ConsoleObserverStd::ConsoleObserverStd()
 
 ConsoleObserverStd::~ConsoleObserverStd() = default;
 
-void ConsoleObserverStd::SendLog(const std::string& notifiername,
-                                 const std::string& msg,
-                                 LogStyle level,
-                                 IntendedRecipient recipient,
-                                 ContentType content)
+void ConsoleObserverStd::sendLog(
+    const std::string& notifiername,
+    const std::string& msg,
+    LogStyle level,
+    IntendedRecipient recipient,
+    ContentType content
+)
 {
     (void)notifiername;
 
@@ -155,8 +160,7 @@ void ConsoleObserverStd::Warning(const char* sWarn)
 {
     if (useColorStderr) {
 #if defined(FC_OS_WIN32)
-        ::SetConsoleTextAttribute(::GetStdHandle(STD_ERROR_HANDLE),
-                                  FOREGROUND_GREEN | FOREGROUND_BLUE);
+        ::SetConsoleTextAttribute(::GetStdHandle(STD_ERROR_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE);
 #elif defined(FC_OS_LINUX) || defined(FC_OS_MACOSX) || defined(FC_OS_BSD)
         fprintf(stderr, "\033[1;33m");
 #endif
@@ -166,8 +170,10 @@ void ConsoleObserverStd::Warning(const char* sWarn)
 
     if (useColorStderr) {
 #if defined(FC_OS_WIN32)
-        ::SetConsoleTextAttribute(::GetStdHandle(STD_ERROR_HANDLE),
-                                  FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
+        ::SetConsoleTextAttribute(
+            ::GetStdHandle(STD_ERROR_HANDLE),
+            FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE
+        );
 #elif defined(FC_OS_LINUX) || defined(FC_OS_MACOSX) || defined(FC_OS_BSD)
         fprintf(stderr, "\033[0m");
 #endif
@@ -178,8 +184,10 @@ void ConsoleObserverStd::Error(const char* sErr)
 {
     if (useColorStderr) {
 #if defined(FC_OS_WIN32)
-        ::SetConsoleTextAttribute(::GetStdHandle(STD_ERROR_HANDLE),
-                                  FOREGROUND_RED | FOREGROUND_INTENSITY);
+        ::SetConsoleTextAttribute(
+            ::GetStdHandle(STD_ERROR_HANDLE),
+            FOREGROUND_RED | FOREGROUND_INTENSITY
+        );
 #elif defined(FC_OS_LINUX) || defined(FC_OS_MACOSX) || defined(FC_OS_BSD)
         fprintf(stderr, "\033[1;31m");
 #endif
@@ -189,8 +197,10 @@ void ConsoleObserverStd::Error(const char* sErr)
 
     if (useColorStderr) {
 #if defined(FC_OS_WIN32)
-        ::SetConsoleTextAttribute(::GetStdHandle(STD_ERROR_HANDLE),
-                                  FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
+        ::SetConsoleTextAttribute(
+            ::GetStdHandle(STD_ERROR_HANDLE),
+            FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE
+        );
 #elif defined(FC_OS_LINUX) || defined(FC_OS_MACOSX) || defined(FC_OS_BSD)
         fprintf(stderr, "\033[0m");
 #endif
@@ -201,8 +211,7 @@ void ConsoleObserverStd::Log(const char* sLog)
 {
     if (useColorStderr) {
 #if defined(FC_OS_WIN32)
-        ::SetConsoleTextAttribute(::GetStdHandle(STD_ERROR_HANDLE),
-                                  FOREGROUND_RED | FOREGROUND_GREEN);
+        ::SetConsoleTextAttribute(::GetStdHandle(STD_ERROR_HANDLE), FOREGROUND_RED | FOREGROUND_GREEN);
 #elif defined(FC_OS_LINUX) || defined(FC_OS_MACOSX) || defined(FC_OS_BSD)
         fprintf(stderr, "\033[1;36m");
 #endif
@@ -212,8 +221,10 @@ void ConsoleObserverStd::Log(const char* sLog)
 
     if (useColorStderr) {
 #if defined(FC_OS_WIN32)
-        ::SetConsoleTextAttribute(::GetStdHandle(STD_ERROR_HANDLE),
-                                  FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
+        ::SetConsoleTextAttribute(
+            ::GetStdHandle(STD_ERROR_HANDLE),
+            FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE
+        );
 #elif defined(FC_OS_LINUX) || defined(FC_OS_MACOSX) || defined(FC_OS_BSD)
         fprintf(stderr, "\033[0m");
 #endif
@@ -224,8 +235,7 @@ void ConsoleObserverStd::Critical(const char* sCritical)
 {
     if (useColorStderr) {
 #if defined(FC_OS_WIN32)
-        ::SetConsoleTextAttribute(::GetStdHandle(STD_ERROR_HANDLE),
-                                  FOREGROUND_GREEN | FOREGROUND_BLUE);
+        ::SetConsoleTextAttribute(::GetStdHandle(STD_ERROR_HANDLE), FOREGROUND_GREEN | FOREGROUND_BLUE);
 #elif defined(FC_OS_LINUX) || defined(FC_OS_MACOSX) || defined(FC_OS_BSD)
         fprintf(stderr, "\033[1;33m");
 #endif
@@ -235,8 +245,10 @@ void ConsoleObserverStd::Critical(const char* sCritical)
 
     if (useColorStderr) {
 #if defined(FC_OS_WIN32)
-        ::SetConsoleTextAttribute(::GetStdHandle(STD_ERROR_HANDLE),
-                                  FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
+        ::SetConsoleTextAttribute(
+            ::GetStdHandle(STD_ERROR_HANDLE),
+            FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE
+        );
 #elif defined(FC_OS_LINUX) || defined(FC_OS_MACOSX) || defined(FC_OS_BSD)
         fprintf(stderr, "\033[0m");
 #endif
@@ -260,7 +272,7 @@ int RedirectStdOutput::sync()
 {
     // Print as log as this might be verbose
     if (!buffer.empty() && buffer.back() == '\n') {
-        Base::Console().Log("%s", buffer.c_str());
+        Base::Console().log("%s", buffer.c_str());
         buffer.clear();
     }
     return 0;
@@ -283,7 +295,7 @@ int RedirectStdLog::sync()
 {
     // Print as log as this might be verbose
     if (!buffer.empty() && buffer.back() == '\n') {
-        Base::Console().Log("%s", buffer.c_str());
+        Base::Console().log("%s", buffer.c_str());
         buffer.clear();
     }
     return 0;
@@ -305,7 +317,7 @@ int RedirectStdError::overflow(int ch)
 int RedirectStdError::sync()
 {
     if (!buffer.empty() && buffer.back() == '\n') {
-        Base::Console().Error("%s", buffer.c_str());
+        Base::Console().error("%s", buffer.c_str());
         buffer.clear();
     }
     return 0;
@@ -315,15 +327,15 @@ int RedirectStdError::sync()
 
 std::stringstream& LogLevel::prefix(std::stringstream& str, const char* src, int line)
 {
-    static FC_TIME_POINT s_tstart;
+    static std::chrono::high_resolution_clock::time_point s_tstart;
     static bool s_timing = false;
     if (print_time) {
         if (!s_timing) {
             s_timing = true;
-            _FC_TIME_INIT(s_tstart);
+            s_tstart = std::chrono::high_resolution_clock::now();
         }
-        auto tnow = std::chrono::FC_TIME_CLOCK::now();
-        auto dc = std::chrono::duration_cast<FC_DURATION>(tnow - s_tstart);
+        auto tnow = std::chrono::high_resolution_clock::now();
+        auto dc = std::chrono::duration_cast<std::chrono::duration<double>>(tnow - s_tstart);
         str << dc.count() << ' ';
     }
     if (print_tag) {
@@ -343,7 +355,7 @@ std::stringstream& LogLevel::prefix(std::stringstream& str, const char* src, int
 #endif
         }
     }
-    if (print_src && src && src[0]) {
+    if (print_src && !Base::Tools::isNullOrEmpty(src)) {
 #ifdef FC_OS_WIN32
         const char* _f = std::strrchr(src, '\\');
 #else

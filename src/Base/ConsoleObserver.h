@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2002 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -21,8 +23,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef BASE_CONSOLEOBSERVER_H
-#define BASE_CONSOLEOBSERVER_H
+#pragma once
 
 #include <Base/Console.h>
 #include <Base/Stream.h>
@@ -43,12 +44,14 @@ public:
     explicit ConsoleObserverFile(const char* sFileName);
     ~ConsoleObserverFile() override;
 
-    void SendLog(const std::string& notifiername,
-                 const std::string& msg,
-                 LogStyle level,
-                 IntendedRecipient recipient,
-                 ContentType content) override;
-    const char* Name() override
+    void sendLog(
+        const std::string& notifiername,
+        const std::string& msg,
+        LogStyle level,
+        IntendedRecipient recipient,
+        ContentType content
+    ) override;
+    const char* name() override
     {
         return "File";
     }
@@ -70,12 +73,14 @@ class BaseExport ConsoleObserverStd: public ILogger
 public:
     ConsoleObserverStd();
     ~ConsoleObserverStd() override;
-    void SendLog(const std::string& notifiername,
-                 const std::string& msg,
-                 LogStyle level,
-                 IntendedRecipient recipient,
-                 ContentType content) override;
-    const char* Name() override
+    void sendLog(
+        const std::string& notifiername,
+        const std::string& msg,
+        LogStyle level,
+        IntendedRecipient recipient,
+        ContentType content
+    ) override;
+    const char* name() override
     {
         return "Console";
     }
@@ -95,7 +100,7 @@ private:
 };
 
 /** The ILoggerBlocker class
- *  This class allows to temporary block then automatically restore arbitrary message types
+ *  This class allows one to temporary block then automatically restore arbitrary message types
  *  on a particular console observer.
  */
 class BaseExport ILoggerBlocker
@@ -103,13 +108,12 @@ class BaseExport ILoggerBlocker
 public:
     // Constructor that will block message types passed as parameter. By default, all types are
     // blocked.
-    inline explicit ILoggerBlocker(const char* co,
-                                   ConsoleMsgFlags msgTypes = ConsoleSingleton::MsgType_Txt
-                                       | ConsoleSingleton::MsgType_Log
-                                       | ConsoleSingleton::MsgType_Wrn
-                                       | ConsoleSingleton::MsgType_Err
-                                       | ConsoleSingleton::MsgType_Critical
-                                       | ConsoleSingleton::MsgType_Notification);
+    inline explicit ILoggerBlocker(
+        const char* co,
+        ConsoleMsgFlags msgTypes = ConsoleSingleton::MsgType_Txt | ConsoleSingleton::MsgType_Log
+            | ConsoleSingleton::MsgType_Wrn | ConsoleSingleton::MsgType_Err
+            | ConsoleSingleton::MsgType_Critical | ConsoleSingleton::MsgType_Notification
+    );
     // Disable copy & move constructors
     ILoggerBlocker(ILoggerBlocker const&) = delete;
     ILoggerBlocker(ILoggerBlocker const&&) = delete;
@@ -127,20 +131,19 @@ private:
 ILoggerBlocker::ILoggerBlocker(const char* co, ConsoleMsgFlags msgTypes)
     : conObs(co)
 {
-    msgTypesBlocked = Console().SetEnabledMsgType(conObs, msgTypes, false);
+    msgTypesBlocked = Console().setEnabledMsgType(conObs, msgTypes, false);
 }
 
 ILoggerBlocker::~ILoggerBlocker()
 {
     try {
 #ifdef FC_DEBUG
-        auto debug = Console().SetEnabledMsgType(conObs, msgTypesBlocked, true);
+        auto debug = Console().setEnabledMsgType(conObs, msgTypesBlocked, true);
         if (debug != msgTypesBlocked) {
-            Console().Warning(
-                "Enabled message types have been changed while ILoggerBlocker was set\n");
+            Console().warning("Enabled message types have been changed while ILoggerBlocker was set\n");
         }
 #else
-        Console().SetEnabledMsgType(conObs, msgTypesBlocked, true);
+        Console().setEnabledMsgType(conObs, msgTypesBlocked, true);
 #endif
     }
     catch (...) {
@@ -188,5 +191,3 @@ private:
 
 
 }  // namespace Base
-
-#endif  // BASE_CONSOLEOBSERVER_H

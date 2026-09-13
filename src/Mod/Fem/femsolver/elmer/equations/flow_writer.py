@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # ***************************************************************************
 # *   Copyright (c) 2017 Markus Hovorka <m.hovorka@live.de>                 *
 # *   Copyright (c) 2020 Bernd Hahnebach <bernd@bimstatik.org>              *
@@ -72,7 +74,8 @@ class Flowwriter:
                 "App::PropertyEnumeration",
                 "Convection",
                 "Equation",
-                "Type of convection to be used"
+                "Type of convection to be used",
+                locked=True,
             )
             equation.Convection = flow.CONVECTION_TYPE
             equation.Convection = "Computed"
@@ -84,14 +87,16 @@ class Flowwriter:
                 (
                     "Set to true for incompressible flow for more stable\n"
                     "discretization when Reynolds number increases"
-                )
+                ),
+                locked=True,
             )
         if not hasattr(equation, "FlowModel"):
             equation.addProperty(
                 "App::PropertyEnumeration",
                 "FlowModel",
                 "Flow",
-                "Flow model to be used"
+                "Flow model to be used",
+                locked=True,
             )
             equation.FlowModel = flow.FLOW_MODEL
             equation.FlowModel = "Full"
@@ -103,7 +108,8 @@ class Flowwriter:
                 (
                     "If true pressure Dirichlet boundary conditions can be used.\n"
                     "Also mass flux is available as a natural boundary condition."
-                )
+                ),
+                locked=True,
             )
         if not hasattr(equation, "MagneticInduction"):
             equation.addProperty(
@@ -113,29 +119,28 @@ class Flowwriter:
                 (
                     "Magnetic induction equation will be solved\n"
                     "along with the Navier-Stokes equations"
-                )
+                ),
+                locked=True,
             )
         if not hasattr(equation, "Variable"):
             equation.addProperty(
                 "App::PropertyString",
                 "Variable",
                 "Flow",
-                "Only for a 2D model change the '3' to '2'"
+                "Only for a 2D model change the '3' to '2'",
+                locked=True,
             )
             equation.Variable = "Flow Solution[Velocity:3 Pressure:1]"
 
     def handleFlowMaterial(self, bodies):
         tempObj = self.write.getSingleMember("Fem::ConstraintInitialTemperature")
         if tempObj is not None:
-            refTemp = float(tempObj.initialTemperature.getValueAs("K"))
+            refTemp = float(tempObj.InitialTemperature.getValueAs("K"))
             for name in bodies:
                 self.write.material(name, "Reference Temperature", refTemp)
         for obj in self.write.getMember("App::MaterialObject"):
             m = obj.Material
-            refs = (
-                obj.References[0][1]
-                if obj.References
-                else self.write.getAllBodies())
+            refs = obj.References[0][1] if obj.References else self.write.getAllBodies()
             for name in (n for n in refs if n in bodies):
                 self.write.material(name, "Name", m["Name"])
                 if "Density" in m:
@@ -161,9 +166,7 @@ class Flowwriter:
                 if "SpecificHeatRatio" in m:
                     self.write.material(name, "Specific Heat Ratio", float(m["SpecificHeatRatio"]))
                 if "CompressibilityModel" in m:
-                    self.write.material(
-                        name, "Compressibility Model",
-                        m["CompressibilityModel"])
+                    self.write.material(name, "Compressibility Model", m["CompressibilityModel"])
 
     def _outputInitialPressure(self, obj, name):
         # initial pressure only makes sense for fluid material
@@ -275,5 +278,6 @@ class Flowwriter:
                     self.write.equation(b, "Convection", equation.Convection)
                 if equation.MagneticInduction is True:
                     self.write.equation(b, "Magnetic Induction", equation.MagneticInduction)
+
 
 ##  @}

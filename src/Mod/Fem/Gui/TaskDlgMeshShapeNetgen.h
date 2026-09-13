@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Jürgen Riegel <FreeCAD@juergen-riegel.net>         *
  *                                                                         *
@@ -21,8 +23,7 @@
  ***************************************************************************/
 
 
-#ifndef FEMGUI_TaskDlgMeshShapeNetgen_H
-#define FEMGUI_TaskDlgMeshShapeNetgen_H
+#pragma once
 
 #include <Gui/TaskView/TaskDialog.h>
 
@@ -74,5 +75,3 @@ protected:
 
 
 }  // namespace FemGui
-
-#endif  // FEMGUI_TaskDlgMeshShapeNetgen_H

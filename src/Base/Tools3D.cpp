@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2022 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,16 +22,9 @@
  *                                                                         *
  ***************************************************************************/
 
-
-#include "PreCompiled.h"
-
-#ifndef _PreComp_
-#include <cstdlib>
-#include <set>
-#endif
-
+#include "BoundBox.h"
+#include "Placement.h"
 #include "Tools3D.h"
-#include "Vector3D.h"
 
 using namespace Base;
 

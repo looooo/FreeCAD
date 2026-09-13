@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2018 Yorik van Havre <yorik@uncreated.net>              *
  *                                                                         *
@@ -20,13 +22,11 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <Gui/Application.h>
 
 #include "DlgStartPreferencesImp.h"
 #include "ui_DlgStartPreferences.h"
-#include "ui_DlgStartPreferencesAdvanced.h"
 
 
 using namespace StartGui;
@@ -39,165 +39,42 @@ DlgStartPreferencesImp::DlgStartPreferencesImp(QWidget* parent)
     , ui(new Ui_DlgStartPreferences)
 {
     ui->setupUi(this);
-
-    // Hide currently unused controls
-    ui->label_12->hide();
-    ui->label_7->hide();
-    ui->colorButton_7->hide();
-    ui->radioButton_1->hide();
-    ui->radioButton_2->hide();
-
-    // fills the combo box with all available workbenches
-    // sorted by their menu text
-    QStringList work = Gui::Application::Instance->workbenches();
-    QMap<QString, QString> menuText;
-    for (const auto& it : work) {
-        QString text = Gui::Application::Instance->workbenchMenuText(it);
-        menuText[text] = it;
-    }
-
-    // add special workbench to selection
-    QPixmap px = Gui::Application::Instance->workbenchIcon(QString::fromLatin1("NoneWorkbench"));
-    QString key = QString::fromLatin1("<last>");
-    QString value = QString::fromLatin1("$LastModule");
-    if (px.isNull()) {
-        ui->AutoloadModuleCombo->addItem(key, QVariant(value));
-    }
-    else {
-        ui->AutoloadModuleCombo->addItem(px, key, QVariant(value));
-    }
-
-    for (QMap<QString, QString>::Iterator it = menuText.begin(); it != menuText.end(); ++it) {
-        QPixmap px = Gui::Application::Instance->workbenchIcon(it.value());
-        if (px.isNull()) {
-            ui->AutoloadModuleCombo->addItem(it.key(), QVariant(it.value()));
-        }
-        else {
-            ui->AutoloadModuleCombo->addItem(px, it.key(), QVariant(it.value()));
-        }
-    }
 }
 
 /**
  *  Destroys the object and frees any allocated resources
  */
-DlgStartPreferencesImp::~DlgStartPreferencesImp() = default;
+DlgStartPreferencesImp::~DlgStartPreferencesImp()
+{
+    // no need to delete child widgets, Qt does it all for us
+}
 
 void DlgStartPreferencesImp::saveSettings()
 {
-    int index = ui->AutoloadModuleCombo->currentIndex();
-    QVariant data = ui->AutoloadModuleCombo->itemData(index);
-    QString startWbName = data.toString();
-    App::GetApplication()
-        .GetParameterGroupByPath("User parameter:BaseApp/Preferences/Mod/Start")
-        ->SetASCII("AutoloadModule", startWbName.toLatin1());
-    ui->backgroundColorButton->onSave();
-    ui->backgroundTextColorButton->onSave();
-    ui->pageBackgroundColorButton->onSave();
-    ui->pageTextColorButton->onSave();
-    ui->boxBackgroundColorButton->onSave();
-    ui->linkColorButton->onSave();
-    ui->colorButton_7->onSave();
-    ui->backgroundImageFileChooser->onSave();
-    ui->showAdditionalFolderFileChooser->onSave();
-    ui->radioButton_1->onSave();
-    ui->radioButton_2->onSave();
-    ui->showNotepadCheckBox->onSave();
-    ui->showExamplesCheckBox->onSave();
-    ui->closeStartCheckBox->onSave();
-    ui->closeAndSwitchCheckBox->onSave();
-    ui->showForumCheckBox->onSave();
-    ui->useStyleSheetCheckBox->onSave();
-    ui->showTipsCheckBox->onSave();
-    ui->fontLineEdit->onSave();
-    ui->fontSizeSpinBox->onSave();
-    ui->showFileThumbnailIconsCheckBox->onSave();
-    ui->fileThumbnailIconSizeSpinBox->onSave();
+    ui->fileChooserCustomFolder->onSave();
+    ui->checkBoxShowExamples->onSave();
+    ui->checkBoxCloseAfterLoading->onSave();
+    ui->checkBoxShowOnlyFCStd->onSave();
 }
 
 void DlgStartPreferencesImp::loadSettings()
 {
-    std::string start = App::Application::Config()["StartWorkbench"];
-    start = App::GetApplication()
-                .GetParameterGroupByPath("User parameter:BaseApp/Preferences/Mod/Start")
-                ->GetASCII("AutoloadModule", start.c_str());
-    QString startWbName = QLatin1String(start.c_str());
-    ui->AutoloadModuleCombo->setCurrentIndex(ui->AutoloadModuleCombo->findData(startWbName));
-    ui->backgroundColorButton->onRestore();
-    ui->backgroundTextColorButton->onRestore();
-    ui->pageBackgroundColorButton->onRestore();
-    ui->pageTextColorButton->onRestore();
-    ui->boxBackgroundColorButton->onRestore();
-    ui->linkColorButton->onRestore();
-    ui->colorButton_7->onRestore();
-    ui->backgroundImageFileChooser->onRestore();
-    ui->showAdditionalFolderFileChooser->onRestore();
-    ui->radioButton_1->onRestore();
-    ui->radioButton_2->onRestore();
-    ui->showNotepadCheckBox->onRestore();
-    ui->showExamplesCheckBox->onRestore();
-    ui->closeStartCheckBox->onRestore();
-    ui->closeAndSwitchCheckBox->onRestore();
-    ui->showForumCheckBox->onRestore();
-    ui->useStyleSheetCheckBox->onRestore();
-    ui->showTipsCheckBox->onRestore();
-    ui->fontLineEdit->onRestore();
-    ui->fontSizeSpinBox->onRestore();
-    ui->showFileThumbnailIconsCheckBox->onRestore();
-    ui->fileThumbnailIconSizeSpinBox->onRestore();
+    ui->fileChooserCustomFolder->onRestore();
+    ui->checkBoxShowExamples->onRestore();
+    ui->checkBoxCloseAfterLoading->onRestore();
+    ui->checkBoxShowOnlyFCStd->onRestore();
 }
 
 /**
  * Sets the strings of the subwidgets using the current language.
  */
-void DlgStartPreferencesImp::changeEvent(QEvent* ev)
+void DlgStartPreferencesImp::changeEvent(QEvent* e)
 {
-    if (ev->type() == QEvent::LanguageChange) {
+    if (e->type() == QEvent::LanguageChange) {
         ui->retranslateUi(this);
     }
     else {
-        Gui::Dialog::PreferencePage::changeEvent(ev);
-    }
-}
-
-
-/**
- *  Constructs a DlgStartPreferencesAdvancedImp which is a child of 'parent'
- */
-DlgStartPreferencesAdvancedImp::DlgStartPreferencesAdvancedImp(QWidget* parent)
-    : PreferencePage(parent)
-    , ui(new Ui_DlgStartPreferencesAdvanced)
-{
-    ui->setupUi(this);
-}
-
-/**
- *  Destroys the object and frees any allocated resources
- */
-DlgStartPreferencesAdvancedImp::~DlgStartPreferencesAdvancedImp() = default;
-
-void DlgStartPreferencesAdvancedImp::saveSettings()
-{
-    ui->templateFileChooser->onSave();
-    ui->customCSSTextEdit->onSave();
-}
-
-void DlgStartPreferencesAdvancedImp::loadSettings()
-{
-    ui->templateFileChooser->onRestore();
-    ui->customCSSTextEdit->onRestore();
-}
-
-/**
- * Sets the strings of the subwidgets using the current language.
- */
-void DlgStartPreferencesAdvancedImp::changeEvent(QEvent* ev)
-{
-    if (ev->type() == QEvent::LanguageChange) {
-        ui->retranslateUi(this);
-    }
-    else {
-        Gui::Dialog::PreferencePage::changeEvent(ev);
+        QWidget::changeEvent(e);
     }
 }
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2006 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef MESHGUI_DLG_EVALUATE_MESH_IMP_H
-#define MESHGUI_DLG_EVALUATE_MESH_IMP_H
+#pragma once
 
 #include <map>
 
@@ -140,6 +141,8 @@ protected:
 private:
     class Private;
     Private* d;
+
+    Q_DISABLE_COPY_MOVE(DlgEvaluateMeshImp)
 };
 
 /**
@@ -165,8 +168,8 @@ public:
 private:
     QScrollArea* scrollArea;
     static DockEvaluateMeshImp* _instance;
+
+    Q_DISABLE_COPY_MOVE(DockEvaluateMeshImp)
 };
 
 }  // namespace MeshGui
-
-#endif  // MESHGUI_DLG_EVALUATE_MESH_IMP_H

@@ -22,8 +22,6 @@
  **************************************************************************/
 
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <IGESControl_Controller.hxx>
 #include <IGESCAFControl_Reader.hxx>
 #include <IGESData_GlobalSection.hxx>
@@ -33,13 +31,12 @@
 #include <Transfer_TransientProcess.hxx>
 #include <XSControl_TransferReader.hxx>
 #include <XSControl_WorkSession.hxx>
-#endif
+
 
 #include "ReaderIges.h"
 #include <Base/Exception.h>
 #include <App/Application.h>
 #include <Mod/Part/App/encodeFilename.h>
-#include <Mod/Part/App/ProgressIndicator.h>
 
 using namespace Import;
 
@@ -47,7 +44,7 @@ ReaderIges::ReaderIges(const Base::FileInfo& file)  // NOLINT
     : file {file}
 {}
 
-void ReaderIges::read(Handle(TDocStd_Document) hDoc)  // NOLINT
+void ReaderIges::read(Handle(TDocStd_Document) hDoc, const Message_ProgressRange& theProgress)
 {
     Base::Reference<ParameterGrp> hGrp = App::GetApplication()
                                              .GetUserParameter()
@@ -69,16 +66,8 @@ void ReaderIges::read(Handle(TDocStd_Document) hDoc)  // NOLINT
         throw Base::FileException("Cannot read IGES file", file);
     }
 
-#if OCC_VERSION_HEX < 0x070500
-    Handle(Message_ProgressIndicator) pi = new Part::ProgressIndicator(100);
-    aReader.WS()->MapReader()->SetProgress(pi);
-    pi->NewScope(100, "Reading IGES file...");
-    pi->Show();
-#endif
-    aReader.Transfer(hDoc);
-#if OCC_VERSION_HEX < 0x070500
-    pi->EndScope();
-#endif
+    aReader.Transfer(hDoc, theProgress);
+
     // http://opencascade.blogspot.de/2009/03/unnoticeable-memory-leaks-part-2.html
     Handle(IGESToBRep_Actor)::DownCast(aReader.WS()->TransferReader()->Actor())
         ->SetModel(new IGESData_IGESModel);

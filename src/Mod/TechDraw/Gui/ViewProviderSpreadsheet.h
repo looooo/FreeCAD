@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_VIEWPROVIDERSPREADSHEET_H
-#define DRAWINGGUI_VIEWPROVIDERSPREADSHEET_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
@@ -43,12 +44,16 @@ public:
     /// destructor
     ~ViewProviderSpreadsheet() override;
 
+    App::PropertyBool ClaimSheetAsChild;
+    std::vector<App::DocumentObject*> claimChildren(void) const override;
+
+    bool doubleClicked() override;
+    bool setEdit(int ModNum) override;
+    void unsetEdit(int ModNum) override;
+
     bool useNewSelectionModel() const override {return false;}
 
     TechDraw::DrawViewSpreadsheet* getViewObject() const override;
 };
 
 } // namespace TechDrawGui
-
-
-#endif // DRAWINGGUI_VIEWPROVIDERSPREADSHEET_H

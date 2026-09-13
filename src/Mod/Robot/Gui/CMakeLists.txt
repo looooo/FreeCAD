@@ -1,16 +1,4 @@
-include_directories(
-    ${CMAKE_BINARY_DIR}
-    ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_BINARY_DIR}
-    ${Boost_INCLUDE_DIRS}
-    ${COIN3D_INCLUDE_DIRS}
-    ${ZLIB_INCLUDE_DIR}
-    ${OCC_INCLUDE_DIR}
-    ${EIGEN3_INCLUDE_DIR}
-    ${PYTHON_INCLUDE_DIRS}
-    ${XercesC_INCLUDE_DIRS}
-)
-link_directories(${OCC_LIBRARY_DIR})
+# SPDX-License-Identifier: LGPL-2.1-or-later
 
 set(RobotGui_LIBS
     Robot
@@ -21,7 +9,11 @@ set (Robot_TR_QRC ${CMAKE_CURRENT_BINARY_DIR}/Resources/Robot_translation.qrc)
 qt_find_and_add_translation(QM_SRCS "Resources/translations/*_*.ts"
     ${CMAKE_CURRENT_BINARY_DIR}/Resources/translations)
 qt_create_resource_file(${Robot_TR_QRC} ${QM_SRCS})
-qt_add_resources(RobotResource_SRCS Resources/Robot.qrc ${Robot_TR_QRC})
+qt_add_resources(RobotResource_SRCS
+    Resources/Robot.qrc
+    ${Robot_TR_QRC}
+    OPTIONS ${FREECAD_RCC_OPTIONS}
+)
 SOURCE_GROUP("Resources" FILES ${RobotResource_SRCS})
 
 set(RobotGui_UIC_SRCS
@@ -37,7 +29,6 @@ set(RobotGui_UIC_SRCS
 SET(RobotGui_SRCS_Module
     AppRobotGui.cpp
     Resources/Robot.qrc
-    PreCompiled.cpp
     PreCompiled.h
     Workbench.cpp
     Workbench.h
@@ -115,18 +106,33 @@ SET(RobotGui_SRCS
     ${RobotGui_SRCS_TaskDlg}
 )
 
-if(FREECAD_USE_PCH)
-    add_definitions(-D_PreComp_)
-    GET_MSVC_PRECOMPILED_SOURCE("PreCompiled.cpp" PCH_SRCS ${RobotGui_SRCS})
-    ADD_MSVC_PRECOMPILED_HEADER(RobotGui PreCompiled.h PreCompiled.cpp PCH_SRCS)
-endif(FREECAD_USE_PCH)
-
 SET(RobotGuiIcon_SVG
     Resources/icons/RobotWorkbench.svg
 )
 
 add_library(RobotGui SHARED ${RobotGui_SRCS} ${RobotGuiIcon_SVG})
+
+if(FREECAD_USE_PCH)
+    target_precompile_headers(RobotGui PRIVATE
+            $<$<COMPILE_LANGUAGE:CXX>:"${CMAKE_CURRENT_LIST_DIR}/PreCompiled.h">
+    )
+endif(FREECAD_USE_PCH)
+
+target_include_directories(
+    RobotGui
+    PRIVATE
+    ${CMAKE_BINARY_DIR}
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 target_link_libraries(RobotGui ${RobotGui_LIBS})
+
+if (MSVC)
+    target_compile_options(RobotGui PRIVATE /wd4273)
+endif()
+
+target_compile_warn_error(RobotGui)
 
 unset(_flag_found CACHE)
 check_cxx_compiler_flag("-Wno-deprecated-copy" _flag_found)
@@ -135,7 +141,7 @@ if (_flag_found)
 endif ()
 
 
-SET_BIN_DIR(RobotGui RobotGui /Mod/Robot)
+SET_BIN_DIR(RobotGui)
 SET_PYTHON_PREFIX_SUFFIX(RobotGui)
 
 fc_copy_sources(RobotGui "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_DATADIR}/Mod/Robot" ${RobotGuiIcon_SVG})

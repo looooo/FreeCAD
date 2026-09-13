@@ -1,28 +1,64 @@
-target_sources(
-    Tests_run
-        PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/Axis.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/Base64.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/Bitmask.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/BoundBox.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/Builder3D.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/CoordinateSystem.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/DualNumber.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/DualQuaternion.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/Handle.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/Matrix.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/Placement.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/Quantity.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/Reader.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/Rotation.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/TimeInfo.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/Tools.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/Tools2D.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/Tools3D.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/Unit.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/Vector3D.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/ViewProj.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/Writer.cpp
+add_executable(Base_tests_run
+        Axis.cpp
+        Base64.cpp
+        Bitmask.cpp
+        BoundBox.cpp
+        Builder3D.cpp
+        Color.cpp
+        Console.cpp
+        CoordinateSystem.cpp
+        CrashReporter_tests.cpp
+        DualNumber.cpp
+        DualQuaternion.cpp
+        Exception.cpp
+        FileLock.cpp
+        FileInfo.cpp
+        InputSource.cpp
+        Handle.cpp
+        Matrix.cpp
+        OkLch.cpp
+        Parameter.cpp
+        ParameterObserver.cpp
+        Placement.cpp
+        Persistence.cpp
+        PyException.cpp
+        Quantity.cpp
+        Reader.cpp
+        Rotation.cpp
+        SchemaTests.cpp
+        ServiceProvider.cpp
+        Stream.cpp
+        StringUtils.cpp
+        TimeInfo.cpp
+        Tools.cpp
+        Tools2D.cpp
+        Tools3D.cpp
+        Translation.cpp
+        Translate.cpp
+        UnlimitedUnsigned.cpp
+        UniqueNameManager.cpp
+        Unit.cpp
+        UnitsApi.cpp
+        Uuid.cpp
+        UnitsSchemaFormat.cpp
+        Vector3D.cpp
+        ViewProj.cpp
+        Writer.cpp
+        XMLParser.cpp
+        XMLTools.cpp
 )
 
 setup_qt_test(InventorBuilder)
+
+target_link_libraries(Base_tests_run PRIVATE
+    GTest::gmock_main
+    FreeCADApp
+    ${Python3_LIBRARIES}
+    ICU::uc ICU::i18n
+)
+
+# CrashReporter_tests decides what the Reader inside FreeCADBase is capable of from this define,
+# so the two targets have to agree on it. FreeCADBase sets it PRIVATE, which does not propagate.
+if(cpptrace_FOUND)
+    target_compile_definitions(Base_tests_run PRIVATE FC_HAVE_CPPTRACE)
+endif()

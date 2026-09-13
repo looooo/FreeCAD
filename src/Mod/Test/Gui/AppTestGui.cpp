@@ -20,7 +20,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <Base/Console.h>
 #include <Base/ConsoleObserver.h>
@@ -36,10 +35,10 @@ class ILoggerBlockerTest: public Base::ILogger
 public:
     ~ILoggerBlockerTest() override
     {
-        Base::Console().DetachObserver(this);
+        Base::Console().detachObserver(this);
     }
 
-    const char* Name() override
+    const char* name() override
     {
         return "ILoggerBlockerTest";
     }
@@ -50,11 +49,13 @@ public:
         buffer.clear();
     }
 
-    void SendLog(const std::string& notifiername,
-                 const std::string& msg,
-                 Base::LogStyle level,
-                 Base::IntendedRecipient recipient,
-                 Base::ContentType content) override
+    void sendLog(
+        const std::string& notifiername,
+        const std::string& msg,
+        Base::LogStyle level,
+        Base::IntendedRecipient recipient,
+        Base::ContentType content
+    ) override
     {
         (void)notifiername;
         (void)msg;
@@ -84,16 +85,17 @@ public:
 
     void runSingleTest(const char* comment, std::string expectedResult)
     {
-        Base::Console().Log(comment);
+        Base::Console().log(comment);
         flush();
-        Base::Console().Log("LOG");
-        Base::Console().Message("MSG");
-        Base::Console().Warning("WRN");
-        Base::Console().Error("ERR");
-        Base::Console().Critical("CMS");
+        Base::Console().log("LOG");
+        Base::Console().message("MSG");
+        Base::Console().warning("WRN");
+        Base::Console().error("ERR");
+        Base::Console().critical("CMS");
         if (buffer.str() != expectedResult) {
-            throw Py::RuntimeError("ILoggerTest: " + buffer.str() + " different from "
-                                   + expectedResult);
+            throw Py::RuntimeError(
+                "ILoggerTest: " + buffer.str() + " different from " + expectedResult
+            );
         }
     }
 
@@ -106,16 +108,18 @@ public:
         }
         runSingleTest("Print all", "LOGMSGWRNERRCMS");
         {
-            Base::ILoggerBlocker blocker("ILoggerBlockerTest",
-                                         Base::ConsoleSingleton::MsgType_Err
-                                             | Base::ConsoleSingleton::MsgType_Wrn);
+            Base::ILoggerBlocker blocker(
+                "ILoggerBlockerTest",
+                Base::ConsoleSingleton::MsgType_Err | Base::ConsoleSingleton::MsgType_Wrn
+            );
             runSingleTest("Error & Warning blocked", "LOGMSGCMS");
         }
         runSingleTest("Print all", "LOGMSGWRNERRCMS");
         {
-            Base::ILoggerBlocker blocker("ILoggerBlockerTest",
-                                         Base::ConsoleSingleton::MsgType_Log
-                                             | Base::ConsoleSingleton::MsgType_Txt);
+            Base::ILoggerBlocker blocker(
+                "ILoggerBlockerTest",
+                Base::ConsoleSingleton::MsgType_Log | Base::ConsoleSingleton::MsgType_Txt
+            );
             runSingleTest("Log & Message blocked", "WRNERRCMS");
         }
         runSingleTest("Print all", "LOGMSGWRNERRCMS");
@@ -123,21 +127,22 @@ public:
             Base::ILoggerBlocker blocker("ILoggerBlockerTest", Base::ConsoleSingleton::MsgType_Err);
             runSingleTest("Nested : Error blocked", "LOGMSGWRNCMS");
             {
-                Base::ILoggerBlocker blocker2("ILoggerBlockerTest",
-                                              Base::ConsoleSingleton::MsgType_Err
-                                                  | Base::ConsoleSingleton::MsgType_Wrn);
+                Base::ILoggerBlocker blocker2(
+                    "ILoggerBlockerTest",
+                    Base::ConsoleSingleton::MsgType_Err | Base::ConsoleSingleton::MsgType_Wrn
+                );
                 runSingleTest(
                     "Nested : Warning blocked + Error (from nesting) + Error (redundancy)",
-                    "LOGMSGCMS");
+                    "LOGMSGCMS"
+                );
             }
             runSingleTest("Nested : Error still blocked", "LOGMSGWRNCMS");
         }
         runSingleTest("Print all", "LOGMSGWRNERRCMS");
         {
             Base::ILoggerBlocker blocker("ILoggerBlockerTest");
-            Base::Console().SetEnabledMsgType("ILoggerBlockerTest",
-                                              Base::ConsoleSingleton::MsgType_Log,
-                                              true);
+            Base::Console()
+                .setEnabledMsgType("ILoggerBlockerTest", Base::ConsoleSingleton::MsgType_Log, true);
             runSingleTest("Log is enabled but a warning is triggered in debug mode", "LOG");
         }
         runSingleTest("Print all", "LOGMSGWRNERRCMS");
@@ -218,8 +223,8 @@ private:
     {
         (void)args;
         ILoggerBlockerTest iltest;
-        Base::Console().AttachObserver(static_cast<Base::ILogger*>(&iltest));
-        Base::Console().SetConnectionMode(Base::ConsoleSingleton::Direct);
+        Base::Console().attachObserver(static_cast<Base::ILogger*>(&iltest));
+        Base::Console().setConnectionMode(Base::ConsoleSingleton::Direct);
         iltest.runTest();
         return Py::None();
     }
@@ -247,7 +252,7 @@ PyMOD_INIT_FUNC(QtUnitGui)
     // with the Python runtime system
     PyObject* mod = TestGui::initModule();
 
-    Base::Console().Log("Loading GUI of Test module... done\n");
+    Base::Console().log("Loading GUI of Test module… done\n");
 
     // add resources and reloads the translators
     loadTestResource();

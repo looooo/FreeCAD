@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2023 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -35,11 +37,10 @@
 //! chosen values generally equal to those for ISO128
 
 
-#ifndef DASHEDLINEGENERATOR_H
-#define DASHEDLINEGENERATOR_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
-
+#include <map>
 #include <QPen>
 
 namespace TechDraw {
@@ -86,5 +87,3 @@ private:
 };
 
 }
-
-#endif

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 FreeCAD Developers                                 *
  *   Author: WandererFan <wandererfan@gmail.com>                           *
@@ -22,7 +24,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include "DlgPrefsTechDrawScaleImp.h"
 #include "ui_DlgPrefsTechDrawScale.h"
@@ -67,6 +68,7 @@ void DlgPrefsTechDrawScaleImp::saveSettings()
     ui->pdsbCenterScale->onSave();
     ui->pdsbTemplateMark->onSave();
     ui->pdsbSymbolScale->onSave();
+    ui->cbLegacyScale->onSave();
 }
 
 void DlgPrefsTechDrawScaleImp::loadSettings()
@@ -80,6 +82,7 @@ void DlgPrefsTechDrawScaleImp::loadSettings()
     ui->pdsbTemplateMark->setValue(markDefault);
     ui->pdsbTemplateMark->onRestore();
     ui->pdsbSymbolScale->onRestore();
+    ui->cbLegacyScale->onRestore();
 }
 
 /**
@@ -88,9 +91,7 @@ void DlgPrefsTechDrawScaleImp::loadSettings()
 void DlgPrefsTechDrawScaleImp::changeEvent(QEvent *e)
 {
     if (e->type() == QEvent::LanguageChange) {
-        saveSettings();
         ui->retranslateUi(this);
-        loadSettings();
     }
     else {
         QWidget::changeEvent(e);

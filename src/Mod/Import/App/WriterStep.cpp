@@ -21,13 +21,11 @@
  *                                                                         *
  **************************************************************************/
 
-
-#include "PreCompiled.h"
-#ifndef _PreComp_
+#include <Standard_Version.hxx>
 #include <APIHeaderSection_MakeHeader.hxx>
 #include <NCollection_Vector.hxx>
 #include <STEPCAFControl_Writer.hxx>
-#endif
+
 
 #include "WriterStep.h"
 #include <Base/Exception.h>
@@ -47,6 +45,15 @@ void WriterStep::write(Handle(TDocStd_Document) hDoc) const  // NOLINT
     std::string name8bit = Part::encodeFilename(utf8Name);
 
     STEPCAFControl_Writer writer;
+#if OCC_VERSION_HEX >= 0x070900
+    // Temporary workaround for OCCT 7.9+, see: https://github.com/Open-Cascade-SAS/OCCT/issues/1327
+    // TODO: Remove or refine the guards or remove when the issue is fixed in OCCT 8.0.1
+    writer.SetShapeFixParameters(DESTEP_Parameters::GetDefaultShapeFixParameters());
+    ShapeProcess::OperationsFlags aFlags;
+    aFlags.set(ShapeProcess::Operation::SplitCommonVertex);
+    aFlags.set(ShapeProcess::Operation::DirectFaces);
+    writer.SetShapeProcessFlags(aFlags);
+#endif
     Part::Interface::writeStepAssembly(Part::Interface::Assembly::On);
     writer.Transfer(hDoc, STEPControl_AsIs);
 
@@ -62,12 +69,12 @@ void WriterStep::write(Handle(TDocStd_Document) hDoc) const  // NOLINT
     // https://forum.freecad.org/viewtopic.php?f=8&t=52967
     makeHeader.SetAuthorValue(
         1,
-        new TCollection_HAsciiString(hGrp->GetASCII("Author", "Author").c_str()));
-    makeHeader.SetOrganizationValue(
-        1,
-        new TCollection_HAsciiString(hGrp->GetASCII("Company").c_str()));
+        new TCollection_HAsciiString(hGrp->GetASCII("Author", "Author").c_str())
+    );
+    makeHeader.SetOrganizationValue(1, new TCollection_HAsciiString(hGrp->GetASCII("Company").c_str()));
     makeHeader.SetOriginatingSystem(
-        new TCollection_HAsciiString(App::Application::getExecutableName().c_str()));
+        new TCollection_HAsciiString(App::Application::getExecutableName().c_str())
+    );
     makeHeader.SetDescriptionValue(1, new TCollection_HAsciiString("FreeCAD Model"));
     IFSelect_ReturnStatus ret = writer.Write(name8bit.c_str());
     if (ret == IFSelect_RetError || ret == IFSelect_RetFail || ret == IFSelect_RetStop) {

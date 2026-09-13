@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 Eivind Kvedalen <eivind@kvedalen.name>             *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include "PropertySheet.h"
 // inclusion of the generated files (generated out of PropertySheetPy.xml)
@@ -48,6 +49,21 @@ PyObject* PropertySheetPy::PyMake(struct _typeobject*, PyObject*, PyObject*)  //
 int PropertySheetPy::PyInit(PyObject* /*args*/, PyObject* /*kwd*/)
 {
     return 0;
+}
+
+PyObject* PropertySheetPy::keys(PyObject* args) const
+{
+    if (!PyArg_ParseTuple(args, "")) {
+        return nullptr;
+    }
+
+    auto cells = getPropertySheetPtr()->getUsedCells();
+    Py::List list;
+    for (const auto& it : cells) {
+        list.append(Py::String(it.toString()));
+    }
+
+    return Py::new_reference_to(list);
 }
 
 PyObject* PropertySheetPy::mapping_subscript(PyObject* o, PyObject* key)

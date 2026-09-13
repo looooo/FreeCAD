@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,7 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
+#include <limits>
 
 #include "Decimation.h"
 #include "MeshKernel.h"
@@ -61,7 +63,7 @@ void MeshSimplify::simplify(float tolerance, float reduction)
         alg.triangles.push_back(t);
     }
 
-    int target_count = static_cast<int>(static_cast<float>(facets.size()) * (1.0f - reduction));
+    int target_count = static_cast<int>(static_cast<float>(facets.size()) * (1.0F - reduction));
 
     // Simplification starts
     alg.simplify_mesh(target_count, tolerance);
@@ -123,7 +125,7 @@ void MeshSimplify::simplify(int targetSize)
     }
 
     // Simplification starts
-    alg.simplify_mesh(targetSize, FLT_MAX);
+    alg.simplify_mesh(targetSize, std::numeric_limits<float>::max());
 
     // Simplification done
     MeshPointArray new_points;

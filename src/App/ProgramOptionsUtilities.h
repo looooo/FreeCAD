@@ -1,39 +1,49 @@
-/***************************************************************************
-*   Copyright (c) 2002 Jürgen Riegel <juergen.riegel@web.de>              *
-*                                                                         *
-*   This file is part of the FreeCAD CAx development system.              *
-*                                                                         *
-*   This program is free software; you can redistribute it and/or modify  *
-*   it under the terms of the GNU Library General Public License (LGPL)   *
-*   as published by the Free Software Foundation; either version 2 of     *
-*   the License, or (at your option) any later version.                   *
-*   for detail see the LICENCE text file.                                 *
-*                                                                         *
-*   FreeCAD is distributed in the hope that it will be useful,            *
-*   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
-*   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
-*   GNU Library General Public License for more details.                  *
-*                                                                         *
-*   You should have received a copy of the GNU Library General Public     *
-*   License along with FreeCAD; if not, write to the Free Software        *
-*   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  *
-*   USA                                                                   *
-*                                                                         *
-***************************************************************************/
+// SPDX-License-Identifier: LGPL-2.1-or-later
 
-#ifndef PROGRAMOPTIONSUTILITIES_H
-#define PROGRAMOPTIONSUTILITIES_H
+/***************************************************************************
+ *   Copyright (c) 2002 Jürgen Riegel <juergen.riegel@web.de>              *
+ *                                                                         *
+ *   This file is part of the FreeCAD CAx development system.              *
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU Library General Public License (LGPL)   *
+ *   as published by the Free Software Foundation; either version 2 of     *
+ *   the License, or (at your option) any later version.                   *
+ *   for detail see the LICENCE text file.                                 *
+ *                                                                         *
+ *   FreeCAD is distributed in the hope that it will be useful,            *
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+ *   GNU Library General Public License for more details.                  *
+ *                                                                         *
+ *   You should have received a copy of the GNU Library General Public     *
+ *   License along with FreeCAD; if not, write to the Free Software        *
+ *   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  *
+ *   USA                                                                   *
+ *                                                                         *
+ ***************************************************************************/
+
+#pragma once
+
+#include <FCConfig.h>
 
 #include <algorithm>
 #include <array>
 #include <string>
 
-namespace App::Util{
+/**
+ * @brief A namespace for utilities.
+ *
+ * Currently, this namespace contains functionality to define custom syntax to
+ * parse command line options.
+ */
+namespace App::Util
+{
 
 std::pair<std::string, std::string> customSyntax(std::string_view strIn)
 {
-    if(strIn.size() < 2) {
-        return{};
+    if (strIn.size() < 2) {
+        return {};
     }
 
     char leadChr {strIn[0]};
@@ -53,7 +63,7 @@ std::pair<std::string, std::string> customSyntax(std::string_view strIn)
     }
 #endif
 
-    if(rest == "widgetcount"){
+    if (rest == "widgetcount") {
         return {rest, ""};
     }
 
@@ -73,11 +83,10 @@ std::pair<std::string, std::string> customSyntax(std::string_view strIn)
                                  "title",
                                  "visual"};
 
-    if(std::find(knowns.begin(), knowns.end(), rest) != knowns.end()) {
+    if (std::ranges::find(knowns, rest) != knowns.end()) {
         return {rest, "null"};
     }
     return {};
 }
 
-} // namespace
-#endif// PROGRAMOPTIONSUTILITIES_H
+}  // namespace App::Util

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,38 +22,23 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
+#include <algorithm>
+#include <ranges>
 
-#include <Base/Unit.h>
+#include "Unit.h"
 
-// inclusion of the generated files (generated out of UnitPy.xml)
-#include <Base/UnitPy.h>
-#include <Base/QuantityPy.h>
-#include <Base/UnitPy.cpp>
+// generated out of Unit.pyi
+#include "UnitPy.h"
+#include "UnitPy.cpp"
+
+#include "QuantityPy.h"
 
 using namespace Base;
 
 // returns a string which represents the object e.g. when printed in python
 std::string UnitPy::representation() const
 {
-    const UnitSignature& Sig = getUnitPtr()->getSignature();
-    std::stringstream ret;
-    ret << "Unit: ";
-    ret << getUnitPtr()->getString().toUtf8().constData() << " (";
-    ret << Sig.Length << ",";
-    ret << Sig.Mass << ",";
-    ret << Sig.Time << ",";
-    ret << Sig.ElectricCurrent << ",";
-    ret << Sig.ThermodynamicTemperature << ",";
-    ret << Sig.AmountOfSubstance << ",";
-    ret << Sig.LuminousIntensity << ",";
-    ret << Sig.Angle << ")";
-    std::string type = getUnitPtr()->getTypeString().toUtf8().constData();
-    if (!type.empty()) {
-        ret << " [" << type << "]";
-    }
-
-    return ret.str();
+    return getUnitPtr()->representation();
 }
 
 PyObject* UnitPy::PyMake(PyTypeObject* /*unused*/, PyObject* /*unused*/, PyObject* /*unused*/)
@@ -67,15 +54,15 @@ int UnitPy::PyInit(PyObject* args, PyObject* /*kwd*/)
     Unit* self = getUnitPtr();
 
     // get quantity
-    if (PyArg_ParseTuple(args, "O!", &(Base::QuantityPy::Type), &object)) {
-        *self = static_cast<Base::QuantityPy*>(object)->getQuantityPtr()->getUnit();
+    if (PyArg_ParseTuple(args, "O!", &(QuantityPy::Type), &object)) {
+        *self = static_cast<QuantityPy*>(object)->getQuantityPtr()->getUnit();
         return 0;
     }
     PyErr_Clear();  // set by PyArg_ParseTuple()
 
     // get unit
-    if (PyArg_ParseTuple(args, "O!", &(Base::UnitPy::Type), &object)) {
-        *self = *(static_cast<Base::UnitPy*>(object)->getUnitPtr());
+    if (PyArg_ParseTuple(args, "O!", &(UnitPy::Type), &object)) {
+        *self = *(static_cast<UnitPy*>(object)->getUnitPtr());
         return 0;
     }
     PyErr_Clear();  // set by PyArg_ParseTuple()
@@ -83,33 +70,37 @@ int UnitPy::PyInit(PyObject* args, PyObject* /*kwd*/)
     // get string
     char* string {};
     if (PyArg_ParseTuple(args, "et", "utf-8", &string)) {
-        QString qstr = QString::fromUtf8(string);
+        std::string str(string);
         PyMem_Free(string);
         try {
-            *self = Quantity::parse(qstr).getUnit();
+            *self = Quantity::parse(str).getUnit();
             return 0;
         }
-        catch (const Base::ParserError& e) {
+        catch (const ParserError& e) {
             PyErr_SetString(PyExc_ValueError, e.what());
             return -1;
         }
     }
     PyErr_Clear();  // set by PyArg_ParseTuple()
 
-    int i1 = 0;
-    int i2 = 0;
-    int i3 = 0;
-    int i4 = 0;
-    int i5 = 0;
-    int i6 = 0;
-    int i7 = 0;
-    int i8 = 0;
+    int i1 {0};
+    int i2 {0};
+    int i3 {0};
+    int i4 {0};
+    int i5 {0};
+    int i6 {0};
+    int i7 {0};
+    int i8 {0};
     if (PyArg_ParseTuple(args, "|iiiiiiii", &i1, &i2, &i3, &i4, &i5, &i6, &i7, &i8)) {
         try {
             *self = Unit(i1, i2, i3, i4, i5, i6, i7, i8);
             return 0;
         }
-        catch (const Base::OverflowError& e) {
+        catch (const OverflowError& e) {
+            PyErr_SetString(PyExc_OverflowError, e.what());
+            return -1;
+        }
+        catch (const UnderflowError& e) {
             PyErr_SetString(PyExc_OverflowError, e.what());
             return -1;
         }
@@ -130,8 +121,8 @@ PyObject* UnitPy::number_add_handler(PyObject* self, PyObject* other)
         PyErr_SetString(PyExc_TypeError, "Second arg must be Unit");
         return nullptr;
     }
-    Base::Unit* a = static_cast<UnitPy*>(self)->getUnitPtr();
-    Base::Unit* b = static_cast<UnitPy*>(other)->getUnitPtr();
+    Unit* a = static_cast<UnitPy*>(self)->getUnitPtr();
+    Unit* b = static_cast<UnitPy*>(other)->getUnitPtr();
 
     if (*a != *b) {
         PyErr_SetString(PyExc_TypeError, "Units not matching!");
@@ -151,8 +142,8 @@ PyObject* UnitPy::number_subtract_handler(PyObject* self, PyObject* other)
         PyErr_SetString(PyExc_TypeError, "Second arg must be Unit");
         return nullptr;
     }
-    Base::Unit* a = static_cast<UnitPy*>(self)->getUnitPtr();
-    Base::Unit* b = static_cast<UnitPy*>(other)->getUnitPtr();
+    Unit* a = static_cast<UnitPy*>(self)->getUnitPtr();
+    Unit* b = static_cast<UnitPy*>(other)->getUnitPtr();
 
     if (*a != *b) {
         PyErr_SetString(PyExc_TypeError, "Units not matching!");
@@ -170,15 +161,13 @@ PyObject* UnitPy::number_multiply_handler(PyObject* self, PyObject* other)
     }
 
     if (PyObject_TypeCheck(other, &(UnitPy::Type))) {
-        Base::Unit* a = static_cast<UnitPy*>(self)->getUnitPtr();
-        Base::Unit* b = static_cast<UnitPy*>(other)->getUnitPtr();
+        Unit* a = static_cast<UnitPy*>(self)->getUnitPtr();
+        Unit* b = static_cast<UnitPy*>(other)->getUnitPtr();
 
         return new UnitPy(new Unit((*a) * (*b)));
     }
-    else {
-        PyErr_SetString(PyExc_TypeError, "A Unit can only be multiplied by a Unit");
-        return nullptr;
-    }
+    PyErr_SetString(PyExc_TypeError, "A Unit can only be multiplied by a Unit");
+    return nullptr;
 }
 
 PyObject* UnitPy::richCompare(PyObject* v, PyObject* w, int op)
@@ -192,44 +181,34 @@ PyObject* UnitPy::richCompare(PyObject* v, PyObject* w, int op)
             PyErr_SetString(PyExc_TypeError, "no ordering relation is defined for Units");
             return nullptr;
         }
-        else if (op == Py_EQ) {
+        if (op == Py_EQ) {
             res = (*u1 == *u2) ? Py_True : Py_False;  // NOLINT
             Py_INCREF(res);
             return res;
         }
-        else {
-            res = (*u1 != *u2) ? Py_True : Py_False;  // NOLINT
-            Py_INCREF(res);
-            return res;
-        }
+        res = (*u1 != *u2) ? Py_True : Py_False;  // NOLINT
+        Py_INCREF(res);
+        return res;
     }
-    else {
-        // This always returns False
-        Py_INCREF(Py_NotImplemented);
-        return Py_NotImplemented;
-    }
+    // This always returns False
+    Py_INCREF(Py_NotImplemented);
+    return Py_NotImplemented;
 }
 
 Py::String UnitPy::getType() const
 {
-    return {getUnitPtr()->getTypeString().toUtf8(), "utf-8"};
+    return {getUnitPtr()->getTypeString(), "utf-8"};
 }
 
 Py::Tuple UnitPy::getSignature() const
 {
-    const UnitSignature& Sig = getUnitPtr()->getSignature();
-    Py::Tuple tuple(8);
-    tuple.setItem(0, Py::Long(Sig.Length));
-    tuple.setItem(1, Py::Long(Sig.Mass));
-    tuple.setItem(2, Py::Long(Sig.Time));
-    tuple.setItem(3, Py::Long(Sig.ElectricCurrent));
-    tuple.setItem(4, Py::Long(Sig.ThermodynamicTemperature));
-    tuple.setItem(5, Py::Long(Sig.AmountOfSubstance));
-    tuple.setItem(6, Py::Long(Sig.LuminousIntensity));
-    tuple.setItem(7, Py::Long(Sig.Angle));
+    Py::Tuple tuple {unitNumExponents};
+    auto exps = getUnitPtr()->exponents();
+    std::ranges::for_each(exps, [&, pos {0}](auto exp) mutable {
+        tuple.setItem(pos++, Py::Long {exp});
+    });
     return tuple;
 }
-
 
 PyObject* UnitPy::getCustomAttributes(const char* /*attr*/) const
 {
@@ -259,8 +238,7 @@ PyObject* UnitPy::number_divmod_handler(PyObject* /*self*/, PyObject* /*other*/)
     return nullptr;
 }
 
-PyObject*
-UnitPy::number_power_handler(PyObject* /*self*/, PyObject* /*other*/, PyObject* /*modulo*/)
+PyObject* UnitPy::number_power_handler(PyObject* /*self*/, PyObject* /*other*/, PyObject* /*modulo*/)
 {
     PyErr_SetString(PyExc_NotImplementedError, "Not implemented");
     return nullptr;

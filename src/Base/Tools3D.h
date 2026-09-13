@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2022 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -21,30 +23,27 @@
  ***************************************************************************/
 
 
-#ifndef BASE_TOOLS3D_H
-#define BASE_TOOLS3D_H
+#pragma once
 
-
-#include <algorithm>
-#include <cmath>
-#include <cfloat>
-#include <cstdio>
-#include <list>
-#include <vector>
-
-#include <Base/BoundBox.h>
-#include <Base/Placement.h>
-#ifndef FC_GLOBAL_H
 #include <FCGlobal.h>
-#endif
+
+#include <cmath>
+#include <vector>
 
 namespace Base
 {
-
-class Vector2d;
+template<typename T>
+class BoundBox3;
 class BoundBox2d;
 class Line2d;
+class Matrix4D;
 class Polygon2d;
+class Placement;
+class Rotation;
+template<typename T>
+class Vector3;
+using Vector3d = Vector3<double>;
+class Vector2d;
 
 /** Line3 ********************************************/
 
@@ -146,5 +145,3 @@ using Polygon3f = Polygon3<float>;
 using Polygon3d = Polygon3<double>;
 
 }  // namespace Base
-
-#endif  // BASE_TOOLS3D_H

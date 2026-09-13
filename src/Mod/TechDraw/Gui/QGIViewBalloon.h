@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Luke Parry <l.parry@warwick.ac.uk>                 *
  *   Copyright (c) 2019 Franck Jullien <franck.jullien@gmail.com>          *
@@ -21,8 +23,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TECHDRAWGUI_QGIVBALLOON_H
-#define TECHDRAWGUI_QGIVBALLOON_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
@@ -36,12 +37,14 @@
 
 #include "QGCustomText.h"
 #include "QGIView.h"
+#include "QGIUserTypes.h"
 
 
 namespace TechDraw
 {
 class DrawViewBalloon;
 class DrawView;
+enum class ArrowType : int;
 }// namespace TechDraw
 
 namespace TechDraw
@@ -64,10 +67,7 @@ public:
     QGIBalloonLabel();
     ~QGIBalloonLabel() override = default;
 
-    enum
-    {
-        Type = QGraphicsItem::UserType + 141
-    };
+    enum {Type = UserType::QGIBalloonLabel};
     int type() const override
     {
         return Type;
@@ -78,15 +78,17 @@ public:
     void paint(QPainter* painter, const QStyleOptionGraphicsItem* option,
                QWidget* widget = nullptr) override;
     void setLabelCenter();
+    Base::Vector3d getLabelCenter() const;
     void setPosFromCenter(const double& xCenter, const double& yCenter);
-    double X() const
+
+    double getCenterX() const
     {
-        return posX;
+        return mapToParent(m_labelText->boundingRect().center()).x();
     }
-    double Y() const
+    double getCenterY() const
     {
-        return posY;
-    }//minus posY?
+        return mapToParent(m_labelText->boundingRect().center()).y();
+    }
 
     void setFont(QFont font);
     QFont getFont()
@@ -113,6 +115,7 @@ public:
 
     void setDimText(QGCustomText* newText)
     {
+        newText->setTightBounding(true);
         m_labelText = newText;
     }
     bool getVerticalSep() const
@@ -131,6 +134,7 @@ public:
     {
         seps = newSeps;
     }
+    QGCustomText* m_labelText;
 
 Q_SIGNALS:
     void dragging(bool state);
@@ -152,13 +156,10 @@ private:
     bool verticalSep;
     std::vector<int> seps;
 
-    QGCustomText* m_labelText;
     QColor m_colNormal;
 
-    double posX;
-    double posY;
-    bool m_ctrl;
-    bool m_drag;
+    bool m_originDrag;
+    bool m_dragging;
 };
 
 //*******************************************************************
@@ -168,10 +169,7 @@ class TechDrawGuiExport QGIViewBalloon: public QGIView
     Q_OBJECT
 
 public:
-    enum
-    {
-        Type = QGraphicsItem::UserType + 140
-    };
+    enum {Type = UserType::QGIViewBalloon};
 
     explicit QGIViewBalloon();
     ~QGIViewBalloon() override = default;
@@ -186,6 +184,8 @@ public:
     void updateView(bool update = false) override;
     void paint(QPainter* painter, const QStyleOptionGraphicsItem* option,
                QWidget* widget = nullptr) override;
+
+    QPainterPath shape() const override;
 
     QString getLabelText();
     void placeBalloon(QPointF pos);
@@ -202,13 +202,18 @@ public:
 
     void setNormalColorAll();
     QColor prefNormalColor();
-    int prefDefaultArrow() const;
+    TechDraw::ArrowType prefDefaultArrow() const;
     bool prefOrthoPyramid() const;
+
+    void updatePositionFromFeatureXY() override;
 
     TechDraw::DrawViewBalloon* getBalloonFeat()
     {
         return dvBalloon;
     }
+
+    // balloons handle their own dragging
+    void dragFinished() override { };
 
 public Q_SLOTS:
     void balloonLabelDragged(bool ctrl);
@@ -219,13 +224,22 @@ public Q_SLOTS:
 
 protected:
     void draw() override;
-    void drawBalloon(bool dragged = false);
+    void drawBalloon(bool originDrag = false);
     QVariant itemChange(GraphicsItemChange change, const QVariant& value) override;
     virtual void setSvgPens();
     virtual void setPens();
     QString getPrecision();
     void parentViewMousePressed(QGIView* view, QPointF pos);
     TechDraw::DrawView* getSourceView() const;
+    Base::Vector3d arrowPosInDrag();
+    void getBalloonPoints(TechDraw::DrawViewBalloon* balloon,
+                          TechDraw::DrawView* refObj,
+                          bool isDragging,
+                          Base::Vector3d& labelPos,
+                          Base::Vector3d& arrowPos);
+    void hoverEnterEvent(QGraphicsSceneHoverEvent* event) override;
+    void hoverLeaveEvent(QGraphicsSceneHoverEvent* event) override;
+
 
 private:
     TechDraw::DrawViewBalloon* dvBalloon;
@@ -240,10 +254,9 @@ private:
 
     bool m_dragInProgress;
     bool m_originDragged = false;
-    bool m_ctrl;
-    Base::Vector3d m_saveOffset;
+    Base::Vector3d m_saveOriginOffset;
+    Base::Vector3d m_saveOrigin;
+    Base::Vector3d m_savePosition;
 };
 
 }// namespace TechDrawGui
-
-#endif// TECHDRAWGUI_QGIVBALLOON_H

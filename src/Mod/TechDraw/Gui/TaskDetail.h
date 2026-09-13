@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2020 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,21 +22,14 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TECHDRAWGUI_TASKDETAIL_H
-#define TECHDRAWGUI_TASKDETAIL_H
+#pragma once
 
 #include <Base/Vector3D.h>
 #include <Gui/TaskView/TaskDialog.h>
 #include <Gui/TaskView/TaskView.h>
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
-
-//TODO: make this a proper enum
-static constexpr int TRACKERPICK(0);
-static constexpr int TRACKEREDIT(1);
-static constexpr int TRACKERCANCEL(2);
-static constexpr int TRACKERCANCELEDIT(3);
-
+#include "QGIGhostHighlight.h"
 
 namespace TechDraw
 {
@@ -71,6 +66,9 @@ public:
                      QPushButton* btnCancel);
     void enableTaskButtons(bool button);
 
+    TechDraw::DrawViewPart* getBaseFeat();
+    TechDraw::DrawViewDetail* getDetailFeat();
+
 public Q_SLOTS:
         void onDraggerClicked(bool clicked);
         void onHighlightMoved(QPointF dragEnd);
@@ -99,8 +97,6 @@ protected:
     void restoreDetailState();
     QPointF getAnchorScene();
 
-    TechDraw::DrawViewPart* getBaseFeat();
-    TechDraw::DrawViewDetail* getDetailFeat();
 
 private:
     std::unique_ptr<Ui_TaskDetail> ui;
@@ -158,11 +154,11 @@ public:
 
     void modifyStandardButtons(QDialogButtonBox* box) override;
 
+    std::string getDetailName() const;
+
 private:
     TaskDetail * widget;
     Gui::TaskView::TaskBox* taskbox;
 };
 
 } //namespace TechDrawGui
-
-#endif // #ifndef TECHDRAWGUI_TASKDETAIL_H

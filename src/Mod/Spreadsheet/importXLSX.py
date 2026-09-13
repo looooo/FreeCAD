@@ -1,24 +1,25 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # ***************************************************************************
 # *   Copyright (c) 2016 Ulrich Brammer <ulrich1a@users.sourceforge.net>    *
 # *                                                                         *
-# *   This program is free software; you can redistribute it and/or modify  *
-# *   it under the terms of the GNU General Public License (GPL)            *
-# *   as published by the Free Software Foundation; either version 2 of     *
-# *   the License, or (at your option) any later version.                   *
-# *   for detail see the LICENCE text file.                                 *
+# *   This file is part of FreeCAD.                                         *
 # *                                                                         *
-# *   FreeCAD is distributed in the hope that it will be useful,            *
-# *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
-# *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
-# *   GNU Library General Public License for more details.                  *
+# *   FreeCAD is free software: you can redistribute it and/or modify it    *
+# *   under the terms of the GNU Lesser General Public License as           *
+# *   published by the Free Software Foundation, either version 2.1 of the  *
+# *   License, or (at your option) any later version.                       *
 # *                                                                         *
-# *   You should have received a copy of the GNU Library General Public     *
-# *   License along with FreeCAD; if not, write to the Free Software        *
-# *   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  *
-# *   USA                                                                   *
-# ***************************************************************************/
+# *   FreeCAD is distributed in the hope that it will be useful, but        *
+# *   WITHOUT ANY WARRANTY; without even the implied warranty of            *
+# *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU      *
+# *   Lesser General Public License for more details.                       *
+# *                                                                         *
+# *   You should have received a copy of the GNU Lesser General Public      *
+# *   License along with FreeCAD. If not, see                               *
+# *   <https://www.gnu.org/licenses/>.                                      *
+# *                                                                         *
+# ***************************************************************************
 
 
 __title__ = "FreeCAD Spreadsheet Workbench - XLSX importer"
@@ -62,9 +63,6 @@ except ValueError:
     gui = False
 else:
     gui = True
-
-if open.__module__ in ["__builtin__", "io"]:
-    pythonopen = open
 
 
 # The sepToken structure is used in the tokenizer functions isKey and
@@ -228,7 +226,7 @@ class FormulaTranslator(object):
             else:
                 # print('There is a branch. look up: ', theExpr[1])
                 if (lenExpr > 1) and (theExpr[1] in treeDict[branch]):
-                    branch = treeDict[branch][theExpr[0]]
+                    branch = treeDict[branch][theExpr[1]]
                     if branch is None:
                         keyToken = True
                     else:
@@ -332,7 +330,7 @@ def handleCells(cellList, actCellSheet, sList):
         if refType:
             cellType = getText(refType.childNodes)
         else:
-            cellType = "n"  # FIXME: some cells don't have t and s attributes
+            cellType = "n"
 
         # print("reference: ", ref, ' Cell type: ', cellType)
 
@@ -349,9 +347,18 @@ def handleCells(cellList, actCellSheet, sList):
         formulaRef = cell.getElementsByTagName("f")
         if len(formulaRef) == 1:
             theFormula = getText(formulaRef[0].childNodes)
-            # print("theFormula: ", theFormula)
-            fTrans = FormulaTranslator()
-            actCellSheet.set(ref, fTrans.translateForm(theFormula))
+            if theFormula:
+                # print("theFormula: ", theFormula)
+                fTrans = FormulaTranslator()
+                actCellSheet.set(ref, fTrans.translateForm(theFormula))
+            else:
+                attrs = formulaRef[0].attributes
+                attrRef = attrs.getNamedItem("t")
+                attrName = getText(attrRef.childNodes)
+                indexRef = attrs.getNamedItem("si")
+                indexName = getText(indexRef.childNodes)
+                content = "<f t='{}' si='{}'/>".format(attrName, indexName)
+                print(f"Unsupported formula in cell {ref}: {content}")
 
         else:
             valueRef = cell.getElementsByTagName("v")
@@ -367,16 +374,30 @@ def handleCells(cellList, actCellSheet, sList):
                         actCellSheet.set(ref, (sList[int(theValue)]))
 
 
-def handleWorkBook(theBook, sheetDict, Doc):
+def handleWorkBookRels(theBookRels):
+    theRels = theBookRels.getElementsByTagName("Relationship")
+    idTarget = {}
+    for rel in theRels:
+        relAtts = rel.attributes
+        idRef = relAtts.getNamedItem("Id")
+        relRef = getText(idRef.childNodes)
+        targetRef = relAtts.getNamedItem("Target")
+        relTarget = getText(targetRef.childNodes)
+        idTarget[relRef] = relTarget
+    return idTarget
+
+
+def handleWorkBook(theBook, theBookRels, sheetDict, Doc):
     theSheets = theBook.getElementsByTagName("sheet")
+    theIdTargetMap = handleWorkBookRels(theBookRels)
     # print("theSheets: ", theSheets)
     for sheet in theSheets:
         sheetAtts = sheet.attributes
         nameRef = sheetAtts.getNamedItem("name")
         sheetName = getText(nameRef.childNodes)
         # print("table name: ", sheetName)
-        idRef = sheetAtts.getNamedItem("sheetId")
-        sheetFile = "sheet" + getText(idRef.childNodes) + ".xml"
+        idRef = sheetAtts.getNamedItem("r:id")
+        sheetFile = theIdTargetMap[getText(idRef.childNodes)]
         # print("sheetFile: ", sheetFile)
         # add FreeCAD-spreadsheet
         sheetDict[sheetName] = (Doc.addObject("Spreadsheet::Sheet", sheetName), sheetFile)
@@ -391,19 +412,19 @@ def handleWorkBook(theBook, sheetDict, Doc):
         aliasRef = getText(theAlias.childNodes)  # aliasRef can be None
         if aliasRef and "$" in aliasRef:
             refList = aliasRef.split("!$")
-            adressList = refList[1].split("$")
+            addressList = refList[1].split("$")
             # print("aliasRef: ", aliasRef)
             # print('Sheet Name: ', refList[0])
-            # print('Adress: ', adressList[0] + adressList[1])
+            # print('Address: ', addressList[0] + addressList[1])
             actSheet, sheetFile = sheetDict[refList[0]]
-            actSheet.setAlias(adressList[0] + adressList[1], aliasName)
+            actSheet.setAlias(addressList[0] + addressList[1], aliasName)
 
 
 def handleStrings(theStr, sList):
-    print("process Strings: ")
+    # print("process Strings: ")
     stringElements = theStr.getElementsByTagName("t")
     for sElem in stringElements:
-        print("string: ", getText(sElem.childNodes))
+        # print("string: ", getText(sElem.childNodes))
         sList.append(getText(sElem.childNodes))
 
 
@@ -419,8 +440,11 @@ def open(nameXLSX):
 
         theBookFile = z.open("xl/workbook.xml")
         theBook = xml.dom.minidom.parse(theBookFile)
-        handleWorkBook(theBook, sheetDict, theDoc)
+        theBookRelsFile = z.open("xl/_rels/workbook.xml.rels")
+        theBookRels = xml.dom.minidom.parse(theBookRelsFile)
+        handleWorkBook(theBook, theBookRels, sheetDict, theDoc)
         theBook.unlink()
+        theBookRels.unlink()
 
         if "xl/sharedStrings.xml" in z.namelist():
             theStringFile = z.open("xl/sharedStrings.xml")
@@ -431,7 +455,7 @@ def open(nameXLSX):
         for sheetSpec in sheetDict:
             # print("sheetSpec: ", sheetSpec)
             theSheet, sheetFile = sheetDict[sheetSpec]
-            f = z.open("xl/worksheets/" + sheetFile)
+            f = z.open("xl/" + sheetFile)
             myDom = xml.dom.minidom.parse(f)
 
             handleWorkSheet(myDom, theSheet, stringList)
@@ -458,8 +482,11 @@ def insert(nameXLSX, docname):
     z = zipfile.ZipFile(nameXLSX)
     theBookFile = z.open("xl/workbook.xml")
     theBook = xml.dom.minidom.parse(theBookFile)
-    handleWorkBook(theBook, sheetDict, theDoc)
+    theBookRelsFile = z.open("xl/_rels/workbook.xml.rels")
+    theBookRels = xml.dom.minidom.parse(theBookRelsFile)
+    handleWorkBook(theBook, theBookRels, sheetDict, theDoc)
     theBook.unlink()
+    theBookRels.unlink()
 
     if "xl/sharedStrings.xml" in z.namelist():
         theStringFile = z.open("xl/sharedStrings.xml")
@@ -470,7 +497,7 @@ def insert(nameXLSX, docname):
     for sheetSpec in sheetDict:
         # print("sheetSpec: ", sheetSpec)
         theSheet, sheetFile = sheetDict[sheetSpec]
-        f = z.open("xl/worksheets/" + sheetFile)
+        f = z.open("xl/" + sheetFile)
         myDom = xml.dom.minidom.parse(f)
 
         handleWorkSheet(myDom, theSheet, stringList)

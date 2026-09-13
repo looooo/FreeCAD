@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Jürgen Riegel <FreeCAD@juergen-riegel.net>         *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef Fem_FemAnalysis_H
-#define Fem_FemAnalysis_H
+#pragma once
 
 #include <App/DocumentObjectGroup.h>
 #include <App/FeaturePython.h>
@@ -85,9 +86,11 @@ protected:
      *  property of DocumentObjectGroup. This methods translates old files
      *  still using the "Member" property.
      */
-    void handleChangedPropertyName(Base::XMLReader& reader,
-                                   const char* TypeName,
-                                   const char* PropName) override;
+    void handleChangedPropertyName(
+        Base::XMLReader& reader,
+        const char* TypeName,
+        const char* PropName
+    ) override;
 };
 
 class FemExport DocumentObject: public App::DocumentObject
@@ -100,6 +103,3 @@ using FeaturePython = App::FeaturePythonT<DocumentObject>;
 
 
 }  // namespace Fem
-
-
-#endif  // Fem_FemAnalysis_H

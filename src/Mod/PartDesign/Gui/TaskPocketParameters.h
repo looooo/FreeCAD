@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2011 Juergen Riegel <FreeCAD@juergen-riegel.net>        *
  *                                                                         *
@@ -20,55 +22,63 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef GUI_TASKVIEW_TaskPocketParameters_H
-#define GUI_TASKVIEW_TaskPocketParameters_H
+#pragma once
 
 #include "TaskExtrudeParameters.h"
 #include "ViewProviderPocket.h"
 
+class QComboBox;
 
-namespace App {
+namespace App
+{
 class Property;
 }
 
-namespace Gui {
+namespace Gui
+{
 class ViewProvider;
 }
 
-namespace PartDesignGui {
+namespace PartDesignGui
+{
 
 
-class TaskPocketParameters : public TaskExtrudeParameters
+class TaskPocketParameters: public TaskExtrudeParameters
 {
     Q_OBJECT
 
 public:
-    explicit TaskPocketParameters(ViewProviderPocket *PocketView, QWidget *parent = nullptr, bool newObj=false);
+    explicit TaskPocketParameters(
+        ViewProviderPocket* PocketView,
+        QWidget* parent = nullptr,
+        bool newObj = false
+    );
     ~TaskPocketParameters() override;
 
     void apply() override;
 
 private:
-    void onModeChanged(int index) override;
-    void translateModeList(int index) override;
-    void updateUI(int index) override;
-
-private:
-    double oldLength;
+    void onModeChanged(int index, Side side) override;
+    void translateModeList(QComboBox* box, int index) override;
+    void updateUI(Side side) override;
 };
 
 /// simulation dialog for the TaskView
-class TaskDlgPocketParameters : public TaskDlgSketchBasedParameters
+class TaskDlgPocketParameters: public TaskDlgExtrudeParameters
 {
     Q_OBJECT
 
 public:
-    explicit TaskDlgPocketParameters(ViewProviderPocket *PocketView);
+    explicit TaskDlgPocketParameters(ViewProviderPocket* PocketView);
 
-    ViewProviderPocket* getPocketView() const
-    { return static_cast<ViewProviderPocket*>(vp); }
+protected:
+    TaskExtrudeParameters* getTaskParameters() override
+    {
+        return parameters;
+    }
+
+private:
+    TaskPocketParameters* parameters;
 };
 
-} //namespace PartDesignGui
-
-#endif // GUI_TASKVIEW_TASKAPPERANCE_H
+}  // namespace PartDesignGui

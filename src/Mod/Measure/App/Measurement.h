@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Luke Parry <l.parry@warwick.ac.uk>                 *
  *                                                                         *
@@ -20,10 +22,10 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef MEASURE_MEASUREMENT_H
-#define MEASURE_MEASUREMENT_H
+#pragma once
 
 #include <gp_Pnt.hxx>
+#include <TopAbs_ShapeEnum.hxx>
 
 #include <App/DocumentObject.h>
 #include <App/PropertyLinks.h>
@@ -36,22 +38,44 @@
 class TopoDS_Shape;
 namespace Measure
 {
- enum MeasureType {
-        Volumes, // Measure the Volume(s)
-        Edges, // Measure the Edge(s)
-        Surfaces, // Measure the surface(s)
-        Points,
-        PointToPoint, // Measure between TWO points
-        PointToEdge, // Measure between ONE point and ONE edge
-        PointToSurface, // Measure between ONE point and ONE surface
-        EdgeToEdge, // Measure between TWO edges
-        Invalid
-    };
+enum class MeasureType
+{
+    Volumes,           // Measure the Volume(s)
+    Edges,             // Measure the Edge(s)
+    Line,              // One Line
+    TwoLines,          // Two lines
+    TwoParallelLines,  // Two parallel lines
+    Circle,            // One circle
+    CircleArc,         // One circle arc
+    TwoCircles,
+    CircleToEdge,
+    CircleToSurface,
+    CircleToCylinder,
+    Surfaces,         // Measure the surface(s)
+    Cylinder,         // One Cylinder
+    CylinderSection,  // One cylinder section
+    TwoCylinders,
+    Cone,       // One Cone
+    Sphere,     // One Sphere
+    Torus,      // One Torus
+    Plane,      // One Plane
+    TwoPlanes,  // One Plane
+    Disc,
+    Points,
+    PointToPoint,  // Measure between TWO points
+    PointToEdge,   // Measure between ONE point and ONE edge
+    PointToCircle,
+    PointToSurface,  // Measure between ONE point and ONE surface
+    PointToCylinder,
+    EdgeToEdge,  // Measure between TWO edges
+    Invalid
+};
 
-class MeasureExport Measurement : public Base::BaseClass {
-      TYPESYSTEM_HEADER_WITH_OVERRIDE();
+class MeasureExport Measurement: public Base::BaseClass
+{
+    TYPESYSTEM_HEADER_WITH_OVERRIDE();
+
 public:
-
     App::PropertyLinkSubList References3D;
 
 public:
@@ -63,39 +87,62 @@ public:
 
     /// Add a reference
     int addReference3D(App::DocumentObject* obj, const std::string& subName);
-    int addReference3D(App::DocumentObject* obj, const char *subName);
+    int addReference3D(App::DocumentObject* obj, const char* subName);
 
     MeasureType getType();
+    MeasureType findType();
 
-     // from base class
-    PyObject *getPyObject() override;
+    // from base class
+    PyObject* getPyObject() override;
     virtual unsigned int getMemSize() const;
 
-  // Methods for distances (edge length, two points, edge and a point
-  double length() const;
-  Base::Vector3d delta() const;                                                 //when would client use delta??
+    // Methods for distances (edge length, two points, edge and a point
+    double length() const;
+    Base::Vector3d delta() const;  // when would client use delta??
+    double lineLineDistance() const;
+    double circleCenterDistance() const;
+    double planePlaneDistance() const;
+    double cylinderAxisDistance() const;
 
-  // Calculates the radius for an arc or circular edge
-  double radius() const;
+    // Calculates the radius for an arc or circular edge
+    double radius() const;
 
-  // Calculates the angle between two edges
-  double angle(const Base::Vector3d &param = Base::Vector3d(0,0,0)) const;      //param is never used???
+    // Calculates the diameter for a circle or a cylinder
+    double diameter() const;
 
-  // Calculate volumetric/mass properties
-  Base::Vector3d massCenter() const;
+    // Calculates the angle between two edges
+    double angle(const Base::Vector3d& param = Base::Vector3d(0, 0, 0)) const;  // param is never used???
 
-  static Base::Vector3d toVector3d(const gp_Pnt gp) { return Base::Vector3d(gp.X(), gp.Y(), gp.Z()); }
+    // Calculate the center of mass
+    Base::Vector3d massCenter() const;
+
+    // Calculate the volume of selected volumes
+    double volume() const;
+
+    // Calculate the area of selection
+    double area() const;
+
+    static Base::Vector3d toVector3d(const gp_Pnt gp)
+    {
+        return Base::Vector3d(gp.X(), gp.Y(), gp.Z());
+    }
+
+    bool planesAreParallel() const;
+    bool linesAreParallel() const;
 
 protected:
-  TopoDS_Shape getShape(App::DocumentObject *obj , const char *subName) const;
+    // Hint parameter helps sort out compound shapes by specifying a subelement type
+    // use hint = TopAbs_COMPOUND to give no hint
+    TopoDS_Shape getShape(
+        App::DocumentObject* obj,
+        const char* subName,
+        TopAbs_ShapeEnum hint = TopAbs_COMPOUND
+    ) const;
 
 private:
-  MeasureType measureType;
-  Py::SmartPtr PythonObject;
+    MeasureType measureType;
+    Py::SmartPtr PythonObject;
 };
 
 
-} //namespace measure
-
-
-#endif // MEASURE_MEASUREMENT_H
+}  // namespace Measure

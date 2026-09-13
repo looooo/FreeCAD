@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # ***************************************************************************
 # *   Copyright (c) 2022 Werner Mayer <wmayer[at]users.sourceforge.net>     *
 # *                                                                         *
@@ -58,7 +60,7 @@ def make_points_from_geometry(geometries, distance):
         if len(points_and_normals[1]) > 0 and len(points_and_normals[0]) == len(
             points_and_normals[1]
         ):
-            points.addProperty("Points::PropertyNormalList", "Normal")
+            points.addProperty("Points::PropertyNormalList", "Normal", locked=True)
             points.Normal = points_and_normals[1]
 
         points.purgeTouched()

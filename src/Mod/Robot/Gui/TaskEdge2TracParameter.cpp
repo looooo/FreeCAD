@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2009 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,10 +22,8 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <QString>
-#endif
+
 
 #include <Gui/Application.h>
 #include <Gui/BitmapFactory.h>
@@ -38,10 +38,7 @@ using namespace RobotGui;
 using namespace Gui;
 
 TaskEdge2TracParameter::TaskEdge2TracParameter(Robot::Edge2TracObject* pcObject, QWidget* parent)
-    : TaskBox(Gui::BitmapFactory().pixmap("Robot_Edge2Trac"),
-              tr("TaskEdge2TracParameter"),
-              true,
-              parent)
+    : TaskBox(Gui::BitmapFactory().pixmap("Robot_Edge2Trac"), tr("TaskEdge2TracParameter"), true, parent)
     , pcObject(pcObject)
     , HideShowObj(nullptr)
 {
@@ -117,7 +114,7 @@ void TaskEdge2TracParameter::setEdgeAndClusterNbr(int NbrEdges, int NbrClusters)
         palette.setBrush(QPalette::WindowText, QColor(a, p, p));
     }
 
-    text = QString::fromLatin1("Edges: %1").arg(NbrEdges);
+    text = QStringLiteral("Edges: %1").arg(NbrEdges);
     ui->label_Edges->setPalette(palette);
     ui->label_Edges->setText(text);
 
@@ -129,7 +126,7 @@ void TaskEdge2TracParameter::setEdgeAndClusterNbr(int NbrEdges, int NbrClusters)
         palette.setBrush(QPalette::WindowText, QColor(a, p, p));
     }
 
-    text = QString::fromLatin1("Cluster: %1").arg(NbrClusters);
+    text = QStringLiteral("Cluster: %1").arg(NbrClusters);
     ui->label_Cluster->setPalette(palette);
     ui->label_Cluster->setText(text);
 }

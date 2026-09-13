@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,17 +22,15 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 #if defined(__MINGW32__)
-#define WNT  // avoid conflict with GUID
+# define WNT  // avoid conflict with GUID
 #endif
-#ifndef _PreComp_
+
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/range/adaptor/indexed.hpp>
-#include <climits>
 #if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wextra-semi"
+# pragma clang diagnostic push
+# pragma clang diagnostic ignored "-Wextra-semi"
 #endif
 #include <Interface_Static.hxx>
 #include <OSD_Exception.hxx>
@@ -42,15 +42,15 @@
 #include <XCAFDoc_DocumentTool.hxx>
 #include <XSControl_TransferReader.hxx>
 #include <XSControl_WorkSession.hxx>
-#if OCC_VERSION_HEX >= 0x070500
 #include <Message_ProgressRange.hxx>
-#endif
+
 #if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
+# pragma clang diagnostic pop
 #endif
 
+#include <chrono>
 #include "dxf/ImpExpDxf.h"
+#include "SketchExportHelper.h"
 #include <App/Application.h>
 #include <App/Document.h>
 #include <App/DocumentObjectPy.h>
@@ -61,7 +61,6 @@
 #include <Mod/Part/App/Interface.h>
 #include <Mod/Part/App/OCAF/ImportExportSettings.h>
 #include <Mod/Part/App/PartFeaturePy.h>
-#include <Mod/Part/App/ProgressIndicator.h>
 #include <Mod/Part/App/TopoShapePy.h>
 #include <Mod/Part/App/encodeFilename.h>
 
@@ -82,28 +81,39 @@ public:
     Module()
         : Py::ExtensionModule<Module>("Import")
     {
-        add_keyword_method("open",
-                           &Module::importer,
-                           "open(string) -- Open the file and create a new document.");
-        add_keyword_method("insert",
-                           &Module::importer,
-                           "insert(string,string) -- Insert the file into the given document.");
-        add_keyword_method("export",
-                           &Module::exporter,
-                           "export(list,string) -- Export a list of objects into a single file.");
-        add_varargs_method("readDXF",
-                           &Module::readDXF,
-                           "readDXF(filename,[document,ignore_errors,option_source]): Imports a "
-                           "DXF file into the given document. ignore_errors is True by default.");
-        add_varargs_method("writeDXFShape",
-                           &Module::writeDXFShape,
-                           "writeDXFShape([shape],filename [version,usePolyline,optionSource]): "
-                           "Exports Shape(s) to a DXF file.");
+        add_keyword_method(
+            "open",
+            &Module::importer,
+            "open(string) -- Open the file and create a new document."
+        );
+        add_keyword_method(
+            "insert",
+            &Module::importer,
+            "insert(string,string) -- Insert the file into the given document."
+        );
+        add_keyword_method(
+            "export",
+            &Module::exporter,
+            "export(list,string) -- Export a list of objects into a single file."
+        );
+        add_varargs_method(
+            "readDXF",
+            &Module::readDXF,
+            "readDXF(filename,[document,ignore_errors,option_source]): Imports a "
+            "DXF file into the given document. ignore_errors is True by default."
+        );
+        add_varargs_method(
+            "writeDXFShape",
+            &Module::writeDXFShape,
+            "writeDXFShape([shape],filename [version,usePolyline,optionSource]): "
+            "Exports Shape(s) to a DXF file."
+        );
         add_varargs_method(
             "writeDXFObject",
             &Module::writeDXFObject,
             "writeDXFObject([objects],filename [,version,usePolyline,optionSource]): Exports "
-            "DocumentObject(s) to a DXF file.");
+            "DocumentObject(s) to a DXF file."
+        );
         initialize("This module is the Import module.");  // register with Python
     }
 
@@ -120,20 +130,22 @@ private:
         int mode = -1;
         static const std::array<const char*, 7>
             kwd_list {"name", "docName", "importHidden", "merge", "useLinkGroup", "mode", nullptr};
-        if (!Base::Wrapped_ParseTupleAndKeywords(args.ptr(),
-                                                 kwds.ptr(),
-                                                 "et|sO!O!O!i",
-                                                 kwd_list,
-                                                 "utf-8",
-                                                 &Name,
-                                                 &DocName,
-                                                 &PyBool_Type,
-                                                 &importHidden,
-                                                 &PyBool_Type,
-                                                 &merge,
-                                                 &PyBool_Type,
-                                                 &useLinkGroup,
-                                                 &mode)) {
+        if (!Base::Wrapped_ParseTupleAndKeywords(
+                args.ptr(),
+                kwds.ptr(),
+                "et|sO!O!O!i",
+                kwd_list,
+                "utf-8",
+                &Name,
+                &DocName,
+                &PyBool_Type,
+                &importHidden,
+                &PyBool_Type,
+                &merge,
+                &PyBool_Type,
+                &useLinkGroup,
+                &mode
+            )) {
             throw Py::Exception();
         }
 
@@ -161,8 +173,8 @@ private:
                     reader.read(hDoc);
                 }
                 catch (OSD_Exception& e) {
-                    Base::Console().Error("%s\n", e.GetMessageString());
-                    Base::Console().Message("Try to load STEP file without colors...\n");
+                    Base::Console().error("%s\n", e.GetMessageString());
+                    Base::Console().message("Try to load STEP file without colors...\n");
 
                     Part::ImportStepParts(pcDoc, Utf8Name.c_str());
                     pcDoc->recompute();
@@ -174,8 +186,8 @@ private:
                     reader.read(hDoc);
                 }
                 catch (OSD_Exception& e) {
-                    Base::Console().Error("%s\n", e.GetMessageString());
-                    Base::Console().Message("Try to load IGES file without colors...\n");
+                    Base::Console().error("%s\n", e.GetMessageString());
+                    Base::Console().message("Try to load IGES file without colors...\n");
 
                     Part::ImportIgesParts(pcDoc, Utf8Name.c_str());
                     pcDoc->recompute();
@@ -240,25 +252,23 @@ private:
         PyObject* pyexportHidden = Py_None;
         PyObject* pylegacy = Py_None;
         PyObject* pykeepPlacement = Py_None;
-        static const std::array<const char*, 6> kwd_list {"obj",
-                                                          "name",
-                                                          "exportHidden",
-                                                          "legacy",
-                                                          "keepPlacement",
-                                                          nullptr};
-        if (!Base::Wrapped_ParseTupleAndKeywords(args.ptr(),
-                                                 kwds.ptr(),
-                                                 "Oet|O!O!O!",
-                                                 kwd_list,
-                                                 &object,
-                                                 "utf-8",
-                                                 &Name,
-                                                 &PyBool_Type,
-                                                 &pyexportHidden,
-                                                 &PyBool_Type,
-                                                 &pylegacy,
-                                                 &PyBool_Type,
-                                                 &pykeepPlacement)) {
+        static const std::array<const char*, 6>
+            kwd_list {"obj", "name", "exportHidden", "legacy", "keepPlacement", nullptr};
+        if (!Base::Wrapped_ParseTupleAndKeywords(
+                args.ptr(),
+                kwds.ptr(),
+                "Oet|O!O!O!",
+                kwd_list,
+                &object,
+                "utf-8",
+                &Name,
+                &PyBool_Type,
+                &pyexportHidden,
+                &PyBool_Type,
+                &pylegacy,
+                &PyBool_Type,
+                &pykeepPlacement
+            )) {
             throw Py::Exception();
         }
 
@@ -280,7 +290,7 @@ private:
         try {
             Py::Sequence list(object);
             std::vector<App::DocumentObject*> objs;
-            std::map<Part::Feature*, std::vector<App::Color>> partColor;
+            std::map<Part::Feature*, std::vector<Base::Color>> partColor;
             for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
                 PyObject* item = (*it).ptr();
                 if (PyObject_TypeCheck(item, &(App::DocumentObjectPy::Type))) {
@@ -309,7 +319,7 @@ private:
             hApp->NewDocument(TCollection_ExtendedString("MDTV-CAF"), hDoc);
 
             auto getShapeColors = [partColor](App::DocumentObject* obj, const char* subname) {
-                std::map<std::string, App::Color> cols;
+                std::map<std::string, Base::Color> cols;
                 auto it = partColor.find(dynamic_cast<Part::Feature*>(obj));
                 if (it != partColor.end() && boost::starts_with(subname, "Face")) {
                     const auto& colors = it->second;
@@ -377,13 +387,9 @@ private:
         const char* optionSource = nullptr;
         std::string defaultOptions = "User parameter:BaseApp/Preferences/Mod/Draft";
         bool IgnoreErrors = true;
-        if (!PyArg_ParseTuple(args.ptr(),
-                              "et|sbs",
-                              "utf-8",
-                              &Name,
-                              &DocName,
-                              &IgnoreErrors,
-                              &optionSource)) {
+        if (
+            !PyArg_ParseTuple(args.ptr(), "et|sbs", "utf-8", &Name, &DocName, &IgnoreErrors, &optionSource)
+        ) {
             throw Py::Exception();
         }
 
@@ -415,8 +421,15 @@ private:
             ImpExpDxfRead dxf_file(EncodedName, pcDoc);
             dxf_file.setOptionSource(defaultOptions);
             dxf_file.setOptions();
+
+            auto startTime = std::chrono::high_resolution_clock::now();
             dxf_file.DoRead(IgnoreErrors);
+            auto endTime = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> elapsed = endTime - startTime;
+            dxf_file.setImportTime(elapsed.count());
+
             pcDoc->recompute();
+            return dxf_file.getStatsAsPyObject();
         }
         catch (const Standard_Failure& e) {
             throw Py::RuntimeError(e.GetMessageString());
@@ -424,32 +437,35 @@ private:
         catch (const Base::Exception& e) {
             throw Py::RuntimeError(e.what());
         }
-        return Py::None();
     }
+
 
     Py::Object writeDXFShape(const Py::Tuple& args)
     {
+        Base::Console().message("Imp:writeDXFShape()\n");
         PyObject* shapeObj = nullptr;
         char* fname = nullptr;
         std::string filePath;
         std::string layerName;
         const char* optionSource = nullptr;
-        std::string defaultOptions = "User parameter:BaseApp/Preferences/Mod/Import";
+        std::string defaultOptions = "User parameter:BaseApp/Preferences/Mod/Draft";
         int versionParm = -1;
         bool versionOverride = false;
         bool polyOverride = false;
         PyObject* usePolyline = Py_False;
 
         // handle list of shapes
-        if (PyArg_ParseTuple(args.ptr(),
-                             "O!et|iOs",
-                             &(PyList_Type),
-                             &shapeObj,
-                             "utf-8",
-                             &fname,
-                             &versionParm,
-                             &usePolyline,
-                             &optionSource)) {
+        if (PyArg_ParseTuple(
+                args.ptr(),
+                "O!et|iOs",
+                &(PyList_Type),
+                &shapeObj,
+                "utf-8",
+                &fname,
+                &versionParm,
+                &usePolyline,
+                &optionSource
+            )) {
             filePath = std::string(fname);
             layerName = "none";
             PyMem_Free(fname);
@@ -477,8 +493,8 @@ private:
                 Py::Sequence list(shapeObj);
                 for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
                     if (PyObject_TypeCheck((*it).ptr(), &(Part::TopoShapePy::Type))) {
-                        Part::TopoShape* ts =
-                            static_cast<Part::TopoShapePy*>((*it).ptr())->getTopoShapePtr();
+                        Part::TopoShape* ts
+                            = static_cast<Part::TopoShapePy*>((*it).ptr())->getTopoShapePtr();
                         TopoDS_Shape shape = ts->getShape();
                         writer.exportShape(shape);
                     }
@@ -492,15 +508,17 @@ private:
         }
 
         PyErr_Clear();
-        if (PyArg_ParseTuple(args.ptr(),
-                             "O!et|iOs",
-                             &(Part::TopoShapePy::Type),
-                             &shapeObj,
-                             "utf-8",
-                             &fname,
-                             &versionParm,
-                             &usePolyline,
-                             &optionSource)) {
+        if (PyArg_ParseTuple(
+                args.ptr(),
+                "O!et|iOs",
+                &(Part::TopoShapePy::Type),
+                &shapeObj,
+                "utf-8",
+                &fname,
+                &versionParm,
+                &usePolyline,
+                &optionSource
+            )) {
             filePath = std::string(fname);
             layerName = "none";
             PyMem_Free(fname);
@@ -546,21 +564,23 @@ private:
         std::string filePath;
         std::string layerName;
         const char* optionSource = nullptr;
-        std::string defaultOptions = "User parameter:BaseApp/Preferences/Mod/Import";
+        std::string defaultOptions = "User parameter:BaseApp/Preferences/Mod/Draft";
         int versionParm = -1;
         bool versionOverride = false;
         bool polyOverride = false;
         PyObject* usePolyline = Py_False;
 
-        if (PyArg_ParseTuple(args.ptr(),
-                             "O!et|iOs",
-                             &(PyList_Type),
-                             &docObj,
-                             "utf-8",
-                             &fname,
-                             &versionParm,
-                             &usePolyline,
-                             &optionSource)) {
+        if (PyArg_ParseTuple(
+                args.ptr(),
+                "O!et|iOs",
+                &(PyList_Type),
+                &docObj,
+                "utf-8",
+                &fname,
+                &versionParm,
+                &usePolyline,
+                &optionSource
+            )) {
             filePath = std::string(fname);
             layerName = "none";
             PyMem_Free(fname);
@@ -590,13 +610,23 @@ private:
                 for (Py::Sequence::iterator it = list.begin(); it != list.end(); ++it) {
                     if (PyObject_TypeCheck((*it).ptr(), &(Part::PartFeaturePy::Type))) {
                         PyObject* item = (*it).ptr();
-                        App::DocumentObject* obj =
-                            static_cast<App::DocumentObjectPy*>(item)->getDocumentObjectPtr();
-                        Part::Feature* part = static_cast<Part::Feature*>(obj);
-                        layerName = part->getNameInDocument();
+                        App::DocumentObject* obj
+                            = static_cast<App::DocumentObjectPy*>(item)->getDocumentObjectPtr();
+                        layerName = obj->getNameInDocument();
                         writer.setLayerName(layerName);
-                        const TopoDS_Shape& shape = part->Shape.getValue();
-                        writer.exportShape(shape);
+                        TopoDS_Shape shapeToExport;
+                        if (SketchExportHelper::isSketch(obj)) {
+                            // project sketch along sketch Z via hlrProjector to get geometry on XY
+                            // plane
+                            shapeToExport = SketchExportHelper::getFlatSketchXY(obj);
+                        }
+                        else {
+                            // do we know that obj is a Part::Feature? is this checked somewhere
+                            // before this? this should be a located shape??
+                            Part::Feature* part = static_cast<Part::Feature*>(obj);
+                            shapeToExport = part->Shape.getValue();
+                        }
+                        writer.exportShape(shapeToExport);
                     }
                 }
                 writer.endRun();
@@ -608,18 +638,23 @@ private:
         }
 
         PyErr_Clear();
-        if (PyArg_ParseTuple(args.ptr(),
-                             "O!et|iOs",
-                             &(App::DocumentObjectPy::Type),
-                             &docObj,
-                             "utf-8",
-                             &fname,
-                             &versionParm,
-                             &usePolyline,
-                             &optionSource)) {
+        if (PyArg_ParseTuple(
+                args.ptr(),
+                "O!et|iOs",
+                &(App::DocumentObjectPy::Type),
+                &docObj,
+                "utf-8",
+                &fname,
+                &versionParm,
+                &usePolyline,
+                &optionSource
+            )) {
             filePath = std::string(fname);
             layerName = "none";
             PyMem_Free(fname);
+            App::DocumentObject* obj
+                = static_cast<App::DocumentObjectPy*>(docObj)->getDocumentObjectPtr();
+            Base::Console().message("Imp:writeDXFObject - docObj: %s\n", obj->getNameInDocument());
 
             if ((versionParm == 12) || (versionParm == 14)) {
                 versionOverride = true;
@@ -642,13 +677,23 @@ private:
                 writer.setPolyOverride(polyOverride);
                 writer.setLayerName(layerName);
                 writer.init();
-                App::DocumentObject* obj =
-                    static_cast<App::DocumentObjectPy*>(docObj)->getDocumentObjectPtr();
-                Part::Feature* part = static_cast<Part::Feature*>(obj);
-                layerName = part->getNameInDocument();
+                App::DocumentObject* obj
+                    = static_cast<App::DocumentObjectPy*>(docObj)->getDocumentObjectPtr();
+                layerName = obj->getNameInDocument();
                 writer.setLayerName(layerName);
-                const TopoDS_Shape& shape = part->Shape.getValue();
-                writer.exportShape(shape);
+                TopoDS_Shape shapeToExport;
+                if (SketchExportHelper::isSketch(obj)) {
+                    // project sketch along sketch Z via hlrProjector to get geometry on XY plane
+                    shapeToExport = SketchExportHelper::getFlatSketchXY(obj);
+                }
+                else {
+                    // TODO: do we know that obj is a Part::Feature? is this checked somewhere
+                    // before this?
+                    // TODO: this should be a located shape??
+                    Part::Feature* part = static_cast<Part::Feature*>(obj);
+                    shapeToExport = part->Shape.getValue();
+                }
+                writer.exportShape(shapeToExport);
                 writer.endRun();
                 return Py::None();
             }

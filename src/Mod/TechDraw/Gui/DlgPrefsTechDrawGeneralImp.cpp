@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 FreeCAD Developers                                 *
  *   Author: WandererFan <wandererfan@gmail.com>                           *
@@ -22,7 +24,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include "DlgPrefsTechDrawGeneralImp.h"
 #include "ui_DlgPrefsTechDrawGeneral.h"
@@ -43,6 +44,10 @@ DlgPrefsTechDrawGeneralImp::DlgPrefsTechDrawGeneralImp( QWidget* parent )
 
     ui->psb_GridSpacing->setUnit(Base::Unit::Length);
     ui->psb_GridSpacing->setMinimum(0);
+
+    ui->pfc_DefDir->setMode(Gui::FileChooser::Mode::Directory);
+    ui->pfc_Welding->setMode(Gui::FileChooser::Mode::Directory);
+    ui->fcSymbolDir->setMode(Gui::FileChooser::Mode::Directory);
 }
 
 DlgPrefsTechDrawGeneralImp::~DlgPrefsTechDrawGeneralImp()
@@ -70,10 +75,19 @@ void DlgPrefsTechDrawGeneralImp::saveSettings()
     ui->pfc_Welding->onSave();
     ui->pfc_FilePattern->onSave();
     ui->le_NamePattern->onSave();
+    ui->fcSymbolDir->onSave();
+
     ui->cb_ShowGrid->onSave();
     ui->psb_GridSpacing->onSave();
 
     ui->cbMultiSelection->onSave();
+
+    ui->cb_viewFramesVisibility->onSave();
+    ui->cb_useCameraDirection->onSave();
+    ui->cb_SnapViews->onSave();
+    ui->psb_SnapFactor->onSave();
+    ui->cb_SnapHighlights->onSave();
+    ui->psb_HighlightSnapFactor->onSave();
 }
 
 void DlgPrefsTechDrawGeneralImp::loadSettings()
@@ -87,7 +101,6 @@ void DlgPrefsTechDrawGeneralImp::loadSettings()
     ui->plsb_LabelSize->setValue(labelDefault);
     QFont prefFont(Preferences::labelFontQString());
     ui->pfb_LabelFont->setCurrentFont(prefFont);
-    //    ui->pfb_LabelFont->setCurrentText(Preferences::labelFontQString());   //only works in Qt5
 
     ui->pfb_LabelFont->onRestore();
     ui->plsb_LabelSize->onRestore();
@@ -102,6 +115,8 @@ void DlgPrefsTechDrawGeneralImp::loadSettings()
     ui->pfc_Welding->onRestore();
     ui->pfc_FilePattern->onRestore();
     ui->le_NamePattern->onRestore();
+    ui->fcSymbolDir->onRestore();
+
 
     bool gridDefault = PreferencesGui::showGrid();
     ui->cb_ShowGrid->setChecked(gridDefault);
@@ -114,6 +129,15 @@ void DlgPrefsTechDrawGeneralImp::loadSettings()
     bool multiSelectionDefault = PreferencesGui::multiSelection();
     ui->cbMultiSelection->setChecked(multiSelectionDefault);
     ui->cbMultiSelection->onRestore();
+
+    ui->cb_viewFramesVisibility->onRestore();
+    ui->cb_useCameraDirection->onRestore();
+
+    ui->cb_SnapViews->onRestore();
+    ui->psb_SnapFactor->onRestore();
+
+    ui->cb_SnapHighlights->onRestore();
+    ui->psb_HighlightSnapFactor->onRestore();
 }
 
 /**
@@ -122,9 +146,7 @@ void DlgPrefsTechDrawGeneralImp::loadSettings()
 void DlgPrefsTechDrawGeneralImp::changeEvent(QEvent *e)
 {
     if (e->type() == QEvent::LanguageChange) {
-        saveSettings();
         ui->retranslateUi(this);
-        loadSettings();
     }
     else {
         QWidget::changeEvent(e);

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2011 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -21,8 +23,7 @@
  ***************************************************************************/
 
 
-#ifndef BASE_BUILDER3D_H
-#define BASE_BUILDER3D_H
+#pragma once
 
 // Std. configurations
 
@@ -30,9 +31,9 @@
 #include <vector>
 #include <cstdint>
 #include <Base/Tools3D.h>
-#ifndef FC_GLOBAL_H
 #include <FCGlobal.h>
-#endif
+
+#include "Placement.h"
 
 namespace Base
 {
@@ -163,9 +164,7 @@ public:
 class BaseExport Triangle
 {
 public:
-    explicit Triangle(const Base::Vector3f& pt1,
-                      const Base::Vector3f& pt2,
-                      const Base::Vector3f& pt3)
+    explicit Triangle(const Base::Vector3f& pt1, const Base::Vector3f& pt2, const Base::Vector3f& pt3)
         : pt1(pt1)
         , pt2(pt2)
         , pt3(pt3)
@@ -293,9 +292,11 @@ private:
 class BaseExport PointItem: public NodeItem
 {
 public:
-    explicit PointItem(const Base::Vector3f& point,
-                       DrawStyle drawStyle,
-                       const ColorRGB& rgb = ColorRGB {1.0F, 1.0F, 1.0F});
+    explicit PointItem(
+        const Base::Vector3f& point,
+        DrawStyle drawStyle,
+        const ColorRGB& rgb = ColorRGB {1.0F, 1.0F, 1.0F}
+    );
     void write(InventorOutput& out) const override;
 
 private:
@@ -307,9 +308,11 @@ private:
 class BaseExport LineItem: public NodeItem
 {
 public:
-    explicit LineItem(const Base::Line3f& line,
-                      DrawStyle drawStyle,
-                      const ColorRGB& rgb = ColorRGB {1.0F, 1.0F, 1.0F});
+    explicit LineItem(
+        const Base::Line3f& line,
+        DrawStyle drawStyle,
+        const ColorRGB& rgb = ColorRGB {1.0F, 1.0F, 1.0F}
+    );
     void write(InventorOutput& out) const override;
 
 private:
@@ -323,9 +326,11 @@ class BaseExport MultiLineItem: public NodeItem
 public:
     /// add a line defined by a list of points whereat always a pair (i.e. a point and the following
     /// point) builds a line.
-    explicit MultiLineItem(std::vector<Vector3f> points,
-                           DrawStyle drawStyle,
-                           const ColorRGB& rgb = ColorRGB {1.0F, 1.0F, 1.0F});
+    explicit MultiLineItem(
+        std::vector<Vector3f> points,
+        DrawStyle drawStyle,
+        const ColorRGB& rgb = ColorRGB {1.0F, 1.0F, 1.0F}
+    );
     void write(InventorOutput& out) const override;
 
 private:
@@ -337,9 +342,11 @@ private:
 class BaseExport ArrowItem: public NodeItem
 {
 public:
-    explicit ArrowItem(const Base::Line3f& line,
-                       DrawStyle drawStyle,
-                       const ColorRGB& rgb = ColorRGB {1.0F, 1.0F, 1.0F});
+    explicit ArrowItem(
+        const Base::Line3f& line,
+        DrawStyle drawStyle,
+        const ColorRGB& rgb = ColorRGB {1.0F, 1.0F, 1.0F}
+    );
     void write(InventorOutput& out) const override;
 
 private:
@@ -351,10 +358,12 @@ private:
 class BaseExport BoundingBoxItem: public NodeItem
 {
 public:
-    explicit BoundingBoxItem(const Vector3f& pt1,
-                             const Vector3f& pt2,
-                             DrawStyle drawStyle,
-                             const ColorRGB& rgb = ColorRGB {1.0F, 1.0F, 1.0F});
+    explicit BoundingBoxItem(
+        const Vector3f& pt1,
+        const Vector3f& pt2,
+        DrawStyle drawStyle,
+        const ColorRGB& rgb = ColorRGB {1.0F, 1.0F, 1.0F}
+    );
     void write(InventorOutput& out) const override;
 
 private:
@@ -843,8 +852,13 @@ private:
  * If it fails then a std::exception is thrown.
  * Supported type names are float or double
  */
-BaseExport Base::Vector3f to_vector(std::string);
+BaseExport Base::Vector3f stringToVector(std::string);
+
+/*!
+ * Expects a string of the form "(x,y,z)" and creates a vector from it.
+ * If it fails then a std::exception is thrown.
+ * Supported type names are float or double
+ */
+BaseExport std::string vectorToString(Vector3f);
 
 }  // namespace Base
-
-#endif  // BASE_BUILDER3D_H

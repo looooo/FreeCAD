@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Luke Parry <l.parry@warwick.ac.uk>                 *
  *                                                                         *
@@ -20,12 +22,16 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_QGRAPHICSITEMVERTEX_H
-#define DRAWINGGUI_QGRAPHICSITEMVERTEX_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
-# include "QGIPrimPath.h"
+#include "QGIPrimPath.h"
+#include "QGIUserTypes.h"
+
+namespace Base {
+class Vector2d;
+}
 
 namespace TechDrawGui
 {
@@ -36,24 +42,23 @@ public:
     explicit QGIVertex(int index);
     ~QGIVertex() override = default;
 
-    enum {Type = QGraphicsItem::UserType + 105};
+    enum {Type = UserType::QGIVertex};
     int type() const override { return Type;}
     void paint(QPainter * painter, const QStyleOptionGraphicsItem * option, QWidget * widget = nullptr ) override;
 
     int getProjIndex() const { return projIndex; }
 
-    float getRadius() { return m_radius; }
-    virtual void setRadius(float r);
+    double getRadius() const { return m_radius; }
+    virtual void setRadius(double r);
+
+    Base::Vector2d toVector2d() const;
+    Base::Vector2d vector2dBetweenPoints(const QGIVertex* p2) const;
 
 protected:
     bool multiselectEligible() override { return true; }
 
     int projIndex;
-    float m_radius;
-
-private:
+    double m_radius;
 };
 
 }
-
-#endif // DRAWINGGUI_QGRAPHICSITEMVERTEX_H

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Jan Rheinländer                                    *
  *                                   <jrheinlaender@users.sourceforge.net> *
@@ -21,11 +23,9 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
-#ifndef _PreComp_
 #include <Precision.hxx>
-#endif
+
 
 #include "FemConstraintPulley.h"
 
@@ -41,21 +41,27 @@ ConstraintPulley::ConstraintPulley()
     ADD_PROPERTY(IsDriven, (0));
     ADD_PROPERTY(TensionForce, (0.0));
 
-    ADD_PROPERTY_TYPE(BeltAngle,
-                      (0),
-                      "ConstraintPulley",
-                      App::PropertyType(App::Prop_ReadOnly | App::Prop_Output),
-                      "Angle of belt forces");
-    ADD_PROPERTY_TYPE(BeltForce1,
-                      (0.0),
-                      "ConstraintPulley",
-                      App::PropertyType(App::Prop_ReadOnly | App::Prop_Output),
-                      "First belt force");
-    ADD_PROPERTY_TYPE(BeltForce2,
-                      (0.0),
-                      "ConstraintPulley",
-                      App::PropertyType(App::Prop_ReadOnly | App::Prop_Output),
-                      "Second belt force");
+    ADD_PROPERTY_TYPE(
+        BeltAngle,
+        (0),
+        "ConstraintPulley",
+        App::PropertyType(App::Prop_ReadOnly | App::Prop_Output),
+        "Angle of belt forces"
+    );
+    ADD_PROPERTY_TYPE(
+        BeltForce1,
+        (0.0),
+        "ConstraintPulley",
+        App::PropertyType(App::Prop_ReadOnly | App::Prop_Output),
+        "First belt force"
+    );
+    ADD_PROPERTY_TYPE(
+        BeltForce2,
+        (0.0),
+        "ConstraintPulley",
+        App::PropertyType(App::Prop_ReadOnly | App::Prop_Output),
+        "Second belt force"
+    );
     ForceAngle.setValue(0.0);
     Diameter.setValue(300.0);
     // calculate initial values of read-only properties
@@ -73,8 +79,9 @@ void ConstraintPulley::onChanged(const App::Property* prop)
 
     if ((prop == &Diameter) || (prop == &OtherDiameter) || (prop == &CenterDistance)) {
         if (CenterDistance.getValue() > Precision::Confusion()) {
-            BeltAngle.setValue(asin((Diameter.getValue() - OtherDiameter.getValue()) / 2
-                                    / CenterDistance.getValue()));
+            BeltAngle.setValue(
+                asin((Diameter.getValue() - OtherDiameter.getValue()) / 2 / CenterDistance.getValue())
+            );
             BeltAngle.touch();
         }
     }

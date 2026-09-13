@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2022 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef COMPASSWIDGET_H
-#define COMPASSWIDGET_H
+#pragma once
 
 #include <QDoubleSpinBox>
 #include <QKeyEvent>
@@ -34,6 +35,10 @@ class QHBoxLayout;
 class QPushButton;
 class QVBoxLayout;
 QT_END_NAMESPACE
+
+namespace Gui {
+class QuantitySpinBox;
+}
 
 namespace TechDrawGui
 {
@@ -94,11 +99,10 @@ private:
 
     CompassDialWidget* compassDial;
     //    DoubleSpinBoxNoEnter* dsbAngle;
-    QDoubleSpinBox* dsbAngle;
+    Gui::QuantitySpinBox* dsbAngle;
     QLabel* compassControlLabel;
     QPushButton* pbCWAdvance;
     QPushButton* pbCCWAdvance;
 };
 
 }//namespace TechDrawGui
-#endif// COMPASSWIDGET_H

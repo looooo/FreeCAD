@@ -1,32 +1,74 @@
-# As of January 2023 we require CMake 3.16.3
-# see https://forum.freecad.org/viewtopic.php?f=10&t=72173
-# for further info why
-cmake_minimum_required(VERSION 3.16.3 FATAL_ERROR)
+# As of February 2025 we require CMake 3.22.0
+cmake_minimum_required(VERSION 3.22.0 FATAL_ERROR)
 
-# policy CMP0072 was introduced with CMake 3.11
-# relates to FindOpenGL module
-# and cache variables OPENGL_gl_LIBRARY, OPENGL_glu_LIBRARY
-if (POLICY CMP0072)
-    set(OpenGL_GL_PREFERENCE LEGACY)
-endif(POLICY CMP0072)
+
+# As of cMake 3.27, find_package() will look for both case-sensitive and all-uppercase versions
+# of the package. This seems to affect FLANN as included by Pixi
+if(POLICY CMP0144)
+    cmake_policy(SET CMP0144 NEW)
+endif()
+
+# FindPythonInterp and FindPythonLibs modules are deprecated, but are still in use by
+# all versions of Shiboken2. This policy must be kept at OLD until Shiboken2 is no longer
+# supported
+if(POLICY CMP0148)
+    cmake_policy(SET CMP0148 OLD)
+endif()
+
+# The exec_program command was deprecated in cMake 3.0, and policy CMP0153 was added in cMake
+# 3.28 to control whether this gives a warning (the OLD behavior) or a fatal error (NEW)
+if(POLICY CMP0153)
+    cmake_policy(SET CMP0153 NEW)
+endif()
+
+# Suppress 'FindBoost module is removed' warning. Will use BoostConfig.cmake instead
+if(POLICY CMP0167)
+    cmake_policy(SET CMP0167 NEW)
+endif()
+
+# As of cMake 3.31 add_custom_command() rejects invalid arguments
+if(POLICY CMP0175)
+    cmake_policy(SET CMP0175 NEW)
+endif()
+
+# Added in cMake 3.31, enforce normalization of all DESTINATION paths given to install()
+if(POLICY CMP0177)
+    cmake_policy(SET CMP0177 NEW)
+endif()
+
+# Make CMake output a bit more focused
+set(CMAKE_REQUIRED_QUIET TRUE)
+
 
 option(FREECAD_USE_CCACHE "Auto detect and use ccache during compilation" ON)
+
+# FreeCAD does not use C++20 modules. Keep CMake 3.28+ from enabling module
+# dependency scanning on C++20 targets, especially with toolchains that do not
+# provide a scanner such as clang-scan-deps.
+set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
 if(FREECAD_USE_CCACHE)
     find_program(CCACHE_PROGRAM ccache)  #This check should occur before project()
     if(CCACHE_PROGRAM)
-        set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CCACHE_PROGRAM}")
+        message(STATUS "Using ccache found at: " ${CCACHE_PROGRAM})
+        set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+        set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
     endif()
 endif()
 
-project(FreeCAD)
+# Version and Package Name are set in the version.json file and propagate to all other
+# files with version information in them either via CMake or via the sync_version.py
+# script (in src/Tools/)
+file(READ "${CMAKE_SOURCE_DIR}/version.json" VERSION_JSON)
+string(JSON _PROJECT_NAME GET ${VERSION_JSON} "name")
+string(JSON PACKAGE_VERSION_MAJOR GET ${VERSION_JSON} "version_major")
+string(JSON PACKAGE_VERSION_MINOR GET ${VERSION_JSON} "version_minor")
+string(JSON PACKAGE_VERSION_PATCH GET ${VERSION_JSON} "version_patch")
+string(JSON PACKAGE_VERSION_SUFFIX GET ${VERSION_JSON} "version_suffix")
+string(JSON PACKAGE_BUILD_VERSION GET ${VERSION_JSON} "build_version")
 
-set(PACKAGE_VERSION_NAME "Vulcan")
-set(PACKAGE_VERSION_MAJOR "0")
-set(PACKAGE_VERSION_MINOR "22")
-set(PACKAGE_VERSION_PATCH "0") # number of patch release (e.g. "4" for the 0.18.4 release)
-set(PACKAGE_VERSION_SUFFIX "dev") # either "dev" for development snapshot or "" (empty string)
-set(PACKAGE_BUILD_VERSION "0") # used when the same FreeCAD version will be re-released (for example using an updated LibPack)
+project(${_PROJECT_NAME})
+string(TIMESTAMP PACKAGE_COPYRIGHT_YEAR "%Y")
 
 set(PACKAGE_VERSION "${PACKAGE_VERSION_MAJOR}.${PACKAGE_VERSION_MINOR}.${PACKAGE_VERSION_PATCH}")
 set(PACKAGE_STRING "${PROJECT_NAME} ${PACKAGE_VERSION}")
@@ -46,9 +88,16 @@ InitializeFreeCADBuildOptions()
 CheckInterModuleDependencies()
 FreeCADLibpackChecks()
 SetupDoxygen()
-SetupLibFmt()
+SetupJSON()
+SetupKDTree()
+SetupSanitizers()
 SetupYamlCpp()
-if(NOT FREECAD_LIBPACK_USE OR FREECAD_LIBPACK_CHECKFILE_CLBUNDLER)
+SetupZipIos()
+SetupClipper2()
+find_package(fmt REQUIRED)
+find_package(ICU REQUIRED COMPONENTS uc i18n)
+find_package(cpptrace QUIET)
+if(NOT FREECAD_LIBPACK_USE OR FREECAD_LIBPACK_CHECKFILE_CLBUNDLER OR FREECAD_LIBPACK_CHECKFILE_VERSION)
     SetupPython()
     SetupPCL()
     SetupPybind11()
@@ -63,12 +112,12 @@ if(NOT FREECAD_LIBPACK_USE OR FREECAD_LIBPACK_CHECKFILE_CLBUNDLER)
         SetupOpenGL()
     endif(BUILD_GUI)
     SetupSalomeSMESH()
-    SetupBoost()
     if (BUILD_FEM_NETGEN)
-        find_package(NETGEN)
-    endif(BUILD_FEM_NETGEN)
-    # not needed at the moment
-    #find_package(OpenCV REQUIRED)
+        set(NETGEN_DEFINITIONS -DNO_PARALLEL_THREADS -DOCCGEOMETRY)
+        if (NOT FREECAD_USE_EXTERNAL_SMESH)
+            find_package(NETGEN REQUIRED)
+        endif()
+    endif()
     SetupSwig()
     SetupEigen()
     # This file is included directly due to some cMake macros that are defined within.
@@ -77,16 +126,24 @@ if(NOT FREECAD_LIBPACK_USE OR FREECAD_LIBPACK_CHECKFILE_CLBUNDLER)
     SetupFreetype()
 
     if(BUILD_GUI)
-        SetupCoin3D()
+        SetupCoinPivy()
         SetupSpaceball()
         SetupShibokenAndPyside()
         SetupMatplotlib()
     endif(BUILD_GUI)
-endif(NOT FREECAD_LIBPACK_USE OR FREECAD_LIBPACK_CHECKFILE_CLBUNDLER)
 
-if(BUILD_VR)
-    find_package(Rift)
-endif(BUILD_VR)
+    # SetupCoinPivy can overwrite find_package(Boost) output so keep this after.
+    SetupBoost()
+
+    if(BUILD_BIM)
+        SetupLark()
+        find_python_runtime_dep(ifcopenshell ifcopenshell ifcopenshell_VERSION "IFC files support disabled.")
+    endif()
+    if(BUILD_ASSEMBLY)
+        find_python_runtime_dep(av av av_VERSION "Assembly simulation video export will not work properly.")
+        find_python_runtime_dep(pillow PIL pillow_VERSION "Assembly simulation video export will not work properly.")
+    endif()
+endif()
 
 SetLibraryVersions()
 SetGlobalCompilerAndLinkerSettings()
@@ -105,6 +162,7 @@ endif()
 if (ENABLE_DEVELOPER_TESTS)
     include(CTest)
     enable_testing()
+    find_package(GTest REQUIRED)
     add_subdirectory(tests)
 endif()
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2010 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,10 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
-# include <cfloat>
-#endif
+#include <limits>
 
 #include <Base/QuantityPy.h>
 #include <Base/UnitPy.h>
@@ -37,8 +36,9 @@ using namespace Base;
 using namespace std;
 
 
-const PropertyQuantityConstraint::Constraints LengthStandard = {0.0,DBL_MAX,1.0};
-const PropertyQuantityConstraint::Constraints AngleStandard = {-360,360,1.0};
+const PropertyQuantityConstraint::Constraints LengthStandard = {
+    0.0, std::numeric_limits<double>::max(), 1.0};
+const PropertyQuantityConstraint::Constraints AngleStandard = {-360, 360, 1.0};
 
 //**************************************************************************
 // PropertyQuantity
@@ -48,7 +48,9 @@ TYPESYSTEM_SOURCE(App::PropertyQuantity, App::PropertyFloat)
 
 Base::Quantity PropertyQuantity::getQuantityValue() const
 {
-    return Quantity(_dValue,_Unit);
+    Quantity quantity(_dValue, _Unit);
+    quantity.setFormat(_Format);
+    return quantity;
 }
 
 const char* PropertyQuantity::getEditorName() const
@@ -56,24 +58,26 @@ const char* PropertyQuantity::getEditorName() const
     return "Gui::PropertyEditor::PropertyUnitItem";
 }
 
-PyObject *PropertyQuantity::getPyObject()
+PyObject* PropertyQuantity::getPyObject()
 {
-    return new QuantityPy (new Quantity(_dValue,_Unit));
+    return new QuantityPy(new Quantity(_dValue, _Unit));
 }
 
-Base::Quantity PropertyQuantity::createQuantityFromPy(PyObject *value)
+Base::Quantity PropertyQuantity::createQuantityFromPy(PyObject* value)
 {
     Base::Quantity quant;
 
-    if (PyUnicode_Check(value)){
-        quant = Quantity::parse(QString::fromUtf8(PyUnicode_AsUTF8(value)));
+    if (PyUnicode_Check(value)) {
+        quant = Quantity::parse(PyUnicode_AsUTF8(value));
     }
-    else if (PyFloat_Check(value))
-        quant = Quantity(PyFloat_AsDouble(value),_Unit);
-    else if (PyLong_Check(value))
-        quant = Quantity(double(PyLong_AsLong(value)),_Unit);
+    else if (PyFloat_Check(value)) {
+        quant = Quantity(PyFloat_AsDouble(value), _Unit);
+    }
+    else if (PyLong_Check(value)) {
+        quant = Quantity(double(PyLong_AsLong(value)), _Unit);
+    }
     else if (PyObject_TypeCheck(value, &(QuantityPy::Type))) {
-        Base::QuantityPy  *pcObject = static_cast<Base::QuantityPy*>(value);
+        Base::QuantityPy* pcObject = static_cast<Base::QuantityPy*>(value);
         quant = *(pcObject->getQuantityPtr());
     }
     else {
@@ -85,47 +89,50 @@ Base::Quantity PropertyQuantity::createQuantityFromPy(PyObject *value)
     return quant;
 }
 
-void PropertyQuantity::setPyObject(PyObject *value)
+void PropertyQuantity::setPyObject(PyObject* value)
 {
     // Set the unit if Unit object supplied, else check the unit
     // and set the value
 
     if (PyObject_TypeCheck(value, &(UnitPy::Type))) {
-        Base::UnitPy  *pcObject = static_cast<Base::UnitPy*>(value);
+        Base::UnitPy* pcObject = static_cast<Base::UnitPy*>(value);
         Base::Unit unit = *(pcObject->getUnitPtr());
         aboutToSetValue();
         _Unit = unit;
         hasSetValue();
     }
     else {
-        Base::Quantity quant= createQuantityFromPy(value);
+        Base::Quantity quant = createQuantityFromPy(value);
 
-        Unit unit = quant.getUnit();
-        if (unit.isEmpty()){
+        if (quant.isDimensionless()) {
             PropertyFloat::setValue(quant.getValue());
             return;
         }
 
-        if (unit != _Unit)
+        if (_Unit != quant.getUnit()) {
             throw Base::UnitsMismatchError("Not matching Unit!");
+        }
 
         PropertyFloat::setValue(quant.getValue());
     }
 }
 
-void PropertyQuantity::setPathValue(const ObjectIdentifier & /*path*/, const boost::any &value)
+void PropertyQuantity::setPathValue(const ObjectIdentifier& /*path*/, const boost::any& value)
 {
     auto q = App::anyToQuantity(value);
     aboutToSetValue();
-    if(!q.getUnit().isEmpty())
+    if (!q.isDimensionless()) {
         _Unit = q.getUnit();
-    _dValue=q.getValue();
+    }
+    _dValue = q.getValue();
     setValue(q.getValue());
 }
 
-const boost::any PropertyQuantity::getPathValue(const ObjectIdentifier & /*path*/) const
+const boost::any PropertyQuantity::getPathValue(const ObjectIdentifier& /*path*/) const
 {
-    return Quantity(_dValue, _Unit);
+    Quantity quantity(_dValue, _Unit);
+    quantity.setFormat(_Format);
+    return quantity;
 }
 
 //**************************************************************************
@@ -145,55 +152,60 @@ const char* PropertyQuantityConstraint::getEditorName() const
     return "Gui::PropertyEditor::PropertyUnitConstraintItem";
 }
 
-const PropertyQuantityConstraint::Constraints*  PropertyQuantityConstraint::getConstraints() const
+const PropertyQuantityConstraint::Constraints* PropertyQuantityConstraint::getConstraints() const
 {
     return _ConstStruct;
 }
 
 double PropertyQuantityConstraint::getMinimum() const
 {
-    if (_ConstStruct)
+    if (_ConstStruct) {
         return _ConstStruct->LowerBound;
+    }
     return std::numeric_limits<double>::min();
 }
 
 double PropertyQuantityConstraint::getMaximum() const
 {
-    if (_ConstStruct)
+    if (_ConstStruct) {
         return _ConstStruct->UpperBound;
+    }
     return std::numeric_limits<double>::max();
 }
 
 double PropertyQuantityConstraint::getStepSize() const
 {
-    if (_ConstStruct)
+    if (_ConstStruct) {
         return _ConstStruct->StepSize;
+    }
     return 1.0;
 }
 
-void PropertyQuantityConstraint::setPyObject(PyObject *value)
+void PropertyQuantityConstraint::setPyObject(PyObject* value)
 {
-    Base::Quantity quant= createQuantityFromPy(value);
+    Base::Quantity quant = createQuantityFromPy(value);
 
-    Unit unit = quant.getUnit();
     double temp = quant.getValue();
     if (_ConstStruct) {
-        if (temp > _ConstStruct->UpperBound)
+        if (temp > _ConstStruct->UpperBound) {
             temp = _ConstStruct->UpperBound;
-        else if (temp < _ConstStruct->LowerBound)
+        }
+        else if (temp < _ConstStruct->LowerBound) {
             temp = _ConstStruct->LowerBound;
+        }
     }
     quant.setValue(temp);
 
-    if (unit.isEmpty()){
-        PropertyFloat::setValue(quant.getValue()); // clazy:exclude=skipped-base-method
+    if (quant.isDimensionless()) {
+        PropertyFloat::setValue(quant.getValue());  // clazy:exclude=skipped-base-method
         return;
     }
 
-    if (unit != _Unit)
+    if (_Unit != quant.getUnit()) {
         throw Base::UnitsMismatchError("Not matching Unit!");
+    }
 
-    PropertyFloat::setValue(quant.getValue()); // clazy:exclude=skipped-base-method
+    PropertyFloat::setValue(quant.getValue());  // clazy:exclude=skipped-base-method
 }
 
 // ------------------------------------------------------
@@ -379,6 +391,28 @@ PropertyElectricCharge::PropertyElectricCharge()
 }
 
 //**************************************************************************
+// PropertySurfaceChargeDensity
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+TYPESYSTEM_SOURCE(App::PropertySurfaceChargeDensity, App::PropertyQuantity)
+
+PropertySurfaceChargeDensity::PropertySurfaceChargeDensity()
+{
+    setUnit(Base::Unit::SurfaceChargeDensity);
+}
+
+//**************************************************************************
+// PropertyVolumeChargeDensity
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+TYPESYSTEM_SOURCE(App::PropertyVolumeChargeDensity, App::PropertyQuantity)
+
+PropertyVolumeChargeDensity::PropertyVolumeChargeDensity()
+{
+    setUnit(Base::Unit::VolumeChargeDensity);
+}
+
+//**************************************************************************
 // PropertyElectricCurrent
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -486,7 +520,12 @@ TYPESYSTEM_SOURCE(App::PropertyLength, App::PropertyQuantityConstraint)
 PropertyLength::PropertyLength()
 {
     setUnit(Base::Unit::Length);
-    setConstraints(&LengthStandard);
+    enableNegative(false);
+}
+
+void PropertyLength::enableNegative(bool on)
+{
+    setConstraints(on ? nullptr : &LengthStandard);
 }
 
 //**************************************************************************
@@ -545,6 +584,17 @@ PropertyMagnetization::PropertyMagnetization()
 }
 
 //**************************************************************************
+// PropertyElectromagneticPotential
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+TYPESYSTEM_SOURCE(App::PropertyElectromagneticPotential, App::PropertyQuantity)
+
+PropertyElectromagneticPotential::PropertyElectromagneticPotential()
+{
+    setUnit(Base::Unit::ElectromagneticPotential);
+}
+
+//**************************************************************************
 // PropertyMass
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -553,6 +603,17 @@ TYPESYSTEM_SOURCE(App::PropertyMass, App::PropertyQuantity)
 PropertyMass::PropertyMass()
 {
     setUnit(Base::Unit::Mass);
+}
+
+//**************************************************************************
+// PropertyMoment
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+TYPESYSTEM_SOURCE(App::PropertyMoment, App::PropertyQuantity)
+
+PropertyMoment::PropertyMoment()
+{
+    setUnit(Base::Unit::Moment);
 }
 
 //**************************************************************************
@@ -619,6 +680,17 @@ TYPESYSTEM_SOURCE(App::PropertyStiffness, App::PropertyQuantity)
 PropertyStiffness::PropertyStiffness()
 {
     setUnit(Base::Unit::Stiffness);
+}
+
+//**************************************************************************
+// PropertyStiffnessDensity
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+TYPESYSTEM_SOURCE(App::PropertyStiffnessDensity, App::PropertyQuantity)
+
+PropertyStiffnessDensity::PropertyStiffnessDensity()
+{
+    setUnit(Base::Unit::StiffnessDensity);
 }
 
 //**************************************************************************
@@ -798,3 +870,4 @@ PropertyYoungsModulus::PropertyYoungsModulus()
 {
     setUnit(Base::Unit::YoungsModulus);
 }
+

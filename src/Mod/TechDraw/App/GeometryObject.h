@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Luke Parry <l.parry@warwick.ac.uk>                 *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TECHDRAW_GEOMETRYOBJECT_H
-#define TECHDRAW_GEOMETRYOBJECT_H
+#pragma once
 
 //! a class to the projection of shapes, removal/identifying hidden lines and
 //  converting the output for OCC HLR into the BaseGeom intermediate representation.
@@ -82,11 +83,11 @@ public:
 
     void projectShape(const TopoDS_Shape& input, const gp_Ax2& viewAxis);
     void projectShapeWithPolygonAlgo(const TopoDS_Shape& input, const gp_Ax2& viewAxis);
-    static TopoDS_Shape projectSimpleShape(const TopoDS_Shape& shape, const gp_Ax2& CS);
+    static TopoDS_Shape projectSimpleShape(const TopoDS_Shape& shape, const gp_Ax2& CS, bool invertYRequired = true);
     static TopoDS_Shape simpleProjection(const TopoDS_Shape& shape, const gp_Ax2& projCS);
     static TopoDS_Shape projectFace(const TopoDS_Shape& face, const gp_Ax2& CS);
     void makeTDGeometry();
-    void extractGeometry(edgeClass category, bool visible);
+    void extractGeometry(EdgeClass category, bool visible);
     void addFaceGeom(FacePtr f);
     void clearFaceGeom();
     void setIsoCount(int i) { m_isoCount = i; }
@@ -141,7 +142,7 @@ protected:
     TopoDS_Shape hidSeam;
     TopoDS_Shape hidIso;
 
-    void addGeomFromCompound(TopoDS_Shape edgeCompound, edgeClass category, bool visible);
+    void addGeomFromCompound(TopoDS_Shape edgeCompound, EdgeClass category, bool visible);
     TechDraw::DrawViewDetail* isParentDetail();
 
     //similar function in Geometry?
@@ -170,6 +171,3 @@ protected:
 using GeometryObjectPtr = std::shared_ptr<GeometryObject>;
 
 }//namespace TechDraw
-
-#endif
-

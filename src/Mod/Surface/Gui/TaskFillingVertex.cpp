@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2017 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,22 +22,22 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <QAction>
 #include <QTimer>
-#endif
+
 
 #include <App/Document.h>
+#include <Base/Tools.h>
 #include <Gui/Application.h>
 #include <Gui/Command.h>
 #include <Gui/Document.h>
-#include <Gui/SelectionObject.h>
+#include <Gui/Selection/SelectionObject.h>
 #include <Gui/Widgets.h>
 #include <Mod/Part/Gui/ViewProvider.h>
 
 #include "TaskFilling.h"
 #include "TaskFillingVertex.h"
+
 #include "ui_TaskFillingVertex.h"
 
 
@@ -47,15 +49,13 @@ namespace SurfaceGui
 class FillingVertexPanel::VertexSelection: public Gui::SelectionFilterGate
 {
 public:
-    VertexSelection(FillingVertexPanel::SelectionMode& mode, Surface::Filling* editedObject)
+    VertexSelection(FillingVertexPanel::SelectionMode mode, Surface::Filling* editedObject)
         : Gui::SelectionFilterGate(nullPointer())
         , mode(mode)
         , editedObject(editedObject)
     {}
     ~VertexSelection() override
-    {
-        mode = FillingVertexPanel::None;
-    }
+    {}
     /**
      * Allow the user to pick only edges.
      */
@@ -65,11 +65,11 @@ public:
         if (pObj == editedObject) {
             return false;
         }
-        if (!pObj->isDerivedFrom(Part::Feature::getClassTypeId())) {
+        if (!pObj->isDerivedFrom<Part::Feature>()) {
             return false;
         }
 
-        if (!sSubName || sSubName[0] == '\0') {
+        if (Base::Tools::isNullOrEmpty(sSubName)) {
             return false;
         }
 
@@ -106,7 +106,7 @@ private:
     }
 
 private:
-    FillingVertexPanel::SelectionMode& mode;
+    FillingVertexPanel::SelectionMode mode;
     Surface::Filling* editedObject;
 };
 
@@ -125,7 +125,7 @@ FillingVertexPanel::FillingVertexPanel(ViewProviderFilling* vp, Surface::Filling
 
     // Create context menu
     QAction* action = new QAction(tr("Remove"), this);
-    action->setShortcut(QString::fromLatin1("Del"));
+    action->setShortcut(QStringLiteral("Del"));
     action->setShortcutContext(Qt::WidgetShortcut);
     ui->listFreeVertex->addAction(action);
     connect(action, &QAction::triggered, this, &FillingVertexPanel::onDeleteVertex);
@@ -144,20 +144,25 @@ FillingVertexPanel::~FillingVertexPanel()
 
 void FillingVertexPanel::setupConnections()
 {
-    connect(ui->buttonVertexAdd,
-            &QToolButton::toggled,
-            this,
-            &FillingVertexPanel::onButtonVertexAddToggled);
-    connect(ui->buttonVertexRemove,
-            &QToolButton::toggled,
-            this,
-            &FillingVertexPanel::onButtonVertexRemoveToggled);
+    connect(ui->buttonVertexAdd, &QToolButton::toggled, this, &FillingVertexPanel::onButtonVertexAddToggled);
+    connect(
+        ui->buttonVertexRemove,
+        &QToolButton::toggled,
+        this,
+        &FillingVertexPanel::onButtonVertexRemoveToggled
+    );
 }
 
 void FillingVertexPanel::appendButtons(Gui::ButtonGroup* buttonGroup)
 {
     buttonGroup->addButton(ui->buttonVertexAdd, int(SelectionMode::AppendVertex));
     buttonGroup->addButton(ui->buttonVertexRemove, int(SelectionMode::RemoveVertex));
+}
+void FillingVertexPanel::setSelectionGate()
+{
+    if (selectionMode != None) {
+        Gui::Selection().addSelectionGate(new VertexSelection(selectionMode, editedObject));
+    }
 }
 
 // stores object pointer, its old fill type and adjusts radio buttons according to it.
@@ -175,8 +180,10 @@ void FillingVertexPanel::setEditedObject(Surface::Filling* obj)
         QListWidgetItem* item = new QListWidgetItem(ui->listFreeVertex);
         ui->listFreeVertex->addItem(item);
 
-        QString text = QString::fromLatin1("%1.%2").arg(QString::fromUtf8((*it)->Label.getValue()),
-                                                        QString::fromStdString(*jt));
+        QString text = QStringLiteral("%1.%2").arg(
+            QString::fromUtf8((*it)->Label.getValue()),
+            QString::fromStdString(*jt)
+        );
         item->setText(text);
 
         QList<QVariant> data;
@@ -201,17 +208,21 @@ void FillingVertexPanel::changeEvent(QEvent* e)
 void FillingVertexPanel::open()
 {
     checkOpenCommand();
-    this->vp->highlightReferences(ViewProviderFilling::Vertex,
-                                  editedObject->Points.getSubListValues(),
-                                  true);
+    this->vp->highlightReferences(
+        ViewProviderFilling::Vertex,
+        editedObject->Points.getSubListValues(),
+        true
+    );
     Gui::Selection().clearSelection();
 }
 
 void FillingVertexPanel::reject()
 {
-    this->vp->highlightReferences(ViewProviderFilling::Vertex,
-                                  editedObject->Points.getSubListValues(),
-                                  false);
+    this->vp->highlightReferences(
+        ViewProviderFilling::Vertex,
+        editedObject->Points.getSubListValues(),
+        false
+    );
 }
 
 void FillingVertexPanel::clearSelection()
@@ -221,10 +232,10 @@ void FillingVertexPanel::clearSelection()
 
 void FillingVertexPanel::checkOpenCommand()
 {
-    if (checkCommand && !Gui::Command::hasPendingCommand()) {
+    if (checkCommand && !editedObject->getDocument()->hasPendingTransaction()) {
         std::string Msg("Edit ");
         Msg += editedObject->Label.getValue();
-        Gui::Command::openCommand(Msg.c_str());
+        editedObject->getDocument()->openTransaction(Msg.c_str());
         checkCommand = false;
     }
 }
@@ -244,18 +255,19 @@ void FillingVertexPanel::slotDeletedObject(const Gui::ViewProviderDocumentObject
     // If this view provider is being deleted then reset the colors of
     // referenced part objects. The dialog will be deleted later.
     if (this->vp == &Obj) {
-        this->vp->highlightReferences(ViewProviderFilling::Vertex,
-                                      editedObject->Points.getSubListValues(),
-                                      false);
+        this->vp->highlightReferences(
+            ViewProviderFilling::Vertex,
+            editedObject->Points.getSubListValues(),
+            false
+        );
     }
 }
 
 void FillingVertexPanel::onButtonVertexAddToggled(bool checked)
 {
     if (checked) {
-        // 'selectionMode' is passed by reference and changed when the filter is deleted
-        Gui::Selection().addSelectionGate(new VertexSelection(selectionMode, editedObject));
         selectionMode = AppendVertex;
+        setSelectionGate();
     }
     else if (selectionMode == AppendVertex) {
         exitSelectionMode();
@@ -265,9 +277,8 @@ void FillingVertexPanel::onButtonVertexAddToggled(bool checked)
 void FillingVertexPanel::onButtonVertexRemoveToggled(bool checked)
 {
     if (checked) {
-        // 'selectionMode' is passed by reference and changed when the filter is deleted
-        Gui::Selection().addSelectionGate(new VertexSelection(selectionMode, editedObject));
         selectionMode = RemoveVertex;
+        setSelectionGate();
     }
     else if (selectionMode == RemoveVertex) {
         exitSelectionMode();
@@ -287,9 +298,10 @@ void FillingVertexPanel::onSelectionChanged(const Gui::SelectionChanges& msg)
             ui->listFreeVertex->addItem(item);
 
             Gui::SelectionObject sel(msg);
-            QString text = QString::fromLatin1("%1.%2").arg(
+            QString text = QStringLiteral("%1.%2").arg(
                 QString::fromUtf8(sel.getObject()->Label.getValue()),
-                QString::fromLatin1(msg.pSubName));
+                QString::fromLatin1(msg.pSubName)
+            );
             item->setText(text);
 
             QList<QVariant> data;
@@ -303,9 +315,11 @@ void FillingVertexPanel::onSelectionChanged(const Gui::SelectionChanges& msg)
             auto element = editedObject->Points.getSubValues();
             element.emplace_back(msg.pSubName);
             editedObject->Points.setValues(objects, element);
-            this->vp->highlightReferences(ViewProviderFilling::Vertex,
-                                          editedObject->Points.getSubListValues(),
-                                          true);
+            this->vp->highlightReferences(
+                ViewProviderFilling::Vertex,
+                editedObject->Points.getSubListValues(),
+                true
+            );
         }
         else if (selectionMode == RemoveVertex) {
             Gui::SelectionObject sel(msg);
@@ -321,9 +335,11 @@ void FillingVertexPanel::onSelectionChanged(const Gui::SelectionChanges& msg)
                 }
             }
 
-            this->vp->highlightReferences(ViewProviderFilling::Vertex,
-                                          editedObject->Points.getSubListValues(),
-                                          false);
+            this->vp->highlightReferences(
+                ViewProviderFilling::Vertex,
+                editedObject->Points.getSubListValues(),
+                false
+            );
             App::DocumentObject* obj = sel.getObject();
             std::string sub = msg.pSubName;
             auto objects = editedObject->Points.getValues();
@@ -338,9 +354,11 @@ void FillingVertexPanel::onSelectionChanged(const Gui::SelectionChanges& msg)
                     break;
                 }
             }
-            this->vp->highlightReferences(ViewProviderFilling::Vertex,
-                                          editedObject->Points.getSubListValues(),
-                                          true);
+            this->vp->highlightReferences(
+                ViewProviderFilling::Vertex,
+                editedObject->Points.getSubListValues(),
+                true
+            );
         }
 
         editedObject->recomputeFeature();
@@ -366,9 +384,11 @@ void FillingVertexPanel::onDeleteVertex()
         auto element = editedObject->Points.getSubValues();
         auto it = objects.begin();
         auto jt = element.begin();
-        this->vp->highlightReferences(ViewProviderFilling::Vertex,
-                                      editedObject->Points.getSubListValues(),
-                                      false);
+        this->vp->highlightReferences(
+            ViewProviderFilling::Vertex,
+            editedObject->Points.getSubListValues(),
+            false
+        );
 
         for (; it != objects.end() && jt != element.end(); ++it, ++jt) {
             if (*it == obj && *jt == sub) {
@@ -380,9 +400,11 @@ void FillingVertexPanel::onDeleteVertex()
             }
         }
 
-        this->vp->highlightReferences(ViewProviderFilling::Vertex,
-                                      editedObject->Points.getSubListValues(),
-                                      true);
+        this->vp->highlightReferences(
+            ViewProviderFilling::Vertex,
+            editedObject->Points.getSubListValues(),
+            true
+        );
     }
 }
 
@@ -391,6 +413,7 @@ void FillingVertexPanel::exitSelectionMode()
     // 'selectionMode' is passed by reference to the filter and changed when the filter is deleted
     Gui::Selection().clearSelection();
     Gui::Selection().rmvSelectionGate();
+    selectionMode = None;
 }
 
 }  // namespace SurfaceGui

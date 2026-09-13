@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2019 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TechDraw_DrawLeaderLine_h_
-#define TechDraw_DrawLeaderLine_h_
+#pragma once
 
 #include <App/DocumentObject.h>
 #include <App/FeaturePython.h>
@@ -33,6 +34,7 @@
 
 namespace TechDraw
 {
+class DrawViewPart;
 
 class TechDrawExport DrawLeaderLine : public TechDraw::DrawView
 {
@@ -47,14 +49,13 @@ public:
     App::PropertyEnumeration  StartSymbol;
     App::PropertyEnumeration  EndSymbol;
 
-/*    App::PropertyInteger      StartSymbol;          //see Gui/QGIArrow for values*/
-/*    App::PropertyInteger      EndSymbol;*/
-
     App::PropertyBool         Scalable;
     App::PropertyBool         AutoHorizontal;
+    App::PropertyBool         RotatesWithParent;
 
     short mustExecute() const override;
     App::DocumentObjectExecReturn *execute() override;
+    App::PropertyLink *getOwnerProperty() override { return &LeaderParent; }
 
     const char* getViewProviderName() const override {
         return "TechDrawGui::ViewProviderLeader";
@@ -65,18 +66,35 @@ public:
     Base::Vector3d getAttachPoint();
     DrawView* getBaseView() const;
     virtual App::DocumentObject* getBaseObject() const;
+
     bool keepUpdated() override;
     double getScale() const override;
     double getBaseScale() const;
-    void adjustLastSegment();
+    static std::vector<Base::Vector3d> horizLastSegment(const std::vector<Base::Vector3d>& inDeltas, double rotationDeg);
     bool getDefAuto() const;
 
     Base::Vector3d getTileOrigin() const;
     Base::Vector3d getKinkPoint() const;
     Base::Vector3d getTailPoint() const;
 
-protected:
-    void onChanged(const App::Property* prop) override;
+    static DrawLeaderLine* makeLeader(DrawViewPart* parent, std::vector<Base::Vector3d> points, int iStartSymbol = 0, int iEndSymbol = 0);
+    std::vector<Base::Vector3d>  getScaledAndRotatedPoints(bool doScale = true, bool doRotate = true) const;
+    std::vector<Base::Vector3d> makeCanonicalPoints(const std::vector<Base::Vector3d>& inPoints,
+                                                    bool doScale = true,
+                                                    bool doRotate = true) const;
+    std::vector<Base::Vector3d> makeCanonicalPointsInverted(const std::vector<Base::Vector3d>& inPoints,
+                                                    bool doScale = true,
+                                                    bool doRotate = true) const;
+
+    bool isParentReady() const;
+
+    void dumpWaypoints(const std::vector<Base::Vector3d>& points, const std::string& label);
+
+    std::vector<Base::Vector3d> getTransformedWayPoints() const;
+
+    Base::Vector3d lastSegmentDirection() const;
+
+    bool snapsToPosition() const override { return false; }
 
 private:
 
@@ -86,4 +104,3 @@ private:
 using DrawLeaderLinePython = App::FeaturePythonT<DrawLeaderLine>;
 
 } //namespace TechDraw
-#endif

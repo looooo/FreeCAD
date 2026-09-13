@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <Gui/Application.h>
 #include <Gui/Document.h>
@@ -53,7 +54,8 @@ void ActiveAnalysisObserver::setActiveObject(Fem::FemAnalysis* fem)
         App::Document* doc = fem->getDocument();
         activeDocument = Gui::Application::Instance->getDocument(doc);
         activeView = static_cast<Gui::ViewProviderDocumentObject*>(
-            activeDocument->getViewProvider(activeObject));
+            activeDocument->getViewProvider(activeObject)
+        );
         attachDocument(doc);
     }
     else {

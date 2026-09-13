@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2020 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TECHDRAWGUI_QGIGHOSTHIGHLIGHT_H
-#define TECHDRAWGUI_QGIGHOSTHIGHLIGHT_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
@@ -30,6 +31,7 @@
 #include <QPointF>
 
 #include "QGIHighlight.h"
+#include "QGIUserTypes.h"
 
 
 //a movable, selectable surrogate for detail highlights in QGIVPart
@@ -44,7 +46,7 @@ public:
     explicit QGIGhostHighlight();
     ~QGIGhostHighlight() override;
 
-    enum {Type = QGraphicsItem::UserType + 177};
+    enum {Type = UserType::QGIGhostHighlight};
     int type() const override { return Type;}
 
     void setInteractive(bool state);
@@ -63,5 +65,3 @@ private:
 };
 
 }
-
-#endif // TECHDRAWGUI_QGIGHOSTHIGHLIGHT_H

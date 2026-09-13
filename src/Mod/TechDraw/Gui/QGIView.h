@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2012-2013 Luke Parry <l.parry@warwick.ac.uk>            *
  *                                                                         *
@@ -20,12 +22,12 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAWINGGUI_QGRAPHICSITEMVIEW_H
-#define DRAWINGGUI_QGRAPHICSITEMVIEW_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
+#include <Mod/TechDraw/App/DrawView.h>
 
-#include <boost_signals2.hpp>
+#include <fastsignals/signal.h>
 
 #include <QColor>
 #include <QFont>
@@ -34,8 +36,12 @@
 #include <QPen>
 #include <QPointF>
 
+#include <Base/BaseClass.h>
 #include <Base/Parameter.h>
 #include <Base/Vector3D.h>
+#include <Gui/ViewProvider.h>
+
+#include "QGIUserTypes.h"
 
 QT_BEGIN_NAMESPACE
 class QGraphicsScene;
@@ -55,6 +61,8 @@ class ViewProvider;
 namespace TechDraw
 {
 class DrawView;
+class DrawViewSection;
+class DrawViewPart;
 }
 
 namespace TechDrawGui
@@ -72,13 +80,22 @@ class QGCustomImage;
 class QGTracker;
 class QGIVertex;
 
-class TechDrawGuiExport  QGIView : public QObject, public QGraphicsItemGroup
+
+enum class ViewFrameMode {
+    Auto,
+    AlwaysOn,
+    AlwaysOff,
+    Manual
+};
+
+
+class TechDrawGuiExport QGIView : public QObject, public QGraphicsItemGroup
 {
     Q_OBJECT
 public:
     QGIView();
 
-    enum {Type = QGraphicsItem::UserType + 101};
+    enum {Type = UserType::QGIView};
     int type() const override { return Type;}
     QRectF boundingRect() const override;
     void paint( QPainter *painter,
@@ -89,13 +106,17 @@ public:
     const std::string getViewNameAsString() const;
     void setViewFeature(TechDraw::DrawView *obj);
     TechDraw::DrawView * getViewObject() const;
+    template<typename T>
+    T* getViewObject() const
+    {
+        return freecad_cast<T*>(getViewObject());
+    }
     MDIViewPage* getMDIViewPage() const;
 
     double getScale();
 
     void hideFrame();               //used by derived classes that don't display a frame
 
-    virtual bool getFrameState();
     virtual void toggleCache(bool state);
     virtual void updateView(bool update = false);
     virtual void drawBorder();
@@ -107,7 +128,7 @@ public:
     virtual void setGroupSelection(bool isSelected, const std::vector<std::string> &subNames);
 
     virtual void draw();
-    virtual void drawCaption();
+    virtual void prepareCaption();
     virtual void rotateView();
     void makeMark(double xPos, double yPos, QColor color = Qt::red);
     void makeMark(Base::Vector3d pos, QColor color = Qt::red);
@@ -116,15 +137,18 @@ public:
 
     /** Methods to ensure that Y-Coordinates are orientated correctly.
      * @{ */
-    void setPosition(qreal xPos, qreal yPos);
     inline qreal getY() { return y() * -1; }
     bool isInnerView() const { return m_innerView; }
     void isInnerView(bool state) { m_innerView = state; }
     QGIViewClip* getClipGroup();
+    virtual void updatePositionFromFeatureXY();
 
-
+    bool isSnapping() { return snapping; }
+    void snapPosition(QPointF& position);
+    void snapSectionView(const TechDraw::DrawViewSection* sectionView,
+                         QPointF& newPosition);
+    Base::Vector3d projItemPagePos(TechDraw::DrawViewPart* item);
     void alignTo(QGraphicsItem*, const QString &alignment);
-    void setLocked(bool isLocked) { m_locked = isLocked; }
 
     QColor prefNormalColor(); //preference
     QColor getNormalColor() { return m_colNormal; }  //current setting
@@ -140,6 +164,11 @@ public:
     virtual void setStackFromVP();
 
     static Gui::ViewProvider* getViewProvider(App::DocumentObject* obj);
+    template<typename T>
+    static T* getViewProvider(App::DocumentObject* obj)
+    {
+        return freecad_cast<T*>(getViewProvider(obj));
+    }
     static ViewProviderPage* getViewProviderPage(TechDraw::DrawView* dView);
 
     static int calculateFontPixelSize(double sizeInMillimetres);
@@ -155,26 +184,42 @@ public:
     static int exactFontSize(std::string fontFamily, double nominalSize);
 
     virtual void removeChild(QGIView* child);
-
     virtual void addArbitraryItem(QGraphicsItem* qgi);
+    virtual void switchParentItem(QGIView *targetParent);
 
     // Mouse handling
     void mousePressEvent(QGraphicsSceneMouseEvent *event) override;
     void mouseMoveEvent(QGraphicsSceneMouseEvent *event) override;
     void mouseReleaseEvent(QGraphicsSceneMouseEvent *event) override;
+    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) override;
 
-public Q_SLOTS:
-    virtual void onSourceChange(TechDraw::DrawView* newParent);
+    template <typename T>
+    std::vector<T> getObjects(std::vector<int> indexes);
+
+    bool pseudoEventFilter(QGraphicsItem *watched, QEvent *event) { return sceneEventFilter(watched, event); }
+
+    bool isExporting() const;
+
+    virtual void setMovableFlag();
 
 protected:
-    QGIView* getQGIVByName(std::string name);
+    QGIView* getQGIVByName(std::string name) const;
 
     QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
+    virtual void dragFinished();
+
     // Preselection events:
     void hoverEnterEvent(QGraphicsSceneHoverEvent *event) override;
     void hoverLeaveEvent(QGraphicsSceneHoverEvent *event) override;
     virtual QRectF customChildrenBoundingRect() const;
+    virtual QRectF frameRect() const;
     void dumpRect(const char* text, QRectF rect);
+    bool m_isHovered;
+
+    virtual void updateFrameVisibility();
+    bool shouldShowFromViewProvider() const;
+    bool shouldShowFrame() const;
+    bool isViewSelected() const;
 
     Base::Reference<ParameterGrp> getParmGroupCol();
 
@@ -183,9 +228,9 @@ private:
     std::string viewName;
 
     QHash<QString, QGraphicsItem*> alignHash;
-    bool m_locked;
     bool m_innerView;                                                  //View is inside another View
     bool m_multiselectActivated;
+    bool snapping;
 
     QPen m_pen;
     QBrush m_brush;
@@ -202,10 +247,19 @@ private:
     QPen m_decorPen;
     double m_lockWidth;
     double m_lockHeight;
-    int m_zOrder;
+    int m_zOrder{0};
 
+    bool m_snapped{false};
+
+    void layoutDecorations(const QRectF& contentArea,
+                       const QRectF& captionRect,
+                       const QRectF& labelRect,
+                       QRectF& outFrameRect,
+                       QPointF& outCaptionPos,
+                       QPointF& outLabelPos,
+                       QPointF& outLockPos) const;
+
+    bool m_inhibitSnapOnPosChange{false};
 };
 
 } // namespace
-
-#endif // DRAWINGGUI_QGRAPHICSITEMVIEW_H

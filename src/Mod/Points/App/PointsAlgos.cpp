@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2011 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,10 +22,10 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
+#include <FCConfig.h>
+
 #ifdef FC_OS_LINUX
-#include <unistd.h>
+# include <unistd.h>
 #endif
 #include <memory>
 #include <sstream>
@@ -32,7 +34,6 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/math/special_functions/fpclassify.hpp>  // needed for compilation on some systems
 #include <boost/regex.hpp>
-#endif
 
 #include <Base/Console.h>
 #include <Base/Converter.h>
@@ -52,8 +53,11 @@ void PointsAlgos::Load(PointKernel& points, const char* FileName)
     Base::FileInfo File(FileName);
 
     // checking on the file
+    if (!File.exists()) {
+        throw Base::FileNotFoundException(FileName);
+    }
     if (!File.isReadable()) {
-        throw Base::FileException("File to load not existing or not readable", FileName);
+        throw Base::FileReadPermissionException(FileName);
     }
 
     if (File.hasExtension("asc")) {
@@ -66,9 +70,11 @@ void PointsAlgos::Load(PointKernel& points, const char* FileName)
 
 void PointsAlgos::LoadAscii(PointKernel& points, const char* FileName)
 {
-    boost::regex rx("^\\s*([-+]?[0-9]*)\\.?([0-9]+([eE][-+]?[0-9]+)?)"
-                    "\\s+([-+]?[0-9]*)\\.?([0-9]+([eE][-+]?[0-9]+)?)"
-                    "\\s+([-+]?[0-9]*)\\.?([0-9]+([eE][-+]?[0-9]+)?)\\s*$");
+    boost::regex rx(
+        "^\\s*([-+]?[0-9]*)\\.?([0-9]+([eE][-+]?[0-9]+)?)"
+        "\\s+([-+]?[0-9]*)\\.?([0-9]+([eE][-+]?[0-9]+)?)"
+        "\\s+([-+]?[0-9]*)\\.?([0-9]+([eE][-+]?[0-9]+)?)\\s*$"
+    );
     // boost::regex rx("(\\b[0-9]+\\.([0-9]+\\b)?|\\.[0-9]+\\b)");
     // boost::regex
     // rx("^\\s*(-?[0-9]*)\\.([0-9]+)\\s+(-?[0-9]*)\\.([0-9]+)\\s+(-?[0-9]*)\\.([0-9]+)\\s*$");
@@ -89,7 +95,7 @@ void PointsAlgos::LoadAscii(PointKernel& points, const char* FileName)
     // resize the PointKernel
     points.resize(LineCnt);
 
-    Base::SequencerLauncher seq("Loading points...", LineCnt);
+    Base::SequencerLauncher seq("Loading points…", LineCnt);
 
     // again to the beginning
     Base::ifstream file(fi, std::ios::in);
@@ -124,11 +130,7 @@ void PointsAlgos::LoadAscii(PointKernel& points, const char* FileName)
 
 // ----------------------------------------------------------------------------
 
-Reader::Reader()
-{
-    width = 0;
-    height = 0;
-}
+Reader::Reader() = default;
 
 Reader::~Reader() = default;
 
@@ -159,7 +161,7 @@ bool Reader::hasIntensities() const
     return (!intensity.empty());
 }
 
-const std::vector<App::Color>& Reader::getColors() const
+const std::vector<Base::Color>& Reader::getColors() const
 {
     return colors;
 }
@@ -201,6 +203,8 @@ AscReader::AscReader() = default;
 void AscReader::read(const std::string& filename)
 {
     points.load(filename.c_str());
+    this->height = 1;
+    this->width = points.size();
 }
 
 // ----------------------------------------------------------------------------
@@ -253,11 +257,8 @@ class DataStreambuf: public std::streambuf
 public:
     explicit DataStreambuf(const std::vector<char>& data)
         : _buffer(data)
-    {
-        _beg = 0;
-        _end = data.size();
-        _cur = 0;
-    }
+        , _end(int(data.size()))
+    {}
     ~DataStreambuf() override = default;
 
 protected:
@@ -289,10 +290,13 @@ protected:
     {
         return _end - _cur;
     }
-    pos_type seekoff(std::streambuf::off_type off,
-                     std::ios_base::seekdir way,
-                     std::ios_base::openmode = std::ios::in | std::ios::out) override
+    pos_type seekoff(
+        std::streambuf::off_type off,
+        std::ios_base::seekdir way,
+        std::ios_base::openmode mode = std::ios::in | std::ios::out
+    ) override
     {
+        (void)mode;
         int p_pos = -1;
         if (way == std::ios_base::beg) {
             p_pos = _beg;
@@ -316,8 +320,10 @@ protected:
 
         return ((p_pos + off) - _beg);
     }
-    pos_type seekpos(std::streambuf::pos_type pos,
-                     std::ios_base::openmode which = std::ios::in | std::ios::out) override
+    pos_type seekpos(
+        std::streambuf::pos_type pos,
+        std::ios_base::openmode which = std::ios::in | std::ios::out
+    ) override
     {
         (void)which;
         return seekoff(pos, std::ios_base::beg);
@@ -331,12 +337,17 @@ public:
 
 private:
     const std::vector<char>& _buffer;
-    int _beg, _end, _cur;
+    int _beg {0}, _end {0}, _cur {0};
 };
 
+// NOLINTBEGIN
 // Taken from https://github.com/PointCloudLibrary/pcl/blob/master/io/src/lzf.cpp
-unsigned int
-lzfDecompress(const void* const in_data, unsigned int in_len, void* out_data, unsigned int out_len)
+unsigned int lzfDecompress(
+    const void* const in_data,
+    unsigned int in_len,
+    void* out_data,
+    unsigned int out_len
+)
 {
     unsigned char const* ip = static_cast<const unsigned char*>(in_data);
     unsigned char* op = static_cast<unsigned char*>(out_data);
@@ -544,14 +555,13 @@ lzfDecompress(const void* const in_data, unsigned int in_len, void* out_data, un
     return (static_cast<unsigned int>(op - static_cast<unsigned char*>(out_data)));
 }
 }  // namespace Points
+// NOLINTEND
 
 PlyReader::PlyReader() = default;
 
 void PlyReader::read(const std::string& filename)
 {
     clear();
-    this->width = 1;
-    this->height = 0;
 
     Base::FileInfo fi(filename);
     Base::ifstream inp(fi, std::ios::in | std::ios::binary);
@@ -561,7 +571,10 @@ void PlyReader::read(const std::string& filename)
     std::vector<std::string> types;
     std::vector<int> sizes;
     std::size_t offset = 0;
-    std::size_t numPoints = readHeader(inp, format, offset, fields, types, sizes);
+    Eigen::Index numPoints = Eigen::Index(readHeader(inp, format, offset, fields, types, sizes));
+
+    this->width = numPoints;
+    this->height = 1;
 
     Eigen::MatrixXd data(numPoints, fields.size());
     if (format == "ascii") {
@@ -575,84 +588,87 @@ void PlyReader::read(const std::string& filename)
     }
 
     std::vector<std::string>::iterator it;
-    std::size_t max_size = std::numeric_limits<std::size_t>::max();
+    Eigen::Index max_size = std::numeric_limits<Eigen::Index>::max();
 
     // x field
-    std::size_t x = max_size;
-    it = std::find(fields.begin(), fields.end(), "x");
+    Eigen::Index x = max_size;
+    it = std::ranges::find(fields, "x");
     if (it != fields.end()) {
         x = std::distance(fields.begin(), it);
     }
 
     // y field
-    std::size_t y = max_size;
-    it = std::find(fields.begin(), fields.end(), "y");
+    Eigen::Index y = max_size;
+    it = std::ranges::find(fields, "y");
     if (it != fields.end()) {
         y = std::distance(fields.begin(), it);
     }
 
     // z field
-    std::size_t z = max_size;
-    it = std::find(fields.begin(), fields.end(), "z");
+    Eigen::Index z = max_size;
+    it = std::ranges::find(fields, "z");
     if (it != fields.end()) {
         z = std::distance(fields.begin(), it);
     }
 
     // normal x field
-    std::size_t normal_x = max_size;
-    it = std::find(fields.begin(), fields.end(), "normal_x");
+    Eigen::Index normal_x = max_size;
+    it = std::ranges::find(fields, "normal_x");
     if (it == fields.end()) {
-        it = std::find(fields.begin(), fields.end(), "nx");
+        it = std::ranges::find(fields, "nx");
     }
     if (it != fields.end()) {
         normal_x = std::distance(fields.begin(), it);
     }
 
     // normal y field
-    std::size_t normal_y = max_size;
-    it = std::find(fields.begin(), fields.end(), "normal_y");
+    Eigen::Index normal_y = max_size;
+    it = std::ranges::find(fields, "normal_y");
     if (it == fields.end()) {
-        it = std::find(fields.begin(), fields.end(), "ny");
+        it = std::ranges::find(fields, "ny");
     }
     if (it != fields.end()) {
         normal_y = std::distance(fields.begin(), it);
     }
 
     // normal z field
-    std::size_t normal_z = max_size;
-    it = std::find(fields.begin(), fields.end(), "normal_z");
+    Eigen::Index normal_z = max_size;
+    it = std::ranges::find(fields, "normal_z");
     if (it == fields.end()) {
-        it = std::find(fields.begin(), fields.end(), "nz");
+        it = std::ranges::find(fields, "nz");
     }
     if (it != fields.end()) {
         normal_z = std::distance(fields.begin(), it);
     }
 
     // intensity field
-    std::size_t greyvalue = max_size;
-    it = std::find(fields.begin(), fields.end(), "intensity");
+    Eigen::Index greyvalue = max_size;
+    it = std::ranges::find(fields, "intensity");
     if (it != fields.end()) {
         greyvalue = std::distance(fields.begin(), it);
     }
 
     // rgb(a) field
-    std::size_t red = max_size, green = max_size, blue = max_size, alpha = max_size;
-    it = std::find(fields.begin(), fields.end(), "red");
+    Eigen::Index red = max_size;
+    Eigen::Index green = max_size;
+    Eigen::Index blue = max_size;
+    Eigen::Index alpha = max_size;
+    it = std::ranges::find(fields, "red");
     if (it != fields.end()) {
         red = std::distance(fields.begin(), it);
     }
 
-    it = std::find(fields.begin(), fields.end(), "green");
+    it = std::ranges::find(fields, "green");
     if (it != fields.end()) {
         green = std::distance(fields.begin(), it);
     }
 
-    it = std::find(fields.begin(), fields.end(), "blue");
+    it = std::ranges::find(fields, "blue");
     if (it != fields.end()) {
         blue = std::distance(fields.begin(), it);
     }
 
-    it = std::find(fields.begin(), fields.end(), "alpha");
+    it = std::ranges::find(fields, "alpha");
     if (it != fields.end()) {
         alpha = std::distance(fields.begin(), it);
     }
@@ -665,22 +681,22 @@ void PlyReader::read(const std::string& filename)
 
     if (hasData) {
         points.reserve(numPoints);
-        for (std::size_t i = 0; i < numPoints; i++) {
+        for (Eigen::Index i = 0; i < numPoints; i++) {
             points.push_back(Base::Vector3d(data(i, x), data(i, y), data(i, z)));
         }
     }
 
     if (hasData && hasNormal) {
         normals.reserve(numPoints);
-        for (std::size_t i = 0; i < numPoints; i++) {
+        for (Eigen::Index i = 0; i < numPoints; i++) {
             normals.emplace_back(data(i, normal_x), data(i, normal_y), data(i, normal_z));
         }
     }
 
     if (hasData && hasIntensity) {
         intensity.reserve(numPoints);
-        for (std::size_t i = 0; i < numPoints; i++) {
-            intensity.push_back(data(i, greyvalue));
+        for (Eigen::Index i = 0; i < numPoints; i++) {
+            intensity.push_back(static_cast<float>(data(i, greyvalue)));
         }
     }
 
@@ -688,26 +704,28 @@ void PlyReader::read(const std::string& filename)
         colors.reserve(numPoints);
         float a = 1.0;
         if (types[red] == "uchar") {
-            for (std::size_t i = 0; i < numPoints; i++) {
-                float r = data(i, red);
-                float g = data(i, green);
-                float b = data(i, blue);
+            for (Eigen::Index i = 0; i < numPoints; i++) {
+                float r = static_cast<float>(data(i, red));
+                float g = static_cast<float>(data(i, green));
+                float b = static_cast<float>(data(i, blue));
                 if (alpha != max_size) {
-                    a = data(i, alpha);
+                    a = static_cast<float>(data(i, alpha));
                 }
-                colors.emplace_back(static_cast<float>(r) / 255.0f,
-                                    static_cast<float>(g) / 255.0f,
-                                    static_cast<float>(b) / 255.0f,
-                                    static_cast<float>(a) / 255.0f);
+                colors.emplace_back(
+                    static_cast<float>(r) / 255.0F,
+                    static_cast<float>(g) / 255.0F,
+                    static_cast<float>(b) / 255.0F,
+                    static_cast<float>(a) / 255.0F
+                );
             }
         }
         else if (types[red] == "float") {
-            for (std::size_t i = 0; i < numPoints; i++) {
-                float r = data(i, red);
-                float g = data(i, green);
-                float b = data(i, blue);
+            for (Eigen::Index i = 0; i < numPoints; i++) {
+                float r = static_cast<float>(data(i, red));
+                float g = static_cast<float>(data(i, green));
+                float b = static_cast<float>(data(i, blue));
                 if (alpha != max_size) {
-                    a = data(i, alpha);
+                    a = static_cast<float>(data(i, alpha));
                 }
                 colors.emplace_back(r, g, b, a);
             }
@@ -715,14 +733,17 @@ void PlyReader::read(const std::string& filename)
     }
 }
 
-std::size_t PlyReader::readHeader(std::istream& in,
-                                  std::string& format,
-                                  std::size_t& offset,
-                                  std::vector<std::string>& fields,
-                                  std::vector<std::string>& types,
-                                  std::vector<int>& sizes)
+std::size_t PlyReader::readHeader(
+    std::istream& in,
+    std::string& format,
+    std::size_t& offset,
+    std::vector<std::string>& fields,
+    std::vector<std::string>& types,
+    std::vector<int>& sizes
+)
 {
-    std::string line, element;
+    std::string line;
+    std::string element;
     std::vector<std::string> list;
     std::size_t numPoints = 0;
     // a pair of numbers of elements and the total size of the properties
@@ -887,9 +908,9 @@ std::size_t PlyReader::readHeader(std::istream& in,
 void PlyReader::readAscii(std::istream& inp, std::size_t offset, Eigen::MatrixXd& data)
 {
     std::string line;
-    std::size_t row = 0;
-    std::size_t numPoints = data.rows();
-    std::size_t numFields = data.cols();
+    Eigen::Index row = 0;
+    Eigen::Index numPoints = Eigen::Index(data.rows());
+    Eigen::Index numFields = Eigen::Index(data.cols());
     std::vector<std::string> list;
     while (std::getline(inp, line) && row < numPoints) {
         if (line.empty()) {
@@ -907,7 +928,8 @@ void PlyReader::readAscii(std::istream& inp, std::size_t offset, Eigen::MatrixXd
 
         std::istringstream str(line);
 
-        for (std::size_t col = 0; col < list.size() && col < numFields; col++) {
+        Eigen::Index size = Eigen::Index(list.size());
+        for (Eigen::Index col = 0; col < size && col < numFields; col++) {
             double value = boost::lexical_cast<double>(list[col]);
             data(row, col) = value;
         }
@@ -916,15 +938,17 @@ void PlyReader::readAscii(std::istream& inp, std::size_t offset, Eigen::MatrixXd
     }
 }
 
-void PlyReader::readBinary(bool swapByteOrder,
-                           std::istream& inp,
-                           std::size_t offset,
-                           const std::vector<std::string>& types,
-                           const std::vector<int>& sizes,
-                           Eigen::MatrixXd& data)
+void PlyReader::readBinary(
+    bool swapByteOrder,
+    std::istream& inp,
+    std::size_t offset,
+    const std::vector<std::string>& types,
+    const std::vector<int>& sizes,
+    Eigen::MatrixXd& data
+)
 {
-    std::size_t numPoints = data.rows();
-    std::size_t numFields = data.cols();
+    Eigen::Index numPoints = data.rows();
+    Eigen::Index numFields = data.cols();
 
     int neededSize = 0;
     ConverterPtr convert_float32(new ConverterT<float>);
@@ -937,8 +961,8 @@ void PlyReader::readBinary(bool swapByteOrder,
     ConverterPtr convert_uint32(new ConverterT<uint32_t>);
 
     std::vector<ConverterPtr> converters;
-    for (std::size_t j = 0; j < numFields; j++) {
-        std::string t = types[j];
+    for (Eigen::Index j = 0; j < numFields; j++) {
+        const std::string& t = types[j];
         switch (sizes[j]) {
             case 1:
                 if (t == "char" || t == "int8") {
@@ -1005,8 +1029,8 @@ void PlyReader::readBinary(bool swapByteOrder,
 
     Base::InputStream str(inp);
     str.setByteOrder(swapByteOrder ? Base::Stream::BigEndian : Base::Stream::LittleEndian);
-    for (std::size_t i = 0; i < numPoints; i++) {
-        for (std::size_t j = 0; j < numFields; j++) {
+    for (Eigen::Index i = 0; i < numPoints; i++) {
+        for (Eigen::Index j = 0; j < numFields; j++) {
             double value = converters[j]->toDouble(str);
             data(i, j) = value;
         }
@@ -1020,8 +1044,8 @@ PcdReader::PcdReader() = default;
 void PcdReader::read(const std::string& filename)
 {
     clear();
-    this->width = -1;
-    this->height = -1;
+    this->width = 0;
+    this->height = 1;
 
     Base::FileInfo fi(filename);
     Base::ifstream inp(fi, std::ios::in | std::ios::binary);
@@ -1030,7 +1054,7 @@ void PcdReader::read(const std::string& filename)
     std::vector<std::string> fields;
     std::vector<std::string> types;
     std::vector<int> sizes;
-    std::size_t numPoints = readHeader(inp, format, fields, types, sizes);
+    Eigen::Index numPoints = Eigen::Index(readHeader(inp, format, fields, types, sizes));
 
     Eigen::MatrixXd data(numPoints, fields.size());
     if (format == "ascii") {
@@ -1040,14 +1064,15 @@ void PcdReader::read(const std::string& filename)
         readBinary(false, inp, types, sizes, data);
     }
     else if (format == "binary_compressed") {
-        unsigned int c, u;
+        unsigned int c {};
+        unsigned int u {};
         Base::InputStream str(inp);
         str >> c >> u;
 
         std::vector<char> compressed(c);
-        inp.read(&compressed[0], c);
+        inp.read(compressed.data(), c);
         std::vector<char> uncompressed(u);
-        if (lzfDecompress(&compressed[0], c, &uncompressed[0], u) == u) {
+        if (lzfDecompress(compressed.data(), c, uncompressed.data(), u) == u) {
             DataStreambuf ibuf(uncompressed);
             std::istream istr(nullptr);
             istr.rdbuf(&ibuf);
@@ -1059,71 +1084,71 @@ void PcdReader::read(const std::string& filename)
     }
 
     std::vector<std::string>::iterator it;
-    std::size_t max_size = std::numeric_limits<std::size_t>::max();
+    Eigen::Index max_size = std::numeric_limits<Eigen::Index>::max();
 
     // x field
-    std::size_t x = max_size;
-    it = std::find(fields.begin(), fields.end(), "x");
+    Eigen::Index x = max_size;
+    it = std::ranges::find(fields, "x");
     if (it != fields.end()) {
         x = std::distance(fields.begin(), it);
     }
 
     // y field
-    std::size_t y = max_size;
-    it = std::find(fields.begin(), fields.end(), "y");
+    Eigen::Index y = max_size;
+    it = std::ranges::find(fields, "y");
     if (it != fields.end()) {
         y = std::distance(fields.begin(), it);
     }
 
     // z field
-    std::size_t z = max_size;
-    it = std::find(fields.begin(), fields.end(), "z");
+    Eigen::Index z = max_size;
+    it = std::ranges::find(fields, "z");
     if (it != fields.end()) {
         z = std::distance(fields.begin(), it);
     }
 
     // normal x field
-    std::size_t normal_x = max_size;
-    it = std::find(fields.begin(), fields.end(), "normal_x");
+    Eigen::Index normal_x = max_size;
+    it = std::ranges::find(fields, "normal_x");
     if (it == fields.end()) {
-        it = std::find(fields.begin(), fields.end(), "nx");
+        it = std::ranges::find(fields, "nx");
     }
     if (it != fields.end()) {
         normal_x = std::distance(fields.begin(), it);
     }
 
     // normal y field
-    std::size_t normal_y = max_size;
-    it = std::find(fields.begin(), fields.end(), "normal_y");
+    Eigen::Index normal_y = max_size;
+    it = std::ranges::find(fields, "normal_y");
     if (it == fields.end()) {
-        it = std::find(fields.begin(), fields.end(), "ny");
+        it = std::ranges::find(fields, "ny");
     }
     if (it != fields.end()) {
         normal_y = std::distance(fields.begin(), it);
     }
 
     // normal z field
-    std::size_t normal_z = max_size;
-    it = std::find(fields.begin(), fields.end(), "normal_z");
+    Eigen::Index normal_z = max_size;
+    it = std::ranges::find(fields, "normal_z");
     if (it == fields.end()) {
-        it = std::find(fields.begin(), fields.end(), "nz");
+        it = std::ranges::find(fields, "nz");
     }
     if (it != fields.end()) {
         normal_z = std::distance(fields.begin(), it);
     }
 
     // intensity field
-    std::size_t greyvalue = max_size;
-    it = std::find(fields.begin(), fields.end(), "intensity");
+    Eigen::Index greyvalue = max_size;
+    it = std::ranges::find(fields, "intensity");
     if (it != fields.end()) {
         greyvalue = std::distance(fields.begin(), it);
     }
 
     // rgb(a) field
-    std::size_t rgba = max_size;
-    it = std::find(fields.begin(), fields.end(), "rgb");
+    Eigen::Index rgba = max_size;
+    it = std::ranges::find(fields, "rgb");
     if (it == fields.end()) {
-        it = std::find(fields.begin(), fields.end(), "rgba");
+        it = std::ranges::find(fields, "rgba");
     }
     if (it != fields.end()) {
         rgba = std::distance(fields.begin(), it);
@@ -1137,21 +1162,21 @@ void PcdReader::read(const std::string& filename)
 
     if (hasData) {
         points.reserve(numPoints);
-        for (std::size_t i = 0; i < numPoints; i++) {
+        for (Eigen::Index i = 0; i < numPoints; i++) {
             points.push_back(Base::Vector3d(data(i, x), data(i, y), data(i, z)));
         }
     }
 
     if (hasData && hasNormal) {
         normals.reserve(numPoints);
-        for (std::size_t i = 0; i < numPoints; i++) {
+        for (Eigen::Index i = 0; i < numPoints; i++) {
             normals.emplace_back(data(i, normal_x), data(i, normal_y), data(i, normal_z));
         }
     }
 
     if (hasData && hasIntensity) {
         intensity.reserve(numPoints);
-        for (std::size_t i = 0; i < numPoints; i++) {
+        for (Eigen::Index i = 0; i < numPoints; i++) {
             intensity.push_back(data(i, greyvalue));
         }
     }
@@ -1159,21 +1184,20 @@ void PcdReader::read(const std::string& filename)
     if (hasData && hasColor) {
         colors.reserve(numPoints);
         if (types[rgba] == "U") {
-            for (std::size_t i = 0; i < numPoints; i++) {
+            for (Eigen::Index i = 0; i < numPoints; i++) {
                 uint32_t packed = static_cast<uint32_t>(data(i, rgba));
-                App::Color col;
+                Base::Color col;
                 col.setPackedARGB(packed);
                 colors.emplace_back(col);
             }
         }
         else if (types[rgba] == "F") {
-            static_assert(sizeof(float) == sizeof(uint32_t),
-                          "float and uint32_t have different sizes");
-            for (std::size_t i = 0; i < numPoints; i++) {
+            static_assert(sizeof(float) == sizeof(uint32_t), "float and uint32_t have different sizes");
+            for (Eigen::Index i = 0; i < numPoints; i++) {
                 float f = static_cast<float>(data(i, rgba));
-                uint32_t packed;
+                uint32_t packed {};
                 std::memcpy(&packed, &f, sizeof(packed));
-                App::Color col;
+                Base::Color col;
                 col.setPackedARGB(packed);
                 colors.emplace_back(col);
             }
@@ -1181,11 +1205,13 @@ void PcdReader::read(const std::string& filename)
     }
 }
 
-std::size_t PcdReader::readHeader(std::istream& in,
-                                  std::string& format,
-                                  std::vector<std::string>& fields,
-                                  std::vector<std::string>& types,
-                                  std::vector<int>& sizes)
+std::size_t PcdReader::readHeader(
+    std::istream& in,
+    std::string& format,
+    std::vector<std::string>& fields,
+    std::vector<std::string>& types,
+    std::vector<int>& sizes
+)
 {
     std::string line;
     std::vector<std::string> counts;
@@ -1255,9 +1281,9 @@ std::size_t PcdReader::readHeader(std::istream& in,
 void PcdReader::readAscii(std::istream& inp, Eigen::MatrixXd& data)
 {
     std::string line;
-    std::size_t row = 0;
-    std::size_t numPoints = data.rows();
-    std::size_t numFields = data.cols();
+    Eigen::Index row = 0;
+    Eigen::Index numPoints = data.rows();
+    Eigen::Index numFields = data.cols();
     std::vector<std::string> list;
     while (std::getline(inp, line) && row < numPoints) {
         if (line.empty()) {
@@ -1270,7 +1296,8 @@ void PcdReader::readAscii(std::istream& inp, Eigen::MatrixXd& data)
 
         std::istringstream str(line);
 
-        for (std::size_t col = 0; col < list.size() && col < numFields; col++) {
+        Eigen::Index size = Eigen::Index(list.size());
+        for (Eigen::Index col = 0; col < size && col < numFields; col++) {
             double value = boost::lexical_cast<double>(list[col]);
             data(row, col) = value;
         }
@@ -1279,14 +1306,16 @@ void PcdReader::readAscii(std::istream& inp, Eigen::MatrixXd& data)
     }
 }
 
-void PcdReader::readBinary(bool transpose,
-                           std::istream& inp,
-                           const std::vector<std::string>& types,
-                           const std::vector<int>& sizes,
-                           Eigen::MatrixXd& data)
+void PcdReader::readBinary(
+    bool transpose,
+    std::istream& inp,
+    const std::vector<std::string>& types,
+    const std::vector<int>& sizes,
+    Eigen::MatrixXd& data
+)
 {
-    std::size_t numPoints = data.rows();
-    std::size_t numFields = data.cols();
+    Eigen::Index numPoints = data.rows();
+    Eigen::Index numFields = data.cols();
 
     int neededSize = 0;
     ConverterPtr convert_float32(new ConverterT<float>);
@@ -1299,7 +1328,7 @@ void PcdReader::readBinary(bool transpose,
     ConverterPtr convert_uint32(new ConverterT<uint32_t>);
 
     std::vector<ConverterPtr> converters;
-    for (std::size_t j = 0; j < numFields; j++) {
+    for (Eigen::Index j = 0; j < numFields; j++) {
         char t = types[j][0];
         switch (sizes[j]) {
             case 1:
@@ -1367,16 +1396,16 @@ void PcdReader::readBinary(bool transpose,
 
     Base::InputStream str(inp);
     if (transpose) {
-        for (std::size_t j = 0; j < numFields; j++) {
-            for (std::size_t i = 0; i < numPoints; i++) {
+        for (Eigen::Index j = 0; j < numFields; j++) {
+            for (Eigen::Index i = 0; i < numPoints; i++) {
                 double value = converters[j]->toDouble(str);
                 data(i, j) = value;
             }
         }
     }
     else {
-        for (std::size_t i = 0; i < numPoints; i++) {
-            for (std::size_t j = 0; j < numFields; j++) {
+        for (Eigen::Index i = 0; i < numPoints; i++) {
+            for (Eigen::Index j = 0; j < numFields; j++) {
                 double value = converters[j]->toDouble(str);
                 data(i, j) = value;
             }
@@ -1407,7 +1436,7 @@ public:
         }
     }
 
-    std::vector<App::Color> getColors() const
+    std::vector<Base::Color> getColors() const
     {
         return colors;
     }
@@ -1476,17 +1505,22 @@ private:
 
         for (int i = 0; i < prototype.childCount(); ++i) {
             e57::Node node(prototype.get(i));
-            if ((node.type() == e57::E57_FLOAT) || (node.type() == e57::E57_SCALED_INTEGER)) {
-                if (readCartesian(node, proto)) {}
-                else if (readNormal(node, proto)) {}
-                else if (readItensity(node, proto)) {}
+            if ((node.type() == e57::TypeFloat) || (node.type() == e57::TypeScaledInteger)) {
+                if (readCartesian(node, proto)) {
+                }
+                else if (readNormal(node, proto)) {
+                }
+                else if (readItensity(node, proto)) {
+                }
                 else {
                     readOther(node, proto);
                 }
             }
-            else if (node.type() == e57::E57_INTEGER) {
-                if (readColor(node, proto)) {}
-                else if (readCartesianInvalidState(node, proto)) {}
+            else if (node.type() == e57::TypeInteger) {
+                if (readColor(node, proto)) {
+                }
+                else if (readCartesianInvalidState(node, proto)) {
+                }
                 else {
                     readOther(node, proto);
                 }
@@ -1500,26 +1534,41 @@ private:
     {
         if (node.elementName() == "cartesianX") {
             proto.cnt_xyz++;
-            proto.sdb
-                .emplace_back(imfi, node.elementName(), proto.xData.data(), buf_size, true, true
+            proto.sdb.emplace_back(
+                imfi,
+                node.elementName(),
+                proto.xData.data(),
+                buf_size,
+                true,
+                true
 
-                );
+            );
             return true;
         }
         else if (node.elementName() == "cartesianY") {
             proto.cnt_xyz++;
-            proto.sdb
-                .emplace_back(imfi, node.elementName(), proto.yData.data(), buf_size, true, true
+            proto.sdb.emplace_back(
+                imfi,
+                node.elementName(),
+                proto.yData.data(),
+                buf_size,
+                true,
+                true
 
-                );
+            );
             return true;
         }
         else if (node.elementName() == "cartesianZ") {
             proto.cnt_xyz++;
-            proto.sdb
-                .emplace_back(imfi, node.elementName(), proto.zData.data(), buf_size, true, true
+            proto.sdb.emplace_back(
+                imfi,
+                node.elementName(),
+                proto.zData.data(),
+                buf_size,
+                true,
+                true
 
-                );
+            );
             return true;
         }
 
@@ -1530,26 +1579,41 @@ private:
     {
         if (node.elementName() == "nor:normalX") {
             proto.cnt_nor++;
-            proto.sdb
-                .emplace_back(imfi, node.elementName(), proto.xNormal.data(), buf_size, true, true
+            proto.sdb.emplace_back(
+                imfi,
+                node.elementName(),
+                proto.xNormal.data(),
+                buf_size,
+                true,
+                true
 
-                );
+            );
             return true;
         }
         else if (node.elementName() == "nor:normalY") {
             proto.cnt_nor++;
-            proto.sdb
-                .emplace_back(imfi, node.elementName(), proto.yNormal.data(), buf_size, true, true
+            proto.sdb.emplace_back(
+                imfi,
+                node.elementName(),
+                proto.yNormal.data(),
+                buf_size,
+                true,
+                true
 
-                );
+            );
             return true;
         }
         else if (node.elementName() == "nor:normalZ") {
             proto.cnt_nor++;
-            proto.sdb
-                .emplace_back(imfi, node.elementName(), proto.zNormal.data(), buf_size, true, true
+            proto.sdb.emplace_back(
+                imfi,
+                node.elementName(),
+                proto.zNormal.data(),
+                buf_size,
+                true,
+                true
 
-                );
+            );
             return true;
         }
 
@@ -1560,10 +1624,15 @@ private:
     {
         if (node.elementName() == "cartesianInvalidState") {
             proto.inv_state = true;
-            proto.sdb
-                .emplace_back(imfi, node.elementName(), proto.state.data(), buf_size, true, true
+            proto.sdb.emplace_back(
+                imfi,
+                node.elementName(),
+                proto.state.data(),
+                buf_size,
+                true,
+                true
 
-                );
+            );
             return true;
         }
 
@@ -1574,26 +1643,41 @@ private:
     {
         if (node.elementName() == "colorRed") {
             proto.cnt_rgb++;
-            proto.sdb
-                .emplace_back(imfi, node.elementName(), proto.redData.data(), buf_size, true, true
+            proto.sdb.emplace_back(
+                imfi,
+                node.elementName(),
+                proto.redData.data(),
+                buf_size,
+                true,
+                true
 
-                );
+            );
             return true;
         }
-        else if (node.elementName() == "colorGreen") {
+        if (node.elementName() == "colorGreen") {
             proto.cnt_rgb++;
-            proto.sdb
-                .emplace_back(imfi, node.elementName(), proto.greenData.data(), buf_size, true, true
+            proto.sdb.emplace_back(
+                imfi,
+                node.elementName(),
+                proto.greenData.data(),
+                buf_size,
+                true,
+                true
 
-                );
+            );
             return true;
         }
-        else if (node.elementName() == "colorBlue") {
+        if (node.elementName() == "colorBlue") {
             proto.cnt_rgb++;
-            proto.sdb
-                .emplace_back(imfi, node.elementName(), proto.blueData.data(), buf_size, true, true
+            proto.sdb.emplace_back(
+                imfi,
+                node.elementName(),
+                proto.blueData.data(),
+                buf_size,
+                true,
+                true
 
-                );
+            );
             return true;
         }
 
@@ -1604,10 +1688,15 @@ private:
     {
         if (node.elementName() == "intensity") {
             proto.inty = true;
-            proto.sdb
-                .emplace_back(imfi, node.elementName(), proto.intensity.data(), buf_size, true, true
+            proto.sdb.emplace_back(
+                imfi,
+                node.elementName(),
+                proto.intensity.data(),
+                buf_size,
+                true,
+                true
 
-                );
+            );
             return true;
         }
 
@@ -1616,15 +1705,23 @@ private:
 
     void readOther(const e57::Node& node, Proto& proto)
     {
-        proto.sdb.emplace_back(imfi, node.elementName(), proto.nil.data(), buf_size, true, true
+        proto.sdb.emplace_back(
+            imfi,
+            node.elementName(),
+            proto.nil.data(),
+            buf_size,
+            true,
+            true
 
         );
     }
 
-    void processProto(e57::CompressedVectorNode& cvn,
-                      const Proto& proto,
-                      bool hasPlacement,
-                      const Base::Placement& plm)
+    void processProto(
+        e57::CompressedVectorNode& cvn,
+        const Proto& proto,
+        bool hasPlacement,
+        const Base::Placement& plm
+    )
     {
         if (proto.cnt_xyz != 3) {
             throw Base::BadFormatError("Missing channels xyz");
@@ -1673,8 +1770,12 @@ private:
         }
     }
 
-    Base::Vector3d
-    getCoord(const Proto& proto, size_t index, bool hasPlacement, const Base::Placement& plm) const
+    Base::Vector3d getCoord(
+        const Proto& proto,
+        size_t index,
+        bool hasPlacement,
+        const Base::Placement& plm
+    ) const
     {
         Base::Vector3d pt;
         pt.x = proto.xData[index];
@@ -1686,8 +1787,12 @@ private:
         return pt;
     }
 
-    Base::Vector3f
-    getNormal(const Proto& proto, size_t index, bool hasPlacement, const Base::Rotation& rot) const
+    Base::Vector3f getNormal(
+        const Proto& proto,
+        size_t index,
+        bool hasPlacement,
+        const Base::Rotation& rot
+    ) const
     {
         Base::Vector3f pt;
         pt.x = proto.xNormal[index];
@@ -1699,12 +1804,12 @@ private:
         return pt;
     }
 
-    App::Color getColor(const Proto& proto, size_t index) const
+    Base::Color getColor(const Proto& proto, size_t index) const
     {
-        App::Color c;
-        c.r = static_cast<float>(proto.redData[index]) / 255.0f;
-        c.g = static_cast<float>(proto.greenData[index]) / 255.0f;
-        c.b = static_cast<float>(proto.blueData[index]) / 255.0f;
+        Base::Color c;
+        c.r = static_cast<float>(proto.redData[index]) / 255.0F;
+        c.g = static_cast<float>(proto.greenData[index]) / 255.0F;
+        c.b = static_cast<float>(proto.blueData[index]) / 255.0F;
         return c;
     }
 
@@ -1763,7 +1868,7 @@ private:
     bool checkState;
     double minDistance;
     const size_t buf_size = 1024;
-    std::vector<App::Color> colors;
+    std::vector<Base::Color> colors;
     std::vector<float> intensity;
     PointKernel points;
     std::vector<Base::Vector3f> normals;
@@ -1785,6 +1890,8 @@ void E57Reader::read(const std::string& filename)
         normals = reader.getNormals();
         colors = reader.getColors();
         intensity = reader.getItensity();
+        width = points.size();
+        height = 1;
     }
     catch (const Base::BadFormatError&) {
         throw;
@@ -1798,10 +1905,9 @@ void E57Reader::read(const std::string& filename)
 
 Writer::Writer(const PointKernel& p)
     : points(p)
-{
-    width = p.size();
-    height = 1;
-}
+    , width(int(p.size()))
+    , height {1}
+{}
 
 Writer::~Writer() = default;
 
@@ -1810,7 +1916,7 @@ void Writer::setIntensities(const std::vector<float>& i)
     intensity = i;
 }
 
-void Writer::setColors(const std::vector<App::Color>& c)
+void Writer::setColors(const std::vector<Base::Color>& c)
 {
     colors = c;
 }
@@ -1903,10 +2009,10 @@ void PlyWriter::write(const std::string& filename)
         converters.push_back(convert_float);
     }
 
-    std::size_t numPoints = points.size();
-    std::size_t numValid = 0;
+    Eigen::Index numPoints = Eigen::Index(points.size());
+    Eigen::Index numValid = 0;
     const std::vector<Base::Vector3f>& pts = points.getBasicPoints();
-    for (std::size_t i = 0; i < numPoints; i++) {
+    for (Eigen::Index i = 0; i < numPoints; i++) {
         const Base::Vector3f& p = pts[i];
         if (!boost::math::isnan(p.x) && !boost::math::isnan(p.y) && !boost::math::isnan(p.z)) {
             numValid++;
@@ -1916,7 +2022,7 @@ void PlyWriter::write(const std::string& filename)
     Eigen::MatrixXf data(numPoints, properties.size());
 
     if (placement.isIdentity()) {
-        for (std::size_t i = 0; i < numPoints; i++) {
+        for (Eigen::Index i = 0; i < numPoints; i++) {
             data(i, 0) = pts[i].x;
             data(i, 1) = pts[i].y;
             data(i, 2) = pts[i].z;
@@ -1924,7 +2030,7 @@ void PlyWriter::write(const std::string& filename)
     }
     else {
         Base::Vector3d tmp;
-        for (std::size_t i = 0; i < numPoints; i++) {
+        for (Eigen::Index i = 0; i < numPoints; i++) {
             tmp = Base::convertTo<Base::Vector3d>(pts[i]);
             placement.multVec(tmp, tmp);
             data(i, 0) = static_cast<float>(tmp.x);
@@ -1933,14 +2039,14 @@ void PlyWriter::write(const std::string& filename)
         }
     }
 
-    std::size_t col = 3;
+    Eigen::Index col = 3;
     if (hasNormals) {
-        int col0 = col;
-        int col1 = col + 1;
-        int col2 = col + 2;
+        Eigen::Index col0 = col;
+        Eigen::Index col1 = col + 1;
+        Eigen::Index col2 = col + 2;
         Base::Rotation rot = placement.getRotation();
         if (rot.isIdentity()) {
-            for (std::size_t i = 0; i < numPoints; i++) {
+            for (Eigen::Index i = 0; i < numPoints; i++) {
                 data(i, col0) = normals[i].x;
                 data(i, col1) = normals[i].y;
                 data(i, col2) = normals[i].z;
@@ -1948,7 +2054,7 @@ void PlyWriter::write(const std::string& filename)
         }
         else {
             Base::Vector3d tmp;
-            for (std::size_t i = 0; i < numPoints; i++) {
+            for (Eigen::Index i = 0; i < numPoints; i++) {
                 tmp = Base::convertTo<Base::Vector3d>(normals[i]);
                 rot.multVec(tmp, tmp);
                 data(i, col0) = static_cast<float>(tmp.x);
@@ -1960,22 +2066,22 @@ void PlyWriter::write(const std::string& filename)
     }
 
     if (hasColors) {
-        int col0 = col;
-        int col1 = col + 1;
-        int col2 = col + 2;
-        int col3 = col + 3;
-        for (std::size_t i = 0; i < numPoints; i++) {
-            App::Color c = colors[i];
-            data(i, col0) = (c.r * 255.0f + 0.5f);
-            data(i, col1) = (c.g * 255.0f + 0.5f);
-            data(i, col2) = (c.b * 255.0f + 0.5f);
-            data(i, col3) = (c.a * 255.0f + 0.5f);
+        Eigen::Index col0 = col;
+        Eigen::Index col1 = col + 1;
+        Eigen::Index col2 = col + 2;
+        Eigen::Index col3 = col + 3;
+        for (Eigen::Index i = 0; i < numPoints; i++) {
+            Base::Color c = colors[i];
+            data(i, col0) = (c.r * 255.0F + 0.5F);
+            data(i, col1) = (c.g * 255.0F + 0.5F);
+            data(i, col2) = (c.b * 255.0F + 0.5F);
+            data(i, col3) = (c.a * 255.0F + 0.5F);
         }
         col += 4;
     }
 
     if (hasIntensity) {
-        for (std::size_t i = 0; i < numPoints; i++) {
+        for (Eigen::Index i = 0; i < numPoints; i++) {
             data(i, col) = intensity[i];
         }
         col += 1;
@@ -1993,7 +2099,7 @@ void PlyWriter::write(const std::string& filename)
     }
     out << "end_header" << std::endl;
 
-    for (std::size_t r = 0; r < numPoints; r++) {
+    for (Eigen::Index r = 0; r < numPoints; r++) {
         if (boost::math::isnan(data(r, 0))) {
             continue;
         }
@@ -2003,7 +2109,7 @@ void PlyWriter::write(const std::string& filename)
         if (boost::math::isnan(data(r, 2))) {
             continue;
         }
-        for (std::size_t c = 0; c < col; c++) {
+        for (Eigen::Index c = 0; c < col; c++) {
             float value = data(r, c);
             out << converters[c]->toString(value) << " ";
         }
@@ -2065,13 +2171,13 @@ void PcdWriter::write(const std::string& filename)
         converters.push_back(convert_float);
     }
 
-    std::size_t numPoints = points.size();
+    Eigen::Index numPoints = Eigen::Index(points.size());
     const std::vector<Base::Vector3f>& pts = points.getBasicPoints();
 
     Eigen::MatrixXd data(numPoints, fields.size());
 
     if (placement.isIdentity()) {
-        for (std::size_t i = 0; i < numPoints; i++) {
+        for (Eigen::Index i = 0; i < numPoints; i++) {
             data(i, 0) = pts[i].x;
             data(i, 1) = pts[i].y;
             data(i, 2) = pts[i].z;
@@ -2079,7 +2185,7 @@ void PcdWriter::write(const std::string& filename)
     }
     else {
         Base::Vector3d tmp;
-        for (std::size_t i = 0; i < numPoints; i++) {
+        for (Eigen::Index i = 0; i < numPoints; i++) {
             tmp = Base::convertTo<Base::Vector3d>(pts[i]);
             placement.multVec(tmp, tmp);
             data(i, 0) = static_cast<float>(tmp.x);
@@ -2088,14 +2194,14 @@ void PcdWriter::write(const std::string& filename)
         }
     }
 
-    std::size_t col = 3;
+    Eigen::Index col = 3;
     if (hasNormals) {
-        int col0 = col;
-        int col1 = col + 1;
-        int col2 = col + 2;
+        Eigen::Index col0 = col;
+        Eigen::Index col1 = col + 1;
+        Eigen::Index col2 = col + 2;
         Base::Rotation rot = placement.getRotation();
         if (rot.isIdentity()) {
-            for (std::size_t i = 0; i < numPoints; i++) {
+            for (Eigen::Index i = 0; i < numPoints; i++) {
                 data(i, col0) = normals[i].x;
                 data(i, col1) = normals[i].y;
                 data(i, col2) = normals[i].z;
@@ -2103,7 +2209,7 @@ void PcdWriter::write(const std::string& filename)
         }
         else {
             Base::Vector3d tmp;
-            for (std::size_t i = 0; i < numPoints; i++) {
+            for (Eigen::Index i = 0; i < numPoints; i++) {
                 tmp = Base::convertTo<Base::Vector3d>(normals[i]);
                 rot.multVec(tmp, tmp);
                 data(i, col0) = static_cast<float>(tmp.x);
@@ -2115,7 +2221,7 @@ void PcdWriter::write(const std::string& filename)
     }
 
     if (hasColors) {
-        for (std::size_t i = 0; i < numPoints; i++) {
+        for (Eigen::Index i = 0; i < numPoints; i++) {
             // http://docs.pointclouds.org/1.3.0/structpcl_1_1_r_g_b.html
             data(i, col) = colors[i].getPackedARGB();
         }
@@ -2123,7 +2229,7 @@ void PcdWriter::write(const std::string& filename)
     }
 
     if (hasIntensity) {
-        for (std::size_t i = 0; i < numPoints; i++) {
+        for (Eigen::Index i = 0; i < numPoints; i++) {
             data(i, col) = intensity[i];
         }
         col += 1;
@@ -2167,15 +2273,18 @@ void PcdWriter::write(const std::string& filename)
     Base::Placement plm;
     Base::Vector3d p = plm.getPosition();
     Base::Rotation o = plm.getRotation();
-    double x, y, z, w;
+    double x {};
+    double y {};
+    double z {};
+    double w {};
     o.getValue(x, y, z, w);
     out << "VIEWPOINT " << p.x << " " << p.y << " " << p.z << " " << w << " " << x << " " << y
         << " " << z << std::endl;
 
     out << "POINTS " << numPoints << std::endl << "DATA ascii" << std::endl;
 
-    for (std::size_t r = 0; r < numPoints; r++) {
-        for (std::size_t c = 0; c < col; c++) {
+    for (Eigen::Index r = 0; r < numPoints; r++) {
+        for (Eigen::Index c = 0; c < col; c++) {
             double value = data(r, c);
             if (boost::math::isnan(value)) {
                 out << "nan ";

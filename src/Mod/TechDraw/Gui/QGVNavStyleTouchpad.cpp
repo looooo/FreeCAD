@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2022 Wanderer Fan <wandererfan@gmail.com>               *
  *                                                                         *
@@ -20,12 +22,10 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 # include <QApplication>
 # include <QGuiApplication>
 # include <QMouseEvent>
-#endif
+
 
 #include "QGVNavStyleTouchpad.h"
 #include "QGVPage.h"
@@ -46,7 +46,6 @@ QGVNavStyleTouchpad::~QGVNavStyleTouchpad()
 
 void QGVNavStyleTouchpad::handleKeyPressEvent(QKeyEvent *event)
 {
-//    Q_UNUSED(event)
     if (event->key() == Qt::Key_PageUp) {
         zoomIn();
         event->accept();
@@ -114,16 +113,28 @@ void QGVNavStyleTouchpad::handleMouseMoveEvent(QMouseEvent *event)
 
     // if the mouse moves, but we are not zooming or panning, then we should make
     // sure that zoom and pan are turned off.
-    stopPan();
-    stopZoom();
+    if (panningActive) {
+        stopPan();
+    }
+    if (zoomingActive) {
+        stopZoom();
+    }
 }
 
 void QGVNavStyleTouchpad::setAnchor()
 {
-    //this navigation style can not anchor under mouse since mouse is moving as part of zoom action
-    if (m_viewer) {
-        m_viewer->setResizeAnchor(QGraphicsView::AnchorViewCenter);
-        m_viewer->setTransformationAnchor(QGraphicsView::AnchorViewCenter);
+    if (QGuiApplication::keyboardModifiers().testFlag(Qt::ControlModifier)
+        && QGuiApplication::keyboardModifiers().testFlag(Qt::ShiftModifier)) {
+        // this navigation style can not anchor under mouse when zooming with Ctrl + Shift since
+        // mouse is moving as part of zoom action
+
+        if (m_viewer) {
+            m_viewer->setResizeAnchor(QGraphicsView::AnchorViewCenter);
+            m_viewer->setTransformationAnchor(QGraphicsView::AnchorViewCenter);
+        }
+    }
+    else {
+        QGVNavStyle::setAnchor();
     }
 }
 

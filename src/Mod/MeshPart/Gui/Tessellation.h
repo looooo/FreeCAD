@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2010 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef MESHPARTGUI_TESSELLATION_H
-#define MESHPARTGUI_TESSELLATION_H
+#pragma once
 
 #include <QPointer>
 #include <memory>
@@ -97,11 +98,12 @@ protected:
     void process(int method, App::Document* doc, const std::list<App::SubObjectT>&);
     void saveParameters(int method);
     void setFaceColors(int method, App::Document* doc, App::DocumentObject* obj);
+    void addFaceColors(Mesh::Feature* mesh, const std::vector<Base::Color>& colorPerSegm);
     QString getMeshingParameters(int method, App::DocumentObject* obj) const;
     QString getStandardParameters(App::DocumentObject* obj) const;
     QString getMefistoParameters() const;
     QString getNetgenParameters() const;
-    std::vector<App::Color> getUniqueColors(const std::vector<App::Color>& colors) const;
+    std::vector<Base::Color> getUniqueColors(const std::vector<Base::Color>& colors) const;
 
 private:
     void setupConnections();
@@ -141,5 +143,3 @@ private:
 };
 
 }  // namespace MeshPartGui
-
-#endif  // MESHPARTGUI_TESSELLATION_H

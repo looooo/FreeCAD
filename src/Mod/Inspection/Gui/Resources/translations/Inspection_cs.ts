@@ -4,63 +4,62 @@
   <context>
     <name>CmdInspectElement</name>
     <message>
-      <location filename="../../Command.cpp" line="74"/>
-      <source>Inspection</source>
-      <translation>Prohlížení</translation>
-    </message>
-    <message>
       <location filename="../../Command.cpp" line="75"/>
-      <source>Inspection...</source>
-      <translation>Inspekce...</translation>
+      <source>Inspection</source>
+      <translation>Inspekce</translation>
     </message>
     <message>
       <location filename="../../Command.cpp" line="76"/>
-      <source>Get distance information</source>
-      <translation>Získejte informace o vzdálenosti</translation>
+      <source>Inspection…</source>
+      <translation>Inspekce…</translation>
+    </message>
+    <message>
+      <location filename="../../Command.cpp" line="77"/>
+      <source>Inspects distance information</source>
+      <translation>Kontroluje informace o vzdálenosti</translation>
     </message>
   </context>
   <context>
     <name>CmdVisualInspection</name>
     <message>
-      <location filename="../../Command.cpp" line="48"/>
-      <source>Inspection</source>
-      <translation>Prohlížení</translation>
-    </message>
-    <message>
       <location filename="../../Command.cpp" line="49"/>
-      <source>Visual inspection...</source>
-      <translation>Vizuální kontrola...</translation>
+      <source>Inspection</source>
+      <translation>Inspekce</translation>
     </message>
     <message>
       <location filename="../../Command.cpp" line="50"/>
+      <source>Visual Inspection</source>
+      <translation>Vizuální inspekce</translation>
+    </message>
+    <message>
       <location filename="../../Command.cpp" line="51"/>
-      <source>Visual inspection</source>
-      <translation>Vizuální kontrola</translation>
+      <source>Inspects the objects visually</source>
+      <translation>Kontroluje objekty vizuálně</translation>
     </message>
   </context>
   <context>
     <name>Command</name>
     <message>
-      <location filename="../../VisualInspection.cpp" line="237"/>
+      <location filename="../../VisualInspection.cpp" line="234"/>
       <source>Visual Inspection</source>
-      <translation>Vizuální kontrola</translation>
+      <translation>Vizuální inspekce</translation>
     </message>
   </context>
   <context>
     <name>InspectionGui::VisualInspection</name>
     <message>
-      <location filename="../../VisualInspection.ui" line="14"/>
+      <location filename="../../VisualInspection.cpp" line="85"/>
       <source>Visual Inspection</source>
-      <translation>Vizuální kontrola</translation>
+      <translation>Vizuální inspekce</translation>
     </message>
     <message>
-      <location filename="../../VisualInspection.ui" line="23"/>
+      <location filename="../../VisualInspection.ui" line="17"/>
       <source>Actual</source>
-      <translation>Aktuální</translation>
+      <translation>Skutečný</translation>
     </message>
     <message>
       <location filename="../../VisualInspection.ui" line="39"/>
-      <location filename="../../VisualInspection.ui" line="66"/>
+      <location filename="../../VisualInspection.ui" line="72"/>
       <source>Objects</source>
       <translation>Objekty</translation>
     </message>
@@ -70,23 +69,23 @@
       <translation>Nominální</translation>
     </message>
     <message>
-      <location filename="../../VisualInspection.ui" line="77"/>
+      <location filename="../../VisualInspection.ui" line="83"/>
       <source>Parameter</source>
-      <translation>Parametr</translation>
+      <translation>Parametry</translation>
     </message>
     <message>
-      <location filename="../../VisualInspection.ui" line="97"/>
+      <location filename="../../VisualInspection.ui" line="103"/>
       <source>Search distance</source>
       <translation>Hledat podle vzdálenosti</translation>
     </message>
     <message>
-      <location filename="../../VisualInspection.ui" line="129"/>
-      <location filename="../../VisualInspection.ui" line="174"/>
+      <location filename="../../VisualInspection.ui" line="135"/>
+      <location filename="../../VisualInspection.ui" line="180"/>
       <source> mm</source>
       <translation>mm</translation>
     </message>
     <message>
-      <location filename="../../VisualInspection.ui" line="145"/>
+      <location filename="../../VisualInspection.ui" line="151"/>
       <source>Thickness</source>
       <translation>Tloušťka</translation>
     </message>
@@ -94,38 +93,28 @@
   <context>
     <name>QObject</name>
     <message>
-      <location filename="../../ViewProviderInspection.cpp" line="482"/>
-      <source>Remove annotations</source>
-      <translation>Odstranit poznámky</translation>
-    </message>
-    <message>
-      <location filename="../../ViewProviderInspection.cpp" line="483"/>
-      <source>Do you want to remove all annotations?</source>
-      <translation>Chcete odstranit všechny poznámky?</translation>
-    </message>
-    <message>
-      <location filename="../../ViewProviderInspection.cpp" line="541"/>
+      <location filename="../../ViewProviderInspection.cpp" line="505"/>
       <source>Annotation</source>
       <translation>Poznámka</translation>
     </message>
     <message>
-      <location filename="../../ViewProviderInspection.cpp" line="544"/>
-      <source>Leave info mode</source>
-      <translation>Opustit info režim</translation>
+      <location filename="../../ViewProviderInspection.cpp" line="508"/>
+      <source>Leave Info Mode</source>
+      <translation>Opustit informační režim</translation>
     </message>
     <message>
-      <location filename="../../ViewProviderInspection.cpp" line="675"/>
+      <location filename="../../ViewProviderInspection.cpp" line="649"/>
       <source>Distance: &gt; %1</source>
       <translation>Vzdálenost: &gt; %1</translation>
     </message>
     <message>
-      <location filename="../../ViewProviderInspection.cpp" line="679"/>
+      <location filename="../../ViewProviderInspection.cpp" line="652"/>
       <source>Distance: &lt; %1</source>
       <translation>Vzdálenost: &lt; %1</translation>
     </message>
     <message>
-      <location filename="../../ViewProviderInspection.cpp" line="699"/>
-      <location filename="../../ViewProviderInspection.cpp" line="716"/>
+      <location filename="../../ViewProviderInspection.cpp" line="671"/>
+      <location filename="../../ViewProviderInspection.cpp" line="689"/>
       <source>Distance: %1</source>
       <translation>Vzdálenost: %1</translation>
     </message>

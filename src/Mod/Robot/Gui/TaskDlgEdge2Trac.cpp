@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2009 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,10 +22,8 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <QApplication>
-#endif
+
 
 #include <Base/Console.h>
 #include <Base/Exception.h>
@@ -47,9 +47,10 @@ TaskDlgEdge2Trac::TaskDlgEdge2Trac(Robot::Edge2TracObject* obj)
     , Edge2TaskObject(obj)
 {
     param = new TaskEdge2TracParameter(obj);
-    select =
-        new Gui::TaskView::TaskSelectLinkProperty("SELECT Part::Feature SUBELEMENT Edge COUNT 1..",
-                                                  &(obj->Source));
+    select = new Gui::TaskView::TaskSelectLinkProperty(
+        "SELECT Part::Feature SUBELEMENT Edge COUNT 1..",
+        &(obj->Source)
+    );
 
     Content.push_back(param);
     Content.push_back(select);
@@ -73,8 +74,7 @@ void TaskDlgEdge2Trac::clicked(int button)
                 select->sendSelection2Property();
                 // May throw an exception which we must handle here
                 Edge2TaskObject->execute();
-                param->setEdgeAndClusterNbr(Edge2TaskObject->NbrOfEdges,
-                                            Edge2TaskObject->NbrOfCluster);
+                param->setEdgeAndClusterNbr(Edge2TaskObject->NbrOfEdges, Edge2TaskObject->NbrOfCluster);
             }
             else {
                 QApplication::beep();
@@ -83,7 +83,7 @@ void TaskDlgEdge2Trac::clicked(int button)
         }
     }
     catch (const Base::Exception& e) {
-        Base::Console().Warning("TaskDlgEdge2Trac::clicked(): %s\n", e.what());
+        Base::Console().warning("TaskDlgEdge2Trac::clicked(): %s\n", e.what());
     }
 }
 
@@ -104,7 +104,7 @@ bool TaskDlgEdge2Trac::accept()
         }
     }
     catch (const Base::Exception& e) {
-        Base::Console().Warning("TaskDlgEdge2Trac::accept(): %s\n", e.what());
+        Base::Console().warning("TaskDlgEdge2Trac::accept(): %s\n", e.what());
     }
 
     return false;

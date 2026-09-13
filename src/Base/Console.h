@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2002 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -21,13 +23,16 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef BASE_CONSOLE_H
-#define BASE_CONSOLE_H
+#pragma once
 
 // Std. configurations
 #include <array>
+#include <atomic>
+#include <cassert>
 #include <chrono>
+#include <functional>
 #include <map>
+#include <mutex>
 #include <set>
 #include <string>
 #include <sstream>
@@ -41,8 +46,8 @@ using PyMethodDef = struct PyMethodDef;
 
 // FIXME: Even with parameter packs this is necessary for MSYS2
 #if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+# pragma clang diagnostic push
+# pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
 #endif
 
 //**************************************************************************
@@ -50,11 +55,11 @@ using PyMethodDef = struct PyMethodDef;
 
 #ifdef FC_DEBUG
 /// switch on the logging of python object creation and destruction
-#undef FC_LOGPYOBJECTS
+# undef FC_LOGPYOBJECTS
 /// switch on the logging of Feature update and execution
-#define FC_LOGFEATUREUPDATE
+# define FC_LOGFEATUREUPDATE
 /// switch on the logging of the Update execution through Doc, App, GuiApp and GuiDoc
-#undef FC_LOGUPDATECHAIN
+# undef FC_LOGUPDATECHAIN
 #endif
 
 /////////////////////////////////////////////////////////////////////////////////////
@@ -172,134 +177,6 @@ using PyMethodDef = struct PyMethodDef;
  * FC_ERR("error: " << code << ". exiting")
  * \endcode
  *
- * \section TimingHelper Timing Helpers
- *
- * This set of macros is for helping C++ code to time lengthy operations.
- * Examples:
- *
- * \code{.c}
- * void operation() {
- *      FC_TIME_INIT(t);
- *
- *      //do stuff
- *
- *      FC_TIME_LOG(t,"operation done.");
- * }
- * \endcode
- *
- * This will output in console something like,
- *
- * \code
- * operation done. time: 1.12s
- * \endcode
- *
- * Every time you call \c FC_TIME_LOG it will calculate the time duration
- * between this call and the last \c FC_TIME_LOG or \c FC_TIME_INIT.  Time
- * variable \c t will then be updated to the current time. You can also use
- * <tt>FC_TIME_MSG, FC_TIME_TRACE</tt> similar to <tt>FC_MSG and FC_TRACE</tt>.
- *
- * To time operation in multiple stages,
- *
- * \code{.cpp}
- * void operation() {
- *      FC_TIME_INIT2(t,t1);
- *
- *      //do stage 1
- *
- *      FC_TIME_LOG(t1,"stage1");
- *
- *      //do stage 2
- *
- *      FC_TIME_LOG(t1,"stage2");
- *
- *      // do other stuff
- *
- *      FC_TIME_LOG(t,"total");
- * }
- * \endcode
- *
- * Will output something like,
- * \code
- * stage1 time: 1.2s
- * stage2 time: 2.3s
- * total time: 4.0s
- * \endcode
- *
- * To time operation in multiple functions,
- *
- * \code{.cpp}
- * class Timing {
- *      FC_DURATION_DECLARE(d1)
- *      FC_DURATION_DECLARE(d1_1)
- *      FC_DURATION_DECLARE(d1_2)
- *      FC_DURATION_DECLARE(d2);
- *
- *      Timing() {
- *          FC_DURATION_INIT(d1);
- *          FC_DURATION_INIT(d1_1);
- *          FC_DURATION_INIT(d1_2);
- *          FC_DURATION_INIT(d2);
- *      }
- * };
- *
- * void operation1(Timing &timing) {
- *
- *      FC_TIME_INIT(t);
- *
- *      for(...) {
- *          FC_TIME_INIT(t1);
- *
- *          //do setp 1
- *
- *          FC_DURATION_PLUS(timing.d1_1,t1);
- *
- *          // do step 2
- *
- *          FC_DURATION_PLUS(timing.d1_2,t1);
- *      }
- *
- *      // do other stuff
- *
- *      FC_DRUATION_PLUS(timing.d1, t);
- * }
- *
- * void operation2(Timing &timing) {
- *
- *      FC_TIME_INIT(t);
- *
- *      // do stuff
- *
- *      FC_DRUATION_PLUS(timing.d2, t);
- * }
- *
- * void operation() {
- *
- *      Timing timing;
- *
- *      FC_TIME_INIT(t);
- *
- *      for(...) {
- *          operation1(timing);
- *
- *          // do other stuff
- *
- *          operation2(timing);
- *      }
- *
- *      FC_DURATION_LOG(timing.d1_1,"operation 1 step 1");
- *      FC_DURATION_LOG(timing.d1_2,"operation 1 step 2");
- *      FC_DURATION_LOG(timing.d1,"operation 1");
- *      FC_DURATION_LOG(timing.d2,"operation 2");
- *      FC_TIME_LOG(t,"operation total");
- * }
- * \endcode
- *
- * You can also use <tt>FC_DURATION_MSG, FC_DURATION_TRACE</tt> as usual.
- *
- * If you use only macros provided here to do timing, the entire timing code
- * can be compiled out by defining \c FC_LOG_NO_TIMING before including
- * \c App/Console.h.
- *
  * \section Customization
  *
  * Most of the logging facilities are exposed through macros. This section
@@ -341,7 +218,8 @@ using PyMethodDef = struct PyMethodDef;
  *
  */
 
-// NOLINTBEGIN(bugprone-reserved-identifier,bugprone-macro-parentheses,cppcoreguidelines-macro-usage)
+// NOLINTBEGIN(bugprone-reserved-identifier,bugprone-macro-parentheses,cppcoreguidelines-macro-usage,cppcoreguidelines-avoid-do-while)
+// clang-format off
 #define FC_LOGLEVEL_DEFAULT -1
 #define FC_LOGLEVEL_ERR 0
 #define FC_LOGLEVEL_WARN 1
@@ -363,140 +241,45 @@ using PyMethodDef = struct PyMethodDef;
             std::stringstream _str;                                                                \
             _instance.prefix(_str, _file, _line) << _msg;                                          \
             if (_instance.add_eol)                                                                 \
-                _str << std::endl;                                                                 \
+                _str << '\n';                                                                      \
             Base::Console()._func(_notifier, _str.str().c_str());                                  \
             if (_instance.refresh)                                                                 \
-                Base::Console().Refresh();                                                         \
+                Base::Console().refresh();                                                         \
         }                                                                                          \
     } while (0)
 
 #define _FC_PRINT(_instance, _l, _func, _msg)                                                      \
-    __FC_PRINT(_instance, _l, _func, "", _msg, __FILE__, __LINE__)
+    __FC_PRINT(_instance, _l, _func, std::string(), _msg, __FILE__, __LINE__)
 
-#define FC_MSG(_msg) _FC_PRINT(FC_LOG_INSTANCE, FC_LOGLEVEL_MSG, Message, _msg)
-#define FC_WARN(_msg) _FC_PRINT(FC_LOG_INSTANCE, FC_LOGLEVEL_WARN, DeveloperWarning, _msg)
-#define FC_ERR(_msg) _FC_PRINT(FC_LOG_INSTANCE, FC_LOGLEVEL_ERR, DeveloperError, _msg)
-#define FC_LOG(_msg) _FC_PRINT(FC_LOG_INSTANCE, FC_LOGLEVEL_LOG, Log, _msg)
-#define FC_TRACE(_msg) _FC_PRINT(FC_LOG_INSTANCE, FC_LOGLEVEL_TRACE, Log, _msg)
+#define FC_MSG(_msg) _FC_PRINT(FC_LOG_INSTANCE, FC_LOGLEVEL_MSG, message, _msg)
+#define FC_WARN(_msg) _FC_PRINT(FC_LOG_INSTANCE, FC_LOGLEVEL_WARN, developerWarning, _msg)
+#define FC_ERR(_msg) _FC_PRINT(FC_LOG_INSTANCE, FC_LOGLEVEL_ERR, developerError, _msg)
+#define FC_LOG(_msg) _FC_PRINT(FC_LOG_INSTANCE, FC_LOGLEVEL_LOG, log, _msg)
+#define FC_TRACE(_msg) _FC_PRINT(FC_LOG_INSTANCE, FC_LOGLEVEL_TRACE, log, _msg)
 
 #define _FC_MSG(_file, _line, _msg)                                                                \
-    __FC_PRINT(FC_LOG_INSTANCE, FC_LOGLEVEL_MSG, Message, "", _msg, _file, _line)
+    __FC_PRINT(FC_LOG_INSTANCE, FC_LOGLEVEL_MSG, message, std::string(), _msg, _file, _line)
 #define _FC_WARN(_file, _line, _msg)                                                               \
-    __FC_PRINT(FC_LOG_INSTANCE, FC_LOGLEVEL_WARN, DeveloperWarning, "", _msg, _file, _line)
+    __FC_PRINT(FC_LOG_INSTANCE, FC_LOGLEVEL_WARN, developerWarning, std::string(), _msg, _file, _line)
 #define _FC_ERR(_file, _line, _msg)                                                                \
-    __FC_PRINT(FC_LOG_INSTANCE, FC_LOGLEVEL_ERR, DeveloperError, "", _msg, _file, _line)
+    __FC_PRINT(FC_LOG_INSTANCE, FC_LOGLEVEL_ERR, developerError, std::string(), _msg, _file, _line)
 #define _FC_LOG(_file, _line, _msg)                                                                \
-    __FC_PRINT(FC_LOG_INSTANCE, FC_LOGLEVEL_LOG, Log, "", _msg, _file, _line)
+    __FC_PRINT(FC_LOG_INSTANCE, FC_LOGLEVEL_LOG, log, std::string(), _msg, _file, _line)
 #define _FC_TRACE(_file, _line, _msg)                                                              \
-    __FC_PRINT(FC_LOG_INSTANCE, FC_LOGLEVEL_TRACE, Log, "", _msg, _file, _line)
+    __FC_PRINT(FC_LOG_INSTANCE, FC_LOGLEVEL_TRACE, log, std::string(), _msg, _file, _line)
 
 #define FC_XYZ(_pt) '(' << (_pt).X() << ", " << (_pt).Y() << ", " << (_pt).Z() << ')'
 #define FC_xy(_pt) '(' << (_pt).x << ", " << (_pt).y << ')'
 #define FC_xyz(_pt) '(' << (_pt).x << ", " << (_pt).y << ", " << (_pt).z << ')'
 
-#ifndef FC_LOG_NO_TIMING
-#define FC_TIME_CLOCK high_resolution_clock
-#define FC_TIME_POINT std::chrono::FC_TIME_CLOCK::time_point
-#define FC_DURATION std::chrono::duration<double>
 
-#define _FC_TIME_INIT(_t) _t = std::chrono::FC_TIME_CLOCK::now()
-#define FC_TIME_INIT(_t) FC_TIME_POINT _FC_TIME_INIT(_t)
-#define FC_TIME_INIT2(_t1, _t2) FC_TIME_INIT(_t1), _t2 = _t1
-#define FC_TIME_INIT3(_t1, _t2, _t3) FC_TIME_INIT(_t1), _t2 = _t1, _t3 = _t1
+// clang-format on
+// NOLINTEND(bugprone-reserved-identifier,bugprone-macro-parentheses,cppcoreguidelines-macro-usage,cppcoreguidelines-avoid-do-while)
 
-#define _FC_DURATION_PRINT(_l, _d, _msg) FC_##_l(_msg << " time: " << _d.count() << 's');
-
-#define FC_DURATION_MSG(_d, _msg) _FC_DURATION_PRINT(MSG, _d, _msg)
-#define FC_DURATION_LOG(_d, _msg) _FC_DURATION_PRINT(LOG, _d, _msg)
-#define FC_DURATION_TRACE(_d, _msg) _FC_DURATION_PRINT(TRACE, _d, _msg)
-
-#define _FC_TIME_PRINT(_l, _t, _msg) _FC_DURATION_PRINT(_l, Base::GetDuration(_t), _msg);
-
-#define FC_TIME_MSG(_t, _msg) _FC_TIME_PRINT(MSG, _t, _msg)
-#define FC_TIME_LOG(_t, _msg) _FC_TIME_PRINT(LOG, _t, _msg)
-#define FC_TIME_TRACE(_t, _msg) _FC_TIME_PRINT(TRACE, _t, _msg)
-
-#define FC_DURATION_DECLARE(_d) FC_DURATION _d
-#define FC_DURATION_DECLARE2(_d, _d1) FC_DURATION_DECLARE(_d), _d1
-#define FC_DURATION_DECLARE3(_d, _d1) FC_DURATION_DECLARE2(_d, _d1), _d2
-
-#define FC_DURATION_INIT(_d) _d = FC_DURATION(0)
-#define FC_DURATION_INIT2(_d, _d1) _d = _d1 = FC_DURATION(0)
-#define FC_DURATION_INIT3(_d, _d1, _d2) _d = _d1 = _d2 = FC_DURATION(0)
-
-#define FC_DURATION_DECL_INIT(_d) FC_DURATION _d(0)
-#define FC_DURATION_DECL_INIT2(_d, _d1) FC_DURATION_DECL_INIT(_d), _d1(0)
-#define FC_DURATION_DECL_INIT3(_d, _d1) FC_DURATION_DECL_INIT2(_d, _d1), _d3(0)
-
-#define FC_DURATION_PLUS(_d, _t) _d += Base::GetDuration(_t)
-
-#else  // FC_LOG_NO_TIMING
-#define FC_TIME_POINT
-#define _FC_TIME_INIT(...)                                                                         \
-    do {                                                                                           \
-    } while (0)
-#define FC_TIME_INIT(...)                                                                          \
-    do {                                                                                           \
-    } while (0)
-#define FC_TIME_INIT2(...)                                                                         \
-    do {                                                                                           \
-    } while (0)
-#define FC_TIME_INIT3(...)                                                                         \
-    do {                                                                                           \
-    } while (0)
-#define _FC_DURATION_PRINT(...)                                                                    \
-    do {                                                                                           \
-    } while (0)
-#define _FC_TIME(_t)                                                                               \
-    do {                                                                                           \
-    } while (0)
-#define FC_DURATION_PRINT(...)                                                                     \
-    do {                                                                                           \
-    } while (0)
-#define FC_DURATION
-#define FC_DURATION_INIT(...)                                                                      \
-    do {                                                                                           \
-    } while (0)
-#define FC_DURATION_INIT1(...)                                                                     \
-    do {                                                                                           \
-    } while (0)
-#define FC_DURATION_INIT2(...)                                                                     \
-    do {                                                                                           \
-    } while (0)
-#define FC_DURATION_DECLARE(...)
-#define FC_DURATION_DECLARE1(...)
-#define FC_DURATION_DECLARE2(...)
-#define FC_DURATION_DECL_INIT(...)                                                                 \
-    do {                                                                                           \
-    } while (0)
-#define FC_DURATION_DECL_INIT2(...)                                                                \
-    do {                                                                                           \
-    } while (0)
-#define FC_DURATION_DECL_INIT3(...)                                                                \
-    do {                                                                                           \
-    } while (0)
-#define FC_DURATION_PLUS(...)                                                                      \
-    do {                                                                                           \
-    } while (0)
-
-#endif  // FC_LOG_NO_TIMING
-// NOLINTEND(bugprone-reserved-identifier,bugprone-macro-parentheses,cppcoreguidelines-macro-usage)
-
-// TODO: Get rid of this typedef
 using ConsoleMsgFlags = unsigned int;
 
 namespace Base
 {
-
-#ifndef FC_LOG_NO_TIMING
-inline FC_DURATION GetDuration(FC_TIME_POINT& tp)
-{
-    auto tnow = std::chrono::FC_TIME_CLOCK::now();
-    auto dc = std::chrono::duration_cast<FC_DURATION>(tnow - tp);
-    tp = tnow;
-    return dc;
-}
-#endif
 
 /** Used to identify log level*/
 enum class LogStyle
@@ -568,40 +351,38 @@ public:
      * translated (are untranslatable). Or conversely, may decide not to process already translated
      * notifications. It is up to the intended behaviour of the observer.
      */
-    virtual void SendLog(const std::string& notifiername,
-                         const std::string& msg,
-                         LogStyle level,
-                         IntendedRecipient recipient,
-                         ContentType content) = 0;
+    virtual void sendLog(
+        const std::string& notifiername,
+        const std::string& msg,
+        LogStyle level,
+        IntendedRecipient recipient,
+        ContentType content
+    ) = 0;
 
     /**
      * Returns whether a LogStyle category is active or not
      */
-    bool isActive(Base::LogStyle category) const
+    bool isActive(const LogStyle category) const
     {
-        if (category == Base::LogStyle::Log) {
-            return bLog;
-        }
-        if (category == Base::LogStyle::Warning) {
-            return bWrn;
-        }
-        if (category == Base::LogStyle::Error) {
-            return bErr;
-        }
-        if (category == Base::LogStyle::Message) {
-            return bMsg;
-        }
-        if (category == Base::LogStyle::Critical) {
-            return bCritical;
-        }
-        if (category == Base::LogStyle::Notification) {
-            return bNotification;
+        switch (category) {
+            case LogStyle::Log:
+                return bLog;
+            case LogStyle::Warning:
+                return bWrn;
+            case LogStyle::Error:
+                return bErr;
+            case LogStyle::Message:
+                return bMsg;
+            case LogStyle::Critical:
+                return bCritical;
+            case LogStyle::Notification:
+                return bNotification;
         }
 
         return false;
     }
 
-    virtual const char* Name()
+    virtual const char* name()
     {
         return nullptr;
     }
@@ -624,7 +405,7 @@ public:
  *  instance of the class from every where in c++ by simply using:
  *  \code
  *  #include <Base/Console.h>
- *  Base::Console().Log("Stage: %d",i);
+ *  Base::Console().log("Stage: %d",i);
  *  \endcode
  *  \par
  *  ConsoleSingleton is able to switch between several modes to, e.g. switch
@@ -656,10 +437,10 @@ public:
  *  \endcode
  *
  *  These convenience functions cover most common cases:
- *  - Unqualified convenience functions, such as Error() and Warning(), produce messages intended to
+ *  - Unqualified convenience functions, such as error() and warning(), produce messages intended to
  *  both User and Developer with an untranslated message.
  *  - Functions qualified with Developer, such as DeveloperError are intended for a Developer and
- *  are untranslatable. Functions qualified with User, such as UserError are intended only for the
+ *  are untranslatable. Functions qualified with User, such as userError are intended only for the
  *  User and a untranslated (leaving the responsibility to the observer to find the translation).
  *  - Functions qualified with Translated, such as TranslatedError, are intended for the User and
  *  the message is already translated.
@@ -682,7 +463,7 @@ public:
  *
  *  Example:
  *  \code
- *  Base::Console().UserError(this->getFullName(), QT_TRANSLATE_NOOP("Notifications",
+ *  Base::Console().userError(this->getFullName(), QT_TRANSLATE_NOOP("Notifications",
  *                            "Impossible to migrate Parabolas!!\n"));
  *  \endcode
  *
@@ -690,7 +471,7 @@ public:
  *  often the case in legacy UI code, where localized strings are already available. For these
  *  cases the solution is to indicate the translated status. For example:
  *  \code
- *  Base::Console().TranslatedUserError(
+ *  Base::Console().translatedUserError(
  *                              this->getFullName(),
  *                              QObject::tr("The selected edge already has a Block constraint!"));
  *  \endcode
@@ -713,81 +494,87 @@ public:
 
         Notification can be direct or via queue.
     */
-    template<Base::LogStyle,
-             Base::IntendedRecipient = Base::IntendedRecipient::All,
-             Base::ContentType = Base::ContentType::Untranslated,
-             typename... Args>
-    inline void Send(const std::string& notifiername, const char* pMsg, Args&&... args);
+    template<LogStyle, IntendedRecipient = IntendedRecipient::All, ContentType = ContentType::Untranslated, typename... Args>
+    void send(const std::string& notifiername, const char* pMsg, Args&&... args);
 
     /// Prints a Message
     template<typename... Args>
-    inline void Message(const char* pMsg, Args&&... args);
+    void message(const char* pMsg, Args&&... args);
     /// Prints a warning Message
     template<typename... Args>
-    inline void Warning(const char* pMsg, Args&&... args);
+    void warning(const char* pMsg, Args&&... args);
     /// Prints a error Message
     template<typename... Args>
-    inline void Error(const char* pMsg, Args&&... args);
+    void error(const char* pMsg, Args&&... args);
     /// Prints a log Message
     template<typename... Args>
-    inline void Log(const char* pMsg, Args&&... args);
+    void log(const char* pMsg, Args&&... args);
     /// Prints a Critical Message
     template<typename... Args>
-    inline void Critical(const char* pMsg, Args&&... args);
+    void critical(const char* pMsg, Args&&... args);
     /// Sends a User Notification
     template<typename... Args>
-    inline void UserNotification(const char* pMsg, Args&&... args);
+    void userNotification(const char* pMsg, Args&&... args);
     /// Sends an already translated User Notification
     template<typename... Args>
-    inline void UserTranslatedNotification(const char* pMsg, Args&&... args);
+    void userTranslatedNotification(const char* pMsg, Args&&... args);
 
 
     /// Prints a Message with source indication
     template<typename... Args>
-    inline void Message(const std::string& notifier, const char* pMsg, Args&&... args);
+    void message(const std::string& notifier, const char* pMsg, Args&&... args);
     /// Prints a warning Message with source indication
     template<typename... Args>
-    inline void Warning(const std::string& notifier, const char* pMsg, Args&&... args);
+    void warning(const std::string& notifier, const char* pMsg, Args&&... args);
     template<typename... Args>
-    inline void DeveloperWarning(const std::string& notifier, const char* pMsg, Args&&... args);
+    void developerWarning(const std::string& notifier, const char* pMsg, Args&&... args);
     template<typename... Args>
-    inline void UserWarning(const std::string& notifier, const char* pMsg, Args&&... args);
+    void userWarning(const std::string& notifier, const char* pMsg, Args&&... args);
     template<typename... Args>
-    inline void
-    TranslatedUserWarning(const std::string& notifier, const char* pMsg, Args&&... args);
+    void translatedUserWarning(const std::string& notifier, const char* pMsg, Args&&... args);
     /// Prints a error Message with source indication
     template<typename... Args>
-    inline void Error(const std::string& notifier, const char* pMsg, Args&&... args);
+    void error(const std::string& notifier, const char* pMsg, Args&&... args);
     template<typename... Args>
-    inline void DeveloperError(const std::string& notifier, const char* pMsg, Args&&... args);
+    void developerError(const std::string& notifier, const char* pMsg, Args&&... args);
     template<typename... Args>
-    inline void UserError(const std::string& notifier, const char* pMsg, Args&&... args);
+    /// A noexcept DeveloperError for use in destructors. When compiled in debug, terminates via an
+    /// assert. In release, the exception is silently caught and dropped.
+    void destructorError(const std::string& notifier, const char* pMsg, Args&&... args) noexcept;
     template<typename... Args>
-    inline void TranslatedUserError(const std::string& notifier, const char* pMsg, Args&&... args);
+    void userError(const std::string& notifier, const char* pMsg, Args&&... args);
+    template<typename... Args>
+    void translatedUserError(const std::string& notifier, const char* pMsg, Args&&... args);
     /// Prints a log Message with source indication
     template<typename... Args>
-    inline void Log(const std::string& notifier, const char* pMsg, Args&&... args);
+    void log(const std::string& notifier, const char* pMsg, Args&&... args);
     /// Prints a Critical Message with source indication
     template<typename... Args>
-    inline void Critical(const std::string& notifier, const char* pMsg, Args&&... args);
+    void critical(const std::string& notifier, const char* pMsg, Args&&... args);
     /// Sends a User Notification with source indication
     template<typename... Args>
-    inline void UserNotification(const std::string& notifier, const char* pMsg, Args&&... args);
+    void userNotification(const std::string& notifier, const char* pMsg, Args&&... args);
     /// Sends an already translated User Notification with source indication
     template<typename... Args>
-    inline void
-    UserTranslatedNotification(const std::string& notifier, const char* pMsg, Args&&... args);
+    void userTranslatedNotification(const std::string& notifier, const char* pMsg, Args&&... args);
 
     // Notify a message directly to observers
-    template<Base::LogStyle,
-             Base::IntendedRecipient = Base::IntendedRecipient::All,
-             Base::ContentType = Base::ContentType::Untranslated>
-    inline void Notify(const std::string& notifiername, const std::string& msg);
+    template<LogStyle, IntendedRecipient = IntendedRecipient::All, ContentType = ContentType::Untranslated>
+    void notify(const std::string& notifiername, const std::string& msg);
+
+    // Runtime (non-template) notify helper.
+    void notify(
+        LogStyle category,
+        IntendedRecipient recipient,
+        ContentType content,
+        const std::string& notifiername,
+        const std::string& msg
+    );
 
     /// Attaches an Observer to FCConsole
-    void AttachObserver(ILogger* pcObserver);
+    void attachObserver(ILogger* pcObserver);
     /// Detaches an Observer from FCConsole
-    void DetachObserver(ILogger* pcObserver);
+    void detachObserver(ILogger* pcObserver);
 
     /// enumeration for the console modes
     enum ConsoleMode
@@ -810,64 +597,88 @@ public:
         MsgType_Notification = 32,  // Special message to for notifications to the user
     };
 
-    /// Change mode
-    void SetConsoleMode(ConsoleMode mode);
-    /// Change mode
-    void UnsetConsoleMode(ConsoleMode mode);
+    class BaseExport Bridge
+    {
+    public:
+        virtual ~Bridge() = default;
+
+        virtual void postEvent(
+            FreeCAD_ConsoleMsgType type,
+            IntendedRecipient recipient,
+            ContentType content,
+            const std::string& notifiername,
+            const std::string& msg
+        ) const = 0;
+
+        virtual void refresh() const = 0;
+    };
+
+    using PostEventHandler = std::function<
+        void(FreeCAD_ConsoleMsgType, IntendedRecipient, ContentType, const std::string&, const std::string&)>;
+    using RefreshHandler = std::function<void()>;
+
     /// Enables or disables message types of a certain console observer
-    ConsoleMsgFlags SetEnabledMsgType(const char* sObs, ConsoleMsgFlags type, bool on);
+    ConsoleMsgFlags setEnabledMsgType(const char* sObs, ConsoleMsgFlags type, bool on) const;
     /// Checks if message types of a certain console observer are enabled
-    bool IsMsgTypeEnabled(const char* sObs, FreeCAD_ConsoleMsgType type) const;
-    void SetConnectionMode(ConnectionMode mode);
+    bool isMsgTypeEnabled(const char* sObs, FreeCAD_ConsoleMsgType type) const;
+    void setConnectionMode(ConnectionMode mode);
 
-    int* GetLogLevel(const char* tag, bool create = true);
+    int* getLogLevel(const char* tag, bool create = true);
 
-    void SetDefaultLogLevel(int level)
+    void setDefaultLogLevel(const int level)
     {
         _defaultLogLevel = level;
     }
 
-    inline int LogLevel(int level) const
+    int logLevel(const int level) const
     {
         return level < 0 ? _defaultLogLevel : level;
     }
 
     /// singleton
-    static ConsoleSingleton& Instance();
+    static ConsoleSingleton& instance();
 
     // retrieval of an observer by name
-    ILogger* Get(const char* Name) const;
+    ILogger* get(const char* Name) const;
 
-    static PyMethodDef Methods[];
+    void refresh() const;
+    void enableRefresh(bool enable);
+    void setBridge(const Bridge* bridge);
+    const Bridge* getBridge() const;
+    void setPostEventHandler(PostEventHandler handler);
+    void setRefreshHandler(RefreshHandler handler);
 
-    void Refresh();
-    void EnableRefresh(bool enable);
-
-    inline constexpr FreeCAD_ConsoleMsgType getConsoleMsg(Base::LogStyle style);
+    constexpr FreeCAD_ConsoleMsgType getConsoleMsg(LogStyle style);
 
 private:
+    friend class ConsoleModulePy;
+
     // python exports goes here +++++++++++++++++++++++++++++++++++++++++++
     // static python wrapper of the exported functions
-    static PyObject* sPyLog(PyObject* self, PyObject* args);
-    static PyObject* sPyMessage(PyObject* self, PyObject* args);
-    static PyObject* sPyWarning(PyObject* self, PyObject* args);
-    static PyObject* sPyDeveloperWarning(PyObject* self, PyObject* args);
-    static PyObject* sPyUserWarning(PyObject* self, PyObject* args);
-    static PyObject* sPyTranslatedUserWarning(PyObject* self, PyObject* args);
-    static PyObject* sPyError(PyObject* self, PyObject* args);
-    static PyObject* sPyDeveloperError(PyObject* self, PyObject* args);
-    static PyObject* sPyUserError(PyObject* self, PyObject* args);
-    static PyObject* sPyTranslatedUserError(PyObject* self, PyObject* args);
-    static PyObject* sPyCritical(PyObject* self, PyObject* args);
-    static PyObject* sPyNotification(PyObject* self, PyObject* args);
-    static PyObject* sPyTranslatedNotification(PyObject* self, PyObject* args);
-    static PyObject* sPySetStatus(PyObject* self, PyObject* args);
-    static PyObject* sPyGetStatus(PyObject* self, PyObject* args);
-    static PyObject* sPyGetObservers(PyObject* self, PyObject* args);
+    static PyObject* sPrintLog(PyObject* self, PyObject* args);
+    static PyObject* sPrintMessage(PyObject* self, PyObject* args);
+    static PyObject* sPrintWarning(PyObject* self, PyObject* args);
+    static PyObject* sPrintDeveloperWarning(PyObject* self, PyObject* args);
+    static PyObject* sPrintUserWarning(PyObject* self, PyObject* args);
+    static PyObject* sPrintTranslatedUserWarning(PyObject* self, PyObject* args);
+    static PyObject* sPrintError(PyObject* self, PyObject* args);
+    static PyObject* sPrintDeveloperError(PyObject* self, PyObject* args);
+    static PyObject* sPrintUserError(PyObject* self, PyObject* args);
+    static PyObject* sPrintTranslatedUserError(PyObject* self, PyObject* args);
+    static PyObject* sPrintCritical(PyObject* self, PyObject* args);
+    static PyObject* sPrintNotification(PyObject* self, PyObject* args);
+    static PyObject* sPrintTranslatedNotification(PyObject* self, PyObject* args);
+    static PyObject* sSetStatus(PyObject* self, PyObject* args);
+    static PyObject* sGetStatus(PyObject* self, PyObject* args);
+    static PyObject* sGetObservers(PyObject* self, PyObject* args);
 
-    bool _bVerbose {true};
     bool _bCanRefresh {true};
     ConnectionMode connectionMode {Direct};
+
+    std::atomic<const Bridge*> _bridge {nullptr};
+    mutable std::mutex _handlerMutex;
+    PostEventHandler _postEventHandler;
+    RefreshHandler _refreshHandler;
 
     // Singleton!
     ConsoleSingleton();
@@ -880,16 +691,20 @@ public:
     ConsoleSingleton& operator=(ConsoleSingleton&&) = delete;
 
 private:
-    void postEvent(ConsoleSingleton::FreeCAD_ConsoleMsgType type,
-                   IntendedRecipient recipient,
-                   ContentType content,
-                   const std::string& notifiername,
-                   const std::string& msg);
-    void notifyPrivate(LogStyle category,
-                       IntendedRecipient recipient,
-                       ContentType content,
-                       const std::string& notifiername,
-                       const std::string& msg);
+    void postEvent(
+        FreeCAD_ConsoleMsgType type,
+        IntendedRecipient recipient,
+        ContentType content,
+        const std::string& notifiername,
+        const std::string& msg
+    );
+    void notifyPrivate(
+        LogStyle category,
+        IntendedRecipient recipient,
+        ContentType content,
+        const std::string& notifiername,
+        const std::string& msg
+    ) const;
 
     // singleton
     static void Destruct();
@@ -900,8 +715,6 @@ private:
 
     std::map<std::string, int> _logLevels;
     int _defaultLogLevel;
-
-    friend class ConsoleOutput;
 };
 
 /** Access to the Console
@@ -910,19 +723,20 @@ private:
  */
 inline ConsoleSingleton& Console()
 {
-    return ConsoleSingleton::Instance();
+    return ConsoleSingleton::instance();
 }
 
-inline constexpr ConsoleSingleton::FreeCAD_ConsoleMsgType
-ConsoleSingleton::getConsoleMsg(Base::LogStyle style)
+constexpr ConsoleSingleton::FreeCAD_ConsoleMsgType ConsoleSingleton::getConsoleMsg(LogStyle style)
 {
-    constexpr std::array msgTypes {// In order of Base::LogStyle
-                                   FreeCAD_ConsoleMsgType::MsgType_Wrn,
-                                   FreeCAD_ConsoleMsgType::MsgType_Txt,
-                                   FreeCAD_ConsoleMsgType::MsgType_Err,
-                                   FreeCAD_ConsoleMsgType::MsgType_Log,
-                                   FreeCAD_ConsoleMsgType::MsgType_Critical,
-                                   FreeCAD_ConsoleMsgType::MsgType_Notification};
+    constexpr std::array msgTypes {
+        // In order of LogStyle
+        MsgType_Wrn,
+        MsgType_Txt,
+        MsgType_Err,
+        MsgType_Log,
+        MsgType_Critical,
+        MsgType_Notification
+    };
 
     return msgTypes.at(static_cast<std::size_t>(style));
 }
@@ -932,12 +746,12 @@ class BaseExport ConsoleRefreshDisabler
 public:
     ConsoleRefreshDisabler()
     {
-        Console().EnableRefresh(false);
+        Console().enableRefresh(false);
     }
 
     ~ConsoleRefreshDisabler()
     {
-        Console().EnableRefresh(true);
+        Console().enableRefresh(true);
     }
 
     ConsoleRefreshDisabler(const ConsoleRefreshDisabler&) = delete;
@@ -959,14 +773,16 @@ public:
     bool add_eol;
     bool refresh;
 
-    LogLevel(const char* tag,
-             bool print_tag = true,
-             int print_src = 0,
-             bool print_time = false,
-             bool add_eol = true,
-             bool refresh = false)
+    LogLevel(
+        const char* tag,
+        const bool print_tag = true,
+        const int print_src = 0,
+        const bool print_time = false,
+        const bool add_eol = true,
+        const bool refresh = false
+    )
         : tag(tag)
-        , lvl(*Console().GetLogLevel(tag))
+        , lvl(*Console().getLogLevel(tag))
         , print_tag(print_tag)
         , print_src(print_src)
         , print_time(print_time)
@@ -974,14 +790,14 @@ public:
         , refresh(refresh)
     {}
 
-    bool isEnabled(int lev) const
+    bool isEnabled(const int lev) const
     {
         return lev <= level();
     }
 
     int level() const
     {
-        return Console().LogLevel(lvl);
+        return Console().logLevel(lvl);
     }
 
     std::stringstream& prefix(std::stringstream& str, const char* src, int line);
@@ -1006,194 +822,227 @@ public:
  *  @see UserTranslatedNotification
  */
 template<typename... Args>
-inline void Base::ConsoleSingleton::Message(const char* pMsg, Args&&... args)
+void Base::ConsoleSingleton::message(const char* pMsg, Args&&... args)
 {
-    Message(std::string(""), pMsg, std::forward<Args>(args)...);
+    message(std::string(""), pMsg, std::forward<Args>(args)...);
 }
 
 template<typename... Args>
-inline void
-Base::ConsoleSingleton::Message(const std::string& notifier, const char* pMsg, Args&&... args)
+void Base::ConsoleSingleton::message(const std::string& notifier, const char* pMsg, Args&&... args)
 {
-    Send<Base::LogStyle::Message>(notifier, pMsg, std::forward<Args>(args)...);
+    send<LogStyle::Message>(notifier, pMsg, std::forward<Args>(args)...);
 }
 
 template<typename... Args>
-inline void Base::ConsoleSingleton::Warning(const char* pMsg, Args&&... args)
+void Base::ConsoleSingleton::warning(const char* pMsg, Args&&... args)
 {
-    Warning(std::string(""), pMsg, std::forward<Args>(args)...);
+    warning(std::string(""), pMsg, std::forward<Args>(args)...);
 }
 
 template<typename... Args>
-inline void
-Base::ConsoleSingleton::Warning(const std::string& notifier, const char* pMsg, Args&&... args)
+void Base::ConsoleSingleton::warning(const std::string& notifier, const char* pMsg, Args&&... args)
 {
-    Send<Base::LogStyle::Warning>(notifier, pMsg, std::forward<Args>(args)...);
+    send<LogStyle::Warning>(notifier, pMsg, std::forward<Args>(args)...);
 }
 
 template<typename... Args>
-inline void Base::ConsoleSingleton::DeveloperWarning(const std::string& notifier,
-                                                     const char* pMsg,
-                                                     Args&&... args)
+void Base::ConsoleSingleton::developerWarning(const std::string& notifier, const char* pMsg, Args&&... args)
 {
-    Send<Base::LogStyle::Warning,
-         Base::IntendedRecipient::Developer,
-         Base::ContentType::Untranslatable>(notifier, pMsg, std::forward<Args>(args)...);
-}
-
-template<typename... Args>
-inline void
-Base::ConsoleSingleton::UserWarning(const std::string& notifier, const char* pMsg, Args&&... args)
-{
-    Send<Base::LogStyle::Warning, Base::IntendedRecipient::User, Base::ContentType::Untranslated>(
+    send<LogStyle::Warning, IntendedRecipient::Developer, ContentType::Untranslatable>(
         notifier,
         pMsg,
-        std::forward<Args>(args)...);
+        std::forward<Args>(args)...
+    );
 }
 
 template<typename... Args>
-inline void Base::ConsoleSingleton::TranslatedUserWarning(const std::string& notifier,
-                                                          const char* pMsg,
-                                                          Args&&... args)
+void Base::ConsoleSingleton::userWarning(const std::string& notifier, const char* pMsg, Args&&... args)
 {
-    Send<Base::LogStyle::Warning, Base::IntendedRecipient::User, Base::ContentType::Translated>(
+    send<LogStyle::Warning, IntendedRecipient::User, ContentType::Untranslated>(
         notifier,
         pMsg,
-        std::forward<Args>(args)...);
+        std::forward<Args>(args)...
+    );
 }
 
 template<typename... Args>
-inline void Base::ConsoleSingleton::Error(const char* pMsg, Args&&... args)
+void Base::ConsoleSingleton::translatedUserWarning(
+    const std::string& notifier,
+    const char* pMsg,
+    Args&&... args
+)
 {
-    Error(std::string(""), pMsg, std::forward<Args>(args)...);
-}
-
-template<typename... Args>
-inline void
-Base::ConsoleSingleton::Error(const std::string& notifier, const char* pMsg, Args&&... args)
-{
-    Send<Base::LogStyle::Error>(notifier, pMsg, std::forward<Args>(args)...);
-}
-
-template<typename... Args>
-inline void Base::ConsoleSingleton::DeveloperError(const std::string& notifier,
-                                                   const char* pMsg,
-                                                   Args&&... args)
-{
-    Send<Base::LogStyle::Error,
-         Base::IntendedRecipient::Developer,
-         Base::ContentType::Untranslatable>(notifier, pMsg, std::forward<Args>(args)...);
-}
-
-template<typename... Args>
-inline void
-Base::ConsoleSingleton::UserError(const std::string& notifier, const char* pMsg, Args&&... args)
-{
-    Send<Base::LogStyle::Error, Base::IntendedRecipient::User, Base::ContentType::Untranslated>(
+    send<LogStyle::Warning, IntendedRecipient::User, ContentType::Translated>(
         notifier,
         pMsg,
-        std::forward<Args>(args)...);
+        std::forward<Args>(args)...
+    );
 }
 
 template<typename... Args>
-inline void Base::ConsoleSingleton::TranslatedUserError(const std::string& notifier,
-                                                        const char* pMsg,
-                                                        Args&&... args)
+void Base::ConsoleSingleton::error(const char* pMsg, Args&&... args)
 {
-    Send<Base::LogStyle::Error, Base::IntendedRecipient::User, Base::ContentType::Translated>(
+    error(std::string(""), pMsg, std::forward<Args>(args)...);
+}
+
+template<typename... Args>
+void Base::ConsoleSingleton::error(const std::string& notifier, const char* pMsg, Args&&... args)
+{
+    send<LogStyle::Error>(notifier, pMsg, std::forward<Args>(args)...);
+}
+
+template<typename... Args>
+void Base::ConsoleSingleton::developerError(const std::string& notifier, const char* pMsg, Args&&... args)
+{
+    send<LogStyle::Error, IntendedRecipient::Developer, ContentType::Untranslatable>(
         notifier,
         pMsg,
-        std::forward<Args>(args)...);
+        std::forward<Args>(args)...
+    );
 }
 
 template<typename... Args>
-inline void Base::ConsoleSingleton::Critical(const char* pMsg, Args&&... args)
+void Base::ConsoleSingleton::destructorError(
+    const std::string& notifier,
+    const char* pMsg,
+    Args&&... args
+) noexcept
 {
-    Critical(std::string(""), pMsg, std::forward<Args>(args)...);
+    try {
+        send<LogStyle::Error, IntendedRecipient::Developer, ContentType::Untranslatable>(
+            notifier,
+            pMsg,
+            std::forward<Args>(args)...
+        );
+    }
+    catch (...) {
+        assert("An exception was thrown while attempting console output in a destructor" && false);
+    }
 }
 
 template<typename... Args>
-inline void
-Base::ConsoleSingleton::Critical(const std::string& notifier, const char* pMsg, Args&&... args)
+void Base::ConsoleSingleton::userError(const std::string& notifier, const char* pMsg, Args&&... args)
 {
-    Send<Base::LogStyle::Critical>(notifier, pMsg, std::forward<Args>(args)...);
+    send<LogStyle::Error, IntendedRecipient::User, ContentType::Untranslated>(
+        notifier,
+        pMsg,
+        std::forward<Args>(args)...
+    );
 }
 
 template<typename... Args>
-inline void Base::ConsoleSingleton::UserNotification(const char* pMsg, Args&&... args)
+void Base::ConsoleSingleton::translatedUserError(
+    const std::string& notifier,
+    const char* pMsg,
+    Args&&... args
+)
 {
-    UserNotification(std::string(""), pMsg, std::forward<Args>(args)...);
+    send<LogStyle::Error, IntendedRecipient::User, ContentType::Translated>(
+        notifier,
+        pMsg,
+        std::forward<Args>(args)...
+    );
 }
 
 template<typename... Args>
-inline void Base::ConsoleSingleton::UserNotification(const std::string& notifier,
-                                                     const char* pMsg,
-                                                     Args&&... args)
+void Base::ConsoleSingleton::critical(const char* pMsg, Args&&... args)
 {
-    Send<Base::LogStyle::Notification,
-         Base::IntendedRecipient::User,
-         Base::ContentType::Untranslated>(notifier, pMsg, std::forward<Args>(args)...);
+    critical(std::string(""), pMsg, std::forward<Args>(args)...);
 }
 
 template<typename... Args>
-inline void Base::ConsoleSingleton::UserTranslatedNotification(const char* pMsg, Args&&... args)
+void Base::ConsoleSingleton::critical(const std::string& notifier, const char* pMsg, Args&&... args)
 {
-    UserTranslatedNotification(std::string(""), pMsg, std::forward<Args>(args)...);
+    send<LogStyle::Critical>(notifier, pMsg, std::forward<Args>(args)...);
 }
 
 template<typename... Args>
-inline void Base::ConsoleSingleton::UserTranslatedNotification(const std::string& notifier,
-                                                               const char* pMsg,
-                                                               Args&&... args)
+void Base::ConsoleSingleton::userNotification(const char* pMsg, Args&&... args)
 {
-    Send<Base::LogStyle::Notification,
-         Base::IntendedRecipient::User,
-         Base::ContentType::Translated>(notifier, pMsg, std::forward<Args>(args)...);
+    userNotification(std::string(""), pMsg, std::forward<Args>(args)...);
 }
 
 template<typename... Args>
-inline void Base::ConsoleSingleton::Log(const char* pMsg, Args&&... args)
+void Base::ConsoleSingleton::userNotification(const std::string& notifier, const char* pMsg, Args&&... args)
 {
-    Log(std::string(""), pMsg, std::forward<Args>(args)...);
+    send<LogStyle::Notification, IntendedRecipient::User, ContentType::Untranslated>(
+        notifier,
+        pMsg,
+        std::forward<Args>(args)...
+    );
 }
 
 template<typename... Args>
-inline void
-Base::ConsoleSingleton::Log(const std::string& notifier, const char* pMsg, Args&&... args)
+void Base::ConsoleSingleton::userTranslatedNotification(const char* pMsg, Args&&... args)
 {
-    Send<Base::LogStyle::Log>(notifier, pMsg, std::forward<Args>(args)...);
+    userTranslatedNotification(std::string(""), pMsg, std::forward<Args>(args)...);
 }
 
-template<Base::LogStyle category,
-         Base::IntendedRecipient recipient /*= Base::IntendedRecipient::All*/,
-         Base::ContentType contenttype /*= Base::ContentType::Untranslated*/,
-         typename... Args>
-inline void
-Base::ConsoleSingleton::Send(const std::string& notifiername, const char* pMsg, Args&&... args)
+template<typename... Args>
+void Base::ConsoleSingleton::userTranslatedNotification(
+    const std::string& notifier,
+    const char* pMsg,
+    Args&&... args
+)
 {
-    std::string format = fmt::sprintf(pMsg, args...);
+    send<LogStyle::Notification, IntendedRecipient::User, ContentType::Translated>(
+        notifier,
+        pMsg,
+        std::forward<Args>(args)...
+    );
+}
+
+template<typename... Args>
+void Base::ConsoleSingleton::log(const char* pMsg, Args&&... args)
+{
+    log(std::string(""), pMsg, std::forward<Args>(args)...);
+}
+
+template<typename... Args>
+void Base::ConsoleSingleton::log(const std::string& notifier, const char* pMsg, Args&&... args)
+{
+    send<LogStyle::Log>(notifier, pMsg, std::forward<Args>(args)...);
+}
+
+template<
+    Base::LogStyle category,
+    Base::IntendedRecipient recipient /*= Base::IntendedRecipient::All*/,
+    Base::ContentType contenttype /*= Base::ContentType::Untranslated*/,
+    typename... Args>
+void Base::ConsoleSingleton::send(const std::string& notifiername, const char* pMsg, Args&&... args)
+{
+    std::string format;
+    try {
+        format = fmt::sprintf(pMsg, args...);
+    }
+    catch (fmt::format_error& e) {
+        // We can't allow an exception to propagate out of this method, which gets used in some
+        // destructors. Instead, make the string's contents the error message that fmt::sprintf gave
+        // us.
+        format = std::string("ERROR: Invalid format string or arguments provided.\n");
+        format += e.what();
+    }
 
     if (connectionMode == Direct) {
-        Notify<category, recipient, contenttype>(notifiername, format);
+        notify<category, recipient, contenttype>(notifiername, format);
     }
     else {
 
-        auto type = getConsoleMsg(category);
+        const auto type = getConsoleMsg(category);
 
         postEvent(type, recipient, contenttype, notifiername, format);
     }
 }
 
-template<Base::LogStyle category,
-         Base::IntendedRecipient recipient /*= Base::IntendedRecipient::All*/,
-         Base::ContentType contenttype /*= Base::ContentType::Untranslated*/>
-inline void Base::ConsoleSingleton::Notify(const std::string& notifiername, const std::string& msg)
+template<
+    Base::LogStyle category,
+    Base::IntendedRecipient recipient /*= Base::IntendedRecipient::All*/,
+    Base::ContentType contenttype /*= Base::ContentType::Untranslated*/>
+void Base::ConsoleSingleton::notify(const std::string& notifiername, const std::string& msg)
 {
     notifyPrivate(category, recipient, contenttype, notifiername, msg);
 }
 
 #if defined(__clang__)
-#pragma clang diagnostic pop
+# pragma clang diagnostic pop
 #endif
-
-#endif  // BASE_CONSOLE_H

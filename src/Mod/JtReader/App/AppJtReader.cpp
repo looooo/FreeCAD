@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) Juergen Riegel         <juergen.riegel@web.de>          *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <Base/Console.h>
 #include <Base/Interpreter.h>
@@ -38,17 +39,7 @@ PyMOD_INIT_FUNC(JtReader)
     // load dependent module
     Base::Interpreter().loadModule("Mesh");
 
-    // Initialize JtTk
-    // JtkEntityFactory::init();
-
-    // Note, non-evaluation JT Open Toolkit licensees must uncomment the
-    // following line, inserting their "Sold_To_ID". Each licensee has a
-    // unique Sold_To_ID issued by UGS Corp.
-    //
-    // JtkEntityFactory::registerCustomer( 1103193 );
-    // JtkEntityFactory::registerCustomer(1103103);
-
-    Base::Console().Log("Loading JtReader module... done\n");
+    Base::Console().log("Loading JtReader module... done\n");
 
     PyMOD_Return(jtReaderModule);
 }

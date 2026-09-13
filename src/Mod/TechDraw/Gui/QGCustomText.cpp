@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,15 +22,15 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 # include <cassert>
 
 # include <QGraphicsSceneHoverEvent>
 # include <QPainter>
 # include <QRectF>
 # include <QStyleOptionGraphicsItem>
-#endif
+#include <QKeyEvent>
+#include <QTextBlock>
+#include <QTextCursor>
 
 #include <Base/Console.h>
 #include <Base/Parameter.h>
@@ -43,15 +45,14 @@ using namespace TechDraw;
 using namespace TechDrawGui;
 
 QGCustomText::QGCustomText(QGraphicsItem* parent) :
-    QGraphicsTextItem(parent), isHighlighted(false)
+    QGraphicsTextItem(parent)
 {
     setCacheMode(QGraphicsItem::NoCache);
     setAcceptHoverEvents(false);
     setFlag(QGraphicsItem::ItemIsSelectable, false);
     setFlag(QGraphicsItem::ItemIsMovable, false);
 
-    m_colCurrent = getNormalColor();
-    m_colNormal  = m_colCurrent;
+    m_colNormal  = getNormalColor();
     tightBounding = false;
 }
 
@@ -115,7 +116,7 @@ double QGCustomText::getWidth()
 }
 QVariant QGCustomText::itemChange(GraphicsItemChange change, const QVariant &value)
 {
-//    Base::Console().Message("QGCT::itemChange - this: %X change: %d\n", this, change);
+//    Base::Console().message("QGCT::itemChange - this: %X change: %d\n", this, change);
     if (change == ItemSelectedHasChanged && scene()) {
         if(isSelected()) {
             setPrettySel();
@@ -144,27 +145,23 @@ void QGCustomText::hoverLeaveEvent(QGraphicsSceneHoverEvent *event)
 }
 
 void QGCustomText::setPrettyNormal() {
-    m_colCurrent = m_colNormal;
-    setDefaultTextColor(m_colCurrent);
+    setDefaultTextColor(m_colNormal);
     update();
 }
 
 void QGCustomText::setPrettyPre() {
-    m_colCurrent = getPreColor();
-    setDefaultTextColor(m_colCurrent);
+    setDefaultTextColor(getPreColor());
     update();
 }
 
 void QGCustomText::setPrettySel() {
-    m_colCurrent = getSelectColor();
-    setDefaultTextColor(m_colCurrent);
+    setDefaultTextColor(getSelectColor());
     update();
 }
 
 void QGCustomText::setColor(QColor c)
 {
     m_colNormal = c;
-    m_colCurrent = c;
     QGraphicsTextItem::setDefaultTextColor(c);
 }
 
@@ -175,23 +172,14 @@ void QGCustomText::setTightBounding(bool tight)
 
 void QGCustomText::paint ( QPainter * painter, const QStyleOptionGraphicsItem * option, QWidget * widget) {
     QStyleOptionGraphicsItem myOption(*option);
+    // Remove HasFocus state to prevent the dashed rectangle from being drawn
+    myOption.state &= ~QStyle::State_HasFocus;
     myOption.state &= ~QStyle::State_Selected;
 
 //    painter->setPen(Qt::green);
-//    painter->drawRect(boundingRect());          //good for debugging
+//    painter->drawRect(alignmentRect());          //good for debugging
 
     QGraphicsTextItem::paint (painter, &myOption, widget);
-}
-
-QRectF QGCustomText::boundingRect() const
-{
-    if (toPlainText().isEmpty()) {
-        return QRectF();
-    } else if (tightBounding) {
-        return tightBoundingRect();
-    } else {
-        return QGraphicsTextItem::boundingRect();
-    }
 }
 
 QRectF QGCustomText::tightBoundingRect() const
@@ -199,14 +187,28 @@ QRectF QGCustomText::tightBoundingRect() const
     QFontMetrics qfm(font());
     QRectF result = QGraphicsTextItem::boundingRect();
     QRectF tight = qfm.tightBoundingRect(toPlainText());
-    qreal x_adj = (result.width() - tight.width())/4.0;
-    qreal y_adj = (result.height() - tight.height())/4.0;
 
-    // Adjust the bounding box 50% towards the Qt tightBoundingRect(),
-    // except chomp some extra empty space above the font (1.75*y_adj)
-    result.adjust(x_adj, 1.75*y_adj, -x_adj, -y_adj);
+    double baselineY = document()->documentMargin() + qfm.ascent();
+    double inkTop = baselineY + tight.top();
+    double inkBottom = baselineY + tight.bottom();
+
+    double x_adj = (result.width() - tight.width()) / 2.0;
+    result.setLeft(result.left() + x_adj);
+    result.setRight(result.right() - x_adj);
+    result.setTop(inkTop);
+    result.setBottom(inkBottom);
 
     return result;
+}
+
+//! a boundingRect for text alignment, that does not adversely affect rendering.
+QRectF QGCustomText::alignmentRect() const
+{
+    if (tightBounding) {
+        return tightBoundingRect();
+    } else {
+        return boundingRect();
+    }
 }
 
 // Calculate the amount of difference between tight and relaxed bounding boxes
@@ -217,6 +219,28 @@ QPointF QGCustomText::tightBoundingAdjust() const
 
     return QPointF(tight.x()-original.x(), tight.y()-original.y());
 }
+
+// TODO: when setting position, it doesn't take into account the tight bounding rect
+// Meaning top left corner has distance to pos(0, 0)
+// Here is a sketch for a fix
+// Note that the position adjustment will have to carried out every time the font changes
+// void QGCustomText::setPos(const QPointF &pos) {
+//     if(tightBounding) {
+//         QGraphicsTextItem::setPos(pos.x() - tightBoundingAdjust().x(), pos.y() - tightBoundingAdjust().y());
+//         return;
+//     }
+//     QGraphicsTextItem::setPos(pos);
+// }
+
+// void QGCustomText::setPos(qreal x, qreal y) {
+//     setPos(QPointF(x, y));
+// }
+
+// QPointF QGCustomText::pos() const
+// {
+//     // Native Qt pos function doesn't take into account the tight bounding rect
+//     return boundingRect().topLeft();
+// }
 
 QColor QGCustomText::getNormalColor()    //preference!
 {
@@ -253,3 +277,78 @@ void QGCustomText::makeMark(Base::Vector3d v)
     makeMark(v.x, v.y);
 }
 
+void QGCustomText::focusInEvent(QFocusEvent* event)
+{
+    // Store the initial cursor state when the item gains focus
+    m_lastCursor = textCursor();
+    QGraphicsTextItem::focusInEvent(event);
+}
+
+void QGCustomText::keyPressEvent(QKeyEvent* event)
+{
+    // If the user returns more than once, then the format (the font
+    // size we set as default) is lost. So we need to handle manually
+    if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
+        QTextCursor cursor = textCursor();
+
+        // 1. Preserve the all-important character format from the current cursor position.
+        QTextCharFormat formatToPreserve = cursor.charFormat();
+
+        // 2. Preserve the block format (for things like alignment, indentation).
+        QTextBlockFormat blockFormatToPreserve = cursor.blockFormat();
+
+        // 3. Manually insert a new block (a newline).
+        //    This automatically deletes any selected text, which is the correct behavior.
+        cursor.insertBlock(blockFormatToPreserve, formatToPreserve);
+
+        // 4. After inserting the block, the cursor is at the start of the new line.
+        //    Its charFormat should already be correct because we passed it to insertBlock.
+        //    We don't need to do anything further with the cursor.
+
+        // 5. Explicitly apply the cursor back to the item to ensure the view updates.
+        setTextCursor(cursor);
+
+        // 6. Notify that the selection/cursor has changed.
+        checkCursorChange();
+
+        // 7. Accept the event to stop it from being processed further.
+        event->accept();
+        return;
+    }
+
+    // Let the base class handle the key press first (which moves the cursor)
+    QGraphicsTextItem::keyPressEvent(event);
+    // Now check if the cursor or selection changed as a result
+    checkCursorChange();
+}
+
+void QGCustomText::mousePressEvent(QGraphicsSceneMouseEvent* event)
+{
+    // Let the base class handle the mouse press first
+    QGraphicsTextItem::mousePressEvent(event);
+    checkCursorChange();
+}
+
+void QGCustomText::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
+{
+    // Let the base class handle the mouse release first
+    QGraphicsTextItem::mouseReleaseEvent(event);
+    checkCursorChange();
+}
+
+void QGCustomText::checkCursorChange()
+{
+    QTextCursor currentCursor = textCursor();
+
+    // Compare the properties of the cursors that define selection and position.
+    if (currentCursor.position() != m_lastCursor.position()
+        || currentCursor.anchor() != m_lastCursor.anchor()) {
+        // The anchor and position define the selection. If either has changed,
+        // the selection/cursor has changed.
+        Q_EMIT selectionChanged();
+    }
+
+    m_lastCursor = currentCursor;
+}
+
+#include <Mod/TechDraw/Gui/moc_QGCustomText.cpp>

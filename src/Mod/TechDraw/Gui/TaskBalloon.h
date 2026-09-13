@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *   Copyright (c) 2019 Franck Jullien <franck.jullien@gmail.com>          *
@@ -21,8 +23,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef GUI_TASKVIEW_TASKBALLOON_H
-#define GUI_TASKVIEW_TASKBALLOON_H
+#pragma once
 
 #include <Gui/TaskView/TaskDialog.h>
 #include <Gui/TaskView/TaskView.h>
@@ -64,7 +65,7 @@ private Q_SLOTS:
     void onShapeScaleChanged();
     void onEndSymbolChanged();
     void onEndSymbolScaleChanged();
-    void onLineVisibleChanged();
+    void onLineVisibleChanged(bool isVisible);
     void onLineWidthChanged();
     void onKinkLengthChanged();
 
@@ -110,5 +111,3 @@ private:
 };
 
 } //namespace TechDrawGui
-
-#endif // #ifndef GUI_TASKVIEW_TASKBALLOON_H

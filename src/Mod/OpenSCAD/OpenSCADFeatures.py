@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
 #***************************************************************************
 #*   Copyright (c) 2012 Sebastian Hoogen <github@sebastianhoogen.de>       *
 #*                                                                         *
@@ -169,8 +170,8 @@ static char * openscadlogo_xpm[] = {
 
 class OpenSCADPlaceholder:
     def __init__(self,obj,children=None,arguments=None):
-        obj.addProperty("App::PropertyLinkList",'Children','OpenSCAD',"Base Objects")
-        obj.addProperty("App::PropertyString",'Arguments','OpenSCAD',"Arguments")
+        obj.addProperty("App::PropertyLinkList",'Children','OpenSCAD',"Base Objects", locked=True)
+        obj.addProperty("App::PropertyString",'Arguments','OpenSCAD',"Arguments", locked=True)
         obj.Proxy = self
         if children:
             obj.Children = children
@@ -189,20 +190,13 @@ class Resize:
         self.Target = target
         self.Vector = vector
         #obj.addProperty("App::PropertyPythonObject","Object","Resize", \
-        #                "Object to be resized").Object = target
-        obj.addProperty("Part::PropertyPartShape","Shape","Resize", "Shape of the Resize")
+        #                "Object to be resized", locked=True).Object = target
+        obj.addProperty("Part::PropertyPartShape","Shape","Resize", "Shape of the Resize", locked=True)
         obj.addProperty("App::PropertyVector","Vector","Resize",
-                        " Resize Vector").Vector = FreeCAD.Vector(vector)
+                        " Resize Vector", locked=True).Vector = FreeCAD.Vector(vector)
         obj.Proxy = self
 
-    def onChanged(self, fp, prop):
-        if prop in ['Object','Vector']:
-            self.createGeometry(fp)
-
     def execute(self, fp):
-        self.createGeometry(fp)
-
-    def createGeometry(self, fp):
         import FreeCAD
         mat = FreeCAD.Matrix()
         mat.A11 = self.Vector[0]
@@ -220,8 +214,8 @@ class Resize:
 class MatrixTransform:
     def __init__(self, obj,matrix=None,child=None):
         obj.addProperty("App::PropertyLink","Base","Base",
-                        "The base object that must be tranfsformed")
-        obj.addProperty("App::PropertyMatrix","Matrix","Matrix", "Transformation Matrix")
+                        "The base object that must be tranfsformed", locked=True)
+        obj.addProperty("App::PropertyMatrix","Matrix","Matrix", "Transformation Matrix", locked=True)
         obj.Proxy = self
         obj.Matrix = matrix
         obj.Base = child
@@ -247,7 +241,7 @@ class MatrixTransform:
 class ImportObject:
     def __init__(self, obj,child=None):
         obj.addProperty("App::PropertyLink", "Base", "Base",
-                        "The base object that must be tranfsformed")
+                        "The base object that must be tranfsformed", locked=True)
         obj.Proxy = self
         obj.Base = child
 
@@ -265,7 +259,7 @@ class RefineShape:
     '''return a refined shape'''
     def __init__(self, obj, child=None):
         obj.addProperty("App::PropertyLink", "Base", "Base",
-                        "The base object that must be refined")
+                        "The base object that must be refined", locked=True)
         obj.Proxy = self
         obj.Base = child
 
@@ -284,25 +278,17 @@ class IncreaseTolerance:
     in the current implementation its' placement is linked'''
     def __init__(self,obj,child,tolerance=0):
         obj.addProperty("App::PropertyLink", "Base", "Base",
-                        "The base object that wire must be extracted")
-        obj.addProperty("App::PropertyDistance","Vertex","Tolerance","Vertexes tolerance (0 default)")
-        obj.addProperty("App::PropertyDistance","Edge","Tolerance","Edges tolerance (0 default)")
-        obj.addProperty("App::PropertyDistance","Face","Tolerance","Faces tolerance (0 default)")
+                        "The base object that wire must be extracted", locked=True)
+        obj.addProperty("App::PropertyDistance","Vertex","Tolerance","Vertexes tolerance (0 default)", locked=True)
+        obj.addProperty("App::PropertyDistance","Edge","Tolerance","Edges tolerance (0 default)", locked=True)
+        obj.addProperty("App::PropertyDistance","Face","Tolerance","Faces tolerance (0 default)", locked=True)
         obj.Base = child
         obj.Vertex = tolerance
         obj.Edge = tolerance
         obj.Face = tolerance
         obj.Proxy = self
 
-    def onChanged(self, fp, prop):
-        # Tolerance property left for backward compatibility
-        if prop in ["Vertex", "Edge", "Face", "Tolerance"]:
-            self.createGeometry(fp)
-
     def execute(self, fp):
-        self.createGeometry(fp)
-
-    def createGeometry(self,fp):
         if fp.Base:
             sh=fp.Base.Shape.copy()
             # Check if property Tolerance exist and preserve support for backward compatibility
@@ -326,7 +312,7 @@ class GetWire:
     '''return the first wire from a given shape'''
     def __init__(self, obj, child=None):
         obj.addProperty("App::PropertyLink","Base","Base",
-                        "The base object that wire must be extracted")
+                        "The base object that wire must be extracted", locked=True)
         obj.Proxy = self
         obj.Base = child
 
@@ -343,10 +329,10 @@ class GetWire:
 
 class Frustum:
     def __init__(self, obj,r1=1,r2=2,n=3,h=4):
-        obj.addProperty("App::PropertyInteger","FacesNumber","Base","Number of faces")
-        obj.addProperty("App::PropertyDistance","Radius1","Base","Radius of lower the inscribed control circle")
-        obj.addProperty("App::PropertyDistance","Radius2","Base","Radius of upper the inscribed control circle")
-        obj.addProperty("App::PropertyDistance","Height","Base","Height of the Frustum")
+        obj.addProperty("App::PropertyInteger","FacesNumber","Base","Number of faces", locked=True)
+        obj.addProperty("App::PropertyDistance","Radius1","Base","Radius of lower the inscribed control circle", locked=True)
+        obj.addProperty("App::PropertyDistance","Radius2","Base","Radius of upper the inscribed control circle", locked=True)
+        obj.addProperty("App::PropertyDistance","Height","Base","Height of the Frustum", locked=True)
 
         obj.FacesNumber = n
         obj.Radius1 = r1
@@ -355,13 +341,6 @@ class Frustum:
         obj.Proxy = self
 
     def execute(self, fp):
-        self.createGeometry(fp)
-
-    def onChanged(self, fp, prop):
-        if prop in ["FacesNumber","Radius1","Radius2","Height"]:
-            self.createGeometry(fp)
-
-    def createGeometry(self,fp):
         if all((fp.Radius1,fp.Radius2,fp.FacesNumber,fp.Height)):
             import math
             import FreeCAD
@@ -394,11 +373,11 @@ class Twist:
     def __init__(self, obj, child=None, h=1.0, angle=0.0, scale=[1.0,1.0]):
         import FreeCAD
         obj.addProperty("App::PropertyLink","Base","Base",
-                        "The base object that must be transformed")
-        obj.addProperty("App::PropertyQuantity","Angle","Base","Twist Angle")
+                        "The base object that must be transformed", locked=True)
+        obj.addProperty("App::PropertyQuantity","Angle","Base","Twist Angle", locked=True)
         obj.Angle = FreeCAD.Units.Angle # assign the Angle unit
-        obj.addProperty("App::PropertyDistance","Height","Base","Height of the Extrusion")
-        obj.addProperty("App::PropertyFloatList","Scale","Base","Scale to apply during the Extrusion")
+        obj.addProperty("App::PropertyDistance","Height","Base","Height of the Extrusion", locked=True)
+        obj.addProperty("App::PropertyFloatList","Scale","Base","Scale to apply during the Extrusion", locked=True)
 
         obj.Base = child
         obj.Angle = angle
@@ -407,13 +386,6 @@ class Twist:
         obj.Proxy = self
 
     def execute(self, fp):
-        self.createGeometry(fp)
-
-    def onChanged(self, fp, prop):
-        if prop in ["Angle","Height","Scale"]:
-            self.createGeometry(fp)
-
-    def createGeometry(self, fp):
         import FreeCAD
         import Part
         import math
@@ -470,9 +442,9 @@ class Twist:
 class PrismaticToroid:
     def __init__(self, obj,child=None,angle=360.0,n=3):
         obj.addProperty("App::PropertyLink","Base","Base",
-                        "The 2D face that will be swept")
-        obj.addProperty("App::PropertyAngle","Angle","Base","Angle to sweep through")
-        obj.addProperty("App::PropertyInteger","Segments","Base","Number of segments per 360° (OpenSCAD's \"$fn\")")
+                        "The 2D face that will be swept", locked=True)
+        obj.addProperty("App::PropertyAngle","Angle","Base","Angle to sweep through", locked=True)
+        obj.addProperty("App::PropertyInteger","Segments","Base","Number of segments per 360° (OpenSCAD's \"$fn\")", locked=True)
 
         obj.Base = child
         obj.Angle =  angle
@@ -480,13 +452,6 @@ class PrismaticToroid:
         obj.Proxy = self
 
     def execute(self, fp):
-        self.createGeometry(fp)
-
-    def onChanged(self, fp, prop):
-        if prop in ["Angle","Segments"]:
-            self.createGeometry(fp)
-
-    def createGeometry(self,fp):
         import FreeCAD
         import Part
         import math
@@ -553,29 +518,22 @@ class PrismaticToroid:
 class OffsetShape:
     def __init__(self, obj,child=None,offset=1.0):
         obj.addProperty("App::PropertyLink","Base","Base",
-                        "The base object that must be transformed")
-        obj.addProperty("App::PropertyDistance","Offset","Base","Offset outwards")
+                        "The base object that must be transformed", locked=True)
+        obj.addProperty("App::PropertyDistance","Offset","Base","Offset outwards", locked=True)
 
         obj.Base = child
         obj.Offset = offset
         obj.Proxy = self
 
     def execute(self, fp):
-        self.createGeometry(fp)
-
-    def onChanged(self, fp, prop):
-        if prop in ["Offset"]:
-            self.createGeometry(fp)
-
-    def createGeometry(self,fp):
         if fp.Base and fp.Offset:
             fp.Shape=fp.Base.Shape.makeOffsetShape(fp.Offset.Value,1e-6)
 
 class CGALFeature:
     def __init__(self,obj,opname=None,children=None,arguments=None):
-        obj.addProperty("App::PropertyLinkList",'Children','OpenSCAD',"Base Objects")
-        obj.addProperty("App::PropertyString",'Arguments','OpenSCAD',"Arguments")
-        obj.addProperty("App::PropertyString",'Operation','OpenSCAD',"Operation")
+        obj.addProperty("App::PropertyLinkList",'Children','OpenSCAD',"Base Objects", locked=True)
+        obj.addProperty("App::PropertyString",'Arguments','OpenSCAD',"Arguments", locked=True)
+        obj.addProperty("App::PropertyString",'Operation','OpenSCAD',"Operation", locked=True)
         obj.Proxy = self
         if opname:
             obj.Operation = opname

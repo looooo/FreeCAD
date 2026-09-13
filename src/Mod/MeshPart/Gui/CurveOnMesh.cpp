@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2017 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,9 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
-#ifndef _PreComp_
 #include <QMenu>
 #include <QPointer>
 #include <QStatusBar>
@@ -49,7 +49,6 @@
 #include <Inventor/nodes/SoLineSet.h>
 #include <Inventor/nodes/SoPointSet.h>
 #include <Inventor/nodes/SoSeparator.h>
-#endif
 
 #include <App/Document.h>
 #include <Base/Converter.h>
@@ -70,13 +69,13 @@
 
 
 #ifndef HAVE_ACOSH
-#define HAVE_ACOSH
+# define HAVE_ACOSH
 #endif
 #ifndef HAVE_ASINH
-#define HAVE_ASINH
+# define HAVE_ASINH
 #endif
 #ifndef HAVE_ATANH
-#define HAVE_ATANH
+# define HAVE_ATANH
 #endif
 
 
@@ -263,7 +262,7 @@ public:
     }
     void createGrid()
     {
-        Mesh::Feature* mf = static_cast<Mesh::Feature*>(mesh->getObject());
+        Mesh::Feature* mf = mesh->getObject<Mesh::Feature>();
         const Mesh::MeshObject& meshObject = mf->Mesh.getValue();
         kernel = meshObject.getKernel();
         kernel.Transform(meshObject.getTransform());
@@ -280,8 +279,7 @@ public:
         MeshCore::MeshProjection meshProjection(kernel);
         Base::Vector3f v1 = Base::convertTo<Base::Vector3f>(last.point);
         Base::Vector3f v2 = Base::convertTo<Base::Vector3f>(pick.point);
-        Base::Vector3f vd =
-            Base::convertTo<Base::Vector3f>(viewer->getViewer()->getViewDirection());
+        Base::Vector3f vd = Base::convertTo<Base::Vector3f>(viewer->getViewer()->getViewDirection());
         if (meshProjection.projectLineOnMesh(*grid, v1, last.facet, v2, pick.facet, vd, polyline)) {
             if (polyline.size() > 1) {
                 if (cutLines.empty()) {
@@ -345,10 +343,7 @@ void CurveOnMeshHandler::enableApproximation(bool on)
     d_ptr->approximate = on;
 }
 
-void CurveOnMeshHandler::setParameters(int maxDegree,
-                                       GeomAbs_Shape cont,
-                                       double tol3d,
-                                       double angle)
+void CurveOnMeshHandler::setParameters(int maxDegree, GeomAbs_Shape cont, double tol3d, double angle)
 {
     d_ptr->par.maxDegree = maxDegree;
     d_ptr->par.cont = cont;
@@ -488,11 +483,7 @@ Handle(Geom_BSplineCurve) CurveOnMeshHandler::approximateSpline(const std::vecto
         // GeomAPI_PointsToBSpline fit(pnts, d_ptr->par.weight1, d_ptr->par.weight2,
         // d_ptr->par.weight3,
         //                             d_ptr->par.maxDegree, d_ptr->par.cont, d_ptr->par.tol3d);
-        GeomAPI_PointsToBSpline fit(pnts,
-                                    1,
-                                    d_ptr->par.maxDegree,
-                                    d_ptr->par.cont,
-                                    d_ptr->par.tol3d);
+        GeomAPI_PointsToBSpline fit(pnts, 1, d_ptr->par.maxDegree, d_ptr->par.cont, d_ptr->par.tol3d);
         Handle(Geom_BSplineCurve) spline = fit.Curve();
         return spline;
     }
@@ -513,9 +504,11 @@ void CurveOnMeshHandler::approximateEdge(const TopoDS_Edge& edge, double toleran
         pts.reserve(numNodes);
         for (int i = aNodes.Lower(); i <= aNodes.Upper(); i++) {
             const gp_Pnt& p = aNodes.Value(i);
-            pts.emplace_back(static_cast<float>(p.X()),
-                             static_cast<float>(p.Y()),
-                             static_cast<float>(p.Z()));
+            pts.emplace_back(
+                static_cast<float>(p.X()),
+                static_cast<float>(p.Y()),
+                static_cast<float>(p.Z())
+            );
         }
 
         d_ptr->curve->setPoints(pts);
@@ -533,7 +526,7 @@ void CurveOnMeshHandler::displaySpline(const Handle(Geom_BSplineCurve) & spline)
         Gui::View3DInventorViewer* view3d = d_ptr->viewer->getViewer();
         App::Document* doc = view3d->getDocument()->getDocument();
         doc->openTransaction("Add spline");
-        Part::Feature* part = static_cast<Part::Feature*>(doc->addObject("Part::Spline", "Spline"));
+        Part::Feature* part = doc->addObject<Part::Feature>("Spline");
         part->Shape.setValue(edge);
         doc->commitTransaction();
     }
@@ -562,8 +555,7 @@ void CurveOnMeshHandler::displayPolyline(const TopoDS_Wire& wire)
         Gui::View3DInventorViewer* view3d = d_ptr->viewer->getViewer();
         App::Document* doc = view3d->getDocument()->getDocument();
         doc->openTransaction("Add polyline");
-        Part::Feature* part =
-            static_cast<Part::Feature*>(doc->addObject("Part::Feature", "Polyline"));
+        Part::Feature* part = doc->addObject<Part::Feature>("Polyline");
         part->Shape.setValue(wire);
         doc->commitTransaction();
     }
@@ -610,8 +602,7 @@ void CurveOnMeshHandler::Private::vertexCallback(void* ud, SoEventCallback* cb)
                 if (!self->d_ptr->wireClosed) {
                     Gui::ViewProvider* vp = view->getViewProviderByPathFromTail(pp->getPath());
                     if (vp && vp->isDerivedFrom<MeshGui::ViewProviderMesh>()) {
-                        MeshGui::ViewProviderMesh* mesh =
-                            static_cast<MeshGui::ViewProviderMesh*>(vp);
+                        MeshGui::ViewProviderMesh* mesh = static_cast<MeshGui::ViewProviderMesh*>(vp);
                         const SoDetail* detail = pp->getDetail();
                         if (detail && detail->getTypeId() == SoFaceDetail::getClassTypeId()) {
                             // get the mesh and build a grid
@@ -621,7 +612,8 @@ void CurveOnMeshHandler::Private::vertexCallback(void* ud, SoEventCallback* cb)
                             }
                             else if (self->d_ptr->mesh != mesh) {
                                 Gui::getMainWindow()->statusBar()->showMessage(
-                                    tr("Wrong mesh picked"));
+                                    tr("Wrong mesh selected")
+                                );
                                 return;
                             }
 
@@ -660,11 +652,12 @@ void CurveOnMeshHandler::Private::vertexCallback(void* ud, SoEventCallback* cb)
                 }
             }
             else {
-                Gui::getMainWindow()->statusBar()->showMessage(tr("No point was picked"));
+                Gui::getMainWindow()->statusBar()->showMessage(tr("No point was selected"));
             }
         }
-        else if (mbe->getButton() == SoMouseButtonEvent::BUTTON2
-                 && mbe->getState() == SoButtonEvent::UP) {
+        else if (
+            mbe->getButton() == SoMouseButtonEvent::BUTTON2 && mbe->getState() == SoButtonEvent::UP
+        ) {
             CurveOnMeshHandler* self = static_cast<CurveOnMeshHandler*>(ud);
             QTimer::singleShot(100, self, &CurveOnMeshHandler::onContextMenu);
         }

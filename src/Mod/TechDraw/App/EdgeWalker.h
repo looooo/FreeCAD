@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -25,8 +27,7 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 //**************************************************************************
 
-#ifndef TECHDRAW_EDGEWALKER_H
-#define TECHDRAW_EDGEWALKER_H
+#pragma once
 
 #include <vector>
 
@@ -71,14 +72,15 @@ using planar_embedding_t =
 class TechDrawExport WalkerEdge
 {
 public:
+    WalkerEdge();
     static bool weCompare(WalkerEdge i, WalkerEdge j);
     bool isEqual(WalkerEdge w);
     std::string dump();
 
-    std::size_t v1;
-    std::size_t v2;
+    std::size_t v1 {0};
+    std::size_t v2 {0};
     edge_t ed;
-    std::size_t idx;
+    std::size_t idx {0};
 };
 
 class TechDrawExport ewWire
@@ -190,5 +192,3 @@ private:
 };
 
 }  //end namespace TechDraw
-
-#endif //TECHDRAW_EDGEWALKER_H

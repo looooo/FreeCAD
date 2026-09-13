@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 # ***************************************************************************
 # *   Copyright (c) 2022 Wanderer Fan <wandererfan@gmail.com>               *
 # *                                                                         *
@@ -45,7 +47,7 @@ class CommandMoveView:
         return {'Pixmap': 'actions/TechDraw_MoveView.svg',
                 'Accel': "",
                 'MenuText': QT_TRANSLATE_NOOP("TechDraw_MoveView", "Move View"),
-                'ToolTip': QT_TRANSLATE_NOOP("TechDraw_MoveView", "Move a View to a new Page")}
+                'ToolTip': QT_TRANSLATE_NOOP("TechDraw_MoveView", "Moves a view to a new page")}
 
     def Activated(self):
         """Run the following code when the command is activated (button press)."""

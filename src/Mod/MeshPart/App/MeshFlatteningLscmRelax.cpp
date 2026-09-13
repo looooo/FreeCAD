@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2017 Lorenz Lechner                                     *
  *                                                                         *
@@ -20,19 +22,14 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <array>
 #include <cmath>
 #include <iostream>
 #include <map>
+#include <numbers>
 #include <set>
 #include <vector>
-#endif
 
-#ifndef M_PI
-#define M_PI 3.14159265358979323846f
-#endif
 
 #include <Eigen/SparseCholesky>
 
@@ -511,7 +508,7 @@ void LscmRelax::set_q_l_g()
         Vector3 r31 = r3 - r1;
         double r21_norm = r21.norm();
         r21.normalize();
-        // if triangle is fliped this gives wrong results?
+        // if triangle is flipped this gives wrong results?
         this->q_l_g.row(i) << r21_norm, r31.dot(r21), r31.cross(r21).norm();
     }
 }
@@ -531,7 +528,7 @@ void LscmRelax::set_q_l_m()
         Vector2 r31 = r3 - r1;
         double r21_norm = r21.norm();
         r21.normalize();
-        // if triangle is fliped this gives wrong results!
+        // if triangle is flipped this gives wrong results!
         this->q_l_m.row(i) << r21_norm, r31.dot(r21), -(r31.x() * r21.y() - r31.y() * r21.x());
     }
 }
@@ -649,7 +646,7 @@ void LscmRelax::rotate_by_min_bound_area()
     // rotate vector by 90 degree and find min area
     for (int i = 0; i < n + 1; i++ )
     {
-        phi = i * M_PI / n;
+        phi = i * std::numbers::pi / n;
         Eigen::VectorXd x_proj = this->flat_vertices.transpose() * Vector2(std::cos(phi), std::sin(phi));
         Eigen::VectorXd y_proj = this->flat_vertices.transpose() * Vector2(-std::sin(phi), std::cos(phi));
         double x_distance = x_proj.maxCoeff() - x_proj.minCoeff();
@@ -663,7 +660,7 @@ void LscmRelax::rotate_by_min_bound_area()
         }
     }
     Eigen::Matrix<double, 2, 2> rot;
-    min_phi += x_dominant * M_PI / 2;
+    min_phi += x_dominant * std::numbers::pi / 2;
     rot << std::cos(min_phi), std::sin(min_phi), -std::sin(min_phi), std::cos(min_phi);
     this->flat_vertices = rot * this->flat_vertices;
 }

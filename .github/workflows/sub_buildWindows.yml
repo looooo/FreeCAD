@@ -24,37 +24,64 @@
 
 name: Build Windows
 on:
+  workflow_dispatch:
+    inputs:
+      artifactBasename:
+        description: "Base name for artifact"
+        required: false
+        type: string
+        default: "FreeCAD"
+      allowedToFail:
+        description: "whether a failed build is allowed"
+        required: false
+        type: boolean
+        default: false
+      skipBuild:
+        description: "skip the actual build (report success only)"
+        required: false
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       artifactBasename:
-        type: string
         required: true
+        type: string
       allowedToFail:
+        required: false
         default: false
         type: boolean
+      skipBuild:
         required: false
+        default: false
+        type: boolean
     outputs:
       reportFile:
         value: ${{ jobs.Build.outputs.reportFile }}
 
+permissions:
+  contents: read
+
 jobs:
   Build:
-    runs-on: windows-latest
+    runs-on: windows-2022
     continue-on-error: ${{ inputs.allowedToFail }}
     env:
-      CCACHE_DIR: C:/FC/cache/
       CCACHE_COMPILERCHECK: "%compiler%" # default:mtime
-      CCACHE_MAXSIZE: 1G
       CCACHE_COMPRESS: true
-      CCACHE_COMPRESSLEVEL: 1
-      CCACHE_NOHASHDIR: true
-      CCACHE_DIRECT: true
-      #CCACHE_SLOPPINESS: "pch_defines,time_macros" # Can't get PCH to work on Windows
+      CCACHE_COMPRESSLEVEL: 5
+      CCACHE_DIR: C:/FC/cache/
       CCACHE_LOGFILE: C:/logs/ccache.log
+      CCACHE_MAXSIZE: 1G
+      CCACHE_NODIRECT: true
+      CCACHE_NOHASHDIR: true
+      CCACHE_NOINODECACHE: true
+      CCACHE_SLOPPINESS: "include_file_ctime,include_file_mtime,pch_defines,time_macros" # Can't get PCH to work on Windows
       ## Have to use C:\ because not enough space on workspace drive
       builddir: C:/FC/build/release/
-      libpackdir: C:/FC/libpack/
+      cacheKey: Windows
       ccachebindir: C:/FC/ccache/
+      config: release
+      libpackdir: C:/FC/libpack/
       logdir: C:/logs/
       reportdir: C:/report/
       reportfilename: ${{ inputs.artifactBasename }}-report.md
@@ -62,11 +89,20 @@ jobs:
       reportFile: ${{ steps.Init.outputs.reportFile }}
 
     steps:
+      - name: Harden the runner (Audit all outbound calls)
+        if: "!inputs.skipBuild"
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
       - name: Checking out source code
-        uses: actions/checkout@v3
+        if: "!inputs.skipBuild"
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           submodules: true
+
       - name: Make needed directories, files and initializations
+        if: "!inputs.skipBuild"
         id: Init
         run: |
           mkdir ${{ env.CCACHE_DIR }}
@@ -76,73 +112,93 @@ jobs:
           mkdir ${{ env.logdir }}
           mkdir ${{ env.reportdir }}
           echo "reportFile=${{ env.reportfilename }}" >> $GITHUB_OUTPUT
+
       - name: Get Ccache
+        if: "!inputs.skipBuild"
         uses: ./.github/workflows/actions/windows/getCcache
         with:
           ccachebindir: ${{ env.ccachebindir }}
+
       - name: Get Libpack
+        if: "!inputs.skipBuild"
         uses: ./.github/workflows/actions/windows/getLibpack
         with:
           libpackdir: ${{ env.libpackdir }}
+
       - name: Restore compiler cache
-        uses: pat-s/always-upload-cache@v3
+        id: cache-restore
+        if: "!inputs.skipBuild"
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.CCACHE_DIR }}
-          key: FC-Windows-${{ github.ref }}-${{ github.run_id }}
+          key: FC-${{ env.cacheKey }}-${{ github.ref }}-${{ github.run_id }}
           restore-keys: |
-            FC-Windows-${{ github.ref }}-
-            FC-Windows-
+            FC-${{ env.cacheKey }}-${{ github.ref }}-
+            FC-${{ env.cacheKey }}-
+
       - name: Print Ccache statistics before build, reset stats and print config
+        if: "!inputs.skipBuild"
         run: |
           . $env:ccachebindir\ccache -s
           . $env:ccachebindir\ccache -z
           . $env:ccachebindir\ccache -p
-      - name: Append Libpack bin directory to Path
-        if: false # Disabled because not enough to set FREECAD_COPY_LIBPACK_BIN_TO_BUILD=OFF
-        run: |
-          echo "${{ env.libpackdir }}/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install cmake
+        if: "!inputs.skipBuild"
+        uses: jwlawson/actions-setup-cmake@0d6a7d60b009d01c9e7523be22153ff8f19460d3 # v2.2.0
+        with:
+          cmake-version: '3.31.6'
+
       - name: Configuring CMake
+        if: "!inputs.skipBuild"
         run: >
           cmake -B"${{ env.builddir }}" .
-          --preset release
+          --preset ${{ env.config }}
           -DCMAKE_VS_NO_COMPILE_BATCHING=ON
           -DCMAKE_BUILD_TYPE=Release
           -DFREECAD_USE_PCH=OFF
           -DFREECAD_RELEASE_PDB=OFF
           -DFREECAD_LIBPACK_DIR="${{ env.libpackdir }}"
-          -DPYTHON_DEBUG_LIBRARY="${{ env.libpackdir }}bin/libs/python38_d.lib"
-          -DPYTHON_EXECUTABLE="${{ env.libpackdir }}bin/python.exe"
-          -DPYTHON_INCLUDE_DIR="${{ env.libpackdir }}bin/include"
-          -DPYTHON_LIBRARY="${{ env.libpackdir }}bin/libs/python38.lib"
-          -DXercesC_INCLUDE_DIR="${{ env.libpackdir }}include"
-          -DXercesC_LIBRARY_RELEASE="${{ env.libpackdir }}lib/xerces-c_3.lib"
-          -DXercesC_LIBRARY_DEBUG="${{ env.libpackdir }}lib/xerces-c_3D.lib"
           -DFREECAD_COPY_DEPEND_DIRS_TO_BUILD=ON
-          -DFREECAD_COPY_LIBPACK_BIN_TO_BUILD=OFF
+          -DFREECAD_COPY_LIBPACK_BIN_TO_BUILD=ON
           -DFREECAD_COPY_PLUGINS_BIN_TO_BUILD=ON
+
       - name: Add msbuild to PATH
-        uses: microsoft/setup-msbuild@v1.3
+        uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57 # v3.0.0
+
       - name: Compiling sources
+        if: "!inputs.skipBuild"
         run: |
           cd $env:builddir
           msbuild ALL_BUILD.vcxproj /m /p:Configuration=Release /p:TrackFileAccess=false /p:CLToolPath=${{ env.ccachebindir }}
+
       - name: Print Ccache statistics after build
+        if: "!inputs.skipBuild"
         run: |
           . $env:ccachebindir\ccache -s
-      - name: Move libpack bin folder to build folder # Shorter in time than copying with CMake FREECAD_COPY_LIBPACK_BIN_TO_BUILD
-        run: |
-          Move-Item -Force -Path ${{ env.libpackdir }}bin -Destination ${{ env.builddir }}
+
       - name: C++ unit tests
-        if: false # Disabled because seems to not function on Windows build
+        if: false # Disabled because seems to not function on Windows build  # also: && !inputs.skipBuild
         timeout-minutes: 1
         run: |
           . ${{ env.builddir }}\tests\Release\Tests_run --gtest_output=json:${{ env.reportdir }}gtest_results.json # 2>&1 | tee -filepath ${{ env.logdir }}\unitTests.log
+
       - name: FreeCAD CLI tests
+        if: "!inputs.skipBuild"
         run: |
           . ${{ env.builddir }}\bin\FreeCADCmd -t 0 # 2>&1 | tee -filepath ${{ env.logdir }}\integrationTests.log
+
+      - name: Save Compiler Cache
+        id: cache-save
+        if: "!inputs.skipBuild"
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: FC-${{ env.cacheKey }}-${{ github.ref }}-${{ github.run_id }}
+
       - name: Upload logs
-        if: always()
-        uses: actions/upload-artifact@v3
+        if: "!inputs.skipBuild"
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ inputs.artifactBasename }}-Logs
           path: |

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2019 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,14 +22,10 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 # include <cmath>
 # include <QStatusBar>
-#endif // #ifndef _PreComp_
 
 #include <Base/Console.h>
-#include <Base/Tools.h>
 #include <Base/UnitsApi.h>
 #include <Gui/Application.h>
 #include <Gui/BitmapFactory.h>
@@ -65,12 +63,12 @@ TaskCosVertex::TaskCosVertex(TechDraw::DrawViewPart* baseFeat,
     m_baseFeat(baseFeat),
     m_basePage(page),
     m_qgParent(nullptr),
-    m_trackerMode(QGTracker::None),
+    m_trackerMode(QGTracker::TrackerMode::None),
     m_saveContextPolicy(Qt::DefaultContextMenu),
     m_inProgressLock(false),
     m_btnOK(nullptr),
     m_btnCancel(nullptr),
-    m_pbTrackerState(TRACKERPICK),
+    m_pbTrackerState(TrackerAction::PICK),
     m_savePoint(QPointF(0.0, 0.0))
 {
     //baseFeat and page existence checked in cosmetic vertex command (CommandAnnotate.cpp)
@@ -105,14 +103,14 @@ void TaskCosVertex::changeEvent(QEvent* event)
 
 void TaskCosVertex::setUiPrimary()
 {
-//    Base::Console().Message("TCV::setUiPrimary()\n");
+//    Base::Console().message("TCV::setUiPrimary()\n");
     setWindowTitle(QObject::tr("New Cosmetic Vertex"));
 
     if (m_baseFeat) {
         std::string baseName = m_baseFeat->getNameInDocument();
-        ui->leBaseView->setText(Base::Tools::fromStdString(baseName));
+        ui->leBaseView->setText(QString::fromStdString(baseName));
     }
-    ui->pbTracker->setText(tr("Point Picker"));
+    ui->pbTracker->setText(tr("Pick Point"));
     ui->pbTracker->setEnabled(true);
     ui->dsbX->setEnabled(true);
     ui->dsbY->setEnabled(true);
@@ -132,18 +130,17 @@ void TaskCosVertex::updateUi()
     ui->dsbY->setValue(y);
 }
 
+//! create the cv as entered, addCosmeticVertex will invert it
 void TaskCosVertex::addCosVertex(QPointF qPos)
 {
-    Gui::Command::openCommand(QT_TRANSLATE_NOOP("Command", "Add Cosmetic Vertex"));
+    int tid = Gui::Command::openActiveDocumentCommand(QT_TRANSLATE_NOOP("Command", "Add Cosmetic Vertex"));
 
-//    Base::Console().Message("TCV::addCosVertex(%s)\n", TechDraw::DrawUtil::formatVector(qPos).c_str());
-    Base::Vector3d pos = DU::invertY(DU::toVector3d(qPos));
-    pos = CosmeticVertex::makeCanonicalPoint(m_baseFeat, pos);
+//    Base::Vector3d pos = DU::invertY(DU::toVector3d(qPos));
 //    int idx =
-    (void) m_baseFeat->addCosmeticVertex(pos);
+    (void) m_baseFeat->addCosmeticVertex(DU::toVector3d(qPos));
     m_baseFeat->requestPaint();
 
-    Gui::Command::commitCommand();
+    Gui::Command::commitCommand(tid);
 }
 
 
@@ -151,14 +148,14 @@ void TaskCosVertex::addCosVertex(QPointF qPos)
 void TaskCosVertex::onTrackerClicked(bool clicked)
 {
     Q_UNUSED(clicked);
-//    Base::Console().Message("TCV::onTrackerClicked() m_pbTrackerState: %d\n",
+//    Base::Console().message("TCV::onTrackerClicked() m_pbTrackerState: %d\n",
 //                            m_pbTrackerState);
 
     removeTracker();
 
-    if (m_pbTrackerState == TRACKERCANCEL) {
-        m_pbTrackerState = TRACKERPICK;
-        ui->pbTracker->setText(tr("Pick Points"));
+    if (m_pbTrackerState == TrackerAction::CANCEL) {
+        m_pbTrackerState = TrackerAction::PICK;
+        ui->pbTracker->setText(tr("Pick Point"));
         enableTaskButtons(true);
 
         setEditCursor(Qt::ArrowCursor);
@@ -175,21 +172,24 @@ void TaskCosVertex::onTrackerClicked(bool clicked)
     QString msg = tr("Pick a point for cosmetic vertex");
     getMainWindow()->statusBar()->show();
     Gui::getMainWindow()->showMessage(msg, 3000);
-    ui->pbTracker->setText(tr("Escape picking"));
+    ui->pbTracker->setText(tr("Escape Picking"));
     ui->pbTracker->setEnabled(true);
-    m_pbTrackerState = TRACKERCANCEL;
+    m_pbTrackerState = TrackerAction::CANCEL;
     enableTaskButtons(false);
 }
 
 void TaskCosVertex::startTracker()
 {
-//    Base::Console().Message("TCV::startTracker()\n");
+//    Base::Console().message("TCV::startTracker()\n");
     if (m_trackerMode == QGTracker::TrackerMode::None) {
         return;
     }
 
     if (!m_tracker) {
         m_tracker = new QGTracker(m_vpp->getQGSPage(), m_trackerMode);
+        std::string parentName = m_baseFeat->getNameInDocument();
+        QGIView* parentView = m_vpp->getQGSPage()->getQGIVByName(parentName);
+        m_tracker->setOwnerQView(parentView);
         QObject::connect(
             m_tracker, &QGTracker::drawingFinished,
             this, &TaskCosVertex::onTrackerFinished
@@ -207,10 +207,9 @@ void TaskCosVertex::startTracker()
 
 void TaskCosVertex::onTrackerFinished(std::vector<QPointF> pts, QGIView* qgParent)
 {
-    //    Base::Console().Message("TCV::onTrackerFinished()\n");
     (void)qgParent;
     if (pts.empty()) {
-        Base::Console().Error("TaskCosVertex - no points available\n");
+        Base::Console().error("TaskCosVertex - no points available\n");
         return;
     }
 
@@ -220,36 +219,35 @@ void TaskCosVertex::onTrackerFinished(std::vector<QPointF> pts, QGIView* qgParen
     double y = Rez::guiX(m_baseFeat->Y.getValue());
 
     DrawViewPart* dvp = m_baseFeat;
-    DrawProjGroupItem* dpgi = dynamic_cast<DrawProjGroupItem*>(dvp);
+    DrawProjGroupItem* dpgi = freecad_cast<DrawProjGroupItem*>(dvp);
     if (dpgi) {
         DrawProjGroup* dpg = dpgi->getPGroup();
-        if (!dpg) {
-            Base::Console().Message("TCV:onTrackerFinished - projection group is confused\n");
-            //TODO::throw something.
-            return;
+        if (dpg) {
+            x += Rez::guiX(dpg->X.getValue());
+            y += Rez::guiX(dpg->Y.getValue());
         }
-        x += Rez::guiX(dpg->X.getValue());
-        y += Rez::guiX(dpg->Y.getValue());
     }
     //x, y are scene pos of dvp/dpgi
 
     QPointF basePosScene(x, -y);                 //base position in scene coords
-    QPointF displace = dragEnd - basePosScene;
-    QPointF scenePosCV = displace;
+    QPointF scenePosCV = dragEnd - basePosScene;
 
-    //  Invert Y value so the math works.
-    Base::Vector3d posToRotate = DU::invertY(DU::toVector3d(scenePosCV));
-    posToRotate = CosmeticVertex::makeCanonicalPoint(m_baseFeat, posToRotate);
+    // Invert Y value so the math works.
+    // scenePosCV is effectively a scaled (and rotated), inverted value
+    // Base::Vector3d posToRotate = DU::invertY(DU::toVector3d(scenePosCV));
+
+    // unscale and rotate the picked point
+    Base::Vector3d posToRotate = CosmeticVertex::makeCanonicalPointInverted(m_baseFeat, DU::toVector3d(scenePosCV));
     // now put Y value back to display form
-    scenePosCV = DU::toQPointF(DU::invertY(posToRotate));
+    scenePosCV = DU::toQPointF(posToRotate);
 
     m_savePoint = Rez::appX(scenePosCV);
     updateUi();
 
     m_tracker->sleep(true);
     m_inProgressLock = false;
-    m_pbTrackerState = TRACKERPICK;
-    ui->pbTracker->setText(tr("Pick Points"));
+    m_pbTrackerState = TrackerAction::PICK;
+    ui->pbTracker->setText(tr("Pick Point"));
     ui->pbTracker->setEnabled(true);
     enableTaskButtons(true);
     setEditCursor(Qt::ArrowCursor);
@@ -259,7 +257,7 @@ void TaskCosVertex::onTrackerFinished(std::vector<QPointF> pts, QGIView* qgParen
 
 void TaskCosVertex::removeTracker()
 {
-//    Base::Console().Message("TCV::removeTracker()\n");
+//    Base::Console().message("TCV::removeTracker()\n");
     if (m_tracker && m_tracker->scene()) {
         m_vpp->getQGSPage()->removeItem(m_tracker);
         delete m_tracker;
@@ -307,11 +305,12 @@ bool TaskCosVertex::accept()
         return false;
 
     removeTracker();
-    // whatever is in the ui for x,y is treated as an unscaled, unrotated, invertedY position.
+    // whatever is in the ui for x,y is treated as an unscaled, unrotated, conventional Y position.
     // the position from the tracker is unscaled & unrotated before updating the ui
     double x = ui->dsbX->value().getValue();
     double y = ui->dsbY->value().getValue();
-    QPointF uiPoint(x, -y);
+    QPointF uiPoint(x, y);
+
     addCosVertex(uiPoint);
 
     m_baseFeat->recomputeFeature();

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2014 Luke Parry <l.parry@warwick.ac.uk>                 *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TECHDRAW_DrawParametricTemplate_h_
-#define TECHDRAW_DrawParametricTemplate_h_
+#pragma once
 
 #include <App/FeaturePython.h>
 #include <App/PropertyFile.h>
@@ -92,7 +93,3 @@ private:
 using DrawParametricTemplatePython = App::FeaturePythonT<DrawParametricTemplate>;
 
 } //namespace TechDraw
-
-
-
-#endif //_TECHDRAW_DrawParametricTemplate_h_

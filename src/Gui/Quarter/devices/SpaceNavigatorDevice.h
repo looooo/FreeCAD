@@ -1,5 +1,4 @@
-#ifndef QUARTER_SPACENAVIGATORDEVICE_H
-#define QUARTER_SPACENAVIGATORDEVICE_H
+#pragma once
 
 /**************************************************************************\
  * Copyright (c) Kongsberg Oil & Gas Technologies AS
@@ -42,8 +41,7 @@ namespace SIM { namespace Coin3D { namespace Quarter {
 
 class QUARTER_DLL_API SpaceNavigatorDevice : public InputDevice {
  public:
-  SpaceNavigatorDevice(QuarterWidget* quarter);
-  SpaceNavigatorDevice();
+  explicit SpaceNavigatorDevice(QuarterWidget* quarter);
   ~SpaceNavigatorDevice() override;
   const SoEvent * translateEvent(QEvent * event) override;
 
@@ -53,4 +51,3 @@ class QUARTER_DLL_API SpaceNavigatorDevice : public InputDevice {
 };
 
 }}}
-#endif // !QUARTER_SPACENAVIGATORDEVICE_H

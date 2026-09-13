@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2009 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,25 +22,26 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
+#include <FCConfig.h>
 
 #ifndef FC_OS_WIN32
-#ifndef GL_GLEXT_PROTOTYPES
-#define GL_GLEXT_PROTOTYPES 1
-#endif
+# ifndef GL_GLEXT_PROTOTYPES
+#  define GL_GLEXT_PROTOTYPES 1
+# endif
+#else
+# include <windows.h>
 #endif
 
-#ifndef _PreComp_
 #include <algorithm>
-#include <climits>
+#include <limits>
 #ifdef FC_OS_MACOSX
-#include <OpenGL/gl.h>
-#include <OpenGL/glext.h>
-#include <OpenGL/glu.h>
+# include <OpenGL/gl.h>
+# include <OpenGL/glext.h>
+# include <OpenGL/glu.h>
 #else
-#include <GL/gl.h>
-#include <GL/glext.h>
-#include <GL/glu.h>
+# include <GL/gl.h>
+# include <GL/glext.h>
+# include <GL/glu.h>
 #endif
 #include <Inventor/actions/SoGLRenderAction.h>
 #include <Inventor/actions/SoSearchAction.h>
@@ -54,12 +57,12 @@
 #include <Inventor/elements/SoViewingMatrixElement.h>
 #include <Inventor/errors/SoDebugError.h>
 #include <Inventor/nodes/SoCoordinate3.h>
-#endif
+
 #include <Inventor/C/glue/gl.h>
 
 #include <Gui/GLBuffer.h>
 #include <Gui/SoFCInteractiveElement.h>
-#include <Gui/SoFCSelectionAction.h>
+#include <Gui/Selection/SoFCSelectionAction.h>
 
 #include "SoFCIndexedFaceSet.h"
 
@@ -81,10 +84,12 @@ public:
 
     Private();
     bool canRenderGLArray(SoGLRenderAction*) const;
-    void generateGLArrays(SoGLRenderAction* action,
-                          SoMaterialBindingElement::Binding matbind,
-                          std::vector<float>& vertex,
-                          std::vector<int32_t>& index);
+    void generateGLArrays(
+        SoGLRenderAction* action,
+        SoMaterialBindingElement::Binding matbind,
+        std::vector<float>& vertex,
+        std::vector<int32_t>& index
+    );
     void renderFacesGLArray(SoGLRenderAction*);
     void renderCoordsGLArray(SoGLRenderAction*);
     void update();
@@ -106,8 +111,7 @@ bool MeshRenderer::Private::canRenderGLArray(SoGLRenderAction* action) const
     if (!init) {
         vboAvailable = Gui::OpenGLBuffer::isVBOSupported(action->getCacheContext());
         if (!vboAvailable) {
-            SoDebugError::postInfo("MeshRenderer",
-                                   "GL_ARB_vertex_buffer_object extension not supported");
+            SoDebugError::postInfo("MeshRenderer", "GL_ARB_vertex_buffer_object extension not supported");
         }
         init = true;
     }
@@ -115,10 +119,12 @@ bool MeshRenderer::Private::canRenderGLArray(SoGLRenderAction* action) const
     return vboAvailable;
 }
 
-void MeshRenderer::Private::generateGLArrays(SoGLRenderAction* action,
-                                             SoMaterialBindingElement::Binding matbind,
-                                             std::vector<float>& vertex,
-                                             std::vector<int32_t>& index)
+void MeshRenderer::Private::generateGLArrays(
+    SoGLRenderAction* action,
+    SoMaterialBindingElement::Binding matbind,
+    std::vector<float>& vertex,
+    std::vector<int32_t>& index
+)
 {
     if (vertex.empty() || index.empty()) {
         return;
@@ -133,11 +139,11 @@ void MeshRenderer::Private::generateGLArrays(SoGLRenderAction* action,
     indices.create();
 
     vertices.bind();
-    vertices.allocate(&(vertex[0]), vertex.size() * sizeof(float));
+    vertices.allocate(vertex.data(), vertex.size() * sizeof(float));
     vertices.release();
 
     indices.bind();
-    indices.allocate(&(index[0]), index.size() * sizeof(int32_t));
+    indices.allocate(index.data(), index.size() * sizeof(int32_t));
     indices.release();
     this->matbinding = matbind;
 }
@@ -212,10 +218,12 @@ public:
     {}
 
     bool canRenderGLArray(SoGLRenderAction*) const;
-    void generateGLArrays(SoGLRenderAction* action,
-                          SoMaterialBindingElement::Binding matbind,
-                          std::vector<float>& vertex,
-                          std::vector<int32_t>& index);
+    void generateGLArrays(
+        SoGLRenderAction* action,
+        SoMaterialBindingElement::Binding matbind,
+        std::vector<float>& vertex,
+        std::vector<int32_t>& index
+    );
     void renderFacesGLArray(SoGLRenderAction* action);
     void renderCoordsGLArray(SoGLRenderAction* action);
     void update()
@@ -231,10 +239,12 @@ bool MeshRenderer::Private::canRenderGLArray(SoGLRenderAction*) const
     return true;
 }
 
-void MeshRenderer::Private::generateGLArrays(SoGLRenderAction*,
-                                             SoMaterialBindingElement::Binding matbind,
-                                             std::vector<float>& vertex,
-                                             std::vector<int32_t>& index)
+void MeshRenderer::Private::generateGLArrays(
+    SoGLRenderAction*,
+    SoMaterialBindingElement::Binding matbind,
+    std::vector<float>& vertex,
+    std::vector<int32_t>& index
+)
 {
     if (vertex.empty() || index.empty()) {
         return;
@@ -302,10 +312,12 @@ public:
     {
         return false;
     }
-    void generateGLArrays(SoGLRenderAction*,
-                          SoMaterialBindingElement::Binding,
-                          std::vector<float>&,
-                          std::vector<int32_t>&)
+    void generateGLArrays(
+        SoGLRenderAction*,
+        SoMaterialBindingElement::Binding,
+        std::vector<float>&,
+        std::vector<int32_t>&
+    )
     {}
     void renderFacesGLArray(SoGLRenderAction*)
     {}
@@ -339,10 +351,12 @@ bool MeshRenderer::needUpdate(SoGLRenderAction* action)
     return p->needUpdate(action);
 }
 
-void MeshRenderer::generateGLArrays(SoGLRenderAction* action,
-                                    SoMaterialBindingElement::Binding matbind,
-                                    std::vector<float>& vertex,
-                                    std::vector<int32_t>& index)
+void MeshRenderer::generateGLArrays(
+    SoGLRenderAction* action,
+    SoMaterialBindingElement::Binding matbind,
+    std::vector<float>& vertex,
+    std::vector<int32_t>& index
+)
 {
     SoGLLazyElement* gl = SoGLLazyElement::getInstance(action->getState());
     if (gl) {
@@ -411,10 +425,9 @@ bool MeshRenderer::matchMaterial(SoState* state) const
     return p->pcolors == pcolors;
 }
 
-bool MeshRenderer::shouldRenderDirectly(bool direct)
+bool MeshRenderer::shouldRenderDirectly([[maybe_unused]] bool direct)
 {
 #ifdef RENDER_GL_VAO
-    Q_UNUSED(direct);
     return false;
 #else
     return direct;
@@ -460,7 +473,7 @@ void SoFCIndexedFaceSet::initClass()
 }
 
 SoFCIndexedFaceSet::SoFCIndexedFaceSet()
-    : renderTriangleLimit(UINT_MAX)
+    : renderTriangleLimit(std::numeric_limits<unsigned>::max())
 {
     SO_NODE_CONSTRUCTOR(SoFCIndexedFaceSet);
     SO_NODE_ADD_FIELD(updateGLArray, (false));
@@ -578,29 +591,33 @@ void SoFCIndexedFaceSet::drawFaces(SoGLRenderAction* action)
         SoTextureCoordinateBundle tb(action, true, false);
         SbBool sendNormals = !mb.isColorOnly() || tb.isFunction();
 
-        this->getVertexData(state,
-                            coords,
-                            normals,
-                            cindices,
-                            nindices,
-                            tindices,
-                            mindices,
-                            numindices,
-                            sendNormals,
-                            normalCacheUsed);
+        this->getVertexData(
+            state,
+            coords,
+            normals,
+            cindices,
+            nindices,
+            tindices,
+            mindices,
+            numindices,
+            sendNormals,
+            normalCacheUsed
+        );
 
         mb.sendFirst();  // make sure we have the correct material
 
-        drawCoords(static_cast<const SoGLCoordinateElement*>(coords),
-                   cindices,
-                   numindices,
-                   normals,
-                   nindices,
-                   &mb,
-                   mindices,
-                   binding,
-                   &tb,
-                   tindices);
+        drawCoords(
+            static_cast<const SoGLCoordinateElement*>(coords),
+            cindices,
+            numindices,
+            normals,
+            nindices,
+            &mb,
+            mindices,
+            binding,
+            &tb,
+            tindices
+        );
 
         // getVertexData() internally calls readLockNormalCache() that read locks
         // the normal cache. When the cache is not needed any more we must call
@@ -615,22 +632,24 @@ void SoFCIndexedFaceSet::drawFaces(SoGLRenderAction* action)
     }
 }
 
-void SoFCIndexedFaceSet::drawCoords(const SoGLCoordinateElement* const vertexlist,
-                                    const int32_t* vertexindices,
-                                    int numindices,
-                                    const SbVec3f* normals,
-                                    const int32_t* normalindices,
-                                    SoMaterialBundle* materials,
-                                    const int32_t* /*matindices*/,
-                                    const int32_t binding,
-                                    const SoTextureCoordinateBundle* const /*texcoords*/,
-                                    const int32_t* /*texindices*/)
+void SoFCIndexedFaceSet::drawCoords(
+    const SoGLCoordinateElement* const vertexlist,
+    const int32_t* vertexindices,
+    int numindices,
+    const SbVec3f* normals,
+    const int32_t* normalindices,
+    SoMaterialBundle* materials,
+    const int32_t* /*matindices*/,
+    const int32_t binding,
+    const SoTextureCoordinateBundle* const /*texcoords*/,
+    const int32_t* /*texindices*/
+)
 {
     const SbVec3f* coords3d = nullptr;
     coords3d = vertexlist->getArrayPtr3();
 
     int mod = numindices / (4 * this->renderTriangleLimit) + 1;
-    float size = std::min<float>((float)mod, 3.0f);
+    float size = std::min<float>((float)mod, 3.0F);
     glPointSize(size);
 
     SbBool per_face = false;
@@ -734,16 +753,18 @@ void SoFCIndexedFaceSet::generateGLArrays(SoGLRenderAction* action)
     SbBool sendNormals = true;
 
     SoState* state = action->getState();
-    this->getVertexData(state,
-                        coords,
-                        normals,
-                        cindices,
-                        nindices,
-                        tindices,
-                        mindices,
-                        numindices,
-                        sendNormals,
-                        normalCacheUsed);
+    this->getVertexData(
+        state,
+        coords,
+        normals,
+        cindices,
+        nindices,
+        tindices,
+        mindices,
+        numindices,
+        sendNormals,
+        normalCacheUsed
+    );
 
     const SbVec3f* points = coords->getArrayPtr3();
 
@@ -754,7 +775,7 @@ void SoFCIndexedFaceSet::generateGLArrays(SoGLRenderAction* action)
         numcolors = gl->getNumDiffuse();
         transp = gl->getTransparencyPointer();
         numtransp = gl->getNumTransparencies();
-        Q_UNUSED(numtransp);
+        (void)numtransp;
     }
 
     std::vector<float> face_vertices;
@@ -769,16 +790,16 @@ void SoFCIndexedFaceSet::generateGLArrays(SoGLRenderAction* action)
     SoNormalBindingElement::Binding normbind = SoNormalBindingElement::get(state);
     if (normbind == SoNormalBindingElement::PER_VERTEX_INDEXED) {
         if (matbind == SoMaterialBindingElement::PER_FACE) {
-            face_vertices.reserve(3 * numTria
-                                  * 10);  // duplicate each vertex (rgba, normal, vertex)
+            face_vertices.reserve(3 * numTria * 10);  // duplicate each vertex (rgba, normal, vertex)
             face_indices.resize(3 * numTria);
 
             if (numcolors != static_cast<int>(numTria)) {
                 SoDebugError::postWarning(
                     "SoFCIndexedFaceSet::generateGLArrays",
-                    "The number of faces (%d) doesn't match with the number of colors (%d).",
+                    "The number of faces (%d) does not match with the number of colors (%d).",
                     numTria,
-                    numcolors);
+                    numcolors
+                );
             }
 
             // the nindices must have the length of numindices
@@ -811,16 +832,16 @@ void SoFCIndexedFaceSet::generateGLArrays(SoGLRenderAction* action)
             }
         }
         else if (matbind == SoMaterialBindingElement::PER_VERTEX_INDEXED) {
-            face_vertices.reserve(3 * numTria
-                                  * 10);  // duplicate each vertex (rgba, normal, vertex)
+            face_vertices.reserve(3 * numTria * 10);  // duplicate each vertex (rgba, normal, vertex)
             face_indices.resize(3 * numTria);
 
             if (numcolors != coords->getNum()) {
                 SoDebugError::postWarning(
                     "SoFCIndexedFaceSet::generateGLArrays",
-                    "The number of points (%d) doesn't match with the number of colors (%d).",
+                    "The number of points (%d) does not match with the number of colors (%d).",
                     coords->getNum(),
-                    numcolors);
+                    numcolors
+                );
             }
 
             // the nindices must have the length of numindices
@@ -994,10 +1015,8 @@ void SoFCIndexedFaceSet::startSelection(SoAction* action)
     int bufSize = 5 * (this->coordIndex.getNum() / 4);  // make the buffer big enough
     this->selectBuf = new GLuint[bufSize];
 
-    SbMatrix view =
-        SoViewingMatrixElement::get(action->getState());  // clazy:exclude=rule-of-two-soft
-    SbMatrix proj =
-        SoProjectionMatrixElement::get(action->getState());  // clazy:exclude=rule-of-two-soft
+    SbMatrix view = SoViewingMatrixElement::get(action->getState());  // clazy:exclude=rule-of-two-soft
+    SbMatrix proj = SoProjectionMatrixElement::get(action->getState());  // clazy:exclude=rule-of-two-soft
 
     glSelectBuffer(bufSize, selectBuf);
     glRenderMode(GL_SELECT);
@@ -1013,9 +1032,11 @@ void SoFCIndexedFaceSet::startSelection(SoAction* action)
     glLoadIdentity();
 
     if (w > 0 && h > 0) {
-        glTranslatef((viewport[2] - 2 * (x - viewport[0])) / w,
-                     (viewport[3] - 2 * (y - viewport[1])) / h,
-                     0);
+        glTranslatef(
+            (viewport[2] - 2 * (x - viewport[0])) / w,
+            (viewport[3] - 2 * (y - viewport[1])) / h,
+            0
+        );
         glScalef(viewport[2] / w, viewport[3] / h, 1.0);
     }
     glMultMatrixf(/*mp*/ (float*)proj);
@@ -1079,10 +1100,8 @@ void SoFCIndexedFaceSet::renderSelectionGeometry(const SbVec3f* coords3d)
 
 void SoFCIndexedFaceSet::startVisibility(SoAction* action)
 {
-    SbMatrix view =
-        SoViewingMatrixElement::get(action->getState());  // clazy:exclude=rule-of-two-soft
-    SbMatrix proj =
-        SoProjectionMatrixElement::get(action->getState());  // clazy:exclude=rule-of-two-soft
+    SbMatrix view = SoViewingMatrixElement::get(action->getState());  // clazy:exclude=rule-of-two-soft
+    SbMatrix proj = SoProjectionMatrixElement::get(action->getState());  // clazy:exclude=rule-of-two-soft
 
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();

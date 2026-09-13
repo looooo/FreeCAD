@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
 #***************************************************************************
 #*   Copyright (c) 2012 Sebastian Hoogen <github@sebastianhoogen.de>       *
 #*                                                                         *
@@ -45,7 +47,7 @@ def mostbasiccompound(comp):
     wires = shapeset(comp.Wires)
     edges = shapeset(comp.Edges)
     vertexes = shapeset(comp.Vertexes)
-    #FreeCAD.Console.PrintMessage('%s\n' % (str((len(solids),len(shells),len(faces),len(wires),len(edges),len(vertexes)))))
+    
     for shape in comp.Solids:
         shells -= shapeset(shape.Shells)
         faces -= shapeset(shape.Faces)
@@ -66,8 +68,7 @@ def mostbasiccompound(comp):
         vertexes -= shapeset(shape.Vertexes)
     for shape in comp.Edges:
         vertexes -= shapeset(shape.Vertexes)
-    #FreeCAD.Console.PrintMessage('%s\n' % (str((len(solids),len(shells),len(faces),len(wires),len(edges),len(vertexes)))))
-    #return len(solids),len(shells),len(faces),len(wires),len(edges),len(vertexes)
+
     if vertexes:
         return "Vertex"
     elif edges:
@@ -110,4 +111,3 @@ def colorcodeshapes(objs):
             except Exception:
                 raise
 
-#colorcodeshapes(App.ActiveDocument.Objects)

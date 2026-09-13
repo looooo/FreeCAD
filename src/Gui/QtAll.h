@@ -82,10 +82,12 @@
 #include <QImageWriter>
 #include <QKeyEvent>
 #include <QMovie>
+#include <QOffscreenSurface>
 #include <QOpenGLContext>
 #include <QOpenGLDebugMessage>
 #include <QOpenGLFunctions>
 #include <QOpenGLTexture>
+#include <QOpenGLWidget>
 #include <QPaintEngine>
 #include <QPainter>
 #include <QPainterPath>

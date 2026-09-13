@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2021 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef MESH_IMPORTER_H
-#define MESH_IMPORTER_H
+#pragma once
 
 #include <string>
 #include <vector>
@@ -48,9 +49,9 @@ public:
     void load(const std::string& fileName);
 
 private:
-    void addVertexColors(Feature*, const std::vector<App::Color>&);
-    void addFaceColors(Feature*, const std::vector<App::Color>&);
-    void addColors(Feature*, const std::string& property, const std::vector<App::Color>&);
+    void addVertexColors(Feature*, const std::vector<Base::Color>&);
+    void addFaceColors(Feature*, const std::vector<Base::Color>&);
+    void addColors(Feature*, const std::string& property, const std::vector<Base::Color>&);
     Feature* createMesh(const std::string& name, MeshObject&);
     void createMeshFromSegments(const std::string& name, MeshCore::Material& mat, MeshObject& mesh);
 
@@ -59,5 +60,3 @@ private:
 };
 
 }  // namespace Mesh
-
-#endif  // MESH_IMPORTER_H

@@ -1,26 +1,22 @@
 if(BUILD_ADDONMGR)
+  if( NOT EXISTS "${CMAKE_SOURCE_DIR}/src/Mod/AddonManager/CMakeLists.txt" )
+    message(FATAL_ERROR "The Addon Manager has been moved into a git submodule. Please run
+    git submodule update --init" )
+  endif()
   add_subdirectory(AddonManager)
 endif(BUILD_ADDONMGR)
 
-if(BUILD_ARCH)
-  add_subdirectory(Arch)
-endif(BUILD_ARCH)
+if(BUILD_BIM)
+  add_subdirectory(BIM)
+endif(BUILD_BIM)
 
 if(BUILD_ASSEMBLY)
   add_subdirectory(Assembly)
 endif(BUILD_ASSEMBLY)
 
-if(BUILD_CLOUD)
-    add_subdirectory(Cloud)
-endif(BUILD_CLOUD)
-
 if(BUILD_DRAFT)
   add_subdirectory(Draft)
 endif(BUILD_DRAFT)
-
-if(BUILD_DRAWING)
-  add_subdirectory(Drawing)
-endif(BUILD_DRAWING)
 
 if(BUILD_FEM)
     add_subdirectory(Fem)
@@ -29,10 +25,6 @@ endif(BUILD_FEM)
 if(BUILD_HELP)
   add_subdirectory(Help)
 endif(BUILD_HELP)
-
-if(BUILD_IDF)
-  add_subdirectory(Idf)
-endif(BUILD_IDF)
 
 if(BUILD_IMPORT)
   add_subdirectory(Import)
@@ -70,9 +62,9 @@ if(BUILD_PART_DESIGN)
   add_subdirectory(PartDesign)
 endif(BUILD_PART_DESIGN)
 
-if(BUILD_PATH)
-    add_subdirectory(Path)
-endif(BUILD_PATH)
+if(BUILD_CAM)
+    add_subdirectory(CAM)
+endif(BUILD_CAM)
 
 if(BUILD_PLOT)
   add_subdirectory(Plot)
@@ -94,10 +86,6 @@ if(BUILD_ROBOT)
     endif(EIGEN3_FOUND)
 endif(BUILD_ROBOT)
 
-if(BUILD_SANDBOX)
-    add_subdirectory(Sandbox)
-endif(BUILD_SANDBOX)
-
 if(BUILD_SHOW)
     add_subdirectory(Show)
 endif(BUILD_SHOW)
@@ -115,15 +103,18 @@ if(BUILD_SPREADSHEET)
 endif(BUILD_SPREADSHEET)
 
 if(BUILD_START)
-  add_subdirectory(Start)
+    add_subdirectory(Start)
 endif(BUILD_START)
 
 if(BUILD_SURFACE)
   add_subdirectory(Surface)
 endif(BUILD_SURFACE)
 
-if(BUILD_TECHDRAW)
+if(BUILD_MEASURE)
     add_subdirectory(Measure)
+endif(BUILD_MEASURE)
+
+if(BUILD_TECHDRAW)
     add_subdirectory(TechDraw)
 endif(BUILD_TECHDRAW)
 
@@ -138,5 +129,5 @@ if(BUILD_TUX)
 endif(BUILD_TUX)
 
 if(BUILD_WEB)
-  add_subdirectory(Web)
+    add_subdirectory(Web)
 endif(BUILD_WEB)

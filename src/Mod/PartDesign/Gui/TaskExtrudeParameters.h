@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2021 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,31 +22,55 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef GUI_TASKVIEW_TaskExtrudeParameters_H
-#define GUI_TASKVIEW_TaskExtrudeParameters_H
+#pragma once
+
+#include <QLabel>
+
+#include <Gui/Inventor/Draggers/Gizmo.h>
 
 #include "TaskSketchBasedParameters.h"
-#include "ViewProviderSketchBased.h"
+#include "ViewProviderExtrude.h"
 
+class QCheckBox;
+class QComboBox;
+class QLineEdit;
+class QListWidget;
+class QToolButton;
 
 class Ui_TaskPadPocketParameters;
 
-namespace App {
+namespace App
+{
 class Property;
+class PropertyLinkSubList;
+}  // namespace App
+namespace Gui
+{
+class PrefQuantitySpinBox;
 }
 
-namespace PartDesign {
+namespace Gui
+{
+class LinearGizmo;
+class RotationalGizmo;
+class GizmoContainer;
+}  // namespace Gui
+
+namespace PartDesign
+{
 class ProfileBased;
 }
 
-namespace PartDesignGui {
+namespace PartDesignGui
+{
 
 
-class TaskExtrudeParameters : public TaskSketchBasedParameters
+class TaskExtrudeParameters: public TaskSketchBasedParameters
 {
     Q_OBJECT
 
-    enum DirectionModes {
+    enum DirectionModes
+    {
         Normal,
         Select,
         Custom,
@@ -52,90 +78,239 @@ class TaskExtrudeParameters : public TaskSketchBasedParameters
     };
 
 public:
-    TaskExtrudeParameters(ViewProviderSketchBased *SketchBasedView, QWidget *parent,
-                          const std::string& pixmapname, const QString& parname);
-    ~TaskExtrudeParameters() override;
-
-    void saveHistory() override;
-
-    void fillDirectionCombo();
-    void addAxisToCombo(App::DocumentObject* linkObj, std::string linkSubname, QString itemText,
-        bool hasSketch = true);
-    void applyParameters(QString facename);
-
-    enum class Type {
+    enum class Type
+    {
         Pad,
         Pocket
     };
-    enum class Modes {
+
+    enum class SidesMode
+    {
+        OneSide,
+        TwoSides,
+        Symmetric,
+    };
+
+    enum class Side
+    {
+        First,
+        Second,
+    };
+
+    enum class Mode
+    {
         Dimension,
         ThroughAll,
         ToLast = ThroughAll,
         ToFirst,
         ToFace,
-        TwoDimensions
+        ToShape,
     };
 
+    enum class StartMode
+    {
+        ProfilePlane = 0,
+        Offset = 1,
+        Reference = 2,
+    };
+
+    enum SelectionMode
+    {
+        None,
+        SelectFace,
+        SelectStartReference,
+        SelectShape,
+        SelectShapeFaces,
+        SelectReferenceAxis
+    };
+
+    TaskExtrudeParameters(
+        ViewProviderExtrude* ExtrudeView,
+        QWidget* parent,
+        const std::string& pixmapname,
+        const QString& parname
+    );
+    ~TaskExtrudeParameters() override = default;
+
+    void saveHistory() override;
+
+    void fillDirectionCombo();
+    void addAxisToCombo(
+        App::DocumentObject* linkObj,
+        std::string linkSubname,
+        QString itemText,
+        bool hasSketch = true
+    );
+    void applyParameters();
+
+    void setSelectionMode(SelectionMode mode, Side side = Side::First);
+
+protected:
+    // This struct holds all pointers for one side's UI and properties
+    struct SideController
+    {
+        // UI Widgets
+        QComboBox* changeMode = nullptr;
+        QLabel* labelLength = nullptr;
+        QLabel* labelOffset = nullptr;
+        QLabel* labelTaperAngle = nullptr;
+        Gui::PrefQuantitySpinBox* lengthEdit = nullptr;
+        Gui::PrefQuantitySpinBox* offsetEdit = nullptr;
+        Gui::PrefQuantitySpinBox* taperEdit = nullptr;
+        QLineEdit* lineFaceName = nullptr;
+        QToolButton* buttonFace = nullptr;
+        QLineEdit* lineShapeName = nullptr;
+        QToolButton* buttonShape = nullptr;
+        QListWidget* listWidgetReferences = nullptr;
+        QToolButton* buttonShapeFace = nullptr;
+        QCheckBox* checkBoxAllFaces = nullptr;
+        QWidget* upToShapeList = nullptr;
+        QWidget* upToShapeFaces = nullptr;
+        QAction* unselectShapeFaceAction = nullptr;
+
+        // Feature Properties
+        App::PropertyEnumeration* Type = nullptr;
+        App::PropertyLength* Length = nullptr;
+        App::PropertyLength* Offset = nullptr;
+        App::PropertyAngle* TaperAngle = nullptr;
+        App::PropertyLinkSub* UpToFace = nullptr;
+        App::PropertyLinkSubList* UpToShape = nullptr;
+    };
+
+    SideController m_side1;
+    SideController m_side2;
+
+    SideController& getSideController(Side side)
+    {
+        return (side == Side::First) ? m_side1 : m_side2;
+    }
+
 protected Q_SLOTS:
-    void onLengthChanged(double);
-    void onLength2Changed(double);
-    void onOffsetChanged(double);
-    void onTaperChanged(double);
-    void onTaper2Changed(double);
+    void onSidesModeChanged(int);
+    virtual void onModeChanged(int index, Side side) = 0;
+
+private Q_SLOTS:
     void onDirectionCBChanged(int);
     void onAlongSketchNormalChanged(bool);
-    void onDirectionToggled(bool);
     void onXDirectionEditChanged(double);
     void onYDirectionEditChanged(double);
     void onZDirectionEditChanged(double);
-    void onMidplaneChanged(bool);
     void onReversedChanged(bool);
-    void onButtonFace(const bool checked = true);
-    void onFaceName(const QString& text);
-    virtual void onModeChanged(int);
+
+private:
+    void onModeChanged_Side1(int index);
+    void onModeChanged_Side2(int index);
+    void onLengthChanged(double len, Side side);
+    void onStartModeChanged(int type);
+    void onStartOffsetChanged(double len);
+    void onOffsetChanged(double len, Side side);
+    void onTaperChanged(double angle, Side side);
+    void onSelectFaceToggle(bool checked, Side side);
+    void onSelectStartReferenceToggle(bool checked);
+
+    void onFaceName(const QString& text, Side side);
+    void onAllFacesToggled(bool checked, Side side);
+    void onSelectShapeToggle(bool checked, Side side);
+    void onSelectShapeFacesToggle(bool checked, Side side);
+    void onUnselectShapeFacesTrigger(Side side);
 
 protected:
-    void setCheckboxes(Modes mode, Type type);
+    void updateWholeUI(Type type, Side side);
+    void updateSideUI(
+        const SideController& s,
+        Type featureType,
+        Mode sideMode,
+        bool isParentVisible,
+        bool setFocus
+    );
     void setupDialog();
     void readValuesFromHistory();
-    void changeEvent(QEvent *e) override;
+    void changeEvent(QEvent* e) override;
     App::PropertyLinkSub* propReferenceAxis;
     void getReferenceAxis(App::DocumentObject*& obj, std::vector<std::string>& sub) const;
 
     double getOffset() const;
-    bool   getAlongSketchNormal() const;
-    bool   getCustom() const;
+    double getOffset2() const;
+    bool getAlongSketchNormal() const;
+    bool getCustom() const;
     std::string getReferenceAxis() const;
     double getXDirection() const;
     double getYDirection() const;
     double getZDirection() const;
-    bool   getReversed() const;
-    bool   getMidplane() const;
-    int    getMode() const;
-    QString getFaceName() const;
+    bool getReversed() const;
+    int getMode() const;
+    int getMode2() const;
+    int getSidesMode() const;
+    QString getFaceName(QLineEdit*) const;
     void onSelectionChanged(const Gui::SelectionChanges& msg) override;
-    virtual void translateModeList(int index);
-    virtual void updateUI(int index);
+    void translateSidesList(int index);
+    virtual void translateModeList(QComboBox* box, int index);
+    virtual void updateUI(Side side);
     void updateDirectionEdits();
     void setDirectionMode(int index);
-    void handleLineFaceNameClick();
-    void handleLineFaceNameNo();
+    void handleLineFaceNameClick(QLineEdit*);
+    void handleLineFaceNameNo(QLineEdit*);
 
 private:
+    void setupSideDialog(SideController& side);
+
+    void selectedReferenceAxis(const Gui::SelectionChanges& msg);
+    void selectedFace(const Gui::SelectionChanges& msg, SideController& side);
+    void selectedStartReference(const Gui::SelectionChanges& msg);
+    void selectedShape(const Gui::SelectionChanges& msg, SideController& side);
+    void selectedShapeFace(const Gui::SelectionChanges& msg, SideController& side);
+
     void tryRecomputeFeature();
-    void translateFaceName();
+    void translateFaceName(QLineEdit*);
     void connectSlots();
     bool hasProfileFace(PartDesign::ProfileBased*) const;
-    void selectedReferenceAxis(const Gui::SelectionChanges& msg);
-    void clearFaceName();
+    void clearFaceName(QLineEdit*);
+
+    void updateShapeName(QLineEdit*, App::PropertyLinkSubList&);
+    void updateShapeFaces(QListWidget* list, App::PropertyLinkSubList& prop);
+
+    std::vector<std::string> getShapeFaces(App::PropertyLinkSubList& prop);
+
+    void changeFaceName(QLineEdit* lineEdit, const QString& text);
+
+    void createSideControllers();
+    void updateStartUI();
+    void updateStartReferenceName();
+
+    std::unique_ptr<Gui::GizmoContainer> gizmoContainer;
+    Gui::LinearGizmo* startOffsetGizmo = nullptr;
+    Gui::LinearGizmo* lengthGizmo1 = nullptr;
+    Gui::LinearGizmo* lengthGizmo2 = nullptr;
+    Gui::RotationGizmo* taperAngleGizmo1 = nullptr;
+    Gui::RotationGizmo* taperAngleGizmo2 = nullptr;
+    void setupGizmos();
+    void setGizmoPositions();
 
 protected:
     QWidget* proxy;
+    QAction* unselectShapeFaceAction;
+    QAction* unselectShapeFaceAction2;
+
     std::unique_ptr<Ui_TaskPadPocketParameters> ui;
-    bool selectionFace;
     std::vector<std::unique_ptr<App::PropertyLinkSub>> axesInList;
+
+    SelectionMode selectionMode = None;
+    Side activeSelectionSide = Side::First;
 };
 
-} //namespace PartDesignGui
+class TaskDlgExtrudeParameters: public TaskDlgSketchBasedParameters
+{
+    Q_OBJECT
 
-#endif // GUI_TASKVIEW_TaskExtrudeParameters_H
+public:
+    explicit TaskDlgExtrudeParameters(PartDesignGui::ViewProviderExtrude* vp);
+    ~TaskDlgExtrudeParameters() override = default;
+
+    bool accept() override;
+    bool reject() override;
+
+protected:
+    virtual TaskExtrudeParameters* getTaskParameters() = 0;
+};
+
+}  // namespace PartDesignGui

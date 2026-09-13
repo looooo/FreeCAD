@@ -1,3 +1,10 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
+disable_occt8_deprecation_warnings()
+
+if(BUILD_TRACY_FRAME_PROFILER)
+    add_definitions(-DBUILD_TRACY_FRAME_PROFILER)
+endif()
 
 add_subdirectory(App)
 if(BUILD_GUI)
@@ -16,6 +23,7 @@ if(BUILD_GUI)
     list (APPEND Part_Scripts
           InitGui.py
           TestPartGui.py
+          TestPartPreview.py
     )
 endif(BUILD_GUI)
 
@@ -51,6 +59,7 @@ set(BOPTools_Scripts
     BOPTools/ShapeMerge.py
     BOPTools/SplitAPI.py
     BOPTools/SplitFeatures.py
+    BOPTools/ToleranceFeatures.py
     BOPTools/Utils.py
 )
 
@@ -64,11 +73,22 @@ set(CompoundTools_Scripts
 
 set(Part_tests
     parttests/__init__.py
+    parttests/BRep_tests.py
     parttests/Geom2d_tests.py
     parttests/part_test_objects.py
     parttests/regression_tests.py
     parttests/TopoShapeListTest.py
     parttests/ColorPerFaceTest.py
+    parttests/ColorTransparencyTest.py
+    parttests/TaskFaceAppearancesTest.py
+    parttests/TopoShapeTest.py
+    parttests/TestTangentMode3-0.21.FCStd
+    parttests/TestLinkArrayCircular.py
+    parttests/TestLinkArrayLinear.py
+    parttests/TestLinkArrayPath.py
+    parttests/TestPartMirror.py
+    parttests/TestFaceMakerUnifiedPlanar.py
+    parttests/TestFaceMakerUnifiedNonPlanar.py
 )
 
 add_custom_target(PartScripts ALL SOURCES

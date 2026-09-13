@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 ///***************************************************************************
 // *   Copyright (c) 2022 Matteo Grellier <matteogrellier@gmail.com>         *
 // *                                                                         *
@@ -20,11 +22,9 @@
 // *                                                                         *
 // ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include <BRepAdaptor_Curve.hxx>
 #include <TopoDS.hxx>
-#endif
+
 
 // clang-format off
 #include "Blending/BlendPoint.h"
@@ -92,14 +92,13 @@ int BlendPointPy::PyInit(PyObject* args, PyObject*)
     if (PyArg_ParseTuple(args, "O!di", &(Part::TopoShapePy::Type), &pcObj, &param, &cont)) {
         try {
             gp_Pnt Pt;
-            TopoDS_Shape shape =
-                static_cast<Part::TopoShapePy*>(pcObj)->getTopoShapePtr()->getShape();
+            TopoDS_Shape shape = static_cast<Part::TopoShapePy*>(pcObj)->getTopoShapePtr()->getShape();
             const TopoDS_Edge& e = TopoDS::Edge(shape);
             BRepAdaptor_Curve adapt(e);
             if (param < adapt.FirstParameter() || param > adapt.LastParameter()) {
                 PyErr_Warn(PyExc_UserWarning, "BlendPoint: edge is not a closed curve");
-                Base::Console().Message("fp=%f\n", adapt.FirstParameter());
-                Base::Console().Message("lp=%f\n", adapt.LastParameter());
+                Base::Console().message("fp=%f\n", adapt.FirstParameter());
+                Base::Console().message("lp=%f\n", adapt.LastParameter());
             }
 
             adapt.D0(param, Pt);
@@ -120,11 +119,13 @@ int BlendPointPy::PyInit(PyObject* args, PyObject*)
         }
     }
 
-    PyErr_SetString(PyExc_TypeError,
-                    "supported signatures:\n"
-                    "BlendPoint()\n"
-                    "BlendPoint(list of Vector)\n"
-                    "BlendPoint(edge, parameter and continiuity)\n");
+    PyErr_SetString(
+        PyExc_TypeError,
+        "supported signatures:\n"
+        "BlendPoint()\n"
+        "BlendPoint(list of Vector)\n"
+        "BlendPoint(edge, parameter and continiuity)\n"
+    );
     return -1;
 }
 
@@ -145,7 +146,7 @@ PyObject* BlendPointPy::setSize(PyObject* args)
     }
 }
 
-PyObject* BlendPointPy::getSize(PyObject* args)
+PyObject* BlendPointPy::getSize(PyObject* args) const
 {
     if (!PyArg_ParseTuple(args, "")) {
         return nullptr;

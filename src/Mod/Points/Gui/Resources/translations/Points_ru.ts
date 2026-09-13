@@ -4,96 +4,92 @@
   <context>
     <name>CmdPointsConvert</name>
     <message>
-      <location filename="../../Command.cpp" line="206"/>
+      <location filename="../../Command.cpp" line="202"/>
       <source>Points</source>
       <translation>Точки</translation>
     </message>
     <message>
-      <location filename="../../Command.cpp" line="207"/>
-      <source>Convert to points...</source>
-      <translation>Преобразовать в точки...</translation>
+      <location filename="../../Command.cpp" line="203"/>
+      <source>Convert to Points</source>
+      <translation>Преобразовать в точки</translation>
     </message>
     <message>
-      <location filename="../../Command.cpp" line="208"/>
-      <location filename="../../Command.cpp" line="210"/>
-      <source>Convert to points</source>
-      <translation>Преобразовать в точки</translation>
+      <location filename="../../Command.cpp" line="204"/>
+      <source>Converts to points</source>
+      <translation>Преобразование в точки</translation>
     </message>
   </context>
   <context>
     <name>CmdPointsExport</name>
     <message>
-      <location filename="../../Command.cpp" line="120"/>
+      <location filename="../../Command.cpp" line="150"/>
       <source>Points</source>
       <translation>Точки</translation>
     </message>
     <message>
-      <location filename="../../Command.cpp" line="121"/>
-      <source>Export points...</source>
-      <translation>Экспорт точек...</translation>
+      <location filename="../../Command.cpp" line="151"/>
+      <source>Export Points…</source>
+      <translation>Экспорт точек…</translation>
     </message>
     <message>
-      <location filename="../../Command.cpp" line="122"/>
-      <location filename="../../Command.cpp" line="124"/>
+      <location filename="../../Command.cpp" line="152"/>
+      <location filename="../../Command.cpp" line="154"/>
       <source>Exports a point cloud</source>
-      <translation>Экспорт облака точек</translation>
+      <translation>Экспортировать облако точек</translation>
     </message>
   </context>
   <context>
     <name>CmdPointsImport</name>
     <message>
-      <location filename="../../Command.cpp" line="67"/>
+      <location filename="../../Command.cpp" line="68"/>
       <source>Points</source>
       <translation>Точки</translation>
     </message>
     <message>
-      <location filename="../../Command.cpp" line="68"/>
-      <source>Import points...</source>
-      <translation>Импорт точек...</translation>
+      <location filename="../../Command.cpp" line="69"/>
+      <source>Import Points…</source>
+      <translation>Импорт точек…</translation>
     </message>
     <message>
-      <location filename="../../Command.cpp" line="69"/>
-      <location filename="../../Command.cpp" line="71"/>
+      <location filename="../../Command.cpp" line="70"/>
       <source>Imports a point cloud</source>
-      <translation>Импорт облака точек</translation>
+      <translation>Импортировать облако точек</translation>
     </message>
   </context>
   <context>
     <name>CmdPointsMerge</name>
     <message>
-      <location filename="../../Command.cpp" line="342"/>
+      <location filename="../../Command.cpp" line="341"/>
       <source>Points</source>
       <translation>Точки</translation>
     </message>
     <message>
-      <location filename="../../Command.cpp" line="343"/>
-      <source>Merge point clouds</source>
-      <translation>Слияние облаков точек</translation>
+      <location filename="../../Command.cpp" line="342"/>
+      <source>Merge Point Clouds</source>
+      <translation>Объединить облака точек</translation>
     </message>
     <message>
-      <location filename="../../Command.cpp" line="344"/>
-      <location filename="../../Command.cpp" line="346"/>
-      <source>Merge several point clouds into one</source>
+      <location filename="../../Command.cpp" line="343"/>
+      <source>Merges several point clouds into one</source>
       <translation>Объединить несколько облаков точек в одно</translation>
     </message>
   </context>
   <context>
     <name>CmdPointsPolyCut</name>
     <message>
-      <location filename="../../Command.cpp" line="294"/>
+      <location filename="../../Command.cpp" line="291"/>
       <source>Points</source>
       <translation>Точки</translation>
     </message>
     <message>
-      <location filename="../../Command.cpp" line="295"/>
-      <source>Cut point cloud</source>
-      <translation>Вырезать облако точек</translation>
+      <location filename="../../Command.cpp" line="292"/>
+      <source>Cut Point Cloud</source>
+      <translation>Обрезать облако точек</translation>
     </message>
     <message>
-      <location filename="../../Command.cpp" line="296"/>
-      <location filename="../../Command.cpp" line="298"/>
-      <source>Cuts a point cloud with a picked polygon</source>
-      <translation>Вырезать облако точек, ограниченное отмеченным полигоном</translation>
+      <location filename="../../Command.cpp" line="293"/>
+      <source>Cuts a point cloud with a selected polygon</source>
+      <translation>Обрезает облако точек выбранным многоугольником</translation>
     </message>
   </context>
   <context>
@@ -105,81 +101,36 @@
     </message>
     <message>
       <location filename="../../Command.cpp" line="406"/>
-      <source>Structured point cloud</source>
+      <source>Structured Point Cloud</source>
       <translation>Облако структурированных точек</translation>
     </message>
     <message>
       <location filename="../../Command.cpp" line="407"/>
-      <location filename="../../Command.cpp" line="409"/>
-      <source>Convert points to structured point cloud</source>
-      <translation>Преобразование точек в облако структурированных точек</translation>
-    </message>
-  </context>
-  <context>
-    <name>CmdPointsTransform</name>
-    <message>
-      <location filename="../../Command.cpp" line="167"/>
-      <source>Points</source>
-      <translation>Точки</translation>
-    </message>
-    <message>
-      <location filename="../../Command.cpp" line="168"/>
-      <source>Transform Points</source>
-      <translation>Преобразование точек</translation>
-    </message>
-    <message>
-      <location filename="../../Command.cpp" line="169"/>
-      <location filename="../../Command.cpp" line="171"/>
-      <source>Test to transform a point cloud</source>
-      <translation>Тест для преобразования облака точек</translation>
+      <source>Converts points to a structured point cloud</source>
+      <translation>Преобразует точки в структурированное облако точек</translation>
     </message>
   </context>
   <context>
     <name>Command</name>
     <message>
-      <location filename="../../Command.cpp" line="92"/>
+      <location filename="../../Command.cpp" line="93"/>
       <source>Import points</source>
       <translation>Импортировать точки</translation>
     </message>
     <message>
-      <location filename="../../Command.cpp" line="183"/>
-      <source>Transform points</source>
-      <translation>Преобразовать точки</translation>
-    </message>
-    <message>
-      <location filename="../../Command.cpp" line="240"/>
+      <location filename="../../Command.cpp" line="238"/>
       <source>Convert to points</source>
       <translation>Преобразовать в точки</translation>
     </message>
     <message>
-      <location filename="../../ViewProvider.cpp" line="485"/>
-      <location filename="../../ViewProvider.cpp" line="653"/>
+      <location filename="../../ViewProvider.cpp" line="487"/>
+      <location filename="../../ViewProvider.cpp" line="655"/>
       <source>Cut points</source>
       <translation>Вырезать точки</translation>
     </message>
   </context>
   <context>
     <name>PointsGui::DlgPointsRead</name>
-    <message>
-      <location filename="../../DlgPointsRead.ui" line="14"/>
-      <source>ASCII points import</source>
-      <translation>Импорт точек ASCII</translation>
-    </message>
-    <message>
-      <location filename="../../DlgPointsRead.ui" line="34"/>
-      <source>Template:</source>
-      <translation>Шаблон:</translation>
-    </message>
-    <message>
-      <location filename="../../DlgPointsRead.ui" line="46"/>
-      <source>Special lines</source>
-      <translation>Специальные линии</translation>
-    </message>
-    <message>
-      <location filename="../../DlgPointsRead.ui" line="58"/>
-      <source>First line:</source>
-      <translation>Первая линия:</translation>
-    </message>
     <message>
       <location filename="../../DlgPointsRead.ui" line="70"/>
       <source>Ignore</source>
@@ -189,26 +140,6 @@
       <location filename="../../DlgPointsRead.ui" line="80"/>
       <source>Number of points</source>
       <translation>Количество точек</translation>
-    </message>
-    <message>
-      <location filename="../../DlgPointsRead.ui" line="101"/>
-      <source>Cluster by lines starting with:</source>
-      <translation>Кластер по линии, начиная с:</translation>
-    </message>
-    <message>
-      <location filename="../../DlgPointsRead.ui" line="111"/>
-      <source>Ignore lines starting with:</source>
-      <translation>Игнорировать строки, начинающиеся с:</translation>
-    </message>
-    <message>
-      <location filename="../../DlgPointsRead.ui" line="126"/>
-      <source>Point format</source>
-      <translation>Формат точек</translation>
-    </message>
-    <message>
-      <location filename="../../DlgPointsRead.ui" line="146"/>
-      <source>Number separator:</source>
-      <translation>Числовой разделитель:</translation>
     </message>
     <message>
       <location filename="../../DlgPointsRead.ui" line="167"/>
@@ -221,11 +152,6 @@
       <translation>\w</translation>
     </message>
     <message>
-      <location filename="../../DlgPointsRead.ui" line="180"/>
-      <source>Points format:</source>
-      <translation>Формат точек:</translation>
-    </message>
-    <message>
       <location filename="../../DlgPointsRead.ui" line="188"/>
       <source>X,Y,Z</source>
       <translation>X, Y, Z</translation>
@@ -236,18 +162,63 @@
       <translation>X, Y</translation>
     </message>
     <message>
+      <location filename="../../DlgPointsRead.ui" line="14"/>
+      <source>ASCII Points Import</source>
+      <translation>Импорт точек ASCII</translation>
+    </message>
+    <message>
+      <location filename="../../DlgPointsRead.ui" line="34"/>
+      <source>Template</source>
+      <translation>Шаблон</translation>
+    </message>
+    <message>
+      <location filename="../../DlgPointsRead.ui" line="46"/>
+      <source>Special Lines</source>
+      <translation>Специальные строки</translation>
+    </message>
+    <message>
+      <location filename="../../DlgPointsRead.ui" line="58"/>
+      <source>First Line</source>
+      <translation>Первая строка</translation>
+    </message>
+    <message>
+      <location filename="../../DlgPointsRead.ui" line="101"/>
+      <source>Cluster by lines starting with</source>
+      <translation>Кластер по строкам, начиная с</translation>
+    </message>
+    <message>
+      <location filename="../../DlgPointsRead.ui" line="111"/>
+      <source>Ignore lines starting with</source>
+      <translation>Игнорировать строки, начинающиеся с</translation>
+    </message>
+    <message>
+      <location filename="../../DlgPointsRead.ui" line="126"/>
+      <source>Point Format</source>
+      <translation>Формат точки</translation>
+    </message>
+    <message>
+      <location filename="../../DlgPointsRead.ui" line="146"/>
+      <source>Number separator</source>
+      <translation>Разделитель номеров</translation>
+    </message>
+    <message>
+      <location filename="../../DlgPointsRead.ui" line="180"/>
+      <source>Points format</source>
+      <translation>Формат точек</translation>
+    </message>
+    <message>
       <location filename="../../DlgPointsRead.ui" line="201"/>
       <location filename="../../DlgPointsRead.ui" line="237"/>
       <location filename="../../DlgPointsRead.ui" line="273"/>
-      <source>Next block:</source>
-      <translation>Следующий блок:</translation>
+      <source>Next block</source>
+      <translation>Следующий блок</translation>
     </message>
     <message>
       <location filename="../../DlgPointsRead.ui" line="209"/>
       <location filename="../../DlgPointsRead.ui" line="245"/>
       <location filename="../../DlgPointsRead.ui" line="281"/>
-      <source>none</source>
-      <translation>Отсутствует</translation>
+      <source>None</source>
+      <translation>Ничего</translation>
     </message>
     <message>
       <location filename="../../DlgPointsRead.ui" line="214"/>
@@ -261,7 +232,7 @@
       <location filename="../../DlgPointsRead.ui" line="255"/>
       <location filename="../../DlgPointsRead.ui" line="291"/>
       <source>I,K (normal vector 2D)</source>
-      <translation>I, K (вектор нормали 2D)</translation>
+      <translation>I, K (двумерный вектор нормали)</translation>
     </message>
     <message>
       <location filename="../../DlgPointsRead.ui" line="224"/>
@@ -274,41 +245,45 @@
       <location filename="../../DlgPointsRead.ui" line="229"/>
       <location filename="../../DlgPointsRead.ui" line="265"/>
       <location filename="../../DlgPointsRead.ui" line="301"/>
-      <source>I (Gray value)</source>
-      <translation>I (значение серого)</translation>
+      <source>I (gray value)</source>
+      <translation>I (gray value)</translation>
+    </message>
+    <message>
+      <location filename="../../DlgPointsRead.ui" line="341"/>
+      <source>Number of previewed lines</source>
+      <translation>Количество просмотренных строк</translation>
     </message>
     <message>
       <location filename="../../DlgPointsRead.ui" line="314"/>
       <source>Preview</source>
       <translation>Предварительный просмотр</translation>
     </message>
-    <message>
-      <location filename="../../DlgPointsRead.ui" line="341"/>
-      <source>Number of previewed lines:</source>
-      <translation>Количество предварительно просматриваемых строк:</translation>
-    </message>
   </context>
   <context>
     <name>QObject</name>
     <message>
-      <location filename="../../Command.cpp" line="84"/>
-      <location filename="../../Command.cpp" line="141"/>
+      <location filename="../../Command.cpp" line="81"/>
+      <location filename="../../Command.cpp" line="168"/>
       <source>Point formats</source>
       <translation>Форматы точек</translation>
     </message>
     <message>
-      <location filename="../../Command.cpp" line="84"/>
-      <location filename="../../Command.cpp" line="141"/>
-      <source>All Files</source>
-      <translation>Все файлы</translation>
+      <location filename="../../Command.cpp" line="113"/>
+      <source>Points not at Origin</source>
+      <translation>Точки не в начале координат</translation>
     </message>
     <message>
-      <location filename="../../Command.cpp" line="227"/>
+      <location filename="../../Command.cpp" line="115"/>
+      <source>The bounding box of the imported points does not contain the origin. Translate it to the origin?</source>
+      <translation>Бокс, ограничивающий импортируемые точки, не содержит начала координат. Переместить бокс?</translation>
+    </message>
+    <message>
+      <location filename="../../Command.cpp" line="224"/>
       <source>Distance</source>
       <translation>Расстояние</translation>
     </message>
     <message>
-      <location filename="../../Command.cpp" line="228"/>
+      <location filename="../../Command.cpp" line="225"/>
       <source>Enter maximum distance:</source>
       <translation>Введите максимальное расстояние:</translation>
     </message>
@@ -316,14 +291,22 @@
   <context>
     <name>Workbench</name>
     <message>
-      <location filename="../../Workbench.cpp" line="34"/>
-      <source>Points tools</source>
-      <translation>Инструменты для точек</translation>
+      <location filename="../../Workbench.cpp" line="35"/>
+      <source>Points Tools</source>
+      <translation>Инструменты работы с точками</translation>
     </message>
     <message>
-      <location filename="../../Workbench.cpp" line="35"/>
+      <location filename="../../Workbench.cpp" line="36"/>
       <source>&amp;Points</source>
       <translation>&amp;Точки</translation>
+    </message>
+  </context>
+  <context>
+    <name>FileFormat</name>
+    <message>
+      <location filename="../../../Init.py" line="35"/>
+      <source>Point formats</source>
+      <translation>Форматы точек</translation>
     </message>
   </context>
 </TS>

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2016 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,23 +22,20 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
-#ifndef _PreComp_
 # include <algorithm>
 # include <limits>
 # include <sstream>
 #include <Bnd_Box.hxx>
 #include <BRep_Tool.hxx>
 #include <BRepAdaptor_Curve.hxx>
-#include <BOPAlgo_Builder.hxx>
-#include <BRepAlgoAPI_Common.hxx>
-#include <BRepAlgoAPI_Fuse.hxx>
+#include <Mod/Part/App/FCBRepAlgoAPI_Common.h>
+#include <Mod/Part/App/FCBRepAlgoAPI_Fuse.h>
 #include <BRepBndLib.hxx>
 #include <BRepBuilderAPI_Copy.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
-#include <BRepLProp_CurveTool.hxx>
 #include <Geom_Curve.hxx>
+#include <GeomAPI_ProjectPointOnCurve.hxx>
 #include <GeomLib_Tool.hxx>
 #include <gp_Ax2.hxx>
 #include <gp_Pnt.hxx>
@@ -44,7 +43,8 @@
 #include <TopExp_Explorer.hxx>
 #include <TopoDS.hxx>
 #include <TopoDS_Shape.hxx>
-#endif
+
+#include <BOPAlgo_Builder.hxx>
 
 #include <Base/Console.h>
 #include <Base/Parameter.h>
@@ -82,7 +82,6 @@ std::vector<TopoDS_Edge> DrawProjectSplit::getEdgesForWalker(TopoDS_Shape shape,
     BRepBuilderAPI_Copy BuilderCopy(shape);
     TopoDS_Shape copyShape = BuilderCopy.Shape();
 
-    gp_Pnt inputCenter(0, 0, 0);
     TopoDS_Shape scaledShape;
     scaledShape = ShapeUtils::scaleShape(copyShape,
                                        scale);
@@ -98,7 +97,7 @@ std::vector<TopoDS_Edge> DrawProjectSplit::getEdgesForWalker(TopoDS_Shape shape,
         if (!DrawUtil::isZeroEdge(e, 2.0 * EWTOLERANCE)) {
             nonZero.push_back(e);
         } else {
-            Base::Console().Message("DPS::getEdgesForWalker found ZeroEdge!\n");
+            Base::Console().message("DPS::getEdgesForWalker found ZeroEdge!\n");
         }
     }
 
@@ -140,7 +139,7 @@ bool DrawProjectSplit::isOnEdge(TopoDS_Edge e, TopoDS_Vertex v, double& param, b
 
     double dist = DrawUtil::simpleMinDist(v, e);
     if (dist < 0.0) {
-        Base::Console().Error("DPS::isOnEdge - simpleMinDist failed: %.3f\n", dist);
+        Base::Console().error("DPS::isOnEdge - simpleMinDist failed: %.3f\n", dist);
         return false;
     } else if (dist < Precision::Confusion()) {
         const gp_Pnt pt = BRep_Tool::Pnt(v);                         //have to duplicate method 3 to get param
@@ -218,11 +217,11 @@ std::vector<TopoDS_Edge> DrawProjectSplit::split1Edge(TopoDS_Edge e, std::vector
 
     BRepAdaptor_Curve adapt(e);
     Handle(Geom_Curve) c = adapt.Curve().Curve();
-    double first = BRepLProp_CurveTool::FirstParameter(adapt);
-    double last = BRepLProp_CurveTool::LastParameter(adapt);
+    double first = adapt.FirstParameter();
+    double last = adapt.LastParameter();
     if (first > last) {
         //TODO parms.reverse();
-        Base::Console().Message("DPS::split1Edge - edge is backwards!\n");
+        Base::Console().message("DPS::split1Edge - edge is backwards!\n");
         return result;
     }
     std::vector<double> parms;
@@ -245,7 +244,7 @@ std::vector<TopoDS_Edge> DrawProjectSplit::split1Edge(TopoDS_Edge e, std::vector
             }
         }
         catch (Standard_Failure&) {
-            Base::Console().Message("DPS::split1Edge failed building edge segment\n");
+            Base::Console().message("DPS::split1Edge failed building edge segment\n");
         }
     }
     return result;
@@ -322,7 +321,7 @@ std::vector<TopoDS_Edge> DrawProjectSplit::removeDuplicateEdges(std::vector<Topo
         if (e.idx < inEdges.size()) {
             result.push_back(inEdges.at(e.idx));
         } else {
-            Base::Console().Message("ERROR - DPS::removeDuplicateEdges - access: %d inEdges: %d\n", e.idx, inEdges.size());
+            Base::Console().message("ERROR - DPS::removeDuplicateEdges - access: %d inEdges: %d\n", e.idx, inEdges.size());
             //TODO: throw index error
         }
     }
@@ -345,10 +344,12 @@ std::vector<edgeSortItem> DrawProjectSplit::sortEdges(std::vector<edgeSortItem>&
 //*************************
 std::string edgeSortItem::dump()
 {
+    using std::numbers::pi;
+
     std::string result;
     std::stringstream builder;
     builder << "edgeSortItem - s: " << DrawUtil::formatVector(start)  << " e: " << DrawUtil::formatVector(end) <<
-                              " sa: " << startAngle * 180.0/M_PI << " ea: " << endAngle* 180.0/M_PI << " idx: " << idx;
+                              " sa: " << startAngle * 180.0/pi << " ea: " << endAngle* 180.0/pi << " idx: " << idx;
     return builder.str();
 }
 
@@ -399,7 +400,7 @@ std::string edgeSortItem::dump()
 std::vector<TopoDS_Edge> DrawProjectSplit::scrubEdges(const std::vector<TechDraw::BaseGeomPtr>& origEdges,
                                                       std::vector<TopoDS_Edge> &closedEdges)
 {
-//    Base::Console().Message("DPS::scrubEdges() - BaseGeom in: %d\n", origEdges.size());
+//    Base::Console().message("DPS::scrubEdges() - BaseGeom in: %d\n", origEdges.size());
     //make a copy of the input edges so the loose tolerances of face finding are
     //not applied to the real edge geometry.  See TopoDS_Shape::TShape().
     std::vector<TopoDS_Edge> copyEdges;
@@ -418,7 +419,7 @@ std::vector<TopoDS_Edge> DrawProjectSplit::scrubEdges(const std::vector<TechDraw
 std::vector<TopoDS_Edge> DrawProjectSplit::scrubEdges(std::vector<TopoDS_Edge>& origEdges,
                                                       std::vector<TopoDS_Edge> &closedEdges)
 {
-//    Base::Console().Message("DPS::scrubEdges() - TopoDS_Edges in: %d\n", origEdges.size());
+//    Base::Console().message("DPS::scrubEdges() - TopoDS_Edges in: %d\n", origEdges.size());
     std::vector<TopoDS_Edge> openEdges;
 
     // We must have at least 2 edges to perform the General Fuse operation
@@ -426,7 +427,7 @@ std::vector<TopoDS_Edge> DrawProjectSplit::scrubEdges(std::vector<TopoDS_Edge>& 
         if (origEdges.empty()) {
             //how did this happen? if Scale is zero, all the edges will be zero length,
             //but Scale property has constraint, so this shouldn't happen!
-            //Base::Console().Message("DPS::scrubEdges(2) - origEdges is empty\n");
+            //Base::Console().message("DPS::scrubEdges(2) - origEdges is empty\n");
         }
         else {
             TopoDS_Edge &edge = origEdges.front();
@@ -464,7 +465,7 @@ std::vector<TopoDS_Edge> DrawProjectSplit::scrubEdges(std::vector<TopoDS_Edge>& 
         Standard_SStream errorStream;
         bopBuilder.DumpErrors(errorStream);
         const std::string &errorStr = errorStream.str();
-        Base::Console().Error("DrawProjectSplit::scrubEdges - OCC fuse failed with error(s):\n%s\n", errorStr.c_str());
+        Base::Console().error("DrawProjectSplit::scrubEdges - OCC fuse failed with error(s):\n%s\n", errorStr.c_str());
         return std::vector<TopoDS_Edge>();
     }
 
@@ -472,7 +473,7 @@ std::vector<TopoDS_Edge> DrawProjectSplit::scrubEdges(std::vector<TopoDS_Edge>& 
         Standard_SStream warnStream;
         bopBuilder.DumpWarnings(warnStream);
         const std::string &warnStr = warnStream.str();
-        Base::Console().Warning("DrawProjectSplit::scrubEdges - OCC fuse raised warning(s):\n%s\n", warnStr.c_str());
+        Base::Console().warning("DrawProjectSplit::scrubEdges - OCC fuse raised warning(s):\n%s\n", warnStr.c_str());
     }
 
     const TopoDS_Shape &bopResult = bopBuilder.Shape();
@@ -527,7 +528,7 @@ vertexMap DrawProjectSplit::getUniqueVertexes(std::vector<TopoDS_Edge> inEdges)
 std::vector<TopoDS_Edge> DrawProjectSplit::pruneUnconnected(vertexMap verts,
                                                             std::vector<TopoDS_Edge> edges)
 {
-//    Base::Console().Message("DPS::pruneUnconnected() - edges in: %d\n", edges.size());
+//    Base::Console().message("DPS::pruneUnconnected() - edges in: %d\n", edges.size());
     //check if edge ends are used at least twice => edge is joined to another edge
     std::vector<TopoDS_Edge> newPile;
     std::vector<TopoDS_Edge> deadEnds;
@@ -587,7 +588,7 @@ bool DrawProjectSplit::sameEndPoints(const TopoDS_Edge &e1, const TopoDS_Edge &e
 //eliminate edges that overlap another edge
 std::vector<TopoDS_Edge> DrawProjectSplit::removeOverlapEdges(const std::vector<TopoDS_Edge> &inEdges)
 {
-//    Base::Console().Message("DPS::removeOverlapEdges() - %d edges in\n", inEdges.size());
+//    Base::Console().message("DPS::removeOverlapEdges() - %d edges in\n", inEdges.size());
     std::vector<TopoDS_Edge> outEdges;
     std::vector<TopoDS_Edge> overlapEdges;
     std::vector<bool> skipThisEdge(inEdges.size(), false);
@@ -632,9 +633,44 @@ std::vector<TopoDS_Edge> DrawProjectSplit::removeOverlapEdges(const std::vector<
         outEdges.insert(outEdges.end(), overlapEdges.begin(), overlapEdges.end());
     }
 
-//    Base::Console().Message("DPS::removeOverlapEdges() - %d edges out\n", outEdges.size());
+//    Base::Console().message("DPS::removeOverlapEdges() - %d edges out\n", outEdges.size());
 
     return outEdges;
+}
+
+// Check whether two edges run along the same path by sampling interior points
+// on each curve and projecting them onto the other. Endpoint coincidence alone
+// is unreliable for tightly clustered arcs (e.g. torus projections) where
+// distinct concentric curves share start/end points. Both directions of
+// sampling must agree to declare coincidence.
+bool DrawProjectSplit::curvesCoincide(const TopoDS_Edge& e0,
+                                      const TopoDS_Edge& e1,
+                                      double tol)
+{
+    Standard_Real f0, l0, f1, l1;
+    Handle(Geom_Curve) c0 = BRep_Tool::Curve(e0, f0, l0);
+    Handle(Geom_Curve) c1 = BRep_Tool::Curve(e1, f1, l1);
+    if (c0.IsNull() || c1.IsNull()) {
+        return false;
+    }
+
+    constexpr int kNumSamples = 5;  // 4 interior samples (i = 1..4)
+
+    auto allSamplesOnOther = [tol](const Handle(Geom_Curve)& src, double sf, double sl,
+                                   const Handle(Geom_Curve)& dst, double df, double dl) {
+        for (int i = 1; i < kNumSamples; ++i) {
+            double t = sf + (sl - sf) * static_cast<double>(i) / kNumSamples;
+            gp_Pnt p = src->Value(t);
+            GeomAPI_ProjectPointOnCurve proj(p, dst, df, dl);
+            if (proj.NbPoints() == 0 || proj.LowerDistance() > tol) {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    return allSamplesOnOther(c0, f0, l0, c1, f1, l1)
+        && allSamplesOnOther(c1, f1, l1, c0, f0, l0);
 }
 
 //determine if edge0 & edge1 are superimposed, and classify the type of overlap
@@ -644,8 +680,17 @@ int DrawProjectSplit::isSubset(const TopoDS_Edge &edge0, const TopoDS_Edge &edge
         return NOTASUBSET;      //boxes don't intersect, so edges do not overlap
     }
 
+    // Two edges may have intersecting bounding boxes and even share endpoints
+    // without lying on the same curve (e.g. concentric arcs on a torus
+    // projection). Verify with point sampling before trusting the
+    // tolerance-based OCCT boolean Common operation, which can over-match
+    // grazing arcs and cause legitimate edges to be deleted.
+    if (!curvesCoincide(edge0, edge1, FUZZYADJUST * EWTOLERANCE)) {
+        return NOTASUBSET;
+    }
+
     //bboxes of edges intersect
-    BRepAlgoAPI_Common anOp;
+    FCBRepAlgoAPI_Common anOp;
     anOp.SetFuzzyValue (FUZZYADJUST * EWTOLERANCE);
     TopTools_ListOfShape anArg1, anArg2;
     anArg1.Append (edge0);
@@ -659,7 +704,7 @@ int DrawProjectSplit::isSubset(const TopoDS_Edge &edge0, const TopoDS_Edge &edge
     }
     std::vector<TopoDS_Edge> commonEdgeList;
     TopExp_Explorer edges(aRes, TopAbs_EDGE);
-    for (int i = 1; edges.More(); edges.Next(), i++) {
+    for (; edges.More(); edges.Next()) {
         commonEdgeList.push_back(TopoDS::Edge(edges.Current()));
     }
     if (commonEdgeList.empty()) {
@@ -683,7 +728,7 @@ int DrawProjectSplit::isSubset(const TopoDS_Edge &edge0, const TopoDS_Edge &edge
 std::vector<TopoDS_Edge> DrawProjectSplit::fuseEdges(const TopoDS_Edge &edge0, const TopoDS_Edge &edge1)
 {
     std::vector<TopoDS_Edge> edgeList;
-    BRepAlgoAPI_Fuse anOp;
+    FCBRepAlgoAPI_Fuse anOp;
     anOp.SetFuzzyValue (FUZZYADJUST * EWTOLERANCE);
     TopTools_ListOfShape anArg1, anArg2;
     anArg1.Append (edge0);
@@ -696,7 +741,7 @@ std::vector<TopoDS_Edge> DrawProjectSplit::fuseEdges(const TopoDS_Edge &edge0, c
         return edgeList;     //empty result
     }
     TopExp_Explorer edges(aRes, TopAbs_EDGE);
-    for (int i = 1; edges.More(); edges.Next(), i++) {
+    for (; edges.More(); edges.Next()) {
         edgeList.push_back(TopoDS::Edge(edges.Current()));
     }
     return edgeList;
@@ -718,10 +763,10 @@ bool DrawProjectSplit::boxesIntersect(const TopoDS_Edge &edge0, const TopoDS_Edg
 //this is an aid to debugging and isn't used in normal processing.
 void DrawProjectSplit::dumpVertexMap(vertexMap verts)
 {
-    Base::Console().Message("DPS::dumpVertexMap - %d verts\n", verts.size());
+    Base::Console().message("DPS::dumpVertexMap - %d verts\n", verts.size());
     int iVert = 0;
     for (auto& item : verts) {
-        Base::Console().Message("%d: %s - %d\n",iVert,
+        Base::Console().message("%d: %s - %d\n",iVert,
                                 DrawUtil::formatVector(item.first).c_str(), item.second);
         iVert++;
     }

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2009 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,18 +22,18 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef GUI_TASKVIEW_TaskSketcherConstraints_H
-#define GUI_TASKVIEW_TaskSketcherConstraints_H
+#pragma once
 
 #include <QListWidget>
 
 #include <Base/Parameter.h>
-#include <Gui/Selection.h>
+#include <Gui/Selection/Selection.h>
 #include <Gui/TaskView/TaskView.h>
 #include <Mod/Sketcher/App/Constraint.h>
 
 #include "ConstraintFilters.h"
 
+class ConstraintItem;
 
 namespace App
 {
@@ -68,12 +70,16 @@ Q_SIGNALS:
     void emitCenterSelectedItems();
     void emitHideSelection3DVisibility();
     void emitShowSelection3DVisibility();
+    void emitDeleteAllConstraints();
+    void emitDeleteConstraints(const QList<int>&);
 
 protected Q_SLOTS:
     void modifyCurrentItem();
     void renameCurrentItem();
     void centerSelectedItems();
     void deleteSelectedItems();
+    void deleteAllItems();
+    void deleteFilterItems();
     void doSelectConstraints();
     void updateDrivingStatus();
     void updateActiveStatus();
@@ -103,8 +109,7 @@ protected:
     void languageChange();
 
 private:
-    using filterItemRepr =
-        std::pair<const char*, const int>;  // {filter item text, filter item level}
+    using filterItemRepr = std::pair<const char*, const int>;  // {filter item text, filter item level}
     inline static const std::vector<filterItemRepr> filterItems = {
         {QT_TR_NOOP("All"), 0},
         {QT_TR_NOOP("Geometric"), 0},
@@ -118,6 +123,8 @@ private:
         {QT_TR_NOOP("Equality"), 1},
         {QT_TR_NOOP("Symmetric"), 1},
         {QT_TR_NOOP("Block"), 1},
+        {QT_TR_NOOP("Group"), 1},
+        {QT_TR_NOOP("Text"), 1},
         {QT_TR_NOOP("Internal Alignment"), 1},
         {QT_TR_NOOP("Datums"), 0},
         {QT_TR_NOOP("Horizontal Distance"), 1},
@@ -167,7 +174,9 @@ public:
 private:
     void slotConstraintsChanged();
     bool isConstraintFiltered(QListWidgetItem* item);
-    void change3DViewVisibilityToTrackFilter();
+    void change3DViewVisibilityToTrackFilter(bool filterEnabled);
+    bool doSetVirtualSpace(const std::vector<int>& constrIds, bool isvirtualspace);
+    bool doSetVisible(const std::vector<int>& constrIds, bool isVisible);
     void changeFilteredVisibility(bool show, ActionTarget target = ActionTarget::All);
     void updateSelectionFilter();
     void updateAssociatedConstraintsFilter();
@@ -184,6 +193,8 @@ public:
     void onListWidgetConstraintsEmitCenterSelectedItems();
     void onListWidgetConstraintsEmitShowSelection3DVisibility();
     void onListWidgetConstraintsEmitHideSelection3DVisibility();
+    void onDeleteAllConstraints();
+    void onDeleteConstraints(const QList<int>&);
     void onFilterBoxStateChanged(int val);
     void onShowHideButtonClicked(bool);
     void onSettingsRestrictVisibilityChanged(bool value = false);
@@ -196,27 +207,41 @@ public:
 protected:
     void changeEvent(QEvent* e) override;
     ViewProviderSketch* sketchView;
-    using Connection = boost::signals2::connection;
+    using Connection = fastsignals::connection;
     Connection connectionConstraintsChanged;
 
 private:
     void onChangedSketchView(const Gui::ViewProvider&, const App::Property&);
 
+private Q_SLOTS:
+    void deferredUpdateList();
+
 private:
     QWidget* proxy;
     bool inEditMode;
+    bool updateListPending;
     std::unique_ptr<Ui_TaskSketcherConstraints> ui;
-    ConstraintFilter::FilterValueBitset
-        multiFilterStatus;  // Stores the filters to be aggregated to form the multifilter.
-    std::vector<unsigned int>
-        selectionFilter;  // holds the constraint ids of the selected constraints
-    std::vector<unsigned int>
-        associatedConstraintsFilter;  // holds the constraint ids of the constraints associated with
-                                      // the selected geometry
+    ConstraintFilter::FilterValueBitset multiFilterStatus;  // Stores the filters to be aggregated
+                                                            // to form the multifilter.
+    std::vector<unsigned int> selectionFilter;  // holds the constraint ids of the selected constraints
+    std::vector<unsigned int> associatedConstraintsFilter;  // holds the constraint ids of the
+                                                            // constraints associated with the
+                                                            // selected geometry
     ConstraintFilterList* filterList;
-    boost::signals2::scoped_connection changedSketchView;
+    fastsignals::advanced_scoped_connection changedSketchView;
+
+    // Buffering structures
+    std::unordered_map<int, ConstraintItem*> constraintMap;
+
+    struct PendingSelectionUpdate
+    {
+        ConstraintItem* item;
+        bool select;
+    };
+    std::vector<PendingSelectionUpdate> selectionBuffer;
+    bool selectionUpdateTimerPending = false;
+
+    void processSelectionBuffer();
 };
 
 }  // namespace SketcherGui
-
-#endif  // GUI_TASKVIEW_TASKAPPERANCE_H

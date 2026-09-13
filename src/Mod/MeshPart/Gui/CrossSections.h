@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2019 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef MESHPARTGUI_CROSSSECTIONS_H
-#define MESHPARTGUI_CROSSSECTIONS_H
+#pragma once
 
 #include <QDialog>
 #include <QPointer>
@@ -53,9 +54,11 @@ class CrossSections: public QDialog
     };
 
 public:
-    explicit CrossSections(const Base::BoundBox3d& bb,
-                           QWidget* parent = nullptr,
-                           Qt::WindowFlags fl = Qt::WindowFlags());
+    explicit CrossSections(
+        const Base::BoundBox3d& bb,
+        QWidget* parent = nullptr,
+        Qt::WindowFlags fl = Qt::WindowFlags()
+    );
     ~CrossSections() override;
     void accept() override;
     void apply();
@@ -107,9 +110,6 @@ public:
 
 private:
     CrossSections* widget;
-    Gui::TaskView::TaskBox* taskbox;
 };
 
 }  // namespace MeshPartGui
-
-#endif  // MESHPARTGUI_CROSSSECTIONS_H

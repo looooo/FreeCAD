@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2008 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -21,24 +23,27 @@
  ***************************************************************************/
 
 
-#ifndef PY_GEOMETRYPY_H
-#define PY_GEOMETRYPY_H
+#pragma once
 
 #include <CXX/Extensions.hxx>
 #include <FCGlobal.h>
 
 #include <Base/BoundBoxPy.h>
-#include <Base/Matrix.h>
 #include <Base/MatrixPy.h>
-#include <Base/Rotation.h>
 #include <Base/RotationPy.h>
-#include <Base/Placement.h>
 #include <Base/PlacementPy.h>
-#include <Base/Vector3D.h>
 
 
 namespace Base
 {
+class Matrix4D;
+class Rotation;
+class Placement;
+template<typename T>
+class Vector3;
+using Vector3d = Vector3<double>;
+using Vector3f = Vector3<float>;
+
 template<typename T>
 inline Vector3<T> getVectorFromTuple(PyObject* py)
 {
@@ -278,13 +283,9 @@ private:
 };
 
 // PyCXX wrapper classes Py::Matrix, Py::Rotation, Py::Placement, ...
-using BoundingBox =
-    GeometryT<Base::BoundBox3d, Base::BoundBoxPy, &Base::BoundBoxPy::getBoundBoxPtr>;
+using BoundingBox = GeometryT<Base::BoundBox3d, Base::BoundBoxPy, &Base::BoundBoxPy::getBoundBoxPtr>;
 using Matrix = GeometryT<Base::Matrix4D, Base::MatrixPy, &Base::MatrixPy::getMatrixPtr>;
 using Rotation = GeometryT<Base::Rotation, Base::RotationPy, &Base::RotationPy::getRotationPtr>;
-using Placement =
-    GeometryT<Base::Placement, Base::PlacementPy, &Base::PlacementPy::getPlacementPtr>;
+using Placement = GeometryT<Base::Placement, Base::PlacementPy, &Base::PlacementPy::getPlacementPtr>;
 
 }  // namespace Py
-
-#endif  // PY_GEOMETRYPY_H

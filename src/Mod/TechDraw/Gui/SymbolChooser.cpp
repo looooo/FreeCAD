@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2019 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,10 +22,8 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 # include <QListWidget>
-#endif
+
 
 #include <App/Application.h>
 
@@ -57,8 +57,8 @@ SymbolChooser::~SymbolChooser()
 
 void SymbolChooser::setUiPrimary()
 {
-    // Base::Console().Message("SC::setUiPrimary()\n");
-    setWindowTitle(QObject::tr("Select a symbol"));
+    // Base::Console().message("SC::setUiPrimary()\n");
+    setWindowTitle(QObject::tr("Select a Symbol"));
     resize(QSize(700, 500));
     if (!m_symbolDir.isEmpty()) {
         ui->fcSymbolDir->setFileName(m_symbolDir);
@@ -90,7 +90,7 @@ void SymbolChooser::onOKClicked()
     QString targetText = sourceItem->text();
     m_symbolPath = m_symbolDir +
                    targetText +
-                   QString::fromUtf8(".svg");
+                   QStringLiteral(".svg");
 
     Q_EMIT symbolSelected(m_symbolPath, m_source);
 }
@@ -103,24 +103,24 @@ void SymbolChooser::onCancelClicked()
 void SymbolChooser::onItemClicked(QListWidgetItem* item)
 {
     Q_UNUSED(item);
-    // Base::Console().Message("SCS::onItemClicked(%s)\n", qPrintable(item->text()));
+    // Base::Console().message("SCS::onItemClicked(%s)\n", qPrintable(item->text()));
     // Are item and currentItem() the same? Should use item?
     QListWidgetItem* sourceItem = ui->lwSymbols->currentItem();
     QString targetText = sourceItem->text();
     m_symbolPath = m_symbolDir +
                    targetText +
-                   QString::fromUtf8(".svg");
+                   QStringLiteral(".svg");
     Q_EMIT symbolSelected(m_symbolPath, m_source);
 
-    // Base::Console().Message("SC::onOKClicked - symbol: %s\n", qPrintable(m_symbolPath));
+    // Base::Console().message("SC::onOKClicked - symbol: %s\n", qPrintable(m_symbolPath));
     accept();
 }
 
 void SymbolChooser::onDirectoryChanged(const QString& newDir)
 {
     ui->lwSymbols->clear(); // Remove all previous symbols
-    // Base::Console().Message("SC::onDirectoryChanged(%s)\n", qPrintable(newDir));
-    m_symbolDir = newDir + QString::fromUtf8("/");
+    // Base::Console().message("SC::onDirectoryChanged(%s)\n", qPrintable(newDir));
+    m_symbolDir = newDir + QStringLiteral("/");
     loadSymbolNames(m_symbolDir);
 }
 

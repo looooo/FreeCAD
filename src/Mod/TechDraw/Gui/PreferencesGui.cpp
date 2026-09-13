@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2020 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,19 +22,19 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
-#ifndef _PreComp_
 # include <string>
 # include <QColor>
 # include <QFont>
 # include <QString>
-#endif
+
 
 #include <App/Application.h>
 #include <App/Material.h>
 #include <Base/Console.h>
 #include <Base/Parameter.h>
+#include <Gui/Selection/Selection.h>
+#include <Mod/TechDraw/App/ArrowPropEnum.h>
 #include <Mod/TechDraw/App/Preferences.h>
 #include <Mod/TechDraw/App/LineGenerator.h>
 
@@ -65,45 +67,60 @@ int PreferencesGui::dimFontSizePX()
 
 QColor PreferencesGui::normalQColor()
 {
-    App::Color fcColor = Preferences::normalColor();
+    Base::Color fcColor = Preferences::normalColor();
     return fcColor.asValue<QColor>();
 }
 
 QColor PreferencesGui::selectQColor()
 {
-    App::Color fcColor = Preferences::selectColor();
+    Base::Color fcColor = Preferences::selectColor();
     return fcColor.asValue<QColor>();
 }
 
 QColor PreferencesGui::preselectQColor()
 {
-    App::Color fcColor = Preferences::preselectColor();
+    Base::Color fcColor = Preferences::preselectColor();
     return fcColor.asValue<QColor>();
 }
 
-App::Color PreferencesGui::sectionLineColor()
+Base::Color PreferencesGui::sectionLineColor()
 {
-    App::Color fcColor;
+    Base::Color fcColor;
     fcColor.setPackedValue(Preferences::getPreferenceGroup("Decorations")->GetUnsigned("SectionColor", 0x000000FF));
     return fcColor;
 }
 
 QColor PreferencesGui::sectionLineQColor()
 {
-//if the App::Color version has already lightened the color, we don't want to do it again
-    App::Color fcColor;
+//if the Base::Color version has already lightened the color, we don't want to do it again
+    Base::Color fcColor;
     fcColor.setPackedValue(Preferences::getPreferenceGroup("Decorations")->GetUnsigned("SectionColor", 0x000000FF));
     return fcColor.asValue<QColor>();
 }
 
-App::Color PreferencesGui::centerColor()
+Base::Color PreferencesGui::breaklineColor()
 {
-    return App::Color((uint32_t) Preferences::getPreferenceGroup("Decorations")->GetUnsigned("CenterColor", 0x000000FF));
+    Base::Color fcColor;
+    fcColor.setPackedValue(Preferences::getPreferenceGroup("Decorations")->GetUnsigned("BreakLineColor", 0x000000FF));
+    return fcColor;
+}
+
+QColor PreferencesGui::breaklineQColor()
+{
+//if the Base::Color version has already lightened the color, we don't want to do it again
+    Base::Color fcColor;
+    fcColor.setPackedValue(Preferences::getPreferenceGroup("Decorations")->GetUnsigned("BreakLineColor", 0x000000FF));
+    return fcColor.asValue<QColor>();
+}
+
+Base::Color PreferencesGui::centerColor()
+{
+    return Base::Color((uint32_t) Preferences::getPreferenceGroup("Decorations")->GetUnsigned("CenterColor", 0x000000FF));
 }
 
 QColor PreferencesGui::centerQColor()
 {
-    App::Color fcColor = App::Color((uint32_t) Preferences::getPreferenceGroup("Decorations")->GetUnsigned("CenterColor", 0x000000FF));
+    Base::Color fcColor = Base::Color((uint32_t) Preferences::getPreferenceGroup("Decorations")->GetUnsigned("CenterColor", 0x000000FF));
     return fcColor.asValue<QColor>();
 }
 
@@ -112,37 +129,38 @@ QColor PreferencesGui::vertexQColor()
     return Preferences::vertexColor().asValue<QColor>();
 }
 
-App::Color PreferencesGui::dimColor()
+Base::Color PreferencesGui::dimColor()
 {
-    App::Color fcColor;
+    Base::Color fcColor;
     fcColor.setPackedValue(Preferences::getPreferenceGroup("Dimensions")->GetUnsigned("Color", 0x000000FF));  //#000000 black
     return fcColor;
 }
 
 QColor PreferencesGui::dimQColor()
 {
-    App::Color fcColor;
+    Base::Color fcColor;
     fcColor.setPackedValue(Preferences::getPreferenceGroup("Dimensions")->GetUnsigned("Color", 0x000000FF));  //#000000 black
     return fcColor.asValue<QColor>();
 }
 
-App::Color PreferencesGui::leaderColor()
+Base::Color PreferencesGui::leaderColor()
 {
-    App::Color fcColor;
+    Base::Color fcColor;
     fcColor.setPackedValue(Preferences::getPreferenceGroup("LeaderLine")->GetUnsigned("Color", 0x000000FF));  //#000000 black
     return fcColor;
 }
 
 QColor PreferencesGui::leaderQColor()
 {
-    App::Color fcColor;
+    Base::Color fcColor;
     fcColor.setPackedValue(Preferences::getPreferenceGroup("LeaderLine")->GetUnsigned("Color", 0x000000FF));  //#000000 black
     return fcColor.asValue<QColor>();
 }
 
-int PreferencesGui::dimArrowStyle()
+ArrowType PreferencesGui::dimArrowStyle()
 {
-    return Preferences::getPreferenceGroup("Dimensions")->GetInt("ArrowStyle", 0);
+    int temp = Preferences::getPreferenceGroup("Dimensions")->GetInt("ArrowStyle", 0);
+    return static_cast<ArrowType>(temp);
 }
 
 double PreferencesGui::dimArrowSize()
@@ -156,17 +174,9 @@ double PreferencesGui::edgeFuzz()
     return Preferences::getPreferenceGroup("General")->GetFloat("EdgeFuzz", 10.0);
 }
 
-
-// this is for the iso vs ansi positioning of arrows and text.  rename to sectionLineConvention?
-Qt::PenStyle PreferencesGui::sectionLineStyle()
+double PreferencesGui::markFuzz()
 {
-    Qt::PenStyle sectStyle = static_cast<Qt::PenStyle> (Preferences::getPreferenceGroup("Decorations")->GetInt("SectionLine", 2));
-    return sectStyle;
-}
-
-bool PreferencesGui::sectionLineMarks()
-{
-    return Preferences::getPreferenceGroup("Decorations")->GetBool("SectionLineMarks", true);
+    return Preferences::getPreferenceGroup("General")->GetFloat("MarkFuzz", 5.0);
 }
 
 QString PreferencesGui::weldingDirectory()
@@ -180,22 +190,22 @@ QString PreferencesGui::weldingDirectory()
     QString qSymbolDir = QString::fromUtf8(symbolDir.c_str());
     Base::FileInfo fi(symbolDir);
     if (!fi.isReadable()) {
-        Base::Console().Warning("Welding Directory: %s is not readable\n", symbolDir.c_str());
+        Base::Console().warning("Welding Directory: %s is not readable\n", symbolDir.c_str());
         qSymbolDir = QString::fromUtf8(defaultDir.c_str());
     }
     return qSymbolDir;
 }
 
-App::Color PreferencesGui::gridColor()
+Base::Color PreferencesGui::gridColor()
 {
-    App::Color fcColor;
+    Base::Color fcColor;
     fcColor.setPackedValue(Preferences::getPreferenceGroup("Colors")->GetUnsigned("gridColor", 0x000000FF));  //#000000 black
     return fcColor;
 }
 
 QColor PreferencesGui::gridQColor()
 {
-    App::Color fcColor;
+    Base::Color fcColor;
     fcColor.setPackedValue(Preferences::getPreferenceGroup("Colors")->GetUnsigned("gridColor", 0x000000FF));  //#000000 black
     return fcColor.asValue<QColor>();
 }
@@ -212,12 +222,13 @@ bool PreferencesGui::showGrid()
 
 bool PreferencesGui::multiSelection()
 {
-  return Preferences::getPreferenceGroup("General")->GetBool("multiSelection", false);
+    bool greedy = Gui::Selection().getSelectionStyle() == Gui::SelectionSingleton::SelectionStyle::GreedySelection;
+    return greedy || Preferences::getPreferenceGroup("General")->GetBool("multiSelection", false);
 }
 
-App::Color PreferencesGui::pageColor()
+Base::Color PreferencesGui::pageColor()
 {
-    App::Color result;
+    Base::Color result;
     result.setPackedValue(Preferences::getPreferenceGroup("Colors")->GetUnsigned("PageColor", 0xFFFFFFFF));  //#FFFFFFFF white
     return result;
 }
@@ -288,7 +299,22 @@ double PreferencesGui::templateClickBoxSize()
 
 QColor PreferencesGui::templateClickBoxColor()
 {
-    App::Color fcColor;
+    Base::Color fcColor;
     fcColor.setPackedValue(Preferences::getPreferenceGroup("Colors")->GetUnsigned("TemplateUnderlineColor", 0x0000FFFF));  //#0000FF blue
     return fcColor.asValue<QColor>();
 }
+
+int PreferencesGui::get3dMarkerSize()
+{
+    ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath
+                                ("User parameter:BaseApp/Preferences/View");
+    return hGrp->GetInt("MarkerSize", 9L);
+}
+
+
+ViewFrameMode PreferencesGui::getViewFrameMode()
+{
+    int temp = Preferences::getPreferenceGroup("View")->GetInt("ViewFrameMode", 0);
+    return static_cast<ViewFrameMode>(temp);
+}
+

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2005 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -21,10 +23,9 @@
  ***************************************************************************/
 
 
-#ifndef APP_MATERIAL_H
-#define APP_MATERIAL_H
+#pragma once
 
-#include <App/Color.h>
+#include <Base/Color.h>
 
 namespace App
 {
@@ -34,7 +35,8 @@ namespace App
 class AppExport Material
 {
 public:
-    enum MaterialType {
+    enum MaterialType
+    {
         BRASS,
         BRONZE,
         COPPER,
@@ -66,12 +68,17 @@ public:
     //@{
     /** Sets the USER_DEFINED material type. The user must set the colors afterwards. */
     Material();
-    /** Defines the colors and shininess for the material \a MatName. If \a MatName isn't defined then USER_DEFINED is
-     * set and the user must define the colors itself.
+    ~Material() = default;
+    /** Copy constructor. */
+    Material(const Material& other) = default;
+    Material(Material&& other) = default;
+    /** Defines the colors and shininess for the material \a MatName. If \a MatName isn't defined
+     * then USER_DEFINED is set and the user must define the colors itself.
      */
     explicit Material(const char* MatName);
-    /** Does basically the same as the constructor above unless that it accepts a MaterialType as argument. */
-    explicit Material(const MaterialType MatType);
+    /** Does basically the same as the constructor above unless that it accepts a MaterialType as
+     * argument. */
+    explicit Material(MaterialType MatType);
     //@}
 
     /** Set a material by name
@@ -97,49 +104,67 @@ public:
      *  \li Jade
      *  \li Ruby
      *  \li Emerald
-     * Furthermore there two additional modes \a Default which defines a kind of grey metallic and user defined that
-     * does nothing.
-     * The Color and the other properties of the material are defined in the range [0-1].
-     * If \a MatName is an unknown material name then the type USER_DEFINED is set and the material doesn't get changed.
+     * Furthermore there two additional modes \a Default which defines a kind of grey metallic and
+     * user defined that does nothing. The Base::Color and the other properties of the material are
+     * defined in the range [0-1]. If \a MatName is an unknown material name then the type
+     * USER_DEFINED is set and the material doesn't get changed.
      */
     void set(const char* MatName);
     /**
-     * This method is provided for convenience which does basically the same as the method above unless that it accepts a MaterialType
-     * as argument.
+     * This method is provided for convenience which does basically the same as the method above
+     * unless that it accepts a MaterialType as argument.
      */
-    void setType(const MaterialType MatType);
+    void setType(MaterialType MatType);
     /**
      * Returns the currently set material type.
      */
     MaterialType getType() const
-    { return _matType; }
+    {
+        return _matType;
+    }
 
     /** @name Properties */
     //@{
-    Color ambientColor;  /**< Defines the ambient color. */
-    Color diffuseColor;  /**< Defines the diffuse color. */
-    Color specularColor; /**< Defines the specular color. */
-    Color emissiveColor; /**< Defines the emissive color. */
+    // NOLINTBEGIN
+    Base::Color ambientColor;  /**< Defines the ambient color. */
+    Base::Color diffuseColor;  /**< Defines the diffuse color. */
+    Base::Color specularColor; /**< Defines the specular color. */
+    Base::Color emissiveColor; /**< Defines the emissive color. */
     float shininess;
     float transparency;
+    std::string image;
+    std::string imagePath;
+    std::string uuid;
+    // NOLINTEND
     //@}
 
     bool operator==(const Material& m) const
     {
-        return _matType==m._matType && shininess==m.shininess &&
-            transparency==m.transparency && ambientColor==m.ambientColor &&
-            diffuseColor==m.diffuseColor && specularColor==m.specularColor &&
-            emissiveColor==m.emissiveColor;
+        // clang-format off
+        if (!uuid.empty() && uuid == m.uuid) {
+            return true;
+        }
+        return shininess == m.shininess
+            && transparency == m.transparency
+            && ambientColor == m.ambientColor
+            && diffuseColor == m.diffuseColor
+            && specularColor == m.specularColor
+            && emissiveColor == m.emissiveColor
+            && image == m.image
+            && imagePath == m.imagePath;
+        // clang-format on
     }
     bool operator!=(const Material& m) const
     {
         return !operator==(m);
     }
+    Material& operator=(const Material& other) = default;
+    Material& operator=(Material&& other) = default;
+
+    static Material getDefaultAppearance();
 
 private:
     MaterialType _matType;
 };
 
-} //namespace App
-
-#endif // APP_MATERIAL_H
+}  // namespace App

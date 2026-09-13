@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2010 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TECHDRAW_PropertyCenterLineList_H
-#define TECHDRAW_PropertyCenterLineList_H
+#pragma once
 
 #include <Mod/TechDraw/TechDrawGlobal.h>
 
@@ -78,6 +79,3 @@ private:
 };
 
 } // namespace TechDraw
-
-
-#endif // TECHDRAW_PropertyCenterLineList_H

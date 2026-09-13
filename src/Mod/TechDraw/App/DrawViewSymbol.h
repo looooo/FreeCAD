@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2013 Yorik van Havre <yorik@uncreated.net>              *
  *                                                                         *
@@ -20,8 +22,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DrawViewSymbol_h_
-#define DrawViewSymbol_h_
+#pragma once
 
 #include <QDomDocument>
 
@@ -48,7 +49,9 @@ public:
 
     App::PropertyString       Symbol;
     App::PropertyStringList   EditableTexts;
+    App::PropertyLink         Owner;
 
+    short mustExecute() const override;
     /** @name methods override Feature */
     //@{
     /// recalculate the Feature
@@ -62,8 +65,12 @@ public:
     QRectF getRect() const override;
     bool checkFit(TechDraw::DrawPage* p) const override;
 
+    App::PropertyLink *getOwnerProperty() override { return &Owner; }
+
     //return PyObject as DrawViewSymbolPy
     PyObject *getPyObject() override;
+
+    bool snapsToPosition() const override { return false; }
 
 protected:
     void onChanged(const App::Property* prop) override;
@@ -78,6 +85,3 @@ using DrawViewSymbolPython = App::FeaturePythonT<DrawViewSymbol>;
 
 
 } //namespace TechDraw
-
-
-#endif

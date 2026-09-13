@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2015 Eivind Kvedalen <eivind@kvedalen.name>             *
  *                                                                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include <App/Range.h>
 #include <Base/Reader.h>
@@ -122,12 +123,14 @@ void PropertyRowHeights::Restore(Base::XMLReader& reader)
 
     // Row info
     reader.readElement("RowInfo");
-    Cnt = reader.hasAttribute("Count") ? reader.getAttributeAsInteger("Count") : 0;
+    Cnt = reader.hasAttribute("Count") ? reader.getAttribute<long>("Count") : 0;
     for (int i = 0; i < Cnt; i++) {
         reader.readElement("Row");
-        const char* name = reader.hasAttribute("name") ? reader.getAttribute("name") : nullptr;
-        const char* height =
-            reader.hasAttribute("height") ? reader.getAttribute("height") : nullptr;
+        const char* name = reader.hasAttribute("name") ? reader.getAttribute<const char*>("name")
+                                                       : nullptr;
+        const char* height = reader.hasAttribute("height")
+            ? reader.getAttribute<const char*>("height")
+            : nullptr;
 
         try {
             if (name && height) {

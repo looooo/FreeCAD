@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
+
 /***************************************************************************
  *   Copyright (c) 2022 WandererFan <wandererfan@gmail.com>                *
  *                                                                         *
@@ -20,8 +23,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef TECHDRAWGUI_VIEWPROVIDERTEMPLATEEXTENSION_H
-#define TECHDRAWGUI_VIEWPROVIDERTEMPLATEEXTENSION_H
+#pragma once
 
 #include <Gui/ViewProviderExtension.h>
 #include <Gui/ViewProviderExtensionPython.h>
@@ -56,5 +58,3 @@ using ViewProviderTemplateExtensionPython =
     Gui::ViewProviderExtensionPythonT<TechDrawGui::ViewProviderTemplateExtension>;
 
 }// namespace TechDrawGui
-
-#endif// TECHDRAWGUI_VIEWPROVIDERTEMPLATEEXTENSION_H

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2002 Jürgen Riegel <juergen.riegel@web.de>              *
  *                                                                         *
@@ -20,33 +22,21 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
-#ifndef _PreComp_
 #include "kdl_cp/chainfksolverpos_recursive.hpp"
 #include "kdl_cp/chainiksolverpos_nr_jl.hpp"
 #include "kdl_cp/chainiksolvervel_pinv.hpp"
-#endif
 
 #include <Base/FileInfo.h>
 #include <Base/Reader.h>
 #include <Base/Stream.h>
+#include <Base/Tools.h>
 #include <Base/Writer.h>
 
 #include "Robot6Axis.h"
 #include "RobotAlgos.h"
 
-
-#ifndef M_PI
-#define M_PI 3.14159265358979323846 /* pi */
-#endif
-
-#ifndef M_PI_2
-#define M_PI_2 1.57079632679489661923 /* pi/2 */
-#endif
-
-using namespace Robot;
-using namespace Base;
-using namespace KDL;
+namespace Robot
+{
 
 // clang-format off
 // some default roboter
@@ -65,32 +55,34 @@ AxisDefinition KukaIR500[6] = {
 TYPESYSTEM_SOURCE(Robot::Robot6Axis, Base::Persistence)
 
 Robot6Axis::Robot6Axis()
+    : Actual(KDL::JntArray(6))
+    , Min(KDL::JntArray(6))
+    , Max(KDL::JntArray(6))
 {
-    // create joint array for the min and max angle values of each joint
-    Min = JntArray(6);
-    Max = JntArray(6);
-
-    // Create joint array
-    Actual = JntArray(6);
-
     // set to default kuka 500
     setKinematic(KukaIR500);
 }
 
 void Robot6Axis::setKinematic(const AxisDefinition KinDef[6])
 {
-    Chain temp;
+    KDL::Chain temp;
 
 
     for (int i = 0; i < 6; i++) {
-        temp.addSegment(Segment(Joint(Joint::RotZ),
-                                Frame::DH(KinDef[i].a,
-                                          KinDef[i].alpha * (M_PI / 180),
-                                          KinDef[i].d,
-                                          KinDef[i].theta * (M_PI / 180))));
+        temp.addSegment(
+            KDL::Segment(
+                KDL::Joint(KDL::Joint::RotZ),
+                KDL::Frame::DH(
+                    KinDef[i].a,
+                    Base::toRadians<double>(KinDef[i].alpha),
+                    KinDef[i].d,
+                    Base::toRadians<double>(KinDef[i].theta)
+                )
+            )
+        );
         RotDir[i] = KinDef[i].rotDir;
-        Max(i) = KinDef[i].maxAngle * (M_PI / 180);
-        Min(i) = KinDef[i].minAngle * (M_PI / 180);
+        Max(i) = Base::toRadians<double>(KinDef[i].maxAngle);
+        Min(i) = Base::toRadians<double>(KinDef[i].minAngle);
         Velocity[i] = KinDef[i].velocity;
     }
 
@@ -103,12 +95,12 @@ void Robot6Axis::setKinematic(const AxisDefinition KinDef[6])
 
 double Robot6Axis::getMaxAngle(int Axis)
 {
-    return Max(Axis) * (180.0 / M_PI);
+    return Base::toDegrees<double>(Max(Axis));
 }
 
 double Robot6Axis::getMinAngle(int Axis)
 {
-    return Min(Axis) * (180.0 / M_PI);
+    return Base::toDegrees<double>(Min(Axis));
 }
 
 void split(std::string const& string, const char delimiter, std::vector<std::string>& destination)
@@ -166,7 +158,7 @@ unsigned int Robot6Axis::getMemSize() const
     return 0;
 }
 
-void Robot6Axis::Save(Writer& writer) const
+void Robot6Axis::Save(Base::Writer& writer) const
 {
     for (unsigned int i = 0; i < 6; i++) {
         Base::Placement Tip = toPlacement(Kinematic.getSegment(i).getFrameToTip());
@@ -179,77 +171,88 @@ void Robot6Axis::Save(Writer& writer) const
                         << "Q2=\"" << Tip.getRotation()[2] << "\" "
                         << "Q3=\"" << Tip.getRotation()[3] << "\" "
                         << "rotDir=\"" << RotDir[i] << "\" "
-                        << "maxAngle=\"" << Max(i) * (180.0 / M_PI) << "\" "
-                        << "minAngle=\"" << Min(i) * (180.0 / M_PI) << "\" "
+                        << "maxAngle=\"" << Base::toDegrees<double>(Max(i)) << "\" "
+                        << "minAngle=\"" << Base::toDegrees<double>(Min(i)) << "\" "
                         << "AxisVelocity=\"" << Velocity[i] << "\" "
                         << "Pos=\"" << Actual(i) << "\"/>" << std::endl;
     }
 }
 
-void Robot6Axis::Restore(XMLReader& reader)
+void Robot6Axis::Restore(Base::XMLReader& reader)
 {
-    Chain Temp;
+    KDL::Chain Temp;
     Base::Placement Tip;
 
     for (unsigned int i = 0; i < 6; i++) {
         // read my Element
         reader.readElement("Axis");
         // get the value of the placement
-        Tip = Base::Placement(Base::Vector3d(reader.getAttributeAsFloat("Px"),
-                                             reader.getAttributeAsFloat("Py"),
-                                             reader.getAttributeAsFloat("Pz")),
-                              Base::Rotation(reader.getAttributeAsFloat("Q0"),
-                                             reader.getAttributeAsFloat("Q1"),
-                                             reader.getAttributeAsFloat("Q2"),
-                                             reader.getAttributeAsFloat("Q3")));
-        Temp.addSegment(Segment(Joint(Joint::RotZ), toFrame(Tip)));
+        Tip = Base::Placement(
+            Base::Vector3d(
+                reader.getAttribute<double>("Px"),
+                reader.getAttribute<double>("Py"),
+                reader.getAttribute<double>("Pz")
+            ),
+            Base::Rotation(
+                reader.getAttribute<double>("Q0"),
+                reader.getAttribute<double>("Q1"),
+                reader.getAttribute<double>("Q2"),
+                reader.getAttribute<double>("Q3")
+            )
+        );
+        Temp.addSegment(KDL::Segment(KDL::Joint(KDL::Joint::RotZ), toFrame(Tip)));
 
 
         if (reader.hasAttribute("rotDir")) {
-            Velocity[i] = reader.getAttributeAsFloat("rotDir");
+            Velocity[i] = reader.getAttribute<double>("rotDir");
         }
         else {
             Velocity[i] = 1.0;
         }
         // read the axis constraints
-        Min(i) = reader.getAttributeAsFloat("maxAngle") * (M_PI / 180);
-        Max(i) = reader.getAttributeAsFloat("minAngle") * (M_PI / 180);
+        Min(i) = Base::toRadians<double>(reader.getAttribute<double>("maxAngle"));
+        Max(i) = Base::toRadians<double>(reader.getAttribute<double>("minAngle"));
         if (reader.hasAttribute("AxisVelocity")) {
-            Velocity[i] = reader.getAttributeAsFloat("AxisVelocity");
+            Velocity[i] = reader.getAttribute<double>("AxisVelocity");
         }
         else {
             Velocity[i] = 156.0;
         }
-        Actual(i) = reader.getAttributeAsFloat("Pos");
+        Actual(i) = reader.getAttribute<double>("Pos");
     }
     Kinematic = Temp;
 
     calcTcp();
 }
 
-bool Robot6Axis::setTo(const Placement& To)
+bool Robot6Axis::setTo(const Base::Placement& To)
 {
     // Creation of the solvers:
-    ChainFkSolverPos_recursive fksolver1(Kinematic);  // Forward position solver
-    ChainIkSolverVel_pinv iksolver1v(Kinematic);      // Inverse velocity solver
-    ChainIkSolverPos_NR_JL iksolver1(Kinematic,
-                                     Min,
-                                     Max,
-                                     fksolver1,
-                                     iksolver1v,
-                                     100,
-                                     1e-6);  // Maximum 100 iterations, stop at accuracy 1e-6
+    KDL::ChainFkSolverPos_recursive fksolver1(Kinematic);  // Forward position solver
+    KDL::ChainIkSolverVel_pinv iksolver1v(Kinematic);      // Inverse velocity solver
+    KDL::ChainIkSolverPos_NR_JL iksolver1(
+        Kinematic,
+        Min,
+        Max,
+        fksolver1,
+        iksolver1v,
+        100,
+        1e-6
+    );  // Maximum 100 iterations, stop at accuracy 1e-6
 
     // Creation of jntarrays:
-    JntArray result(Kinematic.getNrOfJoints());
+    KDL::JntArray result(Kinematic.getNrOfJoints());
 
     // Set destination frame
-    Frame F_dest =
-        Frame(KDL::Rotation::Quaternion(To.getRotation()[0],
-                                        To.getRotation()[1],
-                                        To.getRotation()[2],
-                                        To.getRotation()[3]),
-              KDL::Vector(To.getPosition()[0], To.getPosition()[1], To.getPosition()[2]));
+    KDL::Frame F_dest = KDL::Frame(
+        KDL::Rotation::Quaternion(
+            To.getRotation()[0],
+            To.getRotation()[1],
+            To.getRotation()[2],
+            To.getRotation()[3]
+        ),
+        KDL::Vector(To.getPosition()[0], To.getPosition()[1], To.getPosition()[2])
+    );
 
     // solve
     if (iksolver1.CartToJnt(Actual, F_dest, result) < 0) {
@@ -266,14 +269,13 @@ Base::Placement Robot6Axis::getTcp()
 {
     double x, y, z, w;
     Tcp.M.GetQuaternion(x, y, z, w);
-    return Base::Placement(Base::Vector3d(Tcp.p[0], Tcp.p[1], Tcp.p[2]),
-                           Base::Rotation(x, y, z, w));
+    return Base::Placement(Base::Vector3d(Tcp.p[0], Tcp.p[1], Tcp.p[2]), Base::Rotation(x, y, z, w));
 }
 
 bool Robot6Axis::calcTcp()
 {
     // Create solver based on kinematic chain
-    ChainFkSolverPos_recursive fksolver = ChainFkSolverPos_recursive(Kinematic);
+    KDL::ChainFkSolverPos_recursive fksolver = KDL::ChainFkSolverPos_recursive(Kinematic);
 
     // Create the frame that will contain the results
     KDL::Frame cartpos;
@@ -292,11 +294,13 @@ bool Robot6Axis::calcTcp()
 
 bool Robot6Axis::setAxis(int Axis, double Value)
 {
-    Actual(Axis) = RotDir[Axis] * Value * (M_PI / 180);  // degree to radiants
+    Actual(Axis) = RotDir[Axis] * Base::toRadians<double>(Value);
     return calcTcp();
 }
 
 double Robot6Axis::getAxis(int Axis)
 {
-    return RotDir[Axis] * (Actual(Axis) / (M_PI / 180));  // radian to degree
+    return RotDir[Axis] * Base::toDegrees<double>(Actual(Axis));
 }
+
+} /* namespace Robot */

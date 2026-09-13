@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2006 Werner Mayer <wmayer[at]users.sourceforge.net>     *
  *                                                                         *
@@ -21,8 +23,7 @@
  ***************************************************************************/
 
 
-#ifndef APP_DOCUMENTOBJECTGROUP_H
-#define APP_DOCUMENTOBJECTGROUP_H
+#pragma once
 
 #include "DocumentObject.h"
 #include "FeaturePython.h"
@@ -32,7 +33,8 @@
 namespace App
 {
 
-class AppExport DocumentObjectGroup : public DocumentObject, public GroupExtension {
+class AppExport DocumentObjectGroup: public DocumentObject, public GroupExtension
+{
 
     PROPERTY_HEADER_WITH_EXTENSIONS(App::DocumentObjectGroup);
 
@@ -42,17 +44,15 @@ public:
     ~DocumentObjectGroup() override;
 
     /// returns the type name of the ViewProvider
-    const char* getViewProviderName() const override {
+    const char* getViewProviderName() const override
+    {
         return "Gui::ViewProviderDocumentObjectGroup";
     }
 
-    PyObject *getPyObject() override;
+    PyObject* getPyObject() override;
 };
 
 using DocumentObjectGroupPython = App::FeaturePythonT<DocumentObjectGroup>;
 
 
-} //namespace App
-
-
-#endif // APP_DOCUMENTOBJECTGROUP_H
+}  // namespace App

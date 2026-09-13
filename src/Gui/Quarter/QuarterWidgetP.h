@@ -1,5 +1,4 @@
-#ifndef QUARTER_QUARTERWIDGETP_H
-#define QUARTER_QUARTERWIDGETP_H
+#pragma once
 
 /**************************************************************************\
  * Copyright (c) Kongsberg Oil & Gas Technologies AS
@@ -34,10 +33,12 @@
 \**************************************************************************/
 
 #include <Inventor/SbBasic.h>
+#include <QElapsedTimer>
 #include <QList>
 #include <QUrl>
-#include <QtOpenGL.h>
 
+class QOpenGLWidget;
+class QTimer;
 
 class SoNode;
 class SoCamera;
@@ -61,7 +62,7 @@ class ContextMenu;
 class QuarterWidgetP {
 public:
 
-  QuarterWidgetP(class QuarterWidget * master, const QtGLWidget * sharewidget);
+  QuarterWidgetP(class QuarterWidget * master, const QOpenGLWidget * sharewidget);
   ~QuarterWidgetP();
 
   SoCamera * searchForCamera(SoNode * root);
@@ -71,6 +72,12 @@ public:
   QList<QAction *> transparencyTypeActions() const;
   QList<QAction *> renderModeActions() const;
   QList<QAction *> stereoModeActions() const;
+
+  int millisecondsUntilNextFrame() const;
+  void setMaxFrameRate(int fps);
+  void requestRedraw();
+  void issueRedraw();
+  void frameRendered();
 
   QuarterWidget * const master;
   SoNode * scene;
@@ -90,6 +97,17 @@ public:
   bool addactions;
   bool processdelayqueue;
   QUrl navigationModeFile;
+
+  // Frame rate limiting:
+  //   * A negative value uses the refresh rate of the screen the widget is displayed on
+  //   * Zero renders as fast as the driver allows
+  //   * A positive value is an explicit limit in frames per second
+  int maxframerate {-1};
+
+  QTimer * redrawtimer {nullptr};
+  QElapsedTimer timesincelastframe;
+  bool redrawdeferred {false};
+
   SoScXMLStateMachine * currentStateMachine;
   qreal device_pixel_ratio;
 
@@ -109,13 +127,11 @@ public:
   mutable ContextMenu * contextmenu;
 
   static bool nativeEventFilter(void * message, long * result);
-  void replaceGLWidget(const QtGLWidget * newviewport);
+  void replaceGLWidget(const QOpenGLWidget * newviewport);
 
  private:
-  QuarterWidgetP_cachecontext * findCacheContext(QuarterWidget * widget, const QtGLWidget * sharewidget);
-  static void removeFromCacheContext(QuarterWidgetP_cachecontext * context, const QtGLWidget * widget);
+  QuarterWidgetP_cachecontext * findCacheContext(QuarterWidget * widget, const QOpenGLWidget * sharewidget);
+  static void removeFromCacheContext(QuarterWidgetP_cachecontext * context, const QOpenGLWidget * widget);
 };
-
-#endif // QUARTER_QUARTERWIDGETP_H
 
 }}} // namespace

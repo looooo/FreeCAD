@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2021 FreeCAD Developers                                 *
  *   Author: Ajinkya Dahale <dahale.a.p@gmail.com>                         *
@@ -20,7 +22,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "PreCompiled.h"
 
 #include "TaskFemConstraintOnBoundary.h"
 
@@ -30,9 +31,11 @@ using namespace Gui;
 
 /* TRANSLATOR FemGui::TaskFemConstraintOnBoundary */
 
-TaskFemConstraintOnBoundary::TaskFemConstraintOnBoundary(ViewProviderFemConstraint* ConstraintView,
-                                                         QWidget* parent,
-                                                         const char* pixmapname)
+TaskFemConstraintOnBoundary::TaskFemConstraintOnBoundary(
+    ViewProviderFemConstraint* ConstraintView,
+    QWidget* parent,
+    const char* pixmapname
+)
     : TaskFemConstraint(ConstraintView, parent, pixmapname)
     , selChangeMode(SelectionChangeModes::none)
 {
@@ -41,10 +44,12 @@ TaskFemConstraintOnBoundary::TaskFemConstraintOnBoundary(ViewProviderFemConstrai
     buttonGroup = new ButtonGroup(this);
     buttonGroup->setExclusive(true);
 
-    connect(buttonGroup,
-            qOverload<QAbstractButton*, bool>(&QButtonGroup::buttonToggled),
-            this,
-            &TaskFemConstraintOnBoundary::onButtonToggled);
+    connect(
+        buttonGroup,
+        qOverload<QAbstractButton*, bool>(&QButtonGroup::buttonToggled),
+        this,
+        &TaskFemConstraintOnBoundary::onButtonToggled
+    );
 }
 
 TaskFemConstraintOnBoundary::~TaskFemConstraintOnBoundary()

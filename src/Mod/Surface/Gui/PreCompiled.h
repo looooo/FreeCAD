@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+
 /***************************************************************************
  *   Copyright (c) 2014 Nathan Miller <Nathan.A.Mill[at]gmail.com>         *
  *                                                                         *
@@ -20,12 +22,9 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef GUI_PRECOMPILED_H
-#define GUI_PRECOMPILED_H
+#pragma once
 
 #include <FCConfig.h>
-
-#ifdef _PreComp_
 
 // STL
 #include <sstream>
@@ -38,16 +37,15 @@
 #include <QTimer>
 
 // OpenCasCade
+#include <Standard_Version.hxx>
 #include <BRepAdaptor_Curve.hxx>
 #include <GeomAPI_ProjectPointOnCurve.hxx>
 #include <GeomAbs_Shape.hxx>
 #include <TopExp.hxx>
 #include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
 #include <TopTools_IndexedMapOfShape.hxx>
-#include <TopTools_ListIteratorOfListOfShape.hxx>
+#if OCC_VERSION_HEX < 0x080000
+# include <TopTools_ListIteratorOfListOfShape.hxx>
+#endif
 #include <TopoDS_Edge.hxx>
 #include <TopoDS_Shape.hxx>
-
-#endif  //_PreComp_
-
-#endif  // GUI_PRECOMPILED_H
